@@ -1,0 +1,29 @@
+[kspree]
+level = 1
+printpos = 1
+message = ^7[n]^2 is on a ^1killing spree^2 with ^1[k]^2 kills!
+award = 1
+
+[kspree]
+level = 2
+printpos = 1
+message = ^7[n]^2 is on a ^1RAMPAGE^2 with ^1[k]^2 kills!
+award = 1
+
+[kspree]
+level = 3
+printpos = 1
+message = ^7[n]^2 is committing a ^1MASSACRE^2 with ^1[k]^2 kills! Someone stop him!
+award = 1
+
+[kspree]
+level = 4
+printpos = 1
+message = ^7[n]^2 is ^1U N S T O P P A B L E^2 with ^1[k]^2 kills! Run!
+award = 1
+
+[kspree]
+level = 5
+printpos = 1
+message = ^7[n]^2 is the ^1GRIM REAPER^2 with ^1[k]^2 kills! You're gonna need a bigger gun!
+award = 1
