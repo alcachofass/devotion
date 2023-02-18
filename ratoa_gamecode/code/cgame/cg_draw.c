@@ -714,12 +714,16 @@ static void CG_DrawRatStatusBar( void ) {
 	trap_R_SetColor( NULL );
 	switch (team) {
 		case TEAM_BLUE:
-			icon_h = cgs.media.healthIconBlue;
-			icon_a = cgs.media.armorIconBlue;
+			//icon_h = cgs.media.healthIconBlue;
+			//icon_a = cgs.media.armorIconBlue;
+			icon_h = cgs.media.healthIcon;
+			icon_a = cgs.media.armorIcon;
 			break;
 		case TEAM_RED:
-			icon_h = cgs.media.healthIconRed;
-			icon_a = cgs.media.armorIconRed;
+			//icon_h = cgs.media.healthIconRed;
+			//icon_a = cgs.media.armorIconRed;
+			icon_h = cgs.media.healthIcon;
+			icon_a = cgs.media.armorIcon;
 			break;
 		default:
 			icon_h = cgs.media.healthIcon;
@@ -1571,18 +1575,20 @@ static void CG_DrawRatStatusBar4( void ) {
 	trap_R_SetColor( NULL );
 	switch (team) {
 		case TEAM_BLUE:
-			icon_h = cgs.media.healthIconBlue;
-			icon_a = cgs.media.armorIconBlue;
+			//icon_h = cgs.media.healthIconBlue;
+			//icon_a = cgs.media.armorIconBlue;
+			icon_h = cgs.media.healthIcon;
+			icon_a = cgs.media.armorIcon;
 			break;
 		case TEAM_RED:
-			icon_h = cgs.media.healthIconRed;
-			icon_a = cgs.media.armorIconRed;
+			//icon_h = cgs.media.healthIconRed;
+			//icon_a = cgs.media.armorIconRed;
+			icon_h = cgs.media.healthIcon;
+			icon_a = cgs.media.armorIcon;
 			break;
 		default:
-			//icon_h = cgs.media.healthIcon;
-			//icon_a = cgs.media.armorIcon;
-			icon_h = cgs.media.healthIconRed;
-			icon_a = cgs.media.armorIconRed;
+			icon_h = cgs.media.healthIcon;
+			icon_a = cgs.media.armorIcon;
 			break;
 	}
 
@@ -1864,12 +1870,16 @@ static void CG_DrawRatStatusBar3( void ) {
 	trap_R_SetColor( NULL );
 	switch (team) {
 		case TEAM_BLUE:
-			icon_h = cgs.media.healthIconBlue;
-			icon_a = cgs.media.armorIconBlue;
+			//icon_h = cgs.media.healthIconBlue;
+			//icon_a = cgs.media.armorIconBlue;
+			icon_h = cgs.media.healthIcon;
+			icon_a = cgs.media.armorIcon;
 			break;
 		case TEAM_RED:
-			icon_h = cgs.media.healthIconRed;
-			icon_a = cgs.media.armorIconRed;
+			//icon_h = cgs.media.healthIconRed;
+			//icon_a = cgs.media.armorIconRed;
+			icon_h = cgs.media.healthIcon;
+			icon_a = cgs.media.armorIcon;
 			break;
 		default:
 			icon_h = cgs.media.healthIcon;
