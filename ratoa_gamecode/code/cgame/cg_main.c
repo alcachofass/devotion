@@ -2039,12 +2039,12 @@ static void CG_RegisterSounds( void ) {
 
 		cgs.media.flagDroppedSound = trap_S_RegisterSound( "sound/teamplay/flag_dropped.wav", qtrue );
 
-		cgs.media.pingLocationSound = trap_S_RegisterSound( "sound/teamplay/ping-info.ogg", qfalse );
-		//cgs.media.pingLocationLowSound = trap_S_RegisterSound( "sound/teamplay/ping-info-5.ogg", qfalse );
-		cgs.media.pingLocationWarnSound = trap_S_RegisterSound( "sound/teamplay/ping-xbuzz.ogg", qfalse );
-		cgs.media.pingLocationWarnLowSound = trap_S_RegisterSound( "sound/teamplay/ping-xbuzz-10.ogg", qfalse );
+		cgs.media.pingLocationSound = trap_S_RegisterSound( "sound/teamplay/ping-info.wav", qfalse );
+		cgs.media.pingLocationLowSound = trap_S_RegisterSound( "sound/teamplay/ping-info-5.wav", qfalse );
+		cgs.media.pingLocationWarnSound = trap_S_RegisterSound( "sound/teamplay/ping-xbuzz.wav", qfalse );
+		cgs.media.pingLocationWarnLowSound = trap_S_RegisterSound( "sound/teamplay/ping-xbuzz-10.wav", qfalse );
 
-		cgs.media.queueJoinSound = trap_S_RegisterSound( "sound/teamplay/qjoin.ogg", qtrue );
+		cgs.media.queueJoinSound = trap_S_RegisterSound( "sound/teamplay/qjoin.wav", qtrue );
 
 		if ( cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION|| cg_buildScript.integer ) {
 			cgs.media.redFlagReturnedSound = trap_S_RegisterSound( va("sound/%steamplay/voc_red_returned.%s", announcer, format), qtrue );
