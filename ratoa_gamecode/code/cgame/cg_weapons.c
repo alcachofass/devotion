@@ -2398,8 +2398,8 @@ CG_DrawWeaponBar0
 void CG_DrawWeaponBar0(int count, int bits){
 
 	int ammoSaved;
-	int y = 380;
-	int x = 320 - count * 20;
+	int y = 220 - count * 20;
+	int x = 620;
 	int i;
 	int weaponSelect = CG_GetWeaponSelect();
 	
@@ -2417,11 +2417,11 @@ void CG_DrawWeaponBar0(int count, int bits){
 
 		CG_RegisterWeapon( i );
 		// draw weapon icon
-		CG_DrawPic( x, y, 32, 32, cg_weapons[i].weaponIcon );
+		CG_DrawPic( x, y, 16, 16, cg_weapons[i].weaponIcon );
 
 		// draw selection marker
 		if ( i == weaponSelect ) {
-			CG_DrawPic( x-4, y-4, 40, 40, cgs.media.selectShader );
+			CG_DrawPic( x-4, y-4, 24, 24, cgs.media.selectShader );
 		}
 
 		if (cg_predictWeapons.integer) {
@@ -2432,10 +2432,10 @@ void CG_DrawWeaponBar0(int count, int bits){
 
 		// no ammo cross on top
 		if ( !ammoSaved ) {
-			  CG_DrawPic( x, y, 32, 32, cgs.media.noammoShader );
+			  CG_DrawPic( x, y, 16, 16, cgs.media.noammoShader );
 		}
 
-		x += 40;
+		y += 30;
                 //Sago: Undo mad change of weapons
                 if(i==10)
                         i=0;
