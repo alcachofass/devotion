@@ -181,7 +181,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #else
 #define OS_STRING "GNU"
 #endif
-
+#if defined __x86_64__
+#define ARCH_STRING "x86_64"
+#endif
 #define ID_INLINE inline
 
 #define PATH_SEP '/'
