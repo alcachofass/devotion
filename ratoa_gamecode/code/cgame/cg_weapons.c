@@ -4731,9 +4731,9 @@ void CG_MissileHitPlayer( int weapon, vec3_t origin, vec3_t dir, int entityNum,
 	case WP_CHAINGUN:
 	case WP_PROX_LAUNCHER:
 //#endif
+*/
 		CG_MissileHitWall( weapon, 0, origin, dir, IMPACTSOUND_FLESH, missileStatus );
 		break;
-*/
 	default:
 		break;
 	}
