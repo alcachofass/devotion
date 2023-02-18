@@ -1288,7 +1288,7 @@ typedef struct {
 	sfxHandle_t jumpPadSound;
 
 	sfxHandle_t pingLocationSound;
-	//sfxHandle_t pingLocationLowSound;
+	sfxHandle_t pingLocationLowSound;
 	sfxHandle_t pingLocationWarnSound;
 	sfxHandle_t pingLocationWarnLowSound;
 
