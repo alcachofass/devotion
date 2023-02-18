@@ -1954,7 +1954,7 @@ void CG_GetAnnouncer(const char *announcerCfg, char *outAnnouncer, int announcer
 	if (strlen(buf) + 1 > formatsz || strlen(announcerCfg) + 2 > announcersz) {
 		return;
 	}
-
+	/*
 	if (Q_stricmp(buf, "ogg") == 0) {
 		if (!CG_SupportsOggVorbis()) {
 			// use default announcer if there is ogg support
@@ -1966,7 +1966,7 @@ void CG_GetAnnouncer(const char *announcerCfg, char *outAnnouncer, int announcer
 		// if it's something other than ogg or wav, use the default announcer
 		return;
 	}
-
+	*/
 	Q_strncpyz(outformat, buf, formatsz);
 	Q_strncpyz(outAnnouncer, va("%s/", announcerCfg), announcersz);
 }
@@ -1990,10 +1990,11 @@ static void CG_RegisterSounds( void ) {
 #ifdef MISSIONPACK
 	CG_LoadVoiceChats();
 #endif
+	/*
 	if (!CG_SupportsOggVorbis()) {
 		CG_Error( "CG_RegisterSounds(): Engine does not support Ogg Vorbis.");
 	}
-
+	*/
 	CG_GetAnnouncer(cg_announcer.string, announcer, sizeof(announcer),
 			format, sizeof(format));
 
@@ -2365,7 +2366,7 @@ static void CG_RegisterSounds( void ) {
 
 	cgs.media.coinbounceSound = trap_S_RegisterSound("sound/ratoa/coin/coin-hit-b.ogg", qfalse);
 	*/
-	cgs.media.freezeSound = trap_S_RegisterSound("sound/player/freeze.ogg", qfalse);
+	cgs.media.freezeSound = trap_S_RegisterSound("sound/player/freeze.wav", qfalse);
 
 #ifdef MISSIONPACK
 /*

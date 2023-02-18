@@ -507,7 +507,7 @@ int G_FreezeThawSound(void) {
 	if (!g_freeze.integer) {
 		return 0;
 	}
-	return G_SoundIndex("sound/player/melt.ogg");
+	return G_SoundIndex("sound/player/melt.wav");
 }
 
 /*

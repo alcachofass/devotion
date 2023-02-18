@@ -6717,6 +6717,7 @@ void CG_DrawEngineSupport(void) {
 				0);
 		return;
 	}
+	/*
 	if (!CG_SupportsOggVorbis()) {
 		static int drawEngineMessageTime = 0;
 		const char *s = "WARNING: Engine lacks Ogg Vorbis support, some sounds might not play!";
@@ -6739,6 +6740,7 @@ void CG_DrawEngineSupport(void) {
 				char_h,
 				0);
 	}
+	*/
 }
 
 #define HELPMOTDOVERLAY_LINES CONSOLE_MAXHEIGHT
