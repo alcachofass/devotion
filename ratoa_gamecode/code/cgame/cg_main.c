@@ -2422,10 +2422,12 @@ static void CG_RegisterNumbers(void) {
 		"gfx/2d/numbers%s/minus_32b",
 	};
 	char *suffix = "";
+	/*
 	if (cg_ratStatusbar.integer > 2 
 			|| (cg_ratStatusbar.integer > 0 && !cg_ratStatusbarOldNumbers.integer)) {
 		suffix = "_trebfuture";
 	}
+	*/
 	for ( i=0 ; i<11 ; i++) {
 		cgs.media.numberShaders[i] = trap_R_RegisterShader( va(sb_nums[i], suffix));
 	}
@@ -2793,6 +2795,7 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.eaward_medals[EAWARD_VAPORIZED] = trap_R_RegisterShaderNoMip( "medal_vaporized" );
 	cgs.media.eaward_medals[EAWARD_THAWBUDDY] = trap_R_RegisterShaderNoMip( "medal_thawbuddy" );
 	*/
+	/*
 	switch (cg_ratStatusbar.integer) {
 		case 3:
 			CG_Ratstatusbar3RegisterShaders();
@@ -2802,7 +2805,7 @@ static void CG_RegisterGraphics( void ) {
 			CG_Ratstatusbar4RegisterShaders();
 			break;
 	}
-
+	*/
 	cgs.media.weaponSelectShaderTech = trap_R_RegisterShaderNoMip("weapselectTech");
 	cgs.media.weaponSelectShaderTechBorder = trap_R_RegisterShaderNoMip("weapselectTechBorder");
 
