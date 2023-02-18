@@ -6946,6 +6946,7 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 			}
 #else
 			// if (cg_ratStatusbar.integer && cgs.gametype != GT_HARVESTER && cgs.gametype != GT_TREASURE_HUNTER) {
+			/*
 			if (cg_ratStatusbar.integer) {
 				switch (cg_ratStatusbar.integer) {
 					case 4:
@@ -6966,7 +6967,10 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 			} else {
 				CG_DrawStatusBar();
 			}
+			*/
 #endif
+
+			CG_DrawStatusBar();
      			CG_DrawThawing(); 
 
 			CG_DrawAmmoWarning();
