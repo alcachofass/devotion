@@ -28,7 +28,7 @@ GAMECODE_OPTS := WITH_MULTITOURNAMENT=1
 OUTPUT_DIR := build
 PK3_DIR := $(OUTPUT_DIR)/pk3
 
-RATMOD_PK3 = z-ratmod-$(shell cd $(GAMECODE_DIR) && \
+RATMOD_PK3 = devotion-$(shell cd $(GAMECODE_DIR) && \
 		    git describe --tags --abbrev --dirty).pk3
 
 TIMESTAMP = @$(shell cd $(GAMECODE_DIR) && git show -s --format=%ct)
