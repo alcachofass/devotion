@@ -4083,11 +4083,11 @@ static float CG_DrawPowerups( float y ) {
 			if (cg_ratStatusbar.integer >= 4 && cg_ratStatusbar.integer <= 5) {
 				int numDigits, v;
 
-				CG_DrawPic( decor_x,
-					       	y, 
-						CG_HeightToWidth(DPW_DECOR_WIDTH),
-					       	DPW_DECOR_WIDTH, 
-						cgs.media.powerupFrameShader);
+				//CG_DrawPic( decor_x,
+				//	       	y, 
+				//		CG_HeightToWidth(DPW_DECOR_WIDTH),
+				//	       	DPW_DECOR_WIDTH, 
+				//		cgs.media.powerupFrameShader);
 
 				v = sortedTime[ i ] / 1000;
 				numDigits = 1;
