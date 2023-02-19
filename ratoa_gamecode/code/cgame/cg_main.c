@@ -735,7 +735,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 
 	{ &cg_teamChatY, "cg_teamChatY", "350", CVAR_ARCHIVE  },
 
-	{ &cg_newFont ,     "cg_newFont", "1", CVAR_ARCHIVE},
+	{ &cg_newFont ,     "cg_newFont", "0", CVAR_ARCHIVE},
 
 	{ &cg_newConsole ,  "cg_newConsole", "1", CVAR_ARCHIVE},
 
