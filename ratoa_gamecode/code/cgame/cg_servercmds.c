@@ -1082,12 +1082,14 @@ static void CG_ParseTeam( void ) {
 
 static void CG_ParseVoteResult( void ) {
 	const char *r = CG_Argv( 1 );
+	/*
 	if (*r == 'p') {
 		trap_S_StartLocalSound( cgs.media.votePassed, CHAN_ANNOUNCER );
 	} else if (*r == 'f') {
 		trap_S_StartLocalSound( cgs.media.voteFailed, CHAN_ANNOUNCER );
 
 	}
+	*/
 }
 
 /*
@@ -1449,9 +1451,11 @@ static void CG_ConfigStringModified( void ) {
 	} else if ( num == CS_VOTE_TIME ) {
 		cgs.voteTime = atoi( str );
 		cgs.voteModified = qtrue;
+		/*
 		if (cgs.voteTime) {
 			trap_S_StartLocalSound( cgs.media.voteNow, CHAN_ANNOUNCER );
 		}
+		*/
 	} else if ( num == CS_VOTE_YES ) {
 		cgs.voteYes = atoi( str );
 		cgs.voteModified = qtrue;
@@ -1475,7 +1479,7 @@ static void CG_ConfigStringModified( void ) {
 	} else if ( num >= CS_TEAMVOTE_STRING && num <= CS_TEAMVOTE_STRING + 1) {
 		Q_strncpyz( cgs.teamVoteString[num-CS_TEAMVOTE_STRING], str, sizeof( cgs.teamVoteString ) );
 #ifdef MISSIONPACK
-		trap_S_StartLocalSound( cgs.media.voteNow, CHAN_ANNOUNCER );
+		//trap_S_StartLocalSound( cgs.media.voteNow, CHAN_ANNOUNCER );
 #endif	
 	} else if ( num == CS_INTERMISSION ) {
 		cg.intermissionStarted = atoi( str );
@@ -2300,12 +2304,14 @@ static void CG_ServerCommand( void ) {
 #ifdef MISSIONPACK
 		cmd = CG_Argv(1);			// yes, this is obviously a hack, but so is the way we hear about
 									// votes passing or failing
+		/*
 		if ( !Q_stricmp( cmd, "vote failed.\n" ) || !Q_stricmp( cmd, "team vote failed.\n" )) {
 			trap_S_StartLocalSound( cgs.media.voteFailed, CHAN_ANNOUNCER );
 		} else if ( !Q_stricmp( cmd, "vote passed.\n" ) || !Q_stricmp( cmd, "team vote passed.\n" ) ) {
-			trap_S_StartLocalSound( cgs.media.votePassed, CHAN_ANNOUNCER );
+			//trap_S_StartLocalSound( cgs.media.votePassed, CHAN_ANNOUNCER );
 		}
 #endif
+		*/
 		return;
 	}
 
