@@ -363,6 +363,7 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 			trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
 		} else {
 			damage = ps->persistant[PERS_DAMAGE_DONE] - ops->persistant[PERS_DAMAGE_DONE];
+			/*
 			if (damage >= 100) {
 				trap_S_StartLocalSound( cgs.media.hitSound0, CHAN_LOCAL_SOUND );
 			} else if (damage >= 75) {
@@ -372,8 +373,9 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 			} else if (damage >= 25) {
 				trap_S_StartLocalSound( cgs.media.hitSound3, CHAN_LOCAL_SOUND );
 			} else {
-				trap_S_StartLocalSound( cgs.media.hitSound4, CHAN_LOCAL_SOUND );
-			}
+			*/
+				trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
+			//}
 		}
 //#endif
 	} else if ( ps->persistant[PERS_HITS] < ops->persistant[PERS_HITS] ) {
@@ -484,6 +486,7 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 	}
 	
 	// check for powerup pickup
+	/*
 	if ((ps->powerups[PW_QUAD] != ops->powerups[PW_QUAD] && ps->powerups[PW_QUAD])
 			&& cgs.media.announceQuad) {
 		trap_S_StartLocalSound( cgs.media.announceQuad, CHAN_ANNOUNCER );
@@ -508,7 +511,7 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 			&& cgs.media.announceFlight) {
 		trap_S_StartLocalSound( cgs.media.announceFlight, CHAN_ANNOUNCER );
 	}
-
+	*/
 	// lead changes
 	if (!reward) {
 		//

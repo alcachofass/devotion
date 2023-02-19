@@ -1412,6 +1412,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 					trap_S_StartLocalSound(cgs.media.kamikazeFarSound, CHAN_ANNOUNCER);
 					break;
 					*/
+					/*
 				case GTS_ONE_PLAYER_LEFT_RED:
 					if (cgs.clientinfo[cg.clientNum].team == TEAM_RED) {
 						CG_AddBufferedSound( cgs.media.oneFriendLeftSound );
@@ -1436,6 +1437,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 				case GTS_PLAYER_RESPAWNED_RED:
 					trap_S_StartLocalSound(cgs.media.elimPlayerRespawnSound, CHAN_ANNOUNCER);
 					break;
+					*/
 				default:
 					break;
 			}
@@ -1527,11 +1529,12 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		CG_PingLocation(cent);
 		break;
 
+		/*
 	case EV_COIN_BOUNCE:
 		DEBUGNAME("EV_COIN_BOUNCE");
 		trap_S_StartSound (NULL, es->number, CHAN_AUTO, cgs.media.coinbounceSound );
 		break;
-
+		*/
 	case EV_FREEZE:
 		DEBUGNAME("EV_FREEZE");
 		trap_S_StartSound( NULL, es->number, CHAN_BODY, cgs.media.freezeSound );

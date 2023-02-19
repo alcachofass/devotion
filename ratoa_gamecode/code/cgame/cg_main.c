@@ -2072,7 +2072,7 @@ static void CG_RegisterSounds( void ) {
 		// if ( cgs.gametype == GT_1FCTF || cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION ||cg_buildScript.integer ) {
 		if ( cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION ||cg_buildScript.integer ) {
 			cgs.media.youHaveFlagSound = trap_S_RegisterSound( "sound/teamplay/voc_you_flag.wav", qtrue ); //ok
-			cgs.media.holyShitSound = trap_S_RegisterSound(va("sound/feedback/voc_holyshit.wav", qtrue); //ok
+			cgs.media.holyShitSound = trap_S_RegisterSound("sound/feedback/voc_holyshit.wav", qtrue); //ok
 		}
 /*
                 if ( cgs.gametype == GT_OBELISK || cg_buildScript.integer ) {
