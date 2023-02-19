@@ -4375,7 +4375,7 @@ static void CG_DrawLowerRight( void ) {
 	} 
 
 	if (cg_radar.integer == 2) {
-		y = CG_DrawRadar( y );
+		//y = CG_DrawRadar( y );
 	}
 
 	//y = CG_DrawFollow( y );
@@ -7024,7 +7024,7 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 	CG_DrawWarmup();
 
 	if (cg_radar.integer == 1) {
-		CG_DrawRadar(0);
+		//CG_DrawRadar(0);
 	}
 
 	// don't draw center string if scoreboard is up
