@@ -787,7 +787,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_teamLegsColor ,      "cg_teamLegsColor", "", CVAR_ARCHIVE},
 
 	{ &cg_teamHeadColorAuto ,      "cg_teamHeadColorAuto", "0", CVAR_ARCHIVE},
-	{ &cg_enemyHeadColorAuto ,      "cg_enemyHeadColorAuto", "1", CVAR_ARCHIVE},
+	{ &cg_enemyHeadColorAuto ,      "cg_enemyHeadColorAuto", "0", CVAR_ARCHIVE},
 
 	{ &cg_enemyCorpseSaturation ,     "cg_enemyCorpseSaturation", "", CVAR_ARCHIVE},
 	{ &cg_enemyCorpseValue ,          "cg_enemyCorpseValue", "0.2", CVAR_ARCHIVE},
@@ -1149,10 +1149,10 @@ void CG_RatOldCfgUpdate(void) {
 		switch ((int)CG_Cvar_Get("cg_autoHeadColors")) {
 			case 2:
 				CG_Cvar_SetAndUpdate( "cg_teamHeadColorAuto", "0");
-				CG_Cvar_SetAndUpdate( "cg_enemyHeadColorAuto", "1");
+				CG_Cvar_SetAndUpdate( "cg_enemyHeadColorAuto", "0");
 				break;
 			case 3:
-				CG_Cvar_SetAndUpdate( "cg_teamHeadColorAuto", "1");
+				CG_Cvar_SetAndUpdate( "cg_teamHeadColorAuto", "0");
 				CG_Cvar_SetAndUpdate( "cg_enemyHeadColorAuto", "0");
 				break;
 		}
