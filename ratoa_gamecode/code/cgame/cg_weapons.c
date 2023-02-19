@@ -1491,6 +1491,7 @@ void CG_RegisterWeapon( int weaponNum ) {
 		cgs.media.railExplosionShader = trap_R_RegisterShader( "railExplosion" );
 		cgs.media.railRingsShader = trap_R_RegisterShader( "railDisc" );
 		cgs.media.railCoreShader = trap_R_RegisterShader( "railCore" );
+		/*
 		switch (cg_ratRail.integer) {
 			case 4:
 				cgs.media.ratRailCoreShader = trap_R_RegisterShader( "ratRailCoreFat" );
@@ -1516,6 +1517,7 @@ void CG_RegisterWeapon( int weaponNum ) {
 				}
 				break;
 		}
+		*/
 		break;
 
 	case WP_BFG:
