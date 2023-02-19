@@ -2550,6 +2550,70 @@ void Cmd_Drop_f( gentity_t *ent ) {
 
 }
 
+void Cmd_Drop_flag( gentity_t *ent ) {
+	gentity_t *item = NULL;
+	if (level.timeout 
+			|| ent->client->sess.sessionTeam == TEAM_SPECTATOR 
+			|| ent->client->isEliminated) {
+		return;
+	}
+
+	if (g_itemDrop.integer & ITEMDROP_FLAG) {
+		item = DropFlag(ent);
+	}
+	
+	if (item != NULL) {
+		item->dropClientNum = ent->client->ps.clientNum;
+		item->dropPickupTime = level.time + DROP_PICKUPDELAY;
+		item->s.time = item->dropPickupTime; // so client can know about it and avoid predicting pickup
+	}
+
+}
+
+void Cmd_Drop_powerup( gentity_t *ent ) {
+	gentity_t *item = NULL;
+	if (level.timeout 
+			|| ent->client->sess.sessionTeam == TEAM_SPECTATOR 
+			|| ent->client->isEliminated) {
+		return;
+	}
+	if (g_itemDrop.integer & ITEMDROP_POWERUP) {
+		item = DropPowerup(ent);
+	}
+	
+	if (item != NULL) {
+		item->dropClientNum = ent->client->ps.clientNum;
+		item->dropPickupTime = level.time + DROP_PICKUPDELAY;
+		item->s.time = item->dropPickupTime; // so client can know about it and avoid predicting pickup
+	}
+
+}
+
+void Cmd_Drop_weapon( gentity_t *ent ) {
+	gentity_t *item = NULL;
+	if (level.timeout 
+			|| ent->client->sess.sessionTeam == TEAM_SPECTATOR 
+			|| ent->client->isEliminated) {
+		return;
+	}
+	if (!item && g_itemDrop.integer & ITEMDROP_WEAPON
+			&& !(g_instantgib.integer 
+				|| g_rockets.integer 
+				|| ((g_gametype.integer == GT_CTF_ELIMINATION || g_elimination_allgametypes.integer)
+					&& !g_elimination_spawnitems.integer)
+				)
+		  ) {
+		item = DropWeapon(ent);
+	}
+
+	if (item != NULL) {
+		item->dropClientNum = ent->client->ps.clientNum;
+		item->dropPickupTime = level.time + DROP_PICKUPDELAY;
+		item->s.time = item->dropPickupTime; // so client can know about it and avoid predicting pickup
+	}
+
+}
+
 /*
 void Cmd_PlaceToken_f( gentity_t *ent ) {
 	gentity_t *token = NULL;
@@ -4503,6 +4567,9 @@ commands_t cmds[ ] =
   { "gg", 0, Cmd_GoodGame_f },
 
   { "drop", CMD_LIVING, Cmd_Drop_f },
+  { "dropflag", CMD_LIVING, Cmd_Drop_flag },
+  { "droppowerup", CMD_LIVING, Cmd_Drop_powerup },
+  { "dropweapon", CMD_LIVING, Cmd_Drop_weapon },
 
   //{ "placeToken", CMD_LIVING, Cmd_PlaceToken_f },
 

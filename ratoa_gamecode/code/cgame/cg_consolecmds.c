@@ -875,6 +875,9 @@ void CG_InitConsoleCommands( void ) {
 	trap_AddCommand ("teamvote");
 	trap_AddCommand ("rules");
 	trap_AddCommand ("drop");
+	trap_AddCommand ("dropweapon");
+	trap_AddCommand ("droppowerup");
+	trap_AddCommand ("dropflag");
 	trap_AddCommand ("followauto");
 	trap_AddCommand ("stats");
 	trap_AddCommand ("teamtask");
