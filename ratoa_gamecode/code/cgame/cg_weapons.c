@@ -1185,7 +1185,7 @@ static void CG_RocketTrail( centity_t *ent, const weaponInfo_t *wi ) {
 static void CG_PlasmaTrail( centity_t *ent, const weaponInfo_t *wi ) {
 
 	if (cg_ratPlasmaTrail.integer) {
-		CG_RatPlasmaTrail(ent, wi);
+		//CG_RatPlasmaTrail(ent, wi);
 	}
 	// these aren't delagged correctly (yet)
 

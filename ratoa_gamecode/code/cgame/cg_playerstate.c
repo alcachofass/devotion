@@ -343,6 +343,7 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 
 	// hit changes
 	if ( ps->persistant[PERS_HITS] > ops->persistant[PERS_HITS] ) {
+/*
 #ifdef MISSIONPACK
 		armor  = ps->persistant[PERS_ATTACKEE_ARMOR] & 0xff;
 		health = ps->persistant[PERS_ATTACKEE_ARMOR] >> 8;
@@ -354,6 +355,7 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 			trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
 		}
 #else
+*/
 		cg.lastHitTime = cg.time;
 		cg.lastHitDamage = ps->persistant[PERS_DAMAGE_DONE] - ops->persistant[PERS_DAMAGE_DONE];
 
