@@ -5136,13 +5136,6 @@ static void CG_DrawLagometer( void ) {
 	float	ax, ay, aw, ah, mid, range;
 	int		color;
 	float	vscale;
-	float colortable[5][4] = {
-		{ 0.0, 0.8, 1.0, 1.0 },
-		{ 0.0, 0.8, 1.0, LAGOMETER_ALPHA },
-		{ 1.0, 0.9883, 0.193, 1.0 },
-		{ 1.0, 0.9883, 0.193, LAGOMETER_ALPHA },
-		{ 1.0, 0.0, 0.0, LAGOMETER_ALPHA },
-	};
 
 	if ( !cg_lagometer.integer || cgs.localServer ) {
 		CG_DrawDisconnect();
@@ -5152,13 +5145,15 @@ static void CG_DrawLagometer( void ) {
 	//
 	// draw the graph
 	//
+/*
 #ifdef MISSIONPACK
 	x = 640 - 48;
 	y = 480 - 144;
 #else
+*/
 	x = 640 - 48;
 	y = 480 - 48;
-#endif
+//#endif
 
 	trap_R_SetColor( NULL );
 	CG_DrawPic( x, y, 48, 48, cgs.media.lagometerShader );
@@ -5183,8 +5178,7 @@ static void CG_DrawLagometer( void ) {
 		if ( v > 0 ) {
 			if ( color != 1 ) {
 				color = 1;
-				//trap_R_SetColor( g_color_table[ColorIndex(COLOR_YELLOW)] );
-				trap_R_SetColor(colortable[2]);
+				trap_R_SetColor( g_color_table[ColorIndex(COLOR_YELLOW)] );
 			}
 			if ( v > range ) {
 				v = range;
@@ -5193,8 +5187,7 @@ static void CG_DrawLagometer( void ) {
 		} else if ( v < 0 ) {
 			if ( color != 2 ) {
 				color = 2;
-				//trap_R_SetColor( g_color_table[ColorIndex(COLOR_BLUE)] );
-				trap_R_SetColor(colortable[0]);
+				trap_R_SetColor( g_color_table[ColorIndex(COLOR_BLUE)] );
 			}
 			v = -v;
 			if ( v > range ) {
@@ -5215,14 +5208,12 @@ static void CG_DrawLagometer( void ) {
 			if ( lagometer.snapshotFlags[i] & SNAPFLAG_RATE_DELAYED ) {
 				if ( color != 5 ) {
 					color = 5;	// YELLOW for rate delay
-					//trap_R_SetColor( g_color_table[ColorIndex(COLOR_YELLOW)] );
-					trap_R_SetColor(colortable[3]);
+					trap_R_SetColor( g_color_table[ColorIndex(COLOR_YELLOW)] );
 				}
 			} else {
 				if ( color != 3 ) {
 					color = 3;
-					//trap_R_SetColor( g_color_table[ColorIndex(COLOR_GREEN)] );
-					trap_R_SetColor(colortable[1]);
+					trap_R_SetColor( g_color_table[ColorIndex(COLOR_GREEN)] );
 				}
 			}
 			v = v * vscale;
@@ -5233,8 +5224,7 @@ static void CG_DrawLagometer( void ) {
 		} else if ( v < 0 ) {
 			if ( color != 4 ) {
 				color = 4;		// RED for dropped snapshots
-				//trap_R_SetColor( g_color_table[ColorIndex(COLOR_RED)] );
-				trap_R_SetColor(colortable[4]);
+				trap_R_SetColor( g_color_table[ColorIndex(COLOR_RED)] );
 			}
 			trap_R_DrawStretchPic( ax + aw - a, ay + ah - range, 1, range, 0, 0, 0, 0, cgs.media.whiteShader );
 		}
@@ -5248,7 +5238,6 @@ static void CG_DrawLagometer( void ) {
 
 	CG_DrawDisconnect();
 }
-
 
 
 /*
