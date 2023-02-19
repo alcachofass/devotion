@@ -758,7 +758,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 
 	{ &cg_mySound ,     "cg_mySound", "", CVAR_ARCHIVE},
 	{ &cg_teamSound ,   "cg_teamSound", "", CVAR_ARCHIVE},
-	{ &cg_enemySound ,  "cg_enemySound", "tankjr", CVAR_ARCHIVE},
+	{ &cg_enemySound ,  "cg_enemySound", "keel", CVAR_ARCHIVE},
 
 	{ &cg_myFootsteps ,     "cg_myFootsteps", "-1", CVAR_ARCHIVE},
 	{ &cg_teamFootsteps ,   "cg_teamFootsteps", "-1", CVAR_ARCHIVE},
@@ -768,7 +768,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_brightShellAlpha , "cg_brightShellAlpha", "1.0", CVAR_ARCHIVE},
 	{ &cg_brightOutline ,     "cg_brightOutline", "1", CVAR_ARCHIVE},
 
-	{ &cg_enemyModel ,     "cg_enemyModel", "tankjr", CVAR_ARCHIVE},
+	{ &cg_enemyModel ,     "cg_enemyModel", "keel", CVAR_ARCHIVE},
 	{ &cg_teamModel ,      "cg_teamModel", "doom", CVAR_ARCHIVE},
 
 	{ &cg_teamHueBlue ,     "cg_teamHueBlue", "210", CVAR_ARCHIVE},
@@ -1161,15 +1161,15 @@ void CG_RatOldCfgUpdate(void) {
 		switch ((int)CG_Cvar_Get("cg_forceBrightModels")) {
 			case 1:
 				CG_Cvar_SetAndUpdate( "cg_teamModel", "doom");
-				CG_Cvar_SetAndUpdate( "cg_enemyModel","tankjr");
+				CG_Cvar_SetAndUpdate( "cg_enemyModel","keel");
 				break;
 			case 3:
 				CG_Cvar_SetAndUpdate( "cg_teamModel", "doom");
-				CG_Cvar_SetAndUpdate( "cg_enemyModel","tankjr");
+				CG_Cvar_SetAndUpdate( "cg_enemyModel","keel");
 				break;
 			case 2:
 			default:
-				CG_Cvar_SetAndUpdate( "cg_enemyModel","tankjr");
+				CG_Cvar_SetAndUpdate( "cg_enemyModel","keel");
 				CG_Cvar_SetAndUpdate( "cg_teamModel", "doom");
 				break;
 		}
@@ -1400,10 +1400,10 @@ void CG_RatOldCfgUpdate(void) {
 	if (cg_ratInitialized.integer < 29) {
 		CG_Cvar_ResetToDefault("cg_brightShells");
 		CG_Cvar_ResetToDefault("cg_brightShellAlpha");
-		if (!Q_stricmp(cg_enemyModel.string, "tankjr")) {
+		if (!Q_stricmp(cg_enemyModel.string, "keel")) {
 			CG_Cvar_ResetToDefault("cg_enemyModel");
-		} else if (!Q_stricmp(cg_enemyModel.string, "tankjr")) {
-			CG_Cvar_SetAndUpdate("cg_enemyModel", "tankjr");
+		} else if (!Q_stricmp(cg_enemyModel.string, "keel")) {
+			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel");
 		}
 		if (!Q_stricmp(cg_teamModel.string, "doom")) {
 			CG_Cvar_ResetToDefault("cg_teamModel");
