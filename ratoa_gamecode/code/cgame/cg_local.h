@@ -1319,6 +1319,7 @@ typedef struct {
 	sfxHandle_t oneFragSound;
 
 	sfxHandle_t hitSound;
+	/*
 	sfxHandle_t hitSound0;
 	sfxHandle_t hitSound1;
 	sfxHandle_t hitSound2;
@@ -1326,6 +1327,7 @@ typedef struct {
 	sfxHandle_t hitSound4;
 	sfxHandle_t hitSoundHighArmor;
 	sfxHandle_t hitSoundLowArmor;
+	*/
 	sfxHandle_t hitTeamSound;
 	sfxHandle_t accuracySound;
 	sfxHandle_t fragsSound;
@@ -1336,10 +1338,11 @@ typedef struct {
 	sfxHandle_t assistSound;
 	sfxHandle_t defendSound;
 	sfxHandle_t perfectSound;
+	/*
 	sfxHandle_t firstImpressiveSound;
 	sfxHandle_t firstExcellentSound;
 	sfxHandle_t firstHumiliationSound;
-
+	*/
 	//sfxHandle_t eaward_sounds[EAWARD_NUM_AWARDS];
 
 	sfxHandle_t takenLeadSound;
@@ -1357,7 +1360,7 @@ typedef struct {
 	sfxHandle_t flightSound;
 	sfxHandle_t medkitSound;
 
-	sfxHandle_t weaponHoverSound;
+	//sfxHandle_t weaponHoverSound;
 
 	// teamplay sounds
 	sfxHandle_t captureAwardSound;
@@ -1378,21 +1381,21 @@ typedef struct {
 
 	sfxHandle_t redFlagReturnedSound;
 	sfxHandle_t blueFlagReturnedSound;
-	sfxHandle_t neutralFlagReturnedSound;
+	//sfxHandle_t neutralFlagReturnedSound;
 	sfxHandle_t	enemyTookYourFlagSound;
-	sfxHandle_t	enemyTookTheFlagSound;
+	//sfxHandle_t	enemyTookTheFlagSound;
 	sfxHandle_t yourTeamTookEnemyFlagSound;
-	sfxHandle_t yourTeamTookTheFlagSound;
+	//sfxHandle_t yourTeamTookTheFlagSound;
 	sfxHandle_t	youHaveFlagSound;
-	sfxHandle_t yourBaseIsUnderAttackSound;
+	//sfxHandle_t yourBaseIsUnderAttackSound;
 	sfxHandle_t holyShitSound;
 
 	// Elimination / CA / Extermination
 	//sfxHandle_t oneLeftSound;
-	sfxHandle_t oneFriendLeftSound;
-	sfxHandle_t oneEnemyLeftSound;
+	//sfxHandle_t oneFriendLeftSound;
+	//sfxHandle_t oneEnemyLeftSound;
 
-	sfxHandle_t elimPlayerRespawnSound;
+	//sfxHandle_t elimPlayerRespawnSound;
 
 	// tournament sounds
 	sfxHandle_t	count3Sound;
@@ -1416,11 +1419,12 @@ typedef struct {
 	sfxHandle_t	countPrepareTeamSound;
 #endif
 */
+	/*
 	sfxHandle_t ammoregenSound;
 	sfxHandle_t doublerSound;
 	sfxHandle_t guardSound;
 	sfxHandle_t scoutSound;
-
+	*/
 	qhandle_t cursor;
 	qhandle_t selectCursor;
 	qhandle_t sizeCursor;
@@ -1435,7 +1439,7 @@ typedef struct {
 	sfxHandle_t	wstbimpdSound;
 	sfxHandle_t	wstbactvSound;
 
-
+	/*
 	sfxHandle_t	announceQuad;
 	sfxHandle_t	announceBattlesuit;
 	sfxHandle_t	announceHaste;
@@ -1444,6 +1448,7 @@ typedef struct {
 	sfxHandle_t	announceFlight;
 
 	sfxHandle_t	coinbounceSound;
+	*/
 	sfxHandle_t	freezeSound;
 
 } cgMedia_t;
