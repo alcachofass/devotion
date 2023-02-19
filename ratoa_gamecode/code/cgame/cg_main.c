@@ -512,10 +512,10 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_draw2D, "cg_draw2D", "1", CVAR_ARCHIVE  },
 	{ &cg_drawStatus, "cg_drawStatus", "1", CVAR_ARCHIVE  },
 	{ &cg_drawTimer, "cg_drawTimer", "1", CVAR_ARCHIVE  },
-	{ &cg_timerPosition, "cg_timerPosition", "0", CVAR_ARCHIVE  },
+	{ &cg_timerPosition, "cg_timerPosition", "1", CVAR_ARCHIVE  },
 	{ &cg_drawFPS, "cg_drawFPS", "3", CVAR_ARCHIVE  },
 	{ &cg_drawSnapshot, "cg_drawSnapshot", "0", CVAR_ARCHIVE  },
-	{ &cg_draw3dIcons, "cg_draw3dIcons", "1", CVAR_ARCHIVE  },
+	{ &cg_draw3dIcons, "cg_draw3dIcons", "0", CVAR_ARCHIVE  },
 	{ &cg_drawIcons, "cg_drawIcons", "1", CVAR_ARCHIVE  },
 	{ &cg_drawAmmoWarning, "cg_drawAmmoWarning", "1", CVAR_ARCHIVE  },
 	{ &cg_attackerScale, "cg_attackerScale", "0.75", CVAR_ARCHIVE  },
@@ -722,7 +722,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_timerAlpha  ,     "cg_timerAlpha", "1", CVAR_ARCHIVE},
 	{ &cg_fpsAlpha    ,     "cg_fpsAlpha", "0.5", CVAR_ARCHIVE},
 	{ &cg_speedAlpha  ,     "cg_speedAlpha", "0.5", CVAR_ARCHIVE},
-	{ &cg_timerScale ,     "cg_timerScale", "1", CVAR_ARCHIVE},
+	{ &cg_timerScale ,     "cg_timerScale", "2", CVAR_ARCHIVE},
 	{ &cg_fpsScale   ,     "cg_fpsScale", "0.6", CVAR_ARCHIVE},
 	{ &cg_speedScale ,     "cg_speedScale", "0.6", CVAR_ARCHIVE},
 	{ &cg_pickupScale ,     "cg_pickupScale", "0.75", CVAR_ARCHIVE},
@@ -2727,7 +2727,7 @@ static void CG_RegisterGraphics( void ) {
 
 	cgs.media.smoke2 = trap_R_RegisterModel( "models/weapons2/shells/s_shell.md3" );
 
-	cgs.media.balloonShader = trap_R_RegisterShader( "sprites/typing" );
+	cgs.media.balloonShader = trap_R_RegisterShader( "sprites/balloon3" );
 
 	cgs.media.bloodExplosionShader = trap_R_RegisterShader( "bloodExplosion" );
 
