@@ -1,0 +1,225 @@
+// Edited by ZerTerO
+//
+// The Unofficial Patch
+
+//INTRODUCTION
+{
+map		"q3dm0"
+bots		"crash"
+longname	"Introduction"
+special		"Training"
+fraglimit	"5"
+type		"single"
+}
+
+//TIER1
+{
+map		"q3dm1"
+bots		"ranger"
+longname	"Arena Gate"
+fraglimit	"10"
+type		"single ffa team"
+}
+{
+map		"q3dm2"
+bots		"phobos"
+longname	"House Of Pain"
+fraglimit	"10"
+type		"single ffa team"
+}
+{
+map		"q3dm3"
+bots		"mynx orbb"
+longname	"Arena Of Death"
+fraglimit	"15"
+type		"single ffa team"
+}
+{
+map		"q3tourney1"
+bots		"sarge"
+longname	"Powerstation 0218"
+fraglimit	"10"
+type		"single ffa tourney"
+}
+
+//TIER2
+{
+map		"q3dm4"
+bots		"orbb bitterman grunt"
+longname	"The Place Of Many Deaths"
+fraglimit	"20"
+type		"single ffa team"
+}
+{
+map		"q3dm5"
+bots		"hossman daemia"
+longname	"The Forgotten Place"
+fraglimit	"15"
+type		"single ffa team"
+}
+{
+map		"q3dm6"
+bots		"orbb hossman daemia bitterman grunt"
+longname	"The Camping Grounds"
+fraglimit	"20"
+type		"single ffa team"
+}
+{
+map		"q3tourney2"
+bots		"hunter"
+longname	"The Proving Grounds"
+fraglimit	"10"
+type		"single ffa tourney"
+}
+
+//TIER3
+{
+map		"q3dm7"
+bots		"daemia wrack grunt slash"
+longname	"Temple of Retribution"
+fraglimit	"20"
+type		"single ffa team"
+}
+{
+map		"q3dm8"
+bots		"gorre bitterman slash angel"
+longname	"Brimstone Abbey"
+fraglimit	"20"
+type		"single ffa team"
+}
+{
+map		"q3dm9"
+bots		"angel gorre wrack slash"
+longname	"Hero's Keep"
+fraglimit	"20"
+type		"single ffa team"
+}
+{
+map		"q3tourney3"
+bots		"klesk"
+longname	"Hell's Gate"
+fraglimit	"10"
+type		"single ffa tourney"
+}
+
+//TIER4
+{
+map		"q3dm10"
+bots		"angel tankjr wrack"
+longname	"The Nameless Place"
+fraglimit	"20"
+type		"single ffa team"
+}
+{
+map		"q3dm11"
+bots		"lucy biker patriot tankjr"
+longname	"Deva Station"
+fraglimit	"20"
+type		"single ffa team"
+}
+{
+map		"q3dm12"
+bots		"slash gorre lucy biker patriot wrack"
+longname	"The Dredwerkz"
+fraglimit	"20"
+type		"single ffa team"
+}
+{
+map		"q3tourney4"
+bots		"anarki"
+longname	"Vertical Vengeance"
+fraglimit	"10"
+type		"single ffa tourney"
+}
+
+//TIER5
+{
+map		"q3dm13"
+bots		"visor razor stripe"
+longname	"Lost World"
+fraglimit	"20"
+type		"single ffa team"
+}
+{
+map		"q3dm14"
+bots		"visor razor keel stripe"
+longname	"Grim Dungeons"
+fraglimit	"20"
+type		"single ffa team"
+}
+{
+map		"q3dm15"
+bots		"razor keel stripe"
+longname	"Demon Keep"
+fraglimit	"15"
+type		"single ffa team"
+}
+{
+map		"q3tourney5"
+bots		"uriel"
+longname	"Fatal Instinct"
+fraglimit	"10"
+type		"single ffa tourney"
+}
+
+//TIER6
+{
+map		"q3dm16"
+bots		"cadavre bones doom"
+longname	"The Bouncy Map"
+fraglimit	"15"
+type		"single ffa team"
+}
+{
+map		"q3dm17"
+bots		"major sorlag doom"
+longname	"The Longest Yard"
+fraglimit	"20"
+type		"single ffa team"
+}
+{
+map		"q3dm18"
+bots		"major sorlag cadavre bones keel"
+longname	"Space Chamber"
+fraglimit	"20"
+type		"single ffa team"
+}
+{
+map		"q3dm19"
+bots		"sorlag doom cadavre"
+longname	"Apocalypse Void"
+fraglimit	"20"
+type		"single ffa team"
+}
+
+//TIER7
+{
+map		"q3tourney6"
+bots		"xaero"
+longname	"The Very End Of You"
+special		"Final"
+fraglimit	"10"
+type		"single ffa tourney"
+}
+
+//CTF
+{
+map		"q3ctf1"
+longname	"Dueling Keeps"
+type		"ctf"
+}
+{
+map		"q3ctf2"
+longname	"Troubled Waters"
+type		"ctf"
+}
+{
+map		"q3ctf3"
+longname	"The Stronghold"
+type		"ctf"
+}
+{
+map		"q3ctf4"
+longname	"Space CTF"
+type		"ctf"
+}

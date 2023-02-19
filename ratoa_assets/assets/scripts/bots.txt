@@ -1,0 +1,186 @@
+// Edited by ZerTerO
+//
+// The Unofficial Patch
+
+//INTRODUCTION
+{
+name		Crash
+model		crash
+aifile	bots/crash_c.c
+}
+
+//TIER1
+{
+name		Ranger
+model		ranger
+aifile	bots/ranger_c.c
+}
+{
+name		Phobos
+model		doom/phobos
+aifile	bots/phobos_c.c
+}
+{
+name		Mynx
+model		mynx
+aifile	bots/mynx_c.c
+}
+{
+name		Orbb
+model		orbb
+aifile	bots/orbb_c.c
+}
+{
+name		Sarge
+model		sarge
+aifile	bots/sarge_c.c
+arenaLord	1
+}
+
+//TIER2
+{
+name		Bitterman
+model		bitterman
+aifile	bots/bitterman_c.c
+}
+{
+name		Grunt
+model		grunt
+aifile	bots/grunt_c.c
+}
+{
+name		Hossman
+model		biker/hossman
+aifile	bots/hossman_c.c
+}
+{
+name		Daemia
+model		major/daemia
+aifile	bots/daemia_c.c
+}
+{
+name		Hunter
+model		hunter
+aifile	bots/hunter_c.c
+arenaLord	1
+}
+
+//TIER3
+{
+name		Gorre
+model		visor/gorre
+aifile	bots/gorre_c.c
+}
+{
+name		Wrack
+model		ranger/wrack
+aifile	bots/wrack_c.c
+}
+{
+name		Angel
+model		lucy/angel
+aifile	bots/angel_c.c
+}
+{
+name		Slash
+model		slash
+aifile	bots/slash_c.c
+}
+{
+name		Klesk
+model		klesk
+aifile	bots/klesk_c.c
+arenaLord	1
+}
+
+//TIER4
+{
+name		Lucy
+model		lucy
+aifile	bots/lucy_c.c
+}
+{
+name		TankJr
+model		tankjr
+aifile	bots/tankjr_c.c
+}
+{
+name		Biker
+model		biker
+aifile	bots/biker_c.c
+}
+{
+name		Patriot
+model		razor/patriot
+aifile	bots/patriot_c.c
+}
+{
+name		Anarki
+funname		^1A^2n^3a^4r^5k^6i
+model		anarki
+aifile	bots/anarki_c.c
+arenaLord	1
+}
+
+//TIER5
+{
+name		Razor
+model		razor
+aifile	bots/razor_c.c
+}
+{
+name		Visor
+model		visor
+aifile	bots/visor_c.c
+}
+{
+name		Stripe
+model		grunt/stripe
+aifile	bots/stripe_c.c
+}
+{
+name		Keel
+model		keel
+aifile	bots/keel_c.c
+}
+{
+name		Uriel
+model		uriel
+aifile	bots/uriel_c.c
+arenaLord	1
+}
+
+//TIER6
+{
+name		Bones
+model		bones
+aifile	bots/bones_c.c
+}
+{
+name		Cadavre
+model		biker/cadavre
+aifile	bots/cadavre_c.c
+}
+{
+name		Doom
+model		doom
+aifile	bots/doom_c.c
+}
+{
+name		Sorlag
+model		sorlag
+aifile	bots/sorlag_c.c
+}
+{
+name		Major
+model		major
+aifile	bots/major_c.c
+}
+
+//TIER7
+{
+name		Xaero
+model		xaero
+aifile	bots/xaero_c.c
+arenaLord	1
+}

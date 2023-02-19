@@ -1,0 +1,43 @@
+// Edited by ZerTerO
+//
+// The Unofficial Patch
+
+{
+map		"pro-q3tourney2"
+bots		"sarge"
+timelimit	"10"
+longname	"The Proving Grounds II"
+type		"tourney ffa team"
+}
+
+{
+map		"pro-q3tourney4"
+bots		"visor"
+timelimit	"10"
+longname	"Vertical Vengeance II"
+type		"tourney ffa team"
+}
+
+{
+map		"pro-q3tourney7"
+bots		"xaero"
+timelimit	"15"
+longname	"Almost Lost"
+type		"tourney ffa team"
+}
+
+{
+map		"pro-q3dm6"
+bots		"doom"
+timelimit	"10"
+longname	"The Campgrounds II"
+type		"tourney ffa team"
+}
+
+{
+map		"pro-q3dm13"
+bots		"uriel"
+timelimit	"10"
+longname	"Lost World II"
+type		"tourney ffa team"
+}
