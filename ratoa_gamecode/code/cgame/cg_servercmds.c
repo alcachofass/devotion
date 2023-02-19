@@ -2301,10 +2301,10 @@ static void CG_ServerCommand( void ) {
 
 	if ( !strcmp( cmd, "print" ) ) {
 		CG_Printf( "%s", CG_Argv(1) );
+/*
 #ifdef MISSIONPACK
 		cmd = CG_Argv(1);			// yes, this is obviously a hack, but so is the way we hear about
 									// votes passing or failing
-		/*
 		if ( !Q_stricmp( cmd, "vote failed.\n" ) || !Q_stricmp( cmd, "team vote failed.\n" )) {
 			trap_S_StartLocalSound( cgs.media.voteFailed, CHAN_ANNOUNCER );
 		} else if ( !Q_stricmp( cmd, "vote passed.\n" ) || !Q_stricmp( cmd, "team vote passed.\n" ) ) {
