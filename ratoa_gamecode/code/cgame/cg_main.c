@@ -1491,11 +1491,13 @@ void CG_CheckTrackConsent(void)  {
 		// do not display popup if we're just playing locally
 		return;
 	}
+	/*
 	if ((int)CG_Cvar_Get("ui_trackConsentConfigured") != 0) {
 		return;
 	}
 	// ask the player to set cg_trackConsent if it wsn't configured already.
 	trap_SendConsoleCommand("ui_trackconsentmenu\n");
+	*/
 }
 
 /*																																			
