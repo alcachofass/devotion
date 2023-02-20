@@ -3032,10 +3032,10 @@ static void Cmd_Say_f( gentity_t *ent ){
         Cmd_AdminMessage_f( ent );
         return;
     }*/
-
+    /*
     if( trap_Argc( ) < 2 )
         return;
-
+    */
     p = ConcatArgs( 1 );
 
     G_Say( ent, NULL, mode, p );
