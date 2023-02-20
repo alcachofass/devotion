@@ -2502,14 +2502,14 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.noammoShader = trap_R_RegisterShaderNoMip( "icons/noammo" );
 
 	// powerup shaders
-	//cgs.media.quadShader = trap_R_RegisterShader("powerups/ratQuad" );
+	cgs.media.quadShader = trap_R_RegisterShader("powerups/quad" );
 	//cgs.media.quadShaderBase = trap_R_RegisterShader("powerups/ratQuadGreyAlpha" );
 	//cgs.media.quadShaderSpots = trap_R_RegisterShader("powerups/ratQuadSpots" );
 	cgs.media.quadWeaponShader = trap_R_RegisterShader("powerups/quadWeapon" );
 	//cgs.media.battleSuitShader = trap_R_RegisterShader("powerups/ratBattleSuit" );
 	cgs.media.battleWeaponShader = trap_R_RegisterShader("powerups/battleWeapon" );
 	cgs.media.invisShader = trap_R_RegisterShader("powerups/invisibility" );
-	//cgs.media.regenShader = trap_R_RegisterShader("powerups/ratRegen" );
+	cgs.media.regenShader = trap_R_RegisterShader("powerups/regen" );
 	cgs.media.hastePuffShader = trap_R_RegisterShader("hasteSmokePuff" );
 
 	cgs.media.frozenShader = trap_R_RegisterShader("playerIceShell" );
