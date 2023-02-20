@@ -2737,10 +2737,11 @@ void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int te
 		{
 			byte color_bak[4] = {0,0,0,0};
 			float color[4];
-			//if (team == TEAM_RED)
-			//	ent->customShader = cgs.media.redQuadShader;
-			//else
-			//	ent->customShader = cgs.media.quadShader;
+			if (team == TEAM_RED)
+				ent->customShader = cgs.media.redQuadShader;
+			else
+				ent->customShader = cgs.media.quadShader;
+			/*
 			memcpy(color_bak, ent->shaderRGBA, sizeof(color_bak));
 
 			if (cg_quadStyle.integer >= 1 && cg_quadStyle.integer <= 2) {
@@ -2800,6 +2801,8 @@ void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int te
 			}
 
 			memcpy(ent->shaderRGBA, color_bak, sizeof(color_bak));
+			*/
+			trap_R_AddRefEntityToScene( ent );
 		}
 		if ( state->powerups & ( 1 << PW_REGEN ) ) {
 			ent->customShader = cgs.media.regenShader;
