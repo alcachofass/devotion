@@ -42,6 +42,15 @@ const float	pm_airaccelerate = 1.0f;
 const float	pm_duckaccelerate = 10.0f;
 const float	pm_wateraccelerate = 4.0f;
 const float	pm_flyaccelerate = 8.0f;
+const int	pm_jumpvelocity = 270;
+
+const float	pm_ql_accelerate = 10.0f;
+const int	pm_ql_airsteps = 1;
+const int	pm_ql_jumpvelocity = 275;
+const float	pm_ql_jumpvelocityscaleadd = 0.4;
+const float	pm_ql_jumpvelocitytimethreshold = 0.4;
+const float	pm_ql_jumptimedeltamin = 100.0;
+
 
 const float	pm_rat_accelerate = 14.0f;
 const float	pm_rat_airaccelerate = 2.4f;
@@ -679,6 +688,7 @@ static float PM_GetAccelerate(pmove_t *pm) {
 		return pm_cpm_accelerate;
 	case MOVEMENT_RM:
 		return pm_rat_accelerate;
+	case MOVEMENT_QL:
 	default:
 		return pm_accelerate;
 	}
@@ -691,6 +701,7 @@ static float PM_GetAirAccelerate(pmove_t *pm) {
 		return pm_cpm_airaccelerate;
 	case MOVEMENT_RM:
 		return pm_rat_airaccelerate;
+	case MOVEMENT_QL:
 	default:
 		return pm_airaccelerate;
 	}
