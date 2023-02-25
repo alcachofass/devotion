@@ -24,10 +24,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define	MIN_WALK_NORMAL	0.7f		// can't walk on very steep slopes
 
+#define	STEPSIZE		22 // QL stepsize
 #define	STEPSIZE		18
 
 #define JUMP_VELOCITY_SCALE_ADD 0.4
-#define	JUMP_VELOCITY	275+(275*JUMP_VELOCITY_SCALE_ADD)
+//#define	JUMP_VELOCITY	275+(275*JUMP_VELOCITY_SCALE_ADD)
+#define		JUMP_VELOCITY 275
 
 #define	TIMER_LAND		130
 #define	TIMER_GESTURE	(34*66+50)

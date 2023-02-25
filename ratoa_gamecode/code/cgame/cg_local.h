@@ -99,7 +99,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // #endif
 
 #define DEFAULT_FORCED_MODEL		"sarge"
-#define DEFAULT_FORCED_BRIGHT_SKIN	"bright"
+#define DEFAULT_FORCED_BRIGHT_SKIN	"pm"
 
 #define MAX(a,b) (((a) > (b)) ? (a) : (b))
 

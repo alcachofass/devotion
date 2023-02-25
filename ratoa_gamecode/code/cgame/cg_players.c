@@ -388,11 +388,11 @@ static qboolean	CG_FindClientModelFile( char *filename, int length, clientInfo_t
 	while(1) {
 		for ( i = 0; i < 2; i++ ) {
 			if ( i == 0 && teamName && *teamName ) {
-				//								"models/players/characters/sergei/stroggs/lower_lily_red.skin"
+				// "models/players/characters/sergei/stroggs/lower_lily_red.skin"
 				Com_sprintf( filename, length, "models/players/%s%s/%s%s_%s_%s.%s", charactersFolder, modelName, teamName, base, skinName, team, ext );
 			}
 			else {
-				//								"models/players/characters/sergei/lower_lily_red.skin"
+				// "models/players/characters/sergei/lower_lily_red.skin"
 				Com_sprintf( filename, length, "models/players/%s%s/%s_%s_%s.%s", charactersFolder, modelName, base, skinName, team, ext );
 			}
 			if ( CG_FileExists( filename ) ) {
@@ -426,7 +426,7 @@ static qboolean	CG_FindClientModelFile( char *filename, int length, clientInfo_t
 				break;
 			}
 		}
-		// if tried the heads folder first
+	// if tried the heads folder first
 		if ( charactersFolder[0] ) {
 			break;
 		}
@@ -1123,16 +1123,17 @@ void CG_NewClientInfo( int clientNum ) {
 		}
 		// replace "pm" with "bright" models for compatibility with
 		// configs from other mods
+		/*
 		if (strcmp(newInfo.skinName, "pm") == 0) {
 			Q_strncpyz( newInfo.skinName, "bright", sizeof( newInfo.skinName ) );
 		}
-
-		if (!(cgs.ratFlags & RAT_BRIGHTMODEL) && Q_stristr(newInfo.skinName, "bright") != NULL) {
+		*/
+		if (!(cgs.ratFlags & RAT_BRIGHTMODEL) && Q_stristr(newInfo.skinName, "pm") != NULL) {
 			// use default skin (or red/blue) if bright skin is not available
 			Q_strncpyz( newInfo.skinName, "default", sizeof( newInfo.skinName ) );
 		}
 
-		newInfo.forcedBrightModel = (strcmp(newInfo.skinName, "bright") == 0);
+		newInfo.forcedBrightModel = (strcmp(newInfo.skinName, "pm") == 0);
 		newInfo.forcedModel = qtrue;
 	} else if ( cg_forceModel.integer ) {
 		// forcemodel makes everyone use a single model
@@ -1145,8 +1146,8 @@ void CG_NewClientInfo( int clientNum ) {
 			Q_strncpyz( newInfo.skinName, "default", sizeof( newInfo.skinName ) );
 		} else {
 			trap_Cvar_VariableStringBuffer( "model", modelStr, sizeof( modelStr ) );
-			if (!(cgs.ratFlags & RAT_BRIGHTMODEL && cgs.ratFlags & RAT_ALLOWFORCEDMODELS) && Q_stristr(modelStr, "bright") != NULL) {
-				Q_strncpyz(modelStr, "smarine/orange", sizeof(modelStr));
+			if (!(cgs.ratFlags & RAT_BRIGHTMODEL && cgs.ratFlags & RAT_ALLOWFORCEDMODELS) && Q_stristr(modelStr, "pm") != NULL) {
+				Q_strncpyz(modelStr, "keel", sizeof(modelStr));
 			}
 			if ( ( skin = strchr( modelStr, '/' ) ) == NULL) {
 				skin = "default";
@@ -1203,11 +1204,12 @@ void CG_NewClientInfo( int clientNum ) {
 		}
 		// replace "pm" with "bright" models for compatibility with
 		// configs from other mods
+		/*
 		if (strcmp(newInfo.headSkinName, "pm") == 0) {
 			Q_strncpyz( newInfo.headSkinName, "bright", sizeof( newInfo.headSkinName ) );
 		}
-
-		if (!(cgs.ratFlags & RAT_BRIGHTMODEL) && Q_stristr(newInfo.headSkinName, "bright") != NULL) {
+		*/
+		if (!(cgs.ratFlags & RAT_BRIGHTMODEL) && Q_stristr(newInfo.headSkinName, "pm") != NULL) {
 			// use default skin (or red/blue) if bright skin is not available
 			Q_strncpyz( newInfo.headSkinName, "default", sizeof( newInfo.headSkinName ) );
 		}
@@ -1225,8 +1227,8 @@ void CG_NewClientInfo( int clientNum ) {
 			Q_strncpyz( newInfo.headSkinName, "default", sizeof( newInfo.headSkinName ) );
 		} else {
 			trap_Cvar_VariableStringBuffer( "headmodel", modelStr, sizeof( modelStr ) );
-			if (!(cgs.ratFlags & RAT_BRIGHTMODEL && cgs.ratFlags & RAT_ALLOWFORCEDMODELS) && Q_stristr(modelStr, "bright") != NULL) {
-				Q_strncpyz(modelStr, "smarine/orange", sizeof(modelStr));
+			if (!(cgs.ratFlags & RAT_BRIGHTMODEL && cgs.ratFlags & RAT_ALLOWFORCEDMODELS) && Q_stristr(modelStr, "pm") != NULL) {
+				Q_strncpyz(modelStr, "keel", sizeof(modelStr));
 			}
 			if ( ( skin = strchr( modelStr, '/' ) ) == NULL) {
 				skin = "default";
