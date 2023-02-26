@@ -4737,7 +4737,7 @@ static void CG_DrawHoldableItem( void ) {
 	value = cg.snap->ps.stats[STAT_HOLDABLE_ITEM];
 	if ( value ) {
 		CG_RegisterItemVisuals( value );
-		CG_DrawPic( 640-CG_HeightToWidth(ICON_SIZE), (SCREEN_HEIGHT-ICON_SIZE)/2, CG_HeightToWidth(ICON_SIZE), ICON_SIZE, cg_items[ value ].icon );
+		CG_DrawPic( CG_HeightToWidth(ICON_SIZE) - 48, (SCREEN_HEIGHT-ICON_SIZE)/2, CG_HeightToWidth(ICON_SIZE)/2, ICON_SIZE/2, cg_items[ value ].icon );
 	}
 
 }
