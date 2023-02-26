@@ -1377,8 +1377,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 				case GTS_BLUE_DROPPED: 
 				case GTS_RED_DROPPED: 
 				case GTS_NEUTRAL_DROPPED: 
-					//CG_AddBufferedSound( cgs.media.flagDroppedSound );
-					//trap_S_StartLocalSound(cgs.media.flagDroppedSound, CHAN_ANNOUNCER);
+					CG_AddBufferedSound( cgs.media.flagDroppedSound );
+					trap_S_StartLocalSound(cgs.media.flagDroppedSound, CHAN_ANNOUNCER);
 					break;
 					/*
 				case GTS_REDOBELISK_ATTACKED: // Overload: red obelisk is being attacked
