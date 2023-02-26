@@ -764,9 +764,9 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_teamFootsteps ,   "cg_teamFootsteps", "-1", CVAR_ARCHIVE},
 	{ &cg_enemyFootsteps ,  "cg_enemyFootsteps", "-1", CVAR_ARCHIVE},
 
-	{ &cg_brightShells ,     "cg_brightShells", "1", CVAR_ARCHIVE},
+	{ &cg_brightShells ,     "cg_brightShells", "2", CVAR_ARCHIVE},
 	{ &cg_brightShellAlpha , "cg_brightShellAlpha", "1.0", CVAR_ARCHIVE},
-	{ &cg_brightOutline ,     "cg_brightOutline", "1", CVAR_ARCHIVE},
+	{ &cg_brightOutline ,     "cg_brightOutline", "0", CVAR_ARCHIVE},
 
 	{ &cg_enemyModel ,     "cg_enemyModel", "keel", CVAR_ARCHIVE},
 	{ &cg_teamModel ,      "cg_teamModel", "doom", CVAR_ARCHIVE},
