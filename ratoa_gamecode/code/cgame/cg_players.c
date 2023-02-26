@@ -1147,7 +1147,7 @@ void CG_NewClientInfo( int clientNum ) {
 		} else {
 			trap_Cvar_VariableStringBuffer( "model", modelStr, sizeof( modelStr ) );
 			if (!(cgs.ratFlags & RAT_BRIGHTMODEL && cgs.ratFlags & RAT_ALLOWFORCEDMODELS) && Q_stristr(modelStr, "pm") != NULL) {
-				Q_strncpyz(modelStr, "keel", sizeof(modelStr));
+				Q_strncpyz(modelStr, "keel/default", sizeof(modelStr));
 			}
 			if ( ( skin = strchr( modelStr, '/' ) ) == NULL) {
 				skin = "default";
@@ -1228,7 +1228,7 @@ void CG_NewClientInfo( int clientNum ) {
 		} else {
 			trap_Cvar_VariableStringBuffer( "headmodel", modelStr, sizeof( modelStr ) );
 			if (!(cgs.ratFlags & RAT_BRIGHTMODEL && cgs.ratFlags & RAT_ALLOWFORCEDMODELS) && Q_stristr(modelStr, "pm") != NULL) {
-				Q_strncpyz(modelStr, "keel", sizeof(modelStr));
+				Q_strncpyz(modelStr, "keel/default", sizeof(modelStr));
 			}
 			if ( ( skin = strchr( modelStr, '/' ) ) == NULL) {
 				skin = "default";
