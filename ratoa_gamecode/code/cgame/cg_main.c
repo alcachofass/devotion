@@ -1611,8 +1611,8 @@ void CG_UpdateCvars( void ) {
 		if ( cv->vmCvar == &cg_cmdTimeNudge ) {
 			CG_Cvar_ClampInt( cv->cvarName, cv->vmCvar, 0, 999 );
 		}
-		// cl_timenudge less than -50 or greater than 50 doesn't actually
-		// do anything more than -50 or 50 (actually the numbers are probably
+		// cl_timenudge less than -30 or greater than 50 doesn't actually
+		// do anything more than -30 or 50 (actually the numbers are probably
 		// closer to -30 and 30, but 50 is nice and round-ish)
 		// might as well not feed the myth, eh?
 		else if ( cv->vmCvar == &cl_timeNudge ) {
@@ -1626,7 +1626,7 @@ void CG_UpdateCvars( void ) {
 					trap_Cvar_Set( cv->cvarName, cv->vmCvar->string );
 				}
 			} else {
-				CG_Cvar_ClampInt( cv->cvarName, cv->vmCvar, -50, 50 );
+				CG_Cvar_ClampInt( cv->cvarName, cv->vmCvar, -30, 50 );
 			}
 		}
 		// don't let this go too high - no point
