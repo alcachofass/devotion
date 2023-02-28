@@ -3566,18 +3566,12 @@ static void CG_DrawUpperRight(stereoFrame_t stereoFrame)
 		/*if (cgs.clientinfo[ cg.clientNum ].isDead)
 			y = CG_DrawEliminationDeathMessage( y);*/
 	}
-/*
-	if (cgs.gametype==GT_TREASURE_HUNTER) {
-		y = CG_DrawTreasureHuntTimer( y );
-	}
-*/
-	//y = CG_DrawFollowMessage( y );
 	
 	if ( cg_drawSpeed.integer ) {
 		y = CG_DrawSpeedMeter( y );
 	}
 
-	if ( cg_drawTimer.integer) {
+	if ( cg_drawTimer.integer <= 2 && cg_drawTimer.integer ) {
 		y = CG_DrawTimer( y );
 	}
 	if ( cg_drawPickup.integer == 1) {
