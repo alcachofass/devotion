@@ -3548,10 +3548,6 @@ static void CG_DrawUpperRight(stereoFrame_t stereoFrame)
 	if ( CG_IsTeamGametype() && cg_drawTeamOverlay.integer == 1 ) {
 		y = CG_DrawTeamOverlay( y, qtrue, qtrue );
 	}
-	/*if ( cgs.gametype == GT_DOUBLE_D ) {
-		y = CG_DrawDoubleDominationThings(y);
-	} 
-	else*/
 	if ( cgs.gametype == GT_LMS && cg.showScores ) {
 		y = CG_DrawLMSmode(y);
 	}
@@ -3559,11 +3555,6 @@ static void CG_DrawUpperRight(stereoFrame_t stereoFrame)
 	if ( cgs.gametype == GT_CTF_ELIMINATION ) {
 		y = CG_DrawCTFoneway(y);
 	}
-	/* else
-	if ( cgs.gametype == GT_DOMINATION ) {
-		y = CG_DrawDomStatus(y);
-	}*/
-	
 	if ( cg_drawSnapshot.integer ) {
 		y = CG_DrawSnapshot( y );
 	}
@@ -3613,181 +3604,6 @@ int CG_GetScoresMtrn(int scoreNum) {
 	}
 }
 #endif
-
-/*
-===========================================================================================
-
-  LOWER RIGHT CORNER
-
-===========================================================================================
-*/
-
-//static float CG_DrawScores( float y ) {
-//	const char	*s;
-//	int			s1, s2, score;
-//	float			x, w;
-//	int			v;
-//	float		y1;
-//	gitem_t		*item;
-//        int statusA,statusB;
-//        
-//        statusA = cgs.redflag;
-//        statusB = cgs.blueflag;
-//
-//	s1 = cgs.scores1;
-//	s2 = cgs.scores2;
-//
-//	y -=  BIGCHAR_HEIGHT + 8;
-//
-//	y1 = y;
-//
-//	// draw from the right side to left
-//	if (CG_IsTeamGametype()) {
-//		x = 640;
-//		s = va( "%2i", s2 );
-//		w = CG_HeightToWidth(CG_DrawStrlen( s ) * BIGCHAR_WIDTH + 8);
-//		x -= w;
-//		CG_DrawScoreBox(x, y-4, w, BIGCHAR_HEIGHT+8, TEAM_BLUE);
-//		if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_BLUE ) {
-//			CG_DrawPic( x, y-4, w, BIGCHAR_HEIGHT+8, cgs.media.selectShader );
-//		}
-//		CG_DrawBigStringAspect( x + CG_HeightToWidth(4), y, s, 1.0F);
-//
-//		if ( cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION) {
-//			// Display flag status
-//			item = BG_FindItemForPowerup( PW_BLUEFLAG );
-//
-//			if (item) {
-//				y1 = y - BIGCHAR_HEIGHT - 8;
-//				if( cgs.blueflag >= 0 && cgs.blueflag <= 2 ) {
-//					CG_DrawPic( x, y1-4, w, BIGCHAR_HEIGHT+8, cgs.media.blueFlagShader[cgs.blueflag] );
-//					// TODO: use this for fixed aspect ratio, but needs a new icon:
-//					//CG_DrawPic( x + (w - CG_HeightToWidth(BIGCHAR_HEIGHT+8))/2.0,
-//					//	       	y1-4, CG_HeightToWidth(BIGCHAR_HEIGHT+8), BIGCHAR_HEIGHT+8, cgs.media.blueFlagShader[cgs.blueflag] );
-//				}
-//			}
-//		}
-//                
-//                if ( cgs.gametype == GT_DOUBLE_D ) {
-//			// Display Domination point status
-//			
-//				y1 = y - 32;//BIGCHAR_HEIGHT - 8;
-//				if( cgs.redflag >= 0 && cgs.redflag <= 3 ) {
-//					CG_DrawPic( x, y1-4, w, 32, cgs.media.ddPointSkinB[cgs.blueflag] );
-//				}
-//		}
-//                
-//		s = va( "%2i", s1 );
-//		w = CG_HeightToWidth(CG_DrawStrlen( s ) * BIGCHAR_WIDTH + 8);
-//		x -= w;
-//		CG_DrawScoreBox(x, y-4, w, BIGCHAR_HEIGHT+8, TEAM_RED);
-//		if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_RED ) {
-//			CG_DrawPic( x, y-4, w, BIGCHAR_HEIGHT+8, cgs.media.selectShader );
-//		}
-//		CG_DrawBigStringAspect( x + CG_HeightToWidth(4), y, s, 1.0F);
-//
-//		if ( cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION ) {
-//			// Display flag status
-//			item = BG_FindItemForPowerup( PW_REDFLAG );
-//
-//			if (item) {
-//				y1 = y - BIGCHAR_HEIGHT - 8;
-//				if( cgs.redflag >= 0 && cgs.redflag <= 2 ) {
-//					CG_DrawPic( x, y1-4, w, BIGCHAR_HEIGHT+8, cgs.media.redFlagShader[cgs.redflag] );
-//					// TODO: use this for fixed aspect ratio, but needs a new icon:
-//					//CG_DrawPic( x + (w - CG_HeightToWidth(BIGCHAR_HEIGHT+8))/2.0,
-//					//	       	y1-4, CG_HeightToWidth(BIGCHAR_HEIGHT+8), BIGCHAR_HEIGHT+8, cgs.media.redFlagShader[cgs.redflag] );
-//				}
-//			}
-//		}
-//                
-//                if ( cgs.gametype == GT_DOUBLE_D ) {
-//			// Display Domination point status
-//			
-//				y1 = y - 32;//BIGCHAR_HEIGHT - 8;
-//				if( cgs.redflag >= 0 && cgs.redflag <= 3 ) {
-//					CG_DrawPic( x, y1-4, w, 32, cgs.media.ddPointSkinA[cgs.redflag] );
-//				}
-//                                
-//                        
-//                                
-//                        //Time till capture:
-//                        if( ( ( statusB == statusA ) && ( statusA == TEAM_RED ) ) ||
-//                            ( ( statusB == statusA ) && ( statusA == TEAM_BLUE ) ) ) {
-//                                s = va("%i",(cgs.timetaken+10*1000-cg.time)/1000+1);
-//                                w = CG_HeightToWidth(CG_DrawStrlen( s ) * BIGCHAR_WIDTH);
-//                                CG_DrawBigStringAspect( x + CG_HeightToWidth(32+8-w/2.0), y-28, s, 1.0F);
-//                        }
-//		}
-//                
-//                if ( cgs.gametype == GT_OBELISK ) {
-//                    s = va("^1%3i%% ^4%3i%%",cg.redObeliskHealth,cg.blueObeliskHealth);
-//                    CG_DrawSmallString( x, y-28, s, 1.0F);
-//                }
-//                
-//                
-//
-//		if (CG_IsTeamGametype() && cgs.gametype != GT_TEAM) {
-//			v = cgs.capturelimit;
-//		} else {
-//			v = cgs.fraglimit;
-//		}
-//		if ( v ) {
-//			s = va( "%2i", v );
-//			w = CG_HeightToWidth(CG_DrawStrlen( s ) * BIGCHAR_WIDTH + 8);
-//			x -= w;
-//			CG_DrawBigStringAspect( x + CG_HeightToWidth(4), y, s, 1.0F);
-//		}
-//
-//	} else {
-//		qboolean	spectator;
-//
-//		x = 640;
-//		score = cg.snap->ps.persistant[PERS_SCORE];
-//		spectator = ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR );
-//
-//		// always show your score in the second box if not in first place
-//		if ( s1 != score ) {
-//			s2 = score;
-//		}
-//		if ( s2 != SCORE_NOT_PRESENT ) {
-//			s = va( "%2i", s2 );
-//			w = CG_HeightToWidth(CG_DrawStrlen( s ) * BIGCHAR_WIDTH + 8);
-//			x -= w;
-//			if ( !spectator && score == s2 && score != s1 ) {
-//				CG_DrawScoreBox(x, y-4, w, BIGCHAR_HEIGHT+8, TEAM_RED);
-//				CG_DrawPic( x, y-4, w, BIGCHAR_HEIGHT+8, cgs.media.selectShader );
-//			} else {
-//				CG_DrawScoreBox(x, y-4, w, BIGCHAR_HEIGHT+8, TEAM_FREE);
-//			}	
-//			CG_DrawBigStringAspect( x + CG_HeightToWidth(4), y, s, 1.0F);
-//		}
-//
-//		// first place
-//		if ( s1 != SCORE_NOT_PRESENT ) {
-//			s = va( "%2i", s1 );
-//			w = CG_HeightToWidth(CG_DrawStrlen( s ) * BIGCHAR_WIDTH + 8);
-//			x -= w;
-//			if ( !spectator && score == s1 ) {
-//				CG_DrawScoreBox(x, y-4, w, BIGCHAR_HEIGHT+8, TEAM_BLUE);
-//				CG_DrawPic( x, y-4, w, BIGCHAR_HEIGHT+8, cgs.media.selectShader );
-//			} else {
-//				CG_DrawScoreBox(x, y-4, w, BIGCHAR_HEIGHT+8, TEAM_FREE);
-//			}	
-//			CG_DrawBigStringAspect( x + CG_HeightToWidth(4), y, s, 1.0F);
-//		}
-//
-//		if ( cgs.fraglimit ) {
-//			s = va( "%2i", cgs.fraglimit );
-//			w = CG_HeightToWidth(CG_DrawStrlen( s ) * BIGCHAR_WIDTH + 8);
-//			x -= w;
-//			CG_DrawBigStringAspect( x + CG_HeightToWidth(4), y, s, 1.0F);
-//		}
-//
-//	}
-//
-//	return y1 - 8;
-//}
 
 /*
 =================
@@ -3846,16 +3662,6 @@ static float CG_DrawScores( float y ) {
 				}
 			}
 		}
-                /*
-                if ( cgs.gametype == GT_DOUBLE_D ) {
-			// Display Domination point status
-			
-				y1 = y - 32 - 4;//BIGCHAR_HEIGHT - 8;
-				if( cgs.redflag >= 0 && cgs.redflag <= 3 ) {
-					CG_DrawPic( x, y1, w, 32, cgs.media.ddPointSkinB[cgs.blueflag] );
-				}
-		}
-                */
 		s = va( "%i", s1 );
 		w = CG_DrawScoreBox(x, y, TEAM_RED, s, cg.snap->ps.persistant[PERS_TEAM] == TEAM_RED);
 		x -= w;
@@ -3872,33 +3678,6 @@ static float CG_DrawScores( float y ) {
 				}
 			}
 		}
-                /*
-                if ( cgs.gametype == GT_DOUBLE_D ) {
-			// Display Domination point status
-			
-				y1 = y - 32 - 4;//BIGCHAR_HEIGHT - 8;
-				if( cgs.redflag >= 0 && cgs.redflag <= 3 ) {
-					CG_DrawPic( x, y1, w, 32, cgs.media.ddPointSkinA[cgs.redflag] );
-				}
-                                
-                        
-                                
-                        //Time till capture:
-                        if( ( ( statusB == statusA ) && ( statusA == TEAM_RED ) ) ||
-                            ( ( statusB == statusA ) && ( statusA == TEAM_BLUE ) ) ) {
-                                s = va("%i",(cgs.timetaken+10*1000-cg.time)/1000+1);
-                                w2 = CG_HeightToWidth(CG_DrawStrlen( s ) * BIGCHAR_WIDTH);
-                                CG_DrawBigStringAspect( x + w - w2/2.0, y-28, s, 1.0F);
-                        }
-		}
-                
-                if ( cgs.gametype == GT_OBELISK ) {
-			y1 = y - 28;
-			s = va("^1%3i%% ^4%3i%%",cg.redObeliskHealth,cg.blueObeliskHealth);
-			CG_DrawSmallString( x, y1, s, 1.0F);
-                }
-                */
-                
 
 		if (CG_IsTeamGametype() && cgs.gametype != GT_TEAM) {
 			v = cgs.capturelimit;
@@ -4142,162 +3921,6 @@ static float CG_DrawPowerups( float y ) {
 }
 #endif // MISSIONPACK
 
-#define RADAR_SIZE 50
-#define RADARDOT_SIZE 6
-#define RADAR_RADIUS 16
-#define RADAR_MINRADIUS 4
-#define RADAR_RANGE 2000.0
-#define RADAR_CARRIERINFO_HEIGHT (SUPERTINYCHAR_HEIGHT+1)
-#define RADAR_CARRIERINFO_WIDTH (RADAR_SIZE*1.5)
-
-static float CG_DrawRadar( float y ) {
-	float		color[4];
-	centity_t *cent;
-	int i;
-	clientInfo_t *ci;
-	centity_t *fc = NULL;
-	vec3_t viewvec;
-	vec3_t angles;
-	float flagangle;
-	float u,r;
-	float w,h;
-	float x, y2 = 0;
-	float ci_namewidth = 0;
-	float distance;
-
-
-	if (cgs.gametype != GT_CTF
-			&& cgs.gametype != GT_CTF_ELIMINATION
-			// && cgs.gametype != GT_1FCTF
-			) {
-		return y;
-	}
-
-	if (!(cgs.ratFlags & RAT_FLAGINDICATOR)
-			|| !cg_radar.integer
-			|| (cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR)
-			|| (cg.snap->ps.pm_flags & PMF_FOLLOW)
-			|| cg.scoreBoardShowing) {
-		return y;
-	}
-
-	for (i = 0; i < MAX_CLIENTS; ++i) {
-		if (i == cg.clientNum) {
-			continue;
-		}
-		cent = &cg_entities[i];
-
-		if (!cent->currentValid || cent->currentState.eType != ET_PLAYER) {
-			continue;
-		}
-
-		ci = &cgs.clientinfo[cent->currentState.clientNum];
-
-		if (cg.snap->ps.persistant[PERS_TEAM] != ci->team) {
-			continue;
-		}
-
-		if (cent->currentState.powerups & 
-				( ( 1 << PW_REDFLAG)
-				 |( 1 << PW_BLUEFLAG)
-				 |( 1 << PW_NEUTRALFLAG))) {
-			fc = cent;
-			break;
-		}
-	}
-
-	if (!fc) {
-		return y;
-	}
-
-	vectoangles(cg.refdef.viewaxis[0], angles);
-	flagangle = angles[1];
-	VectorSubtract( cent->lerpOrigin, cg.refdef.vieworg, viewvec);
-	vectoangles(viewvec, angles);
-	flagangle = flagangle - angles[1];
-	if (flagangle < 0.0) {
-		flagangle += 360.0;
-	}
-
-	flagangle = flagangle*M_PI/180.0;
-
-	distance = VectorLength(viewvec);
-
-	u = (RADAR_RADIUS * MIN(1.0, distance/RADAR_RANGE) + RADAR_MINRADIUS) * cos(flagangle);
-	r = (RADAR_RADIUS * MIN(1.0, distance/RADAR_RANGE) + RADAR_MINRADIUS) * sin(flagangle);
-
-
-	h = RADAR_SIZE;
-	w = CG_HeightToWidth(h);
-
-	switch (cg_radar.integer) {
-		case 2:
-			x = SCREEN_WIDTH - w/2.0 - 2.0;
-			y = y - 2.0 - h/2.0;
-			y2 = y - h/2.0 - RADAR_CARRIERINFO_HEIGHT;
-			break;
-		case 1:
-		default:
-			x = SCREEN_WIDTH/2.0;
-			y = 32 + RADAR_CARRIERINFO_HEIGHT;
-			//y = 48 - RADAR_CARRIERINFO_HEIGHT;
-			break;
-	}
-
-	ci_namewidth = MIN(CG_DrawStrlen(ci->name), (RADAR_CARRIERINFO_WIDTH-2)/SUPERTINYCHAR_WIDTH) * CG_HeightToWidth(SUPERTINYCHAR_WIDTH);
-	CG_DrawHealthBar(cg_radar.integer == 2 ? (x + w/2.0 - CG_HeightToWidth(RADAR_CARRIERINFO_WIDTH)) : (x - CG_HeightToWidth(RADAR_CARRIERINFO_WIDTH/2.0)), 
-			y - h/2.0 - RADAR_CARRIERINFO_HEIGHT,
-			CG_HeightToWidth(RADAR_CARRIERINFO_WIDTH),
-			RADAR_CARRIERINFO_HEIGHT,
-			ci->health, ci->armor);
-	color[0] = 1.0;
-	color[1] = 1.0;
-	color[2] = 1.0;
-	color[3] = 1.0;
-	CG_DrawStringExt(cg_radar.integer == 2 ? (x + w/2.0 - CG_HeightToWidth(RADAR_CARRIERINFO_WIDTH-2)/2.0 - ci_namewidth/2.0) : (x - ci_namewidth/2.0),
-		       	y - h/2.0 - (RADAR_CARRIERINFO_HEIGHT-1),
-			ci->name, color, qfalse, qtrue,
-			CG_HeightToWidth(SUPERTINYCHAR_WIDTH), RADAR_CARRIERINFO_HEIGHT-1,
-		       	(RADAR_CARRIERINFO_WIDTH-2)/SUPERTINYCHAR_WIDTH);
-
-
-
-	color[0] = 0.8;
-	color[1] = 0.8;
-	color[2] = 0.8;
-	color[3] = 0.75;
-	trap_R_SetColor(color);
-
-	//CG_DrawPic(320-w/2.0, 32 - h/2.0, w, h, cgs.media.radarShader);
-	CG_DrawPic(x-w/2.0, y - h/2.0, w, h, cgs.media.radarShader);
-
-	color[3] = 1.0;
-	if (fc->currentState.powerups & ( 1 << PW_REDFLAG)) {
-		color[0] = 1.0;
-		color[1] = 0.0;
-		color[2] = 0.0;
-	} else if (fc->currentState.powerups & ( 1 << PW_BLUEFLAG)) {
-		color[0] = 0.0;
-		color[1] = 0.33;
-		color[2] = 1.0;
-	} else {
-		color[0] = 1.0;
-		color[1] = 1.0;
-		color[2] = 1.0;
-	}
-	trap_R_SetColor(color);
-	h = RADARDOT_SIZE;
-	w = CG_HeightToWidth(h);
-
-	CG_DrawPic(x + r - w/2.0, 
-			y - u - h/2.0, w, h, cgs.media.radarDotShader);
-
-	//CG_DrawPic(320 + r - w/2.0, 
-	//		32 - u - h/2.0, w, h, cgs.media.radarDotShader);
-
-	return y2;
-}
-
 /*
 =================
 CG_DrawFollow
@@ -4334,13 +3957,13 @@ static qboolean CG_DrawFollow( void ) {
 
 	switch (cg_drawFollowPosition.integer) {
 		case 1:
-			CG_DrawSmallString( 0.85 * 640 - (SMALLCHAR_WIDTH * CG_DrawStrlen(string)), 4, string, 1.0F );
+			CG_DrawSmallString( 520 - (SMALLCHAR_WIDTH * CG_DrawStrlen(string)), 4, string, 1.0F );
 			break;
 		//case 2:
 		//	CG_DrawStringExt( 0.85 * 640 - (TINYCHAR_WIDTH * CG_DrawStrlen(string)), 4,  name, colorWhite, qfalse, qfalse, TINYCHAR_WIDTH, TINYCHAR_HEIGHT, 0 );
 		//	break;
 		default:
-			CG_DrawSmallString( 0.5 * (640 - SMALLCHAR_WIDTH * CG_DrawStrlen(string)), 32, string, 1.0F );
+			CG_DrawSmallString( 0.5 * (640 - SMALLCHAR_WIDTH * CG_DrawStrlen(string)), 432, string, 1.0F );
 			break;
 	}
 	//CG_DrawSmallString( SCREEN_WIDTH -  (SMALLCHAR_WIDTH * CG_DrawStrlen(string)), y, string, 1.0F );
@@ -6162,9 +5785,9 @@ static void CG_DrawVote(void) {
 	}
 #ifdef MISSIONPACK
 	s = va("VOTE(%i):%s yes:%i no:%i", sec, cgs.voteString, cgs.voteYes, cgs.voteNo);
-	CG_DrawSmallString( 0, 58, s, 1.0F );
+	CG_DrawSmallString( 0, 78, s, 1.0F );
 	s = "or press ESC then click Vote";
-	CG_DrawSmallString( 0, 58 + SMALLCHAR_HEIGHT + 2, s, 1.0F );
+	CG_DrawSmallString( 0, 78 + SMALLCHAR_HEIGHT + 2, s, 1.0F );
 #else
 	s = va("VOTE(%i):%s yes:%i no:%i", sec, cgs.voteString, cgs.voteYes, cgs.voteNo );
 	//CG_DrawSmallString( 0, 58, s, 1.0F );
