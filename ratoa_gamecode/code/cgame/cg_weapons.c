@@ -2300,7 +2300,6 @@ void CG_DrawWeaponSelect( void ) {
 			count++;
 		}
 	}
-	/*	
 	switch(cg_weaponBarStyle.integer){
 		case 15:
 			CG_DrawWeaponBar15(count,bits, color);
@@ -2312,8 +2311,10 @@ void CG_DrawWeaponSelect( void ) {
 			CG_DrawWeaponBar13(count,bits, color);
 			break;
 		case 10:
-		case 11:
 			CG_DrawWeaponBar10(count,bits, color);
+			break;
+		case 11:
+			CG_DrawWeaponBar11(count,bits);
 			break;
 		case 12:
 			CG_DrawWeaponBar12(count,bits, color);
@@ -2353,8 +2354,6 @@ void CG_DrawWeaponSelect( void ) {
 			CG_DrawWeaponBar13(count,bits, color);
 			break;
 	}
-	*/
-	CG_DrawWeaponBar0(count,bits);
 	trap_R_SetColor(NULL);
 	return;
 }
@@ -3452,6 +3451,59 @@ void CG_DrawWeaponBar10(int count, int bits, float *color){
                 if(i==10)
                         i=0;
 	}	
+}
+
+/*
+===============
+CG_DrawWeaponBar11
+===============
+*/
+
+void CG_DrawWeaponBar11(int count, int bits){
+
+	int ammoSaved;
+	int y = 380;
+	int x = 320 - count * 20;
+	int i;
+	int weaponSelect = CG_GetWeaponSelect();
+	
+	for ( i = 0 ; i < MAX_WEAPONS ; i++ ) {
+                //Sago: Do mad change of grapple placement:
+                if(i==10)
+                    continue;
+                if(i==0)
+                    i=10;
+		if ( !( bits & ( 1 << i ) ) ) {
+                    if(i==10)
+                        i=0;
+		    continue;
+		}
+
+		CG_RegisterWeapon( i );
+		// draw weapon icon
+		CG_DrawPic( x, y, 32, 32, cg_weapons[i].weaponIcon );
+
+		// draw selection marker
+		if ( i == weaponSelect ) {
+			CG_DrawPic( x-4, y-4, 40, 40, cgs.media.selectShader );
+		}
+
+		if (cg_predictWeapons.integer) {
+			ammoSaved=cg.predictedPlayerState.ammo[i];
+		} else {
+			ammoSaved=cg.snap->ps.ammo[i];
+		}
+
+		// no ammo cross on top
+		if ( !ammoSaved ) {
+			  CG_DrawPic( x, y, 32, 32, cgs.media.noammoShader );
+		}
+
+		y += 40;
+                //Sago: Undo mad change of weapons
+                if(i==10)
+                        i=0;
+	}
 }
 
 /*
