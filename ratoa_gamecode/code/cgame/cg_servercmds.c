@@ -1621,6 +1621,9 @@ static void CG_MapRestart( void ) {
 	CG_InitMarkPolys();
 	CG_ClearParticles ();
 
+	cgs.redflag = 0;
+	cgs.blueflag = 0;
+
 	// make sure the "3 frags left" warnings play again
 	cg.fraglimitWarnings = 0;
 
