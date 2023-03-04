@@ -498,7 +498,6 @@ typedef struct {
 } cvarTable_t;
 
 static cvarTable_t cvarTable[] = { // bk001129
-	{ &icl_maxpackets, "cl_maxpackets", "125", CVAR_CHEAT },
 	{ &sv_master1, "sv_master1", MASTER_SERVER_NAME, CVAR_ARCHIVE },
 	{ &cg_ignore, "cg_ignore", "0", 0 },	// used for debugging
 	{ &cg_autoswitch, "cg_autoswitch", "0", CVAR_ARCHIVE },
