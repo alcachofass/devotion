@@ -2039,7 +2039,7 @@ static void CG_RegisterSounds( void ) {
 		cgs.media.takenYourTeamSound = trap_S_RegisterSound( "sound/teamplay/flagtaken_yourteam.wav", qtrue ); //ok
 		cgs.media.takenOpponentSound = trap_S_RegisterSound( "sound/teamplay/flagtaken_opponent.wav", qtrue ); //ok
 
-		cgs.media.flagDroppedSound = trap_S_RegisterSound( "sound/teamplay/flagtk_blu.wav", qtrue );
+		cgs.media.flagDroppedSound = trap_S_RegisterSound( "sound/teamplay/flagret_blu.wav", qtrue );
 
 		cgs.media.pingLocationSound = trap_S_RegisterSound( "sound/teamplay/ping-info.wav", qfalse );
 		cgs.media.pingLocationLowSound = trap_S_RegisterSound( "sound/teamplay/ping-info-5.wav", qfalse );
