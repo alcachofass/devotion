@@ -1,0 +1,63 @@
+------------------------------------------------------------------
+This pak file contains my attempt at making an HD retexture
+of Quake 3 Arena's weapons. Motivated to make this since I've
+seen that most either covered the whole thing in "shine"
+shaders, or made a retexture that deviates way too far 
+from the original weapon's texture design and color schemes.
+
+My attempt's goal is to simply make a skin that's pleasing to
+look at in an 8x anisotropic on a 720p scale resolution.
+			-CZ45 [02/23/2015]
+------------------------------------------------------------------
+Went out and gone overboard with adding decals and more colors
+to the weapons.
+
+Also, made my own machinegun sound because i'm
+sick and tired of hearing it's peashooter-y sound effect. Now it
+sounds more powerful than it should be! XD
+			-CZ45 [04/12/2016]
+------------------------------------------------------------------
+Muzzleflash HD-ed
+			-CZ45 [04/13/2016]
+------------------------------------------------------------------
+New weapon attack sounds! Now each weapon has new firing sounds.
+Also, swapped RL and BFG projectile.
+			-CZ45 [07/04/2016]
+------------------------------------------------------------------
+GL's color accents changed to green.
+			-CZ45 [07/05/2016]
+------------------------------------------------------------------
+Reworked new railgun and rocket sounds.
+			-CZ45 [07/05/2016]
+------------------------------------------------------------------
+New Railgun trail effects added.
+			-CZ45 [08/02/2016]
+------------------------------------------------------------------
+Shader effect added on LG, PG, and RG.
+			-CZ45 [08/16/2016]
+------------------------------------------------------------------
+Tweaked rocket projectile texture.
+			-CZ45 [08/18/2016]
+------------------------------------------------------------------
+Tweaked shotgun texture.
+			-CZ45 [08/18/2016]
+------------------------------------------------------------------
+Tweaked railgun glow shaders.
+			-CZ45 [11/20/2017]
+------------------------------------------------------------------
+Incorporated "Quake III Arena Arcade" weapon models.
+			-CZ45 [06/28/2017]
+------------------------------------------------------------------
+Remade all but two(SG & GL) of the weapon textures.
+			-CZ45 [03/31/2019]
+------------------------------------------------------------------
+Tweaked Railgun texture(toned down bright lime green color), and
+remade the shotgun texture.
+			-CZ45 [04/01/2019]
+------------------------------------------------------------------
+MAJOR UPDATE
+Effin' remade most weapon models and textures from scratch. Now it
+looks great on a 1080p resolution with 16x anisotropic texture
+filter. Also, true-3D muzzleflashes. Gauntlet and BFG in progress...
+			-CZ45 [11/13/2022]
+------------------------------------------------------------------
