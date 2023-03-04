@@ -4354,7 +4354,7 @@ static void CG_DrawHoldableItem( void ) {
 	value = cg.snap->ps.stats[STAT_HOLDABLE_ITEM];
 	if ( value ) {
 		CG_RegisterItemVisuals( value );
-		CG_DrawPic( CG_HeightToWidth(ICON_SIZE) - 48, (SCREEN_HEIGHT-ICON_SIZE)/2, CG_HeightToWidth(ICON_SIZE)/2, ICON_SIZE/2, cg_items[ value ].icon );
+		CG_DrawPic( CG_HeightToWidth(ICON_SIZE) - 32, (SCREEN_HEIGHT-ICON_SIZE)/2, CG_HeightToWidth(ICON_SIZE)/2, ICON_SIZE/2, cg_items[ value ].icon );
 	}
 
 }
@@ -6552,7 +6552,6 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 			}
 #else
 			// if (cg_ratStatusbar.integer && cgs.gametype != GT_HARVESTER && cgs.gametype != GT_TREASURE_HUNTER) {
-			/*
 			if (cg_ratStatusbar.integer) {
 				switch (cg_ratStatusbar.integer) {
 					case 4:
@@ -6573,10 +6572,8 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 			} else {
 				CG_DrawStatusBar();
 			}
-			*/
 #endif
 
-			CG_DrawStatusBar();
      			CG_DrawThawing(); 
 
 			CG_DrawAmmoWarning();
