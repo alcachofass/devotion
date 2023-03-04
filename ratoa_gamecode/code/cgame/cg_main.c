@@ -719,7 +719,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_drawSpawnpoints, "cg_drawSpawnpoints", "1", CVAR_ARCHIVE},
 	{ &cg_teamOverlayScale, "cg_teamOverlayScale", "0.7", CVAR_ARCHIVE},
 	{ &cg_teamOverlayAutoColor, "cg_teamOverlayAutoColor", "1", CVAR_ARCHIVE},
-	{ &cg_drawTeamBackground, "cg_drawTeamBackground", "0", CVAR_ARCHIVE},
+	{ &cg_drawTeamBackground, "cg_drawTeamBackground", "1", CVAR_ARCHIVE},
 	{ &cg_timerAlpha  ,     "cg_timerAlpha", "1", CVAR_ARCHIVE},
 	{ &cg_fpsAlpha    ,     "cg_fpsAlpha", "0.5", CVAR_ARCHIVE},
 	{ &cg_speedAlpha  ,     "cg_speedAlpha", "0.5", CVAR_ARCHIVE},
@@ -790,9 +790,9 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_teamHeadColorAuto ,      "cg_teamHeadColorAuto", "0", CVAR_ARCHIVE},
 	{ &cg_enemyHeadColorAuto ,      "cg_enemyHeadColorAuto", "0", CVAR_ARCHIVE},
 
-	{ &cg_enemyCorpseSaturation ,     "cg_enemyCorpseSaturation", "", CVAR_ARCHIVE},
+	{ &cg_enemyCorpseSaturation ,     "cg_enemyCorpseSaturation", "0.50", CVAR_ARCHIVE},
 	{ &cg_enemyCorpseValue ,          "cg_enemyCorpseValue", "0.2", CVAR_ARCHIVE},
-	{ &cg_teamCorpseSaturation ,      "cg_teamCorpseSaturation", "", CVAR_ARCHIVE},
+	{ &cg_teamCorpseSaturation ,      "cg_teamCorpseSaturation", "0.50", CVAR_ARCHIVE},
 	{ &cg_teamCorpseValue ,           "cg_teamCorpseValue", "0.2", CVAR_ARCHIVE},
 
 	{ &cg_itemFade ,           "cg_itemFade", "1", CVAR_ARCHIVE},
