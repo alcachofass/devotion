@@ -1645,9 +1645,11 @@ void CG_UpdateCvars( void ) {
                 else if ( cv->vmCvar == &cg_errorDecay ) {
 			CG_Cvar_ClampInt( cv->cvarName, cv->vmCvar, 0, 250 );
 		}
+		/*
                 else if ( cv->vmCvar == &com_maxfps ) {
 			CG_Cvar_ClampInt( cv->cvarName, cv->vmCvar, 0, 500 );
 		}
+		*/
                 else if ( cv->vmCvar == &sv_fps ) {
 			if (cv->vmCvar->integer < 1) {
 				Com_sprintf( cv->vmCvar->string, MAX_CVAR_VALUE_STRING, "1");
