@@ -1645,11 +1645,9 @@ void CG_UpdateCvars( void ) {
                 else if ( cv->vmCvar == &cg_errorDecay ) {
 			CG_Cvar_ClampInt( cv->cvarName, cv->vmCvar, 0, 250 );
 		}
-		/*
                 else if ( cv->vmCvar == &com_maxfps ) {
-			CG_Cvar_ClampInt( cv->cvarName, cv->vmCvar, 0, 500 );
+			CG_Cvar_ClampInt( cv->cvarName, cv->vmCvar, 0, 250 );
 		}
-		*/
                 else if ( cv->vmCvar == &sv_fps ) {
 			if (cv->vmCvar->integer < 1) {
 				Com_sprintf( cv->vmCvar->string, MAX_CVAR_VALUE_STRING, "1");
@@ -4057,10 +4055,6 @@ void CG_FairCvars() {
     }
     // SBOPN: L0neStarr recommended 125 over 250 to avoid netcode issues
     trap_Cvar_VariableStringBuffer("com_maxfps", clientinfos, sizeof(clientinfos));
-    if(atoi(clientinfos) != 125 ){ // L0neStarr
-        trap_Cvar_Set("com_maxfps", "125");
-    }
-
     if(vid_restart_required && do_vid_restart)
         trap_SendConsoleCommand("vid_restart\n");
 
