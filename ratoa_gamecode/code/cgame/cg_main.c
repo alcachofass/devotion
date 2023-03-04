@@ -498,6 +498,7 @@ typedef struct {
 } cvarTable_t;
 
 static cvarTable_t cvarTable[] = { // bk001129
+	{ &icl_maxpackets, "cl_maxpackets", "125", CVAR_CHEAT },
 	{ &sv_master1, "sv_master1", MASTER_SERVER_NAME, CVAR_ARCHIVE },
 	{ &cg_ignore, "cg_ignore", "0", 0 },	// used for debugging
 	{ &cg_autoswitch, "cg_autoswitch", "0", CVAR_ARCHIVE },
@@ -543,8 +544,8 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_addMarks, "cg_marks", "1", CVAR_ARCHIVE },
 	{ &cg_lagometer, "cg_lagometer", "1", CVAR_ARCHIVE },
 	{ &cg_railTrailTime, "cg_railTrailTime", "800", CVAR_ARCHIVE  },
-	{ &cg_gun_x, "cg_gunX", "0", CVAR_CHEAT },
-	{ &cg_gun_y, "cg_gunY", "0", CVAR_CHEAT },
+	{ &cg_gun_x, "cg_gunX", "0", CVAR_ARCHIVE },
+	{ &cg_gun_y, "cg_gunY", "0", CVAR_ARCHIVE },
 	{ &cg_gun_z, "cg_gunZ", "0", CVAR_ARCHIVE },
 	{ &cg_centertime, "cg_centertime", "3", CVAR_CHEAT },
 	{ &cg_runpitch, "cg_runpitch", "0.000", CVAR_ARCHIVE},
