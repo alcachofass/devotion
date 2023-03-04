@@ -3915,6 +3915,7 @@ static qboolean do_vid_restart = qfalse;
 void CG_FairCvars() {
     qboolean vid_restart_required = qfalse;
     char rendererinfos[128];
+    char clientinfos[128];
 
     if(cgs.gametype == GT_SINGLE_PLAYER) {
         trap_Cvar_VariableStringBuffer("r_vertexlight",rendererinfos,sizeof(rendererinfos) );
@@ -4046,6 +4047,16 @@ void CG_FairCvars() {
 		    trap_Cvar_Set("cg_backupLightmap","-1");
 		    vid_restart_required = qtrue;
 	    }
+    }
+
+    trap_Cvar_VariableStringBuffer("cl_maxpackets", clientinfos, sizeof(clientinfos));
+    if(atoi(clientinfos) != 125 ){ // L0neStarr
+        trap_Cvar_Set("cl_maxpackets", "125");
+    }
+    // SBOPN: L0neStarr recommended 125 over 250 to avoid netcode issues
+    trap_Cvar_VariableStringBuffer("com_maxfps", clientinfos, sizeof(clientinfos));
+    if(atoi(clientinfos) != 125 ){ // L0neStarr
+        trap_Cvar_Set("com_maxfps", "125");
     }
 
     if(vid_restart_required && do_vid_restart)
