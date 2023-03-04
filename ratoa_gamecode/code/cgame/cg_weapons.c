@@ -1337,7 +1337,6 @@ void CG_RegisterWeapon( int weaponNum ) {
 		weaponInfo->firingSound = trap_S_RegisterSound( "sound/weapons/lightning/lg_hum.wav", qfalse );
 
 		weaponInfo->flashSound[0] = trap_S_RegisterSound( "sound/weapons/lightning/lg_fire.wav", qfalse );
-		/*
 		switch (cg_ratLg.integer) {
 			case 1:
 				cgs.media.lightningShader = trap_R_RegisterShader( "lightningBoltRat1");
@@ -1352,8 +1351,6 @@ void CG_RegisterWeapon( int weaponNum ) {
 				cgs.media.lightningShader = trap_R_RegisterShader( "lightningBoltNew");
 				break;
 		} 
-		*/
-		cgs.media.lightningShader = trap_R_RegisterShader( "lightningBoltNew");
 		cgs.media.lightningExplosionModel = trap_R_RegisterModel( "models/weaphits/crackle.md3" );
 		cgs.media.sfx_lghit1 = trap_S_RegisterSound( "sound/weapons/lightning/lg_hit.wav", qfalse );
 		cgs.media.sfx_lghit2 = trap_S_RegisterSound( "sound/weapons/lightning/lg_hit2.wav", qfalse );
