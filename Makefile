@@ -20,7 +20,7 @@ ifeq ($(COMPILE_PLATFORM),mingw32)
 endif
 
 GAMECODE_DIR := ratoa_gamecode
-GAMECODE_QVM_DIR := $(GAMECODE_DIR)/build/release-linux-$(COMPILE_ARCH)/baseq3/vm
+GAMECODE_QVM_DIR := $(GAMECODE_DIR)/build/release-$(COMPILE_PLATFORM)-$(COMPILE_ARCH)/baseq3/vm
 ASSETS_DIR := ratoa_assets
 
 GAMECODE_OPTS := WITH_MULTITOURNAMENT=1
@@ -28,8 +28,7 @@ GAMECODE_OPTS := WITH_MULTITOURNAMENT=1
 OUTPUT_DIR := build
 PK3_DIR := $(OUTPUT_DIR)/pk3
 
-RATMOD_PK3 = devotion-$(shell cd $(GAMECODE_DIR) && \
-		    git describe --tags --abbrev --dirty).pk3
+RATMOD_PK3 = devotion.pk3
 
 TIMESTAMP = @$(shell cd $(GAMECODE_DIR) && git show -s --format=%ct)
 
