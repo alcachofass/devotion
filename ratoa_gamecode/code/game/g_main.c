@@ -429,6 +429,9 @@ vmCvar_t        g_unnamedRenameNounlist;
 
 vmCvar_t        g_timestamp_startgame;
 
+//Devotion
+vmCvar_t        pmove_autohop;
+
 // bk001129 - made static to avoid aliasing
 static cvarTable_t		gameCvarTable[] = {
 	// don't override the cheat state set by the system
@@ -879,7 +882,10 @@ static cvarTable_t		gameCvarTable[] = {
         { &g_unnamedRenameAdjlist, "g_unnamedRenameAdjlist", "ratname-adjectives.txt", CVAR_ARCHIVE, 0, qfalse},
         { &g_unnamedRenameNounlist, "g_unnamedRenameNounlist", "ratname-nouns.txt", CVAR_ARCHIVE, 0, qfalse},
 
-        { &g_timestamp_startgame, "g_timestamp", "0001-01-01 00:00:00", 0, 0, qfalse}
+        { &g_timestamp_startgame, "g_timestamp", "0001-01-01 00:00:00", 0, 0, qfalse},
+
+	//Devotion
+	{ &pmove_autohop, "pmove_autohop", "0", CVAR_SYSTEMINFO | CVAR_ARCHIVE, 0, qfalse}
         
 };
 
