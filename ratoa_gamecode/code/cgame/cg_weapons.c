@@ -604,87 +604,10 @@ void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end) {
 
 /*
 ==========================
-CG_RatRocketTrail
-==========================
-*/
-static void CG_RatRocketTrail( centity_t *ent, const weaponInfo_t *wi ) {
-	int		step;
-	vec3_t	origin, lastPos;
-	int		t;
-	int		startTime, contents;
-	int		lastContents;
-	entityState_t	*es;
-	vec3_t	up;
-	localEntity_t	*smoke;
-	int currentTime;
-
-	if ( cg_noProjectileTrail.integer ) {
-		return;
-	}
-
-	up[0] = 0;
-	up[1] = 0;
-	up[2] = 0;
-
-	step = cg_ratRocketTrailStep.integer;
-
-	es = &ent->currentState;
-	startTime = ent->trailTime;
-	t = step * ( (startTime + step) / step );
-
-	// if missile exploded, only draw trail to position of explosion
-	if (es->time2 > 0) {
-		currentTime = es->time2;
-	} else if (cg_delagProjectileTrail.integer) {
-		currentTime = cg.time + MAX(CG_ProjectileNudgeTimeshift(ent)-10, 0);
-	} else {
-		currentTime = cg.time;
-	}
-
-	// if object (e.g. grenade) is stationary, don't toss up smoke
-	if ( es->pos.trType == TR_STATIONARY ) {
-		ent->trailTime = currentTime;
-		return;
-	}
-
-	BG_EvaluateTrajectory( &es->pos, startTime, lastPos );
-	lastContents = CG_PointContents( lastPos, -1 );
-
-	ent->trailTime = currentTime;
-
-	for ( ; t <= ent->trailTime; t += step ) {
-		BG_EvaluateTrajectory( &es->pos, t, origin );
-		contents = CG_PointContents( origin, -1 );
-		if ( t > startTime && (contents & lastContents & CONTENTS_WATER) ) {
-			CG_BubbleTrail( lastPos, origin, 8 );
-			continue;
-		}
-		if ( contents & ( CONTENTS_WATER | CONTENTS_SLIME | CONTENTS_LAVA ) ) {
-			continue;
-		}
-
-		smoke = CG_SmokePuff( origin, up, 
-					  cg_ratRocketTrailRadius.value,
-					  0.9, 0.9, 0.9, cg_ratRocketTrailAlpha.value,
-					  wi->wiTrailTime*cg_ratRocketTrailTime.value, 
-					  t,
-					  0,
-					  LEF_PUFF_DONT_SCALE, 
-					  cgs.media.smokePuffShader );
-		// use the optimized local entity add
-		smoke->leType = LE_SCALE_FADE;
-	}
-
-}
-
-
-#if 0
-/*
-==========================
 CG_OldRocketTrail	(for the crappy old rocket trail.)
 ==========================
 */
-static void CG_OldRocketTrail( centity_t *ent, const weaponInfo_t *wi ) {
+static void CG_RocketTrail( centity_t *ent, const weaponInfo_t *wi ) {
 	int		step;
 	vec3_t	origin, lastPos;
 	int		t;
@@ -745,7 +668,7 @@ static void CG_OldRocketTrail( centity_t *ent, const weaponInfo_t *wi ) {
 	}
 
 }
-
+#if 0
 /*
 ==========================
 CG_LeiSmokeTrail 
@@ -1153,11 +1076,10 @@ CG_GrenadeTrail
 ==========================
 */
 // LEILEI enhancment
+/*
 static void CG_RocketTrail( centity_t *ent, const weaponInfo_t *wi ) {
 
-		if (cg_ratRocketTrail.integer) {
-			CG_RatRocketTrail(ent, wi);
-		} 
+		CG_RocketTrail(ent, wi);
 		// these aren't delagged correctly (yet)
 		
 #if 0
@@ -1170,7 +1092,7 @@ static void CG_RocketTrail( centity_t *ent, const weaponInfo_t *wi ) {
 		}
 #endif
 }
-
+*/
 static void CG_PlasmaTrail( centity_t *ent, const weaponInfo_t *wi ) {
 
 	if (cg_ratPlasmaTrail.integer) {
