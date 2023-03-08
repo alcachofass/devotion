@@ -618,11 +618,6 @@ static void CG_RatDrawClientScore(int y, score_t *score, float *color, float fad
 		tcolor[2] = 1.0;
 		tcolor[3] = 0.4;
 		trap_R_SetColor(tcolor);
-		if (score->ratclient & SCORE_RATINDICATOR_ISREGISTERED) {
-			CG_DrawPic(RATSB_CNUM_X, y, RATSB_CNUM_WIDTH, SCORECHAR_HEIGHT, cgs.media.ratSmallIconAdmin);
-		} else {
-			CG_DrawPic(RATSB_CNUM_X, y, RATSB_CNUM_WIDTH, SCORECHAR_HEIGHT, cgs.media.ratSmallIcon);
-		}
 		trap_R_SetColor(NULL);
 	}
 	tcolor[0] = 0;
