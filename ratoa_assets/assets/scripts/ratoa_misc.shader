@@ -50,23 +50,18 @@ armorIconRed
 
 greenArmor1
 {
-	{
+        {
+                map textures/sfx/specular.tga          
+                tcGen environment
+                rgbGen identity
+	}  
+        {
 		map models/powerups/armor/greenarmor.tga
-			rgbGen lightingDiffuse
+                blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen identity
 	}
-	{
-		map gfx/fx/spec/spots.tga
-			blendfunc gl_src_alpha gl_one
-			rgbGen lightingDiffuse
-			tcGen environment 
-			alphaGen lightingSpecular
-	}
-	{
-		map gfx/fx/detail/d_met2.tga
-			blendfunc gl_dst_color gl_src_color
-			tcMod scale 4 4
-			detail
-	}
+       
+         
 }
 
 playerBrightOutline05

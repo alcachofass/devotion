@@ -651,7 +651,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_delagProjectileTrail, "cg_delagProjectileTrail", "1", CVAR_ARCHIVE},
 	{ &cg_ratScoreboard, "cg_ratScoreboard", "1", CVAR_ARCHIVE},
 	{ &cg_ratScoreboardAccuracy, "cg_ratScoreboardAccuracy", "1", CVAR_ARCHIVE},
-	{ &cg_ratStatusbar, "cg_ratStatusbar", "4", CVAR_ARCHIVE},
+	{ &cg_ratStatusbar, "cg_ratStatusbar", "0", CVAR_ARCHIVE},
 	{ &cg_ratStatusbarOldNumbers, "cg_ratStatusbarOldNumbers", "0", CVAR_ARCHIVE},
 
 	{ &cg_printDuelStats, "cg_printDuelStats", "1", CVAR_ARCHIVE},
@@ -664,7 +664,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_ratRail, "cg_ratRail", "3", CVAR_ARCHIVE | CVAR_LATCH},
 	{ &cg_ratRailBeefy, "cg_ratRailBeefy", "0", CVAR_ARCHIVE},
 	{ &cg_ratRailRadius, "cg_ratRailRadius", "0.5", CVAR_ARCHIVE},
-	{ &cg_ratLg, "cg_ratLg", "3", CVAR_ARCHIVE|CVAR_LATCH},
+	{ &cg_ratLg, "cg_ratLg", "1", CVAR_ARCHIVE|CVAR_LATCH},
 	{ &cg_ratLgImpact, "cg_ratLgImpact", "1", CVAR_ARCHIVE},
 	{ &cg_lgSound, "cg_lgSound", "2", CVAR_ARCHIVE|CVAR_LATCH},
 	{ &cg_rgSound, "cg_rgSound", "2", CVAR_ARCHIVE|CVAR_LATCH},
@@ -677,7 +677,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_sensScaleWithFOV, "cg_sensScaleWithFOV", "0", CVAR_ARCHIVE},
 	{ &cg_drawHabarBackground, "cg_drawHabarBackground", "0", CVAR_ARCHIVE | CVAR_LATCH},
 	{ &cg_drawHabarDecor, "cg_drawHabarDecor", "1", CVAR_ARCHIVE | CVAR_LATCH},
-	{ &cg_hudDamageIndicator, "cg_hudDamageIndicator", "2", CVAR_ARCHIVE|CVAR_LATCH},
+	{ &cg_hudDamageIndicator, "cg_hudDamageIndicator", "3", CVAR_ARCHIVE|CVAR_LATCH},
 	{ &cg_hudDamageIndicatorScale, "cg_hudDamageIndicatorScale", "1.0", CVAR_ARCHIVE},
 	{ &cg_hudDamageIndicatorOffset, "cg_hudDamageIndicatorOffset", "0.0", CVAR_ARCHIVE},
 	{ &cg_hudDamageIndicatorAlpha, "cg_hudDamageIndicatorAlpha", "1.0", CVAR_ARCHIVE},
@@ -756,7 +756,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_brightShellAlpha , "cg_brightShellAlpha", "1.0", CVAR_ARCHIVE},
 	{ &cg_brightOutline ,     "cg_brightOutline", "0", CVAR_ARCHIVE},
 
-	{ &cg_enemyModel ,     "cg_enemyModel", "keel", CVAR_ARCHIVE},
+	{ &cg_enemyModel ,     "cg_enemyModel", "keel/pm", CVAR_ARCHIVE},
 	{ &cg_teamModel ,      "cg_teamModel", "doom", CVAR_ARCHIVE},
 
 	{ &cg_teamHueBlue ,     "cg_teamHueBlue", "210", CVAR_ARCHIVE},
@@ -765,7 +765,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 
 	// either color name ("green", "white"), color index, or 
 	// HSV color in the format 'H125 1.0 1.0" (H<H> <S> <V>)
-	{ &cg_enemyColor ,     "cg_enemyColor", "", CVAR_ARCHIVE},
+	{ &cg_enemyColor ,     "cg_enemyColor", "green", CVAR_ARCHIVE},
 	{ &cg_teamColor ,      "cg_teamColor", "", CVAR_ARCHIVE},
 	{ &cg_enemyHeadColor ,     "cg_enemyHeadColor", "", CVAR_ARCHIVE},
 	{ &cg_teamHeadColor ,      "cg_teamHeadColor", "", CVAR_ARCHIVE},
@@ -882,7 +882,7 @@ static cvarTable_t cvarTable[] = { // bk001129
         { &cg_crosshairColorGreen, "cg_crosshairColorGreen", "1.0", CVAR_ARCHIVE},
         { &cg_crosshairColorBlue, "cg_crosshairColorBlue", "1.0", CVAR_ARCHIVE},
 
-	{ &cg_weaponBarStyle, "cg_weaponBarStyle", "14", CVAR_ARCHIVE},
+	{ &cg_weaponBarStyle, "cg_weaponBarStyle", "13", CVAR_ARCHIVE},
         { &cg_weaponOrder,"cg_weaponOrder", "/1/2/4/3/7/6/8/5/9/", CVAR_ARCHIVE},
         //{ &cg_weaponOrder,"cg_weaponOrder", "/1/2/4/3/7/6/8/5/13/11/9/", CVAR_ARCHIVE},
         {&cg_chatBeep, "cg_chatBeep", "2", CVAR_ARCHIVE },
