@@ -594,7 +594,6 @@ void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end) {
 		le->color[3] = 1.0f;
 		AxisClear( re->axis );
 	}
-	re->origin[2] -= 4;
 	if (cg_oldRail.integer && !cg_ratRail.integer) {
 		// nudge down a bit so it isn't exactly in center
 		re->origin[2] -= 8;
