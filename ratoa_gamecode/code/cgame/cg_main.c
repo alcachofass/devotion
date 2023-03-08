@@ -1966,12 +1966,10 @@ static void CG_RegisterNumbers(void) {
 		"gfx/2d/numbers%s/minus_32b",
 	};
 	char *suffix = "";
-	/*
 	if (cg_ratStatusbar.integer > 2 
 			|| (cg_ratStatusbar.integer > 0 && !cg_ratStatusbarOldNumbers.integer)) {
 		suffix = "_trebfuture";
 	}
-	*/
 	for ( i=0 ; i<11 ; i++) {
 		cgs.media.numberShaders[i] = trap_R_RegisterShader( va(sb_nums[i], suffix));
 	}
