@@ -1788,7 +1788,6 @@ extern vmCvar_t			cg_ratPlasmaTrail;
 extern vmCvar_t			cg_ratPlasmaTrailAlpha;
 extern vmCvar_t			cg_ratPlasmaTrailStep;
 extern vmCvar_t			cg_ratPlasmaTrailTime;
-extern vmCvar_t			cg_rocketStyle;
 extern vmCvar_t			cg_ratRocketTrail;
 extern vmCvar_t			cg_ratRocketTrailAlpha;
 extern vmCvar_t			cg_ratRocketTrailRadius;
