@@ -23,6 +23,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // cg_weapons.c -- events and effects dealing with weapons
 #include "cg_local.h"
 
+void CG_DrawWeaponBar11(int count, int bits);
+
 /*
 ==========================
 CG_MachineGunEjectBrass
@@ -2213,11 +2215,14 @@ void CG_DrawWeaponSelect( void ) {
 			CG_DrawWeaponBar13(count,bits, color);
 			break;
 		case 10:
+		case 11:
 			CG_DrawWeaponBar10(count,bits, color);
 			break;
+			/* broken
 		case 11:
 			CG_DrawWeaponBar11(count,bits);
 			break;
+			*/
 		case 12:
 			CG_DrawWeaponBar12(count,bits, color);
 			break;
