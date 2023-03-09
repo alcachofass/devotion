@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
@@ -31,11 +31,11 @@ SINGLE PLAYER SKILL MENU
 #include "ui_local.h"
 
 
-#define ART_FRAME				"menu/art_blueish/cut_frame"
-#define ART_BACK				"menu/art_blueish/back_0.tga"
-#define ART_BACK_FOCUS				"menu/art_blueish/back_1.tga"
-#define ART_FIGHT				"menu/art_blueish/fight_0"
-#define ART_FIGHT_FOCUS				"menu/art_blueish/fight_1"
+#define ART_FRAME					"menu/art/cut_frame"
+#define ART_BACK					"menu/art/back_0.tga"
+#define ART_BACK_FOCUS				"menu/art/back_1.tga"
+#define ART_FIGHT					"menu/art/fight_0"
+#define ART_FIGHT_FOCUS				"menu/art/fight_1"
 #define ART_MAP_COMPLETE1			"menu/art/level_complete1"
 #define ART_MAP_COMPLETE2			"menu/art/level_complete2"
 #define ART_MAP_COMPLETE3			"menu/art/level_complete3"

@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
@@ -42,7 +42,7 @@ typedef struct scrollInfo_s {
 
 static scrollInfo_t scrollInfo;
 
-static void (*captureFunc) (void *p) = 0;
+static void (*captureFunc) (void *p) = NULL;
 static void *captureData = NULL;
 static itemDef_t *itemCapture = NULL;   // item that has the mouse captured ( if any )
 
@@ -118,7 +118,7 @@ void UI_InitMemory( void ) {
 	outOfMemory = qfalse;
 }
 
-qboolean UI_OutOfMemory( void ) {
+qboolean UI_OutOfMemory() {
 	return outOfMemory;
 }
 
@@ -132,16 +132,16 @@ qboolean UI_OutOfMemory( void ) {
 return a hash value for the string
 ================
 */
-static unsigned hashForString(const char *str) {
+static long hashForString(const char *str) {
 	int		i;
-	unsigned	hash;
+	long	hash;
 	char	letter;
 
 	hash = 0;
 	i = 0;
 	while (str[i] != '\0') {
 		letter = tolower(str[i]);
-		hash+=(unsigned)(letter)*(i+119);
+		hash+=(long)(letter)*(i+119);
 		i++;
 	}
 	hash &= (HASH_TABLE_SIZE-1);
@@ -162,7 +162,7 @@ static stringDef_t *strHandle[HASH_TABLE_SIZE];
 
 const char *String_Alloc(const char *p) {
 	int len;
-	unsigned hash;
+	long hash;
 	stringDef_t *str, *last;
 	static const char *staticNULL = "";
 
@@ -210,7 +210,7 @@ const char *String_Alloc(const char *p) {
 	return NULL;
 }
 
-void String_Report(void) {
+void String_Report() {
 	float f;
 	Com_Printf("Memory/String Pool Info\n");
 	Com_Printf("----------------\n");
@@ -229,10 +229,10 @@ void String_Report(void) {
 String_Init
 =================
 */
-void String_Init(void) {
+void String_Init() {
 	int i;
 	for (i = 0; i < HASH_TABLE_SIZE; i++) {
-		strHandle[i] = NULL;
+		strHandle[i] = 0;
 	}
 	strHandleCount = 0;
 	strPoolIndex = 0;
@@ -258,7 +258,7 @@ void PC_SourceWarning(int handle, char *format, ...) {
 	static char string[4096];
 
 	va_start (argptr, format);
-	Q_vsnprintf (string, sizeof(string), format, argptr);
+	vsprintf (string, format, argptr);
 	va_end (argptr);
 
 	filename[0] = '\0';
@@ -280,7 +280,7 @@ void PC_SourceError(int handle, char *format, ...) {
 	static char string[4096];
 
 	va_start (argptr, format);
-	Q_vsnprintf (string, sizeof(string), format, argptr);
+	vsprintf (string, format, argptr);
 	va_end (argptr);
 
 	filename[0] = '\0';
@@ -608,8 +608,8 @@ void Window_Paint(Window *w, float fadeAmount, float fadeClamp, float fadeCycle)
   rectDef_t fillRect = w->rect;
 
 
-  color[0] = color[1] = color[2] = color[3] = 1;
   if (debugMode) {
+    color[0] = color[1] = color[2] = color[3] = 1;
     DC->drawRect(w->rect.x, w->rect.y, w->rect.w, w->rect.h, 1, color);
   }
 
@@ -1032,7 +1032,7 @@ void Menus_CloseByName(const char *p) {
   }
 }
 
-void Menus_CloseAll(void) {
+void Menus_CloseAll() {
   int i;
   for (i = 0; i < menuCount; i++) {
 		Menu_RunCloseScript(&Menus[i]);
@@ -1528,8 +1528,12 @@ int Item_Slider_OverSlider(itemDef_t *item, float x, float y) {
 
 int Item_ListBox_OverLB(itemDef_t *item, float x, float y) {
 	rectDef_t r;
+	listBoxDef_t *listPtr;
 	int thumbstart;
+	int count;
 
+	count = DC->feederCount(item->special);
+	listPtr = (listBoxDef_t*)item->typeData;
 	if (item->window.flags & WINDOW_HORIZONTAL) {
 		// check if on left arrow
 		r.x = item->window.rect.x;
@@ -1723,7 +1727,7 @@ qboolean Item_ListBox_HandleKey(itemDef_t *item, int key, qboolean down, qboolea
 		max = Item_ListBox_MaxScroll(item);
 		if (item->window.flags & WINDOW_HORIZONTAL) {
 			viewmax = (item->window.rect.w / listPtr->elementWidth);
-			if ( key == K_LEFTARROW ) 
+			if ( key == K_LEFTARROW || key == K_KP_LEFTARROW ) 
 			{
 				if (!listPtr->notselectable) {
 					listPtr->cursorPos--;
@@ -1746,7 +1750,7 @@ qboolean Item_ListBox_HandleKey(itemDef_t *item, int key, qboolean down, qboolea
 				}
 				return qtrue;
 			}
-			if ( key == K_RIGHTARROW ) 
+			if ( key == K_RIGHTARROW || key == K_KP_RIGHTARROW ) 
 			{
 				if (!listPtr->notselectable) {
 					listPtr->cursorPos++;
@@ -1772,7 +1776,7 @@ qboolean Item_ListBox_HandleKey(itemDef_t *item, int key, qboolean down, qboolea
 		}
 		else {
 			viewmax = (item->window.rect.h / listPtr->elementHeight);
-			if ( key == K_UPARROW ) 
+			if ( key == K_UPARROW || key == K_KP_UPARROW ) 
 			{
 				if (!listPtr->notselectable) {
 					listPtr->cursorPos--;
@@ -1795,7 +1799,7 @@ qboolean Item_ListBox_HandleKey(itemDef_t *item, int key, qboolean down, qboolea
 				}
 				return qtrue;
 			}
-			if ( key == K_DOWNARROW ) 
+			if ( key == K_DOWNARROW || key == K_KP_DOWNARROW ) 
 			{
 				if (!listPtr->notselectable) {
 					listPtr->cursorPos++;
@@ -1859,17 +1863,17 @@ qboolean Item_ListBox_HandleKey(itemDef_t *item, int key, qboolean down, qboolea
 			}
 			return qtrue;
 		}
-		if ( key == K_HOME ) {
+		if ( key == K_HOME || key == K_KP_HOME) {
 			// home
 			listPtr->startPos = 0;
 			return qtrue;
 		}
-		if ( key == K_END ) {
+		if ( key == K_END || key == K_KP_END) {
 			// end
 			listPtr->startPos = max;
 			return qtrue;
 		}
-		if (key == K_PGUP ) {
+		if (key == K_PGUP || key == K_KP_PGUP ) {
 			// page up
 			if (!listPtr->notselectable) {
 				listPtr->cursorPos -= viewmax;
@@ -1893,7 +1897,7 @@ qboolean Item_ListBox_HandleKey(itemDef_t *item, int key, qboolean down, qboolea
 			}
 			return qtrue;
 		}
-		if ( key == K_PGDN ) {
+		if ( key == K_PGDN || key == K_KP_PGDN ) {
 			// page down
 			if (!listPtr->notselectable) {
 				listPtr->cursorPos += viewmax;
@@ -2090,7 +2094,7 @@ qboolean Item_TextField_HandleKey(itemDef_t *item, int key) {
 
 		} else {
 
-			if ( key == K_DEL ) {
+			if ( key == K_DEL || key == K_KP_DEL ) {
 				if ( item->cursorPos < len ) {
 					memmove( buff + item->cursorPos, buff + item->cursorPos + 1, len - item->cursorPos);
 					DC->setCVar(item->cvar, buff);
@@ -2098,7 +2102,7 @@ qboolean Item_TextField_HandleKey(itemDef_t *item, int key) {
 				return qtrue;
 			}
 
-			if ( key == K_RIGHTARROW ) 
+			if ( key == K_RIGHTARROW || key == K_KP_RIGHTARROW ) 
 			{
 				if (editPtr->maxPaintChars && item->cursorPos >= editPtr->maxPaintChars && item->cursorPos < len) {
 					item->cursorPos++;
@@ -2111,7 +2115,7 @@ qboolean Item_TextField_HandleKey(itemDef_t *item, int key) {
 				return qtrue;
 			}
 
-			if ( key == K_LEFTARROW ) 
+			if ( key == K_LEFTARROW || key == K_KP_LEFTARROW ) 
 			{
 				if ( item->cursorPos > 0 ) {
 					item->cursorPos--;
@@ -2122,13 +2126,13 @@ qboolean Item_TextField_HandleKey(itemDef_t *item, int key) {
 				return qtrue;
 			}
 
-			if ( key == K_HOME ) {// || ( tolower(key) == 'a' && trap_Key_IsDown( K_CTRL ) ) ) {
+			if ( key == K_HOME || key == K_KP_HOME) {// || ( tolower(key) == 'a' && trap_Key_IsDown( K_CTRL ) ) ) {
 				item->cursorPos = 0;
 				editPtr->paintOffset = 0;
 				return qtrue;
 			}
 
-			if ( key == K_END )  {// ( tolower(key) == 'e' && trap_Key_IsDown( K_CTRL ) ) ) {
+			if ( key == K_END || key == K_KP_END)  {// ( tolower(key) == 'e' && trap_Key_IsDown( K_CTRL ) ) ) {
 				item->cursorPos = len;
 				if(item->cursorPos > editPtr->maxPaintChars) {
 					editPtr->paintOffset = len - editPtr->maxPaintChars;
@@ -2136,20 +2140,20 @@ qboolean Item_TextField_HandleKey(itemDef_t *item, int key) {
 				return qtrue;
 			}
 
-			if ( key == K_INS ) {
+			if ( key == K_INS || key == K_KP_INS ) {
 				DC->setOverstrikeMode(!DC->getOverstrikeMode());
 				return qtrue;
 			}
 		}
 
-		if (key == K_TAB || key == K_DOWNARROW ) {
+		if (key == K_TAB || key == K_DOWNARROW || key == K_KP_DOWNARROW) {
 			newItem = Menu_SetNextCursorItem(item->parent);
 			if (newItem && (newItem->type == ITEM_TYPE_EDITFIELD || newItem->type == ITEM_TYPE_NUMERICFIELD)) {
 				g_editItem = newItem;
 			}
 		}
 
-		if (key == K_UPARROW ) {
+		if (key == K_UPARROW || key == K_KP_UPARROW) {
 			newItem = Menu_SetPrevCursorItem(item->parent);
 			if (newItem && (newItem->type == ITEM_TYPE_EDITFIELD || newItem->type == ITEM_TYPE_NUMERICFIELD)) {
 				g_editItem = newItem;
@@ -2367,7 +2371,7 @@ qboolean Item_HandleKey(itemDef_t *item, int key, qboolean down) {
 	if (itemCapture) {
 		Item_StopCapture(itemCapture);
 		itemCapture = NULL;
-		captureFunc = 0;
+		captureFunc = NULL;
 		captureData = NULL;
 	} else {
 	  // bk001206 - parentheses
@@ -2509,7 +2513,7 @@ static void Menu_CloseCinematics(menuDef_t *menu) {
 	}
 }
 
-static void Display_CloseCinematics( void ) {
+static void Display_CloseCinematics() {
 	int i;
 	for (i = 0; i < menuCount; i++) {
 		Menu_CloseCinematics(&Menus[i]);
@@ -2533,7 +2537,7 @@ void  Menus_Activate(menuDef_t *menu) {
 
 }
 
-int Display_VisibleMenuCount( void ) {
+int Display_VisibleMenuCount() {
 	int i, count;
 	count = 0;
 	for (i = 0; i < menuCount; i++) {
@@ -2669,6 +2673,7 @@ void Menu_HandleKey(menuDef_t *menu, int key, qboolean down) {
 				DC->executeText(EXEC_APPEND, "screenshot\n");
 			}
 			break;
+		case K_KP_UPARROW:
 		case K_UPARROW:
 			Menu_SetPrevCursorItem(menu);
 			break;
@@ -2681,6 +2686,7 @@ void Menu_HandleKey(menuDef_t *menu, int key, qboolean down) {
 			}
 			break;
 		case K_TAB:
+		case K_KP_DOWNARROW:
 		case K_DOWNARROW:
 			Menu_SetNextCursorItem(menu);
 			break;
@@ -2697,6 +2703,7 @@ void Menu_HandleKey(menuDef_t *menu, int key, qboolean down) {
 						item->cursorPos = 0;
 						g_editingField = qtrue;
 						g_editItem = item;
+						DC->setOverstrikeMode(qtrue);
 					}
 				} else {
 					if (Rect_ContainsPoint(&item->window.rect, DC->cursorx, DC->cursory)) {
@@ -2734,6 +2741,7 @@ void Menu_HandleKey(menuDef_t *menu, int key, qboolean down) {
 					item->cursorPos = 0;
 					g_editingField = qtrue;
 					g_editItem = item;
+					DC->setOverstrikeMode(qtrue);
 				} else {
 						Item_Action(item);
 				}
@@ -3373,8 +3381,10 @@ void BindingFromName(const char *cvar) {
 
 void Item_Slider_Paint(itemDef_t *item) {
 	vec4_t newColor, lowLight;
-	float x, y;
+	float x, y, value;
 	menuDef_t *parent = (menuDef_t*)item->parent;
+
+	value = (item->cvar) ? DC->getCVarValue(item->cvar) : 0;
 
 	if (item->window.flags & WINDOW_HASFOCUS) {
 		lowLight[0] = 0.8 * parent->focusColor[0]; 
@@ -3439,7 +3449,7 @@ void Item_Bind_Paint(itemDef_t *item) {
 	}
 }
 
-qboolean Display_KeyBindPending(void) {
+qboolean Display_KeyBindPending() {
 	return g_waitingForKey;
 }
 
@@ -3640,8 +3650,7 @@ void Item_Image_Paint(itemDef_t *item) {
 }
 
 void Item_ListBox_Paint(itemDef_t *item) {
-	float x, y, size, thumb;
-        int count, i;
+	float x, y, size, count, i, thumb;
 	qhandle_t image;
 	qhandle_t optionalImage;
 	listBoxDef_t *listPtr = (listBoxDef_t*)item->typeData;
@@ -3794,9 +3803,12 @@ void Item_ListBox_Paint(itemDef_t *item) {
 
 
 void Item_OwnerDraw_Paint(itemDef_t *item) {
+  menuDef_t *parent;
+
 	if (item == NULL) {
 		return;
 	}
+  parent = (menuDef_t*)item->parent;
 
 	if (DC->ownerDrawItem) {
 		vec4_t color, lowLight;
@@ -3830,7 +3842,7 @@ void Item_OwnerDraw_Paint(itemDef_t *item) {
 		}
 
 		if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar(item, CVAR_ENABLE)) {
-		  Com_Memcpy(color, parent->disableColor, sizeof(vec4_t));
+		  memcpy(color, parent->disableColor, sizeof(vec4_t)); // bk001207 - FIXME: Com_Memcpy
 		}
 	
 		if (item->text) {
@@ -4063,7 +4075,7 @@ itemDef_t *Menu_GetFocusedItem(menuDef_t *menu) {
   return NULL;
 }
 
-menuDef_t *Menu_GetFocused(void) {
+menuDef_t *Menu_GetFocused() {
   int i;
   for (i = 0; i < menuCount; i++) {
     if (Menus[i].window.flags & WINDOW_HASFOCUS && Menus[i].window.flags & WINDOW_VISIBLE) {
@@ -4113,7 +4125,7 @@ void Menu_SetFeederSelection(menuDef_t *menu, int feeder, int index, const char 
 	}
 }
 
-qboolean Menus_AnyFullScreenVisible(void) {
+qboolean Menus_AnyFullScreenVisible() {
   int i;
   for (i = 0; i < menuCount; i++) {
     if (Menus[i].window.flags & WINDOW_VISIBLE && Menus[i].fullScreen) {
@@ -5122,7 +5134,7 @@ keywordHash_t itemParseKeywords[] = {
 	{"hideCvar", ItemParse_hideCvar, NULL},
 	{"cinematic", ItemParse_cinematic, NULL},
 	{"doubleclick", ItemParse_doubleClick, NULL},
-	{NULL, 0, NULL}
+	{NULL, NULL, NULL}
 };
 
 keywordHash_t *itemParseKeywordHash[KEYWORDHASH_SIZE];
@@ -5523,7 +5535,7 @@ keywordHash_t menuParseKeywords[] = {
 	{"fadeClamp", MenuParse_fadeClamp, NULL},
 	{"fadeCycle", MenuParse_fadeCycle, NULL},
 	{"fadeAmount", MenuParse_fadeAmount, NULL},
-	{NULL, 0, NULL}
+	{NULL, NULL, NULL}
 };
 
 keywordHash_t *menuParseKeywordHash[KEYWORDHASH_SIZE];
@@ -5599,11 +5611,11 @@ void Menu_New(int handle) {
 	}
 }
 
-int Menu_Count(void) {
+int Menu_Count() {
 	return menuCount;
 }
 
-void Menu_PaintAll(void) {
+void Menu_PaintAll() {
 	int i;
 	if (captureFunc) {
 		captureFunc(captureData);
@@ -5619,11 +5631,11 @@ void Menu_PaintAll(void) {
 	}
 }
 
-void Menu_Reset(void) {
+void Menu_Reset() {
 	menuCount = 0;
 }
 
-displayContextDef_t *Display_GetContext(void) {
+displayContextDef_t *Display_GetContext() {
 	return DC;
 }
  
@@ -5728,7 +5740,7 @@ static void Menu_CacheContents(menuDef_t *menu) {
 
 }
 
-void Display_CacheAll(void) {
+void Display_CacheAll() {
 	int i;
 	for (i = 0; i < menuCount; i++) {
 		Menu_CacheContents(&Menus[i]);

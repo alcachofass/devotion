@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
@@ -32,7 +32,7 @@ CONFIRMATION MENU
 #include "ui_local.h"
 
 
-#define ART_CONFIRM_FRAME	"menu/art_blueish/cut_frame"
+#define ART_CONFIRM_FRAME	"menu/art/cut_frame"
 
 #define ID_CONFIRM_NO		10
 #define ID_CONFIRM_YES		11
@@ -45,9 +45,7 @@ typedef struct {
 	menutext_s		yes;
 
 	int				slashX;
-	const char *	questionLine1;
-	const char *	questionLine2;
-	qboolean 	bgshade;
+	const char *	question;
 	void			(*draw)( void );
 	void			(*action)( qboolean result );
 	
@@ -145,13 +143,8 @@ ConfirmMenu_Draw
 =================
 */
 static void ConfirmMenu_Draw( void ) {
-	if (s_confirm.bgshade) {
-		vec4_t	bg = {0.0, 0.0, 0.0, 0.9};
-		UI_FillRect( 0, 0, 640, 480, bg );
-	}
 	UI_DrawNamedPic( 142, 118, 359, 256, ART_CONFIRM_FRAME );
-	UI_DrawProportionalString( 320, 204, s_confirm.questionLine1, s_confirm.style, color_red );
-	UI_DrawProportionalString( 320, 230, s_confirm.questionLine2, s_confirm.style, color_red );
+	UI_DrawProportionalString( 320, 204, s_confirm.question, s_confirm.style, color_red );
 	UI_DrawProportionalString( s_confirm.slashX, 265, "/", UI_LEFT|UI_INVERSE, color_red );
 
 	Menu_Draw( &s_confirm.menu );
@@ -171,8 +164,13 @@ void ConfirmMenu_Cache( void ) {
 	trap_R_RegisterShaderNoMip( ART_CONFIRM_FRAME );
 }
 
-void UI_ConfirmMenu_Style2( const char *questionLine1, const char *questionLine2, qboolean bgshade,
-	       	int style, void (*draw)( void ), void (*action)( qboolean result ) ) {
+
+/*
+=================
+UI_ConfirmMenu_Stlye
+=================
+*/
+void UI_ConfirmMenu_Style( const char *question, int style, void (*draw)( void ), void (*action)( qboolean result ) ) {
 	uiClientState_t	cstate;
 	int	n1, n2, n3;
 	int	l1, l2, l3;
@@ -190,9 +188,7 @@ void UI_ConfirmMenu_Style2( const char *questionLine1, const char *questionLine2
 	l3 = l2 + n3;
 	s_confirm.slashX = l2;
 
-	s_confirm.questionLine1 = questionLine1;
-	s_confirm.questionLine2 = questionLine2;
-	s_confirm.bgshade = bgshade;
+	s_confirm.question = question;
 	s_confirm.draw = draw;
 	s_confirm.action = action;
 	s_confirm.style = style;
@@ -235,15 +231,6 @@ void UI_ConfirmMenu_Style2( const char *questionLine1, const char *questionLine2
 	UI_PushMenu( &s_confirm.menu );
 
 	Menu_SetCursorToItem( &s_confirm.menu, &s_confirm.no );
-}
-
-/*
-=================
-UI_ConfirmMenu_Stlye
-=================
-*/
-void UI_ConfirmMenu_Style( const char *question, int style, void (*draw)( void ), void (*action)( qboolean result ) ) {
-	UI_ConfirmMenu_Style2(question, "", qfalse, style, draw, action);
 }
 
 /*

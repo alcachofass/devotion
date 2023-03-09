@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
@@ -31,24 +31,24 @@ SINGLE PLAYER LEVEL SELECT MENU
 #include "ui_local.h"
 
 
-#define ART_LEVELFRAME_FOCUS		"menu/art_blueish/maps_select"
-#define ART_LEVELFRAME_SELECTED		"menu/art_blueish/maps_selected"
-#define ART_ARROW			"menu/art_blueish/narrow_0"
-#define ART_ARROW_FOCUS			"menu/art_blueish/narrow_1"
-#define ART_MAP_UNKNOWN			"menu/art/unknownmap"
-#define ART_MAP_COMPLETE1		"menu/art/level_complete1"
-#define ART_MAP_COMPLETE2		"menu/art/level_complete2"
-#define ART_MAP_COMPLETE3		"menu/art/level_complete3"
-#define ART_MAP_COMPLETE4		"menu/art/level_complete4"
-#define ART_MAP_COMPLETE5		"menu/art/level_complete5"
-#define ART_BACK0			"menu/art_blueish/back_0"
-#define ART_BACK1			"menu/art_blueish/back_1"
-#define ART_FIGHT0			"menu/art_blueish/fight_0"
-#define ART_FIGHT1			"menu/art_blueish/fight_1"
-#define ART_RESET0			"menu/art_blueish/reset_0"
-#define ART_RESET1			"menu/art_blueish/reset_1"
-#define ART_CUSTOM0			"menu/art_blueish/skirmish_0"
-#define ART_CUSTOM1			"menu/art_blueish/skirmish_1"
+#define ART_LEVELFRAME_FOCUS		"menu/art/maps_select"
+#define ART_LEVELFRAME_SELECTED		"menu/art/maps_selected"
+#define ART_ARROW					"menu/art/narrow_0"
+#define ART_ARROW_FOCUS				"menu/art/narrow_1"
+#define ART_MAP_UNKNOWN				"menu/art/unknownmap"
+#define ART_MAP_COMPLETE1			"menu/art/level_complete1"
+#define ART_MAP_COMPLETE2			"menu/art/level_complete2"
+#define ART_MAP_COMPLETE3			"menu/art/level_complete3"
+#define ART_MAP_COMPLETE4			"menu/art/level_complete4"
+#define ART_MAP_COMPLETE5			"menu/art/level_complete5"
+#define ART_BACK0					"menu/art/back_0"
+#define ART_BACK1					"menu/art/back_1"	
+#define ART_FIGHT0					"menu/art/fight_0"
+#define ART_FIGHT1					"menu/art/fight_1"
+#define ART_RESET0					"menu/art/reset_0"
+#define ART_RESET1					"menu/art/reset_1"	
+#define ART_CUSTOM0					"menu/art/skirmish_0"
+#define ART_CUSTOM1					"menu/art/skirmish_1"
 
 #define ID_LEFTARROW		10
 #define ID_PICTURE0			11
@@ -130,7 +130,7 @@ static void PlayerIcon( const char *modelAndSkin, char *iconName, int iconNameMa
 	char	model[MAX_QPATH];
 
 	Q_strncpyz( model, modelAndSkin, sizeof(model));
-	skin = strrchr( model, '/' );
+	skin = Q_strrchr( model, '/' );
 	if ( skin ) {
 		*skin++ = '\0';
 	}
@@ -199,9 +199,6 @@ static void UI_SPLevelMenu_SetBots( void ) {
 		}
 
 		botInfo = UI_GetBotInfoByName( bot );
-                if( !botInfo )	{
-                     botInfo = UI_GetBotInfoByNumber( levelMenuInfo.numBots );
-                }
 		if( botInfo ) {
 			levelMenuInfo.botPics[levelMenuInfo.numBots] = PlayerIconHandle( Info_ValueForKey( botInfo, "model" ) );
 			Q_strncpyz( levelMenuInfo.botNames[levelMenuInfo.numBots], Info_ValueForKey( botInfo, "name" ), 10 );

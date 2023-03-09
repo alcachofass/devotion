@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
@@ -23,18 +23,15 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #ifndef __UI_LOCAL_H__
 #define __UI_LOCAL_H__
 
-#define BASEOA
-
-#include "../qcommon/q_shared.h"
-#include "../renderer/tr_types.h"
+#include "../game/q_shared.h"
+#include "../cgame/tr_types.h"
 //NOTE: include the ui_public.h from the new UI
 #include "../ui/ui_public.h" // bk001205 - yes, do have to use this
 //redefine to old API version
 #undef UI_API_VERSION
 #define UI_API_VERSION	4
-#include "../client/keycodes.h"
+#include "keycodes.h"
 #include "../game/bg_public.h"
-#include "../ui/ui_shared.h"
 
 typedef void (*voidfunc_f)(void);
 
@@ -51,35 +48,6 @@ extern vmCvar_t	ui_team_friendly;
 extern vmCvar_t	ui_ctf_capturelimit;
 extern vmCvar_t	ui_ctf_timelimit;
 extern vmCvar_t	ui_ctf_friendly;
-
-extern vmCvar_t	ui_1fctf_capturelimit;
-extern vmCvar_t	ui_1fctf_timelimit;
-extern vmCvar_t	ui_1fctf_friendly;
-
-extern vmCvar_t	ui_overload_capturelimit;
-extern vmCvar_t	ui_overload_timelimit;
-extern vmCvar_t	ui_overload_friendly;
-
-extern vmCvar_t	ui_harvester_capturelimit;
-extern vmCvar_t	ui_harvester_timelimit;
-extern vmCvar_t	ui_harvester_friendly;
-
-extern vmCvar_t	ui_elimination_capturelimit;
-extern vmCvar_t	ui_elimination_timelimit;
-
-extern vmCvar_t	ui_ctf_elimination_capturelimit;
-extern vmCvar_t	ui_ctf_elimination_timelimit;
-
-extern vmCvar_t	ui_lms_fraglimit;
-extern vmCvar_t	ui_lms_timelimit;
-
-extern vmCvar_t	ui_dd_capturelimit;
-extern vmCvar_t	ui_dd_timelimit;
-extern vmCvar_t	ui_dd_friendly;
-
-extern vmCvar_t	ui_dom_capturelimit;
-extern vmCvar_t	ui_dom_timelimit;
-extern vmCvar_t	ui_dom_friendly;
 
 extern vmCvar_t	ui_arenasFile;
 extern vmCvar_t	ui_botsFile;
@@ -121,48 +89,10 @@ extern vmCvar_t	ui_server13;
 extern vmCvar_t	ui_server14;
 extern vmCvar_t	ui_server15;
 extern vmCvar_t	ui_server16;
-extern vmCvar_t	ui_server17;
-extern vmCvar_t	ui_server18;
-extern vmCvar_t	ui_server19;
-extern vmCvar_t	ui_server20;
-extern vmCvar_t	ui_server21;
-extern vmCvar_t	ui_server22;
-extern vmCvar_t	ui_server23;
-extern vmCvar_t	ui_server24;
-extern vmCvar_t	ui_server25;
-extern vmCvar_t	ui_server26;
-extern vmCvar_t	ui_server27;
-extern vmCvar_t	ui_server28;
-extern vmCvar_t	ui_server29;
-extern vmCvar_t	ui_server30;
-extern vmCvar_t	ui_server31;
-extern vmCvar_t	ui_server32;
 
-extern vmCvar_t	ui_mapvote_filter;
-extern vmCvar_t	ui_mapvote_sort;
+extern vmCvar_t	ui_cdkey;
+extern vmCvar_t	ui_cdkeychecked;
 
-extern vmCvar_t	ui_mappage_pagenum;
-extern vmCvar_t ui_mappage_page0;
-extern vmCvar_t ui_mappage_page1;
-extern vmCvar_t ui_mappage_page2;
-extern vmCvar_t ui_mappage_page3;
-extern vmCvar_t ui_mappage_page4;
-extern vmCvar_t ui_mappage_page5;
-extern vmCvar_t ui_mappage_page6;
-extern vmCvar_t ui_mappage_page7;
-extern vmCvar_t ui_mappage_page8;
-
-extern vmCvar_t	ui_nextmapvote_remaining;
-extern vmCvar_t	ui_nextmapvote_maps;
-extern vmCvar_t	ui_nextmapvote_votes;
-
-//extern vmCvar_t	ui_cdkey;
-//extern vmCvar_t	ui_cdkeychecked;
-extern vmCvar_t	ui_trackConsentConfigured;
-extern vmCvar_t ui_setupchecked;
-
-//new in beta 23:
-extern vmCvar_t ui_browserOnlyHumans;
 
 //
 // ui_qmenu.c
@@ -175,9 +105,7 @@ extern vmCvar_t ui_browserOnlyHumans;
 #define	MAX_EDIT_LINE			256
 
 #define MAX_MENUDEPTH			8
-#ifndef MAX_MENUITEMS
 #define MAX_MENUITEMS			64
-#endif
 
 #define MTYPE_NULL				0
 #define MTYPE_SLIDER			1	
@@ -191,27 +119,27 @@ extern vmCvar_t ui_browserOnlyHumans;
 #define MTYPE_PTEXT				9
 #define MTYPE_BTEXT				10
 
-#define QMF_BLINK				(unsigned int)0x00000001
-#define QMF_SMALLFONT			(unsigned int)0x00000002
-#define QMF_LEFT_JUSTIFY		(unsigned int)0x00000004
-#define QMF_CENTER_JUSTIFY		(unsigned int)0x00000008
-#define QMF_RIGHT_JUSTIFY		(unsigned int)0x00000010
-#define QMF_NUMBERSONLY			(unsigned int)0x00000020	// edit field is only numbers
-#define QMF_HIGHLIGHT			(unsigned int)0x00000040
-#define QMF_HIGHLIGHT_IF_FOCUS	(unsigned int)0x00000080	// steady focus
-#define QMF_PULSEIFFOCUS		(unsigned int)0x00000100	// pulse if focus
-#define QMF_HASMOUSEFOCUS		(unsigned int)0x00000200
-#define QMF_NOONOFFTEXT			(unsigned int)0x00000400
-#define QMF_MOUSEONLY			(unsigned int)0x00000800	// only mouse input allowed
-#define QMF_HIDDEN				(unsigned int)0x00001000	// skips drawing
-#define QMF_GRAYED				(unsigned int)0x00002000	// grays and disables
-#define QMF_INACTIVE			(unsigned int)0x00004000	// disables any input
-#define QMF_NODEFAULTINIT		(unsigned int)0x00008000	// skip default initialization
-#define QMF_OWNERDRAW			(unsigned int)0x00010000
-#define QMF_PULSE				(unsigned int)0x00020000
-#define QMF_LOWERCASE			(unsigned int)0x00040000	// edit field is all lower case
-#define QMF_UPPERCASE			(unsigned int)0x00080000	// edit field is all upper case
-#define QMF_SILENT				(unsigned int)0x00100000
+#define QMF_BLINK				0x00000001
+#define QMF_SMALLFONT			0x00000002
+#define QMF_LEFT_JUSTIFY		0x00000004
+#define QMF_CENTER_JUSTIFY		0x00000008
+#define QMF_RIGHT_JUSTIFY		0x00000010
+#define QMF_NUMBERSONLY			0x00000020	// edit field is only numbers
+#define QMF_HIGHLIGHT			0x00000040
+#define QMF_HIGHLIGHT_IF_FOCUS	0x00000080	// steady focus
+#define QMF_PULSEIFFOCUS		0x00000100	// pulse if focus
+#define QMF_HASMOUSEFOCUS		0x00000200
+#define QMF_NOONOFFTEXT			0x00000400
+#define QMF_MOUSEONLY			0x00000800	// only mouse input allowed
+#define QMF_HIDDEN				0x00001000	// skips drawing
+#define QMF_GRAYED				0x00002000	// grays and disables
+#define QMF_INACTIVE			0x00004000	// disables any input
+#define QMF_NODEFAULTINIT		0x00008000	// skip default initialization
+#define QMF_OWNERDRAW			0x00010000
+#define QMF_PULSE				0x00020000
+#define QMF_LOWERCASE			0x00040000	// edit field is all lower case
+#define QMF_UPPERCASE			0x00080000	// edit field is all upper case
+#define QMF_SILENT				0x00100000
 
 // callback notifications
 #define QM_GOTFOCUS				1
@@ -326,20 +254,6 @@ typedef struct
 	float*			color;
 } menutext_s;
 
-#define MAX_MAPNAME_LENGTH 32
-//#define MAPPAGE_NUM 10
-#define MAPPAGE_NUM 30
-
-// XXX: must be the same as NMV_MAX_MAPSPERPAGE
-#define NEXTMAPVOTE_MAP_NUM 6
-
-typedef struct {
-	int pagenumber;
-	char mapname[MAPPAGE_NUM][MAX_MAPNAME_LENGTH];
-} t_mappage;
-
-extern t_mappage mappage;
-
 extern void			Menu_Cache( void );
 extern void			Menu_Focus( menucommon_s *m );
 extern void			Menu_AddItem( menuframework_s *menu, void *item );
@@ -360,7 +274,6 @@ extern sfxHandle_t	menu_out_sound;
 extern sfxHandle_t	menu_buzz_sound;
 extern sfxHandle_t	menu_null_sound;
 extern sfxHandle_t	weaponChangeSound;
-extern sfxHandle_t	talkSound;
 extern vec4_t		menu_text_color;
 extern vec4_t		menu_grayed_color;
 extern vec4_t		menu_dark_color;
@@ -404,7 +317,6 @@ extern void MainMenu_Cache( void );
 extern void UI_MainMenu(void);
 extern void UI_RegisterCvars( void );
 extern void UI_UpdateCvars( void );
-extern void UI_SetDefaultCvar(const char* cvar, const char* value);
 
 //
 // ui_credits.c
@@ -418,19 +330,11 @@ extern void InGame_Cache( void );
 extern void UI_InGameMenu(void);
 
 //
-// ui_trackconsent.c
-//
-extern void UI_TrackConsentMenu( void (*action)( qboolean result ) );
-extern void UI_TrackConsentAction( qboolean result );
-
-//
 // ui_confirm.c
 //
 extern void ConfirmMenu_Cache( void );
 extern void UI_ConfirmMenu( const char *question, void (*draw)( void ), void (*action)( qboolean result ) );
 extern void UI_ConfirmMenu_Style( const char *question, int style, void (*draw)( void ), void (*action)( qboolean result ) );
-void UI_ConfirmMenu_Style2( const char *questionLine1, const char *questionLine2, qboolean bgshade,
-	       	int style, void (*draw)( void ), void (*action)( qboolean result ) );
 extern void UI_Message( const char **lines );
 
 //
@@ -461,11 +365,6 @@ extern void Controls_Cache( void );
 //
 extern void UI_DemosMenu( void );
 extern void Demos_Cache( void );
-
-//
-// ui_challenges.c
-//
-extern void UI_Challenges( void );
 
 //
 // ui_cinematics.c
@@ -520,7 +419,7 @@ extern void SpecifyServer_Cache( void );
 //
 // ui_servers2.c
 //
-#define MAX_FAVORITESERVERS 32
+#define MAX_FAVORITESERVERS 16
 
 extern void UI_ArenaServersMenu( void );
 extern void ArenaServers_Cache( void );
@@ -546,60 +445,6 @@ extern void ServerInfo_Cache( void );
 extern void UI_GraphicsOptionsMenu( void );
 extern void GraphicsOptions_Cache( void );
 extern void DriverInfo_Cache( void );
-
-//
-// ui_votemenu.c
-//
-extern void UI_VoteMenuMenu( void );
-
-//
-// ui_votemenu_fraglimit.c
-//
-extern void UI_VoteFraglimitMenu( void );
-
-//
-// ui_votemenu_timelimit.c
-//
-extern void UI_VoteTimelimitMenu( void );
-
-//
-// ui_votemenu_gametype.c
-//
-extern void UI_VoteGametypeMenu( void );
-
-//
-// ui_votemenu_kick.c
-//
-extern void UI_VoteKickMenu( void );
-
-//
-// ui_votemenu_map.c
-//
-extern void UI_VoteMapMenu( void );
-extern void UI_VoteMapMenuInternal( void );
-
-//
-// ui_votemenu_nextmap.c
-//
-extern void UI_VoteNextMapMenu( void );
-extern void UI_VoteNextMapMenu_Close( void );
-
-//
-// ui_password.c
-//
-extern void SpecifyPassword_Cache( void );
-extern void UI_SpecifyPasswordMenu( char* string, char *name );
-
-//
-// ui_firstconnect.c
-//
-extern void FirstConnect_Cache( void );
-extern void UI_FirstConnectMenu( void );
-
-//
-// ui_votemenu_custom.c
-
-extern void UI_VoteCustomMenu( void );
 
 //
 // ui_players.c
@@ -702,8 +547,7 @@ typedef struct {
 	qhandle_t			cursor;
 	qhandle_t			rb_on;
 	qhandle_t			rb_off;
-	float				xscale;
-	float				yscale;
+	float				scale;
 	float				bias;
 	qboolean			demoversion;
 	qboolean			firstdraw;
@@ -736,13 +580,10 @@ extern void			UI_DrawTextBox (int x, int y, int width, int lines);
 extern qboolean		UI_IsFullscreen( void );
 extern void			UI_SetActiveMenu( uiMenuCommand_t menu );
 extern void			UI_PushMenu ( menuframework_s *menu );
-extern int 			UI_PushedMenus (void);
 extern void			UI_PopMenu (void);
 extern void			UI_ForceMenuOff (void);
 extern char			*UI_Argv( int arg );
 extern char			*UI_Cvar_VariableString( const char *var_name );
-extern int 			UI_Cvar_VariableInteger( const char *var_name );
-extern void 			UI_SendClientCommand( const char *command );
 extern void			UI_Refresh( int time );
 extern void			UI_StartDemoLoop( void );
 extern qboolean		m_entersound;
@@ -777,7 +618,7 @@ void UI_SPSkillMenu_Cache( void );
 // ui_syscalls.c
 //
 void			trap_Print( const char *string );
-void			trap_Error( const char *string )  __attribute__((noreturn));
+void			trap_Error( const char *string );
 int				trap_Milliseconds( void );
 void			trap_Cvar_Register( vmCvar_t *vmCvar, const char *varName, const char *defaultValue, int flags );
 void			trap_Cvar_Update( vmCvar_t *vmCvar );

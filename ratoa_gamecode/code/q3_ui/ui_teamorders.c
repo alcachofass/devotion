@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
@@ -32,16 +32,13 @@ TEAM ORDERS MENU
 #include "ui_local.h"
 
 
-#define ART_FRAME		"menu/art_blueish/addbotframe"
-#define ART_BACK0		"menu/art_blueish/back_0"
-#define ART_BACK1		"menu/art_blueish/back_1"
+#define ART_FRAME		"menu/art/addbotframe"
+#define ART_BACK0		"menu/art/back_0"
+#define ART_BACK1		"menu/art/back_1"	
 
 #define ID_LIST_BOTS		10
 #define ID_LIST_CTF_ORDERS	11
-#define ID_LIST_CTF1F_ORDERS	12
-#define ID_LIST_BASE_ORDERS	13
-#define ID_LIST_TEAM_ORDERS	14
-#define ID_LIST_DD_ORDERS	15
+#define ID_LIST_TEAM_ORDERS	12
 
 
 typedef struct {
@@ -78,51 +75,7 @@ static const char *ctfMessages[] = {
 	"i am the leader",
 	"%s defend the base",
 	"%s follow me",
-	"%s get the enemy flag",
-	"%s camp here",
-	"%s report",
-	"i stop being the leader",
-	NULL
-};
-
-#define NUM_CTF1F_ORDERS		7
-static const char *ctf1fOrders[] = {
-	"I Am the Leader",
-	"Defend the Base",
-	"Follow Me",
-	"Get The Flag",
-	"Camp Here",
-	"Report",
-	"I Relinquish Command",
-	NULL
-};
-static const char *ctf1fMessages[] = {
-	"i am the leader",
-	"%s defend the base",
-	"%s follow me",
-	"%s get the flag",
-	"%s camp here",
-	"%s report",
-	"i stop being the leader",
-	NULL
-};
-
-#define NUM_BASE_ORDERS		7
-static const char *baseOrders[] = {
-	"I Am the Leader",
-	"Defend the Base",
-	"Follow Me",
-	"Attack the Enemy Base",
-	"Camp Here",
-	"Report",
-	"I Relinquish Command",
-	NULL
-};
-static const char *baseMessages[] = {
-	"i am the leader",
-	"%s defend the base",
-	"%s follow me",
-	"%s attack the base",
+	"%s get enemy flag",
 	"%s camp here",
 	"%s report",
 	"i stop being the leader",
@@ -149,29 +102,6 @@ static const char *teamMessages[] = {
 	NULL
 };
 
-#define NUM_DD_ORDERS		8
-static const char *ddOrders[] = {
-	"I Am the Leader",
-	"Follow Me",
-	"Roam",
-	"Dominate Point A",
-	"Dominate Point B",
-	"Camp Here",
-	"Report",
-	"I Relinquish Command",
-	NULL
-};
-static const char *ddMessages[] = {
-	"i am the leader",
-	"%s follow me",
-	"%s roam",
-	"%s dominate point A",
-	"%s dominate point B",
-	"%s camp here",
-	"%s report",
-	"i stop being the leader",
-	NULL
-};
 
 /*
 ===============
@@ -206,28 +136,10 @@ static void UI_TeamOrdersMenu_SetList( int id ) {
 		teamOrdersMenuInfo.list.itemnames = ctfOrders;
 		break;
 
-        case ID_LIST_CTF1F_ORDERS:
-		teamOrdersMenuInfo.list.generic.id = id;
-		teamOrdersMenuInfo.list.numitems = NUM_CTF1F_ORDERS;
-		teamOrdersMenuInfo.list.itemnames = ctf1fOrders;
-		break;
-
-        case ID_LIST_BASE_ORDERS:
-		teamOrdersMenuInfo.list.generic.id = id;
-		teamOrdersMenuInfo.list.numitems = NUM_BASE_ORDERS;
-		teamOrdersMenuInfo.list.itemnames = baseOrders;
-		break;
-
 	case ID_LIST_TEAM_ORDERS:
 		teamOrdersMenuInfo.list.generic.id = id;
 		teamOrdersMenuInfo.list.numitems = NUM_TEAM_ORDERS;
 		teamOrdersMenuInfo.list.itemnames = teamOrders;
-		break;
-
-	case ID_LIST_DD_ORDERS:
-		teamOrdersMenuInfo.list.generic.id = id;
-		teamOrdersMenuInfo.list.numitems = NUM_DD_ORDERS;
-		teamOrdersMenuInfo.list.itemnames = ddOrders;
 		break;
 	}
 
@@ -352,43 +264,20 @@ static void UI_TeamOrdersMenu_ListEvent( void *ptr, int event ) {
 
 	if( id == ID_LIST_BOTS ) {
 		teamOrdersMenuInfo.selectedBot = selection;
-		if( teamOrdersMenuInfo.gametype == GT_CTF || teamOrdersMenuInfo.gametype == GT_CTF_ELIMINATION ) {
+		if( teamOrdersMenuInfo.gametype == GT_CTF ) {
 			UI_TeamOrdersMenu_SetList( ID_LIST_CTF_ORDERS );
 		}
-		/*
-                if( teamOrdersMenuInfo.gametype == GT_1FCTF ) {
-			UI_TeamOrdersMenu_SetList( ID_LIST_CTF1F_ORDERS );
-		}
-                if( teamOrdersMenuInfo.gametype == GT_OBELISK || teamOrdersMenuInfo.gametype == GT_HARVESTER ) {
-			UI_TeamOrdersMenu_SetList( ID_LIST_BASE_ORDERS );
-		}
-		*/
-		//if( teamOrdersMenuInfo.gametype == GT_TEAM || teamOrdersMenuInfo.gametype == GT_ELIMINATION || teamOrdersMenuInfo.gametype == GT_DOMINATION ) {
-		if( teamOrdersMenuInfo.gametype == GT_TEAM || teamOrdersMenuInfo.gametype == GT_ELIMINATION ) {
+		else {
 			UI_TeamOrdersMenu_SetList( ID_LIST_TEAM_ORDERS );
 		}
-		/*
-		if( teamOrdersMenuInfo.gametype == GT_DOUBLE_D ) {
-			UI_TeamOrdersMenu_SetList( ID_LIST_DD_ORDERS );
-		}
-		*/
 		return;
 	}
 
 	if( id == ID_LIST_CTF_ORDERS ) {
 		Com_sprintf( message, sizeof(message), ctfMessages[selection], teamOrdersMenuInfo.botNames[teamOrdersMenuInfo.selectedBot] );
 	}
-        if( id == ID_LIST_CTF1F_ORDERS ) {
-		Com_sprintf( message, sizeof(message), ctf1fMessages[selection], teamOrdersMenuInfo.botNames[teamOrdersMenuInfo.selectedBot] );
-	}
-        if( id == ID_LIST_BASE_ORDERS ) {
-		Com_sprintf( message, sizeof(message), baseMessages[selection], teamOrdersMenuInfo.botNames[teamOrdersMenuInfo.selectedBot] );
-	}
-	if( id == ID_LIST_TEAM_ORDERS ) {
+	else {
 		Com_sprintf( message, sizeof(message), teamMessages[selection], teamOrdersMenuInfo.botNames[teamOrdersMenuInfo.selectedBot] );
-	}
-	if( id == ID_LIST_DD_ORDERS ) {
-		Com_sprintf( message, sizeof(message), ddMessages[selection], teamOrdersMenuInfo.botNames[teamOrdersMenuInfo.selectedBot] );
 	}
 
 	trap_Cmd_ExecuteText( EXEC_APPEND, va( "say_team \"%s\"\n", message ) );
@@ -406,7 +295,7 @@ static void UI_TeamOrdersMenu_BuildBotList( void ) {
 	int		numPlayers;
 	int		isBot;
 	int		n;
-	char	playerTeam = '3';
+	char	playerTeam;
 	char	botTeam;
 	char	info[MAX_INFO_STRING];
 
@@ -425,6 +314,8 @@ static void UI_TeamOrdersMenu_BuildBotList( void ) {
 
 	for( n = 0; n < numPlayers && teamOrdersMenuInfo.numBots < 9; n++ ) {
 		trap_GetConfigString( CS_PLAYERS + n, info, MAX_INFO_STRING );
+
+		playerTeam = TEAM_SPECTATOR; // bk001204 = possible uninit use
 
 		if( n == cs.clientNum ) {
 			playerTeam = *Info_ValueForKey( info, "t" );
@@ -542,7 +433,7 @@ void UI_TeamOrdersMenu_f( void ) {
 	// make sure it's a team game
 	trap_GetConfigString( CS_SERVERINFO, info, sizeof(info) );
 	teamOrdersMenuInfo.gametype = atoi( Info_ValueForKey( info, "g_gametype" ) );
-	if( teamOrdersMenuInfo.gametype < GT_TEAM || teamOrdersMenuInfo.gametype!=GT_LMS) {
+	if( teamOrdersMenuInfo.gametype < GT_TEAM ) {
 		return;
 	}
 

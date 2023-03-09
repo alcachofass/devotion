@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
@@ -148,7 +148,7 @@ static void UI_LoadArenasFromFile( char *filename ) {
 		return;
 	}
 	if ( len >= MAX_ARENAS_TEXT ) {
-		trap_Print( va( S_COLOR_RED "file too large: %s is %i, max allowed is %i\n", filename, len, MAX_ARENAS_TEXT ) );
+		trap_Print( va( S_COLOR_RED "file too large: %s is %i, max allowed is %i", filename, len, MAX_ARENAS_TEXT ) );
 		trap_FS_FCloseFile( f );
 		return;
 	}
@@ -169,13 +169,13 @@ static void UI_LoadArenas( void ) {
 	int			numdirs;
 	vmCvar_t	arenasFile;
 	char		filename[128];
-	char		dirlist[20*1024];
+	char		dirlist[1024];
 	char*		dirptr;
 	int			i, n;
 	int			dirlen;
 	char		*type;
 	char		*tag;
-	int		singlePlayerNum, specialNum, otherNum;
+	int			singlePlayerNum, specialNum, otherNum;
 
 	ui_numArenas = 0;
 
@@ -188,7 +188,7 @@ static void UI_LoadArenas( void ) {
 	}
 
 	// get all arenas from .arena files
-	numdirs = trap_FS_GetFileList("scripts", ".arena", dirlist, sizeof(dirlist) );
+	numdirs = trap_FS_GetFileList("scripts", ".arena", dirlist, 1024 );
 	dirptr  = dirlist;
 	for (i = 0; i < numdirs; i++, dirptr += dirlen+1) {
 		dirlen = strlen(dirptr);
@@ -237,7 +237,7 @@ static void UI_LoadArenas( void ) {
 	// go through once more and assign number to the levels
 	singlePlayerNum = 0;
 	specialNum = singlePlayerNum + ui_numSinglePlayerArenas;
-	otherNum = specialNum + ui_numSpecialSinglePlayerArenas + n;
+	otherNum = specialNum + ui_numSpecialSinglePlayerArenas;
 	for( n = 0; n < ui_numArenas; n++ ) {
 		// determine type
 		type = Info_ValueForKey( ui_arenaInfos[n], "type" );
@@ -337,7 +337,7 @@ static void UI_LoadBotsFromFile( char *filename ) {
 		return;
 	}
 	if ( len >= MAX_BOTS_TEXT ) {
-		trap_Print( va( S_COLOR_RED "file too large: %s is %i, max allowed is %i\n", filename, len, MAX_BOTS_TEXT ) );
+		trap_Print( va( S_COLOR_RED "file too large: %s is %i, max allowed is %i", filename, len, MAX_BOTS_TEXT ) );
 		trap_FS_FCloseFile( f );
 		return;
 	}
@@ -811,5 +811,10 @@ void UI_InitGameinfo( void ) {
 	UI_LoadArenas();
 	UI_LoadBots();
 
-	uis.demoversion = qfalse;
+	if( (trap_Cvar_VariableValue( "fs_restrict" )) || (ui_numSpecialSinglePlayerArenas == 0 && ui_numSinglePlayerArenas == 4) ) {
+		uis.demoversion = qtrue;
+	}
+	else {
+		uis.demoversion = qfalse;
+	}
 }

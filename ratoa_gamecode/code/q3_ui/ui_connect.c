@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
@@ -103,7 +103,7 @@ static void UI_DisplayDownloadInfo( const char *downloadName ) {
 	UI_DrawProportionalString( 8, 224, xferText, style, color_white );
 
 	if (downloadSize > 0) {
-		s = va( "%s (%d%%)", downloadName, (int)( (float)downloadCount * 100.0f / downloadSize ) );
+		s = va( "%s (%d%%)", downloadName, downloadCount * 100 / downloadSize );
 	} else {
 		s = downloadName;
 	}
@@ -207,9 +207,6 @@ void UI_DrawConnectScreen( qboolean overlay ) {
 	if ( cstate.connState < CA_CONNECTED ) {
 		UI_DrawProportionalString_AutoWrapped( 320, 192, 630, 20, cstate.messageString, UI_CENTER|UI_SMALLFONT|UI_DROPSHADOW, menu_text_color );
 	}
-
-	// make sure the nextmap vote menu is closed
-	UI_VoteNextMapMenu_Close();
 
 #if 0
 	// display password field

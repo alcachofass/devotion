@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
@@ -115,7 +115,7 @@ static void UI_LoadArenasFromFile( char *filename ) {
 		return;
 	}
 	if ( len >= MAX_ARENAS_TEXT ) {
-		trap_Print( va( S_COLOR_RED "file too large: %s is %i, max allowed is %i\n", filename, len, MAX_ARENAS_TEXT ) );
+		trap_Print( va( S_COLOR_RED "file too large: %s is %i, max allowed is %i", filename, len, MAX_ARENAS_TEXT ) );
 		trap_FS_FCloseFile( f );
 		return;
 	}
@@ -198,18 +198,6 @@ void UI_LoadArenas( void ) {
 			if( strstr( type, "harvester" ) ) {
 				uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_HARVESTER);
 			}
-			if( strstr( type, "elimination" ) ) {
-				uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_ELIMINATION);
-			}
-			if( strstr( type, "ctfelimination" ) ) {
-				uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_CTF_ELIMINATION);
-			}
-			if( strstr( type, "lms" ) ) {
-				uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_LMS);
-			}
-			if( strstr( type, "dd" ) ) {
-				uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_DOUBLE_D);
-			}
 		} else {
 			uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_FFA);
 		}
@@ -238,7 +226,7 @@ static void UI_LoadBotsFromFile( char *filename ) {
 		return;
 	}
 	if ( len >= MAX_BOTS_TEXT ) {
-		trap_Print( va( S_COLOR_RED "file too large: %s is %i, max allowed is %i\n", filename, len, MAX_BOTS_TEXT ) );
+		trap_Print( va( S_COLOR_RED "file too large: %s is %i, max allowed is %i", filename, len, MAX_BOTS_TEXT ) );
 		trap_FS_FCloseFile( f );
 		return;
 	}
@@ -322,7 +310,7 @@ char *UI_GetBotInfoByName( const char *name ) {
 	return NULL;
 }
 
-int UI_GetNumBots( void ) {
+int UI_GetNumBots() {
 	return ui_numBots;
 }
 

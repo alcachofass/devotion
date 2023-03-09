@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
@@ -29,12 +29,15 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 qboolean		m_entersound;		// after a frame, so caching won't disrupt the sound
 
+// these are here so the functions in q_shared.c can link
+#ifndef UI_HARD_LINKED
+
 void QDECL Com_Error( int level, const char *error, ... ) {
 	va_list		argptr;
 	char		text[1024];
 
 	va_start (argptr, error);
-	Q_vsnprintf (text, sizeof(text), error, argptr);
+	vsprintf (text, error, argptr);
 	va_end (argptr);
 
 	trap_Error( va("%s", text) );
@@ -45,11 +48,13 @@ void QDECL Com_Printf( const char *msg, ... ) {
 	char		text[1024];
 
 	va_start (argptr, msg);
-	Q_vsnprintf (text, sizeof(text), msg, argptr);
+	vsprintf (text, msg, argptr);
 	va_end (argptr);
 
 	trap_Print( va("%s", text) );
 }
+
+#endif
 
 qboolean newUI = qfalse;
 
@@ -175,7 +180,7 @@ void UI_LoadBestScores(const char *map, int game) {
 UI_ClearScores
 ===============
 */
-void UI_ClearScores(void) {
+void UI_ClearScores() {
 	char	gameList[4096];
 	char *gameFile;
 	int		i, len, count, size;
@@ -206,7 +211,7 @@ void UI_ClearScores(void) {
 
 
 
-static void	UI_Cache_f( void ) {
+static void	UI_Cache_f() {
 	Display_CacheAll();
 }
 
@@ -215,7 +220,7 @@ static void	UI_Cache_f( void ) {
 UI_CalcPostGameStats
 =======================
 */
-static void UI_CalcPostGameStats( void ) {
+static void UI_CalcPostGameStats() {
 	char		map[MAX_QPATH];
 	char		fileName[MAX_QPATH];
 	char		info[MAX_INFO_STRING];
@@ -345,13 +350,9 @@ qboolean UI_ConsoleCommand( int realTime ) {
 		if (trap_Argc() == 4) {
 			char shader1[MAX_QPATH];
 			char shader2[MAX_QPATH];
-			char shader3[MAX_QPATH];
-			
 			Q_strncpyz(shader1, UI_Argv(1), sizeof(shader1));
 			Q_strncpyz(shader2, UI_Argv(2), sizeof(shader2));
-			Q_strncpyz(shader3, UI_Argv(3), sizeof(shader3));
-			
-			trap_R_RemapShader(shader1, shader2, shader3);
+			trap_R_RemapShader(shader1, shader2, UI_Argv(3));
 			return qtrue;
 		}
 	}

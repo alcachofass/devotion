@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
@@ -23,10 +23,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #ifndef __UI_LOCAL_H__
 #define __UI_LOCAL_H__
 
-#include "../qcommon/q_shared.h"
-#include "../renderer/tr_types.h"
+#include "../game/q_shared.h"
+#include "../cgame/tr_types.h"
 #include "ui_public.h"
-#include "../client/keycodes.h"
+#include "keycodes.h"
 #include "../game/bg_public.h"
 #include "ui_shared.h"
 
@@ -130,8 +130,6 @@ extern vmCvar_t	ui_scoreTime;
 extern vmCvar_t	ui_smallFont;
 extern vmCvar_t	ui_bigFont;
 extern vmCvar_t ui_serverStatusTimeOut;
-
-extern vmCvar_t ui_humansonly;
 
 
 
@@ -354,13 +352,13 @@ extern sfxHandle_t	MenuField_Key( menufield_s* m, int* key );
 //
 // ui_main.c
 //
-void UI_Report( void );
-void UI_Load( void );
+void UI_Report();
+void UI_Load();
 void UI_LoadMenus(const char *menuFile, qboolean reset);
 void _UI_SetActiveMenu( uiMenuCommand_t menu );
 int UI_AdjustTimeByGame(int time);
 void UI_ShowPostGame(qboolean newHigh);
-void UI_ClearScores( void );
+void UI_ClearScores();
 void UI_LoadArenas(void);
 
 //
@@ -571,7 +569,6 @@ typedef struct {
 } playerInfo_t;
 
 void UI_DrawPlayer( float x, float y, float w, float h, playerInfo_t *pi, int time );
-void UI_DrawPlayerII( float x, float y, float w, float h, playerInfo_t *pi, int time );
 void UI_PlayerInfo_SetModel( playerInfo_t *pi, const char *model, const char *headmodel, char *teamName );
 void UI_PlayerInfo_SetInfo( playerInfo_t *pi, int legsAnim, int torsoAnim, vec3_t viewAngles, vec3_t moveAngles, weapon_t weaponNum, qboolean chat );
 qboolean UI_RegisterClientModelname( playerInfo_t *pi, const char *modelSkinName , const char *headName, const char *teamName);
@@ -637,9 +634,7 @@ typedef struct {
 #define MAX_MODS 64
 #define MAX_DEMOS 256
 #define MAX_MOVIES 256
-//#define MAX_PLAYERMODELS 256
-#define MAX_PLAYERMODELS 1024
-
+#define MAX_PLAYERMODELS 256
 
 
 typedef struct {
@@ -977,8 +972,8 @@ int				trap_LAN_GetPingQueueCount( void );
 void			trap_LAN_ClearPing( int n );
 void			trap_LAN_GetPing( int n, char *buf, int buflen, int *pingtime );
 void			trap_LAN_GetPingInfo( int n, char *buf, int buflen );
-void			trap_LAN_LoadCachedServers( void );
-void			trap_LAN_SaveCachedServers( void );
+void			trap_LAN_LoadCachedServers();
+void			trap_LAN_SaveCachedServers();
 void			trap_LAN_MarkServerVisible(int source, int n, qboolean visible);
 int				trap_LAN_ServerIsVisible( int source, int n);
 qboolean		trap_LAN_UpdateVisiblePings( int source );

@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
@@ -89,13 +89,13 @@ tryagain:
 
 	if ( weaponNum == WP_MACHINEGUN || weaponNum == WP_GAUNTLET || weaponNum == WP_BFG ) {
 		strcpy( path, item->world_model[0] );
-		COM_StripExtension( path, path, sizeof(path) );
+		COM_StripExtension( path, path );
 		strcat( path, "_barrel.md3" );
 		pi->barrelModel = trap_R_RegisterModel( path );
 	}
 
 	strcpy( path, item->world_model[0] );
-	COM_StripExtension( path, path, sizeof(path) );
+	COM_StripExtension( path, path );
 	strcat( path, "_flash.md3" );
 	pi->flashModel = trap_R_RegisterModel( path );
 
@@ -135,11 +135,11 @@ tryagain:
 	case WP_BFG:
 		MAKERGB( pi->flashDlightColor, 1, 0.7f, 1 );
 		break;
-/*
+
 	case WP_GRAPPLING_HOOK:
 		MAKERGB( pi->flashDlightColor, 0.6f, 0.6f, 1 );
 		break;
-*/
+
 	default:
 		MAKERGB( pi->flashDlightColor, 1, 1, 1 );
 		break;
@@ -943,7 +943,6 @@ static qboolean UI_ParseAnimationFile( const char *filename, animation_t *animat
 	}
 	if ( len >= ( sizeof( text ) - 1 ) ) {
 		Com_Printf( "File %s too long\n", filename );
-		trap_FS_FCloseFile( f );
 		return qfalse;
 	}
 	trap_FS_Read( text, len, f );
@@ -1033,7 +1032,7 @@ static qboolean UI_ParseAnimationFile( const char *filename, animation_t *animat
 	}
 
 	if ( i != MAX_ANIMATIONS ) {
-		Com_Printf( "Error parsing animation file: %s\n", filename );
+		Com_Printf( "Error parsing animation file: %s", filename );
 		return qfalse;
 	}
 

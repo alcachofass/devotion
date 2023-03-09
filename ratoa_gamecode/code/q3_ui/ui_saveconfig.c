@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
@@ -31,11 +31,11 @@ SAVE CONFIG MENU
 #include "ui_local.h"
 
 
-#define ART_BACK0			"menu/art_blueish/back_0"
-#define ART_BACK1			"menu/art_blueish/back_1"
-#define ART_SAVE0			"menu/art_blueish/save_0"
-#define ART_SAVE1			"menu/art_blueish/save_1"
-#define ART_BACKGROUND		"menu/art_blueish/cut_frame"
+#define ART_BACK0			"menu/art/back_0"
+#define ART_BACK1			"menu/art/back_1"	
+#define ART_SAVE0			"menu/art/save_0"
+#define ART_SAVE1			"menu/art/save_1"
+#define ART_BACKGROUND		"menu/art/cut_frame"
 
 #define ID_NAME			10
 #define ID_BACK			11
@@ -85,7 +85,7 @@ static void UI_SaveConfigMenu_SaveEvent( void *ptr, int event ) {
 		return;
 	}
 
-	COM_StripExtension(saveConfig.savename.field.buffer, configname, sizeof(configname));
+	COM_StripExtension(saveConfig.savename.field.buffer, configname );
 	trap_Cmd_ExecuteText( EXEC_APPEND, va( "writeconfig %s.cfg\n", configname ) );
 	UI_PopMenu();
 }

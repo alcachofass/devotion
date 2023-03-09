@@ -15,23 +15,23 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
 //
 #include "ui_local.h"
 
-#define MODEL_BACK0			"menu/art_blueish/back_0"
-#define MODEL_BACK1			"menu/art_blueish/back_1"
+#define MODEL_BACK0			"menu/art/back_0"
+#define MODEL_BACK1			"menu/art/back_1"
 #define MODEL_SELECT		"menu/art/opponents_select"
 #define MODEL_SELECTED		"menu/art/opponents_selected"
-#define MODEL_FRAMEL		"menu/art_blueish/frame1_l"
-#define MODEL_FRAMER		"menu/art_blueish/frame1_r"
-#define MODEL_PORTS			"menu/art_blueish/player_models_ports"
-#define MODEL_ARROWS		"menu/art_blueish/gs_arrows_0"
-#define MODEL_ARROWSL		"menu/art_blueish/gs_arrows_l"
-#define MODEL_ARROWSR		"menu/art_blueish/gs_arrows_r"
+#define MODEL_FRAMEL		"menu/art/frame1_l"
+#define MODEL_FRAMER		"menu/art/frame1_r"
+#define MODEL_PORTS			"menu/art/player_models_ports"
+#define MODEL_ARROWS		"menu/art/gs_arrows_0"
+#define MODEL_ARROWSL		"menu/art/gs_arrows_l"
+#define MODEL_ARROWSR		"menu/art/gs_arrows_r"
 
 #define LOW_MEMORY			(5 * 1024 * 1024)
 
@@ -391,7 +391,7 @@ static void PlayerModel_BuildList( void )
 	int		numfiles;
 	char	dirlist[2048];
 	char	filelist[2048];
-	char	skinname[MAX_QPATH];
+	char	skinname[64];
 	char*	dirptr;
 	char*	fileptr;
 	int		i;
@@ -424,7 +424,7 @@ static void PlayerModel_BuildList( void )
 		{
 			filelen = strlen(fileptr);
 
-			COM_StripExtension(fileptr,skinname, sizeof(skinname));
+			COM_StripExtension(fileptr,skinname);
 
 			// look for icon_????
 			if (!Q_stricmpn(skinname,"icon_",5))
@@ -468,11 +468,6 @@ static void PlayerModel_SetMenuItems( void )
 
 	// model
 	trap_Cvar_VariableStringBuffer( "model", s_playermodel.modelskin, 64 );
-	
-	// use default skin if none is set
-	if (!strchr(s_playermodel.modelskin, '/')) {
-		Q_strcat(s_playermodel.modelskin, 64, "/default");
-	}
 	
 	// find model in our list
 	for (i=0; i<s_playermodel.nummodels; i++)

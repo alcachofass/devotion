@@ -7,7 +7,7 @@ This file is part of Quake III Arena source code.
 Quake III Arena source code is free software; you can redistribute it
 and/or modify it under the terms of the GNU General Public License as
 published by the Free Software Foundation; either version 2 of the License,
-or (at your option) any later version.SERVER
+or (at your option) any later version.
 
 Quake III Arena source code is distributed in the hope that it will be
 useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
@@ -32,8 +32,8 @@ INGAME MENU
 #include "ui_local.h"
 
 
-#define INGAME_FRAME					"menu/art_blueish/addbotframe"
-//#define INGAME_FRAME					"menu/art_blueish/cut_frame"
+#define INGAME_FRAME					"menu/art/addbotframe"
+//#define INGAME_FRAME					"menu/art/cut_frame"
 #define INGAME_MENU_VERTICAL_SPACING	28
 
 #define ID_TEAM					10
@@ -46,7 +46,6 @@ INGAME MENU
 #define ID_QUIT					17
 #define ID_RESUME				18
 #define ID_TEAMORDERS			19
-#define ID_VOTE                         20
 
 
 typedef struct {
@@ -63,7 +62,6 @@ typedef struct {
 	menutext_s		teamorders;
 	menutext_s		quit;
 	menutext_s		resume;
-        menutext_s              vote;
 } ingamemenu_t;
 
 static ingamemenu_t	s_ingame;
@@ -94,8 +92,7 @@ static void InGame_QuitAction( qboolean result ) {
 		return;
 	}
 	UI_PopMenu();
-	//UI_CreditMenu();
-        trap_Cmd_ExecuteText( EXEC_APPEND, "quit\n" );
+	UI_CreditMenu();
 }
 
 
@@ -123,11 +120,11 @@ void InGame_Event( void *ptr, int notification ) {
 		break;
 
 	case ID_RESTART:
-		UI_ConfirmMenu( "RESTART ARENA?", 0, InGame_RestartAction );
+		UI_ConfirmMenu( "RESTART ARENA?", (voidfunc_f)NULL, InGame_RestartAction );
 		break;
 
 	case ID_QUIT:
-		UI_ConfirmMenu( "EXIT GAME?",  0, InGame_QuitAction );
+		UI_ConfirmMenu( "EXIT GAME?",  (voidfunc_f)NULL, InGame_QuitAction );
 		break;
 
 	case ID_SERVERINFO:
@@ -149,10 +146,6 @@ void InGame_Event( void *ptr, int notification ) {
 	case ID_RESUME:
 		UI_PopMenu();
 		break;
-                
-        case ID_VOTE:
-                UI_VoteMenuMenu();
-                break;
 	}
 }
 
@@ -233,7 +226,7 @@ void InGame_MenuInit( void ) {
 	s_ingame.teamorders.string				= "TEAM ORDERS";
 	s_ingame.teamorders.color				= color_red;
 	s_ingame.teamorders.style				= UI_CENTER|UI_SMALLFONT;
-	if( !(trap_Cvar_VariableValue( "g_gametype" ) >= GT_TEAM) || (trap_Cvar_VariableValue( "g_gametype" ) == GT_LMS ) ) {
+	if( !(trap_Cvar_VariableValue( "g_gametype" ) >= GT_TEAM) ) {
 		s_ingame.teamorders.generic.flags |= QMF_GRAYED;
 	}
 	else {
@@ -243,21 +236,6 @@ void InGame_MenuInit( void ) {
 		if( team == TEAM_SPECTATOR ) {
 			s_ingame.teamorders.generic.flags |= QMF_GRAYED;
 		}
-	}
-
-        y += INGAME_MENU_VERTICAL_SPACING;
-	s_ingame.vote.generic.type		= MTYPE_PTEXT;
-	s_ingame.vote.generic.flags		= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
-	s_ingame.vote.generic.x			= 320;
-	s_ingame.vote.generic.y			= y;
-	s_ingame.vote.generic.id			= ID_VOTE;
-	s_ingame.vote.generic.callback	= InGame_Event;
-	s_ingame.vote.string				= "CALL VOTE";
-	s_ingame.vote.color				= color_red;
-	s_ingame.vote.style				= UI_CENTER|UI_SMALLFONT;
-        trap_GetConfigString( CS_SERVERINFO, info, MAX_INFO_STRING );
-        if( atoi( Info_ValueForKey(info,"g_allowVote") )==0 || trap_Cvar_VariableValue("g_gametype")==GT_SINGLE_PLAYER ) {
-		s_ingame.vote.generic.flags |= QMF_GRAYED;
 	}
 
 	y += INGAME_MENU_VERTICAL_SPACING;
@@ -334,7 +312,6 @@ void InGame_MenuInit( void ) {
 	Menu_AddItem( &s_ingame.menu, &s_ingame.addbots );
 	Menu_AddItem( &s_ingame.menu, &s_ingame.removebots );
 	Menu_AddItem( &s_ingame.menu, &s_ingame.teamorders );
-        Menu_AddItem( &s_ingame.menu, &s_ingame.vote );
 	Menu_AddItem( &s_ingame.menu, &s_ingame.setup );
 	Menu_AddItem( &s_ingame.menu, &s_ingame.server );
 	Menu_AddItem( &s_ingame.menu, &s_ingame.restart );

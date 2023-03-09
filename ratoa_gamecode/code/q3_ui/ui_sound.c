@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
@@ -31,10 +31,10 @@ SOUND OPTIONS MENU
 #include "ui_local.h"
 
 
-#define ART_FRAMEL			"menu/art_blueish/frame2_l"
-#define ART_FRAMER			"menu/art_blueish/frame1_r"
-#define ART_BACK0			"menu/art_blueish/back_0"
-#define ART_BACK1			"menu/art_blueish/back_1"
+#define ART_FRAMEL			"menu/art/frame2_l"
+#define ART_FRAMER			"menu/art/frame1_r"
+#define ART_BACK0			"menu/art/back_0"
+#define ART_BACK1			"menu/art/back_1"
 
 #define ID_GRAPHICS			10
 #define ID_DISPLAY			11
@@ -44,13 +44,11 @@ SOUND OPTIONS MENU
 #define ID_MUSICVOLUME		15
 #define ID_QUALITY			16
 //#define ID_A3D				17
-//Sago: Here I do some stuff!
-#define ID_OPENAL			18
-#define ID_BACK				19
+#define ID_BACK				18
 
 
 static const char *quality_items[] = {
-	"Low", "High", NULL
+	"Low", "High", 0
 };
 
 typedef struct {
@@ -69,7 +67,6 @@ typedef struct {
 	menuslider_s		musicvolume;
 	menulist_s			quality;
 //	menuradiobutton_s	a3d;
-	menuradiobutton_s	openal;
 
 	menubitmap_s		back;
 } soundOptionsInfo_t;
@@ -137,17 +134,6 @@ static void UI_SoundOptionsMenu_Event( void* ptr, int event ) {
 		soundOptionsInfo.a3d.curvalue = (int)trap_Cvar_VariableValue( "s_usingA3D" );
 		break;
 */
-
-	case ID_OPENAL:
-		if( soundOptionsInfo.openal.curvalue ) {
-			trap_Cmd_ExecuteText( EXEC_NOW, "s_useopenal 1\n" );
-		}
-		else {
-			trap_Cmd_ExecuteText( EXEC_NOW, "s_useopenal 0\n" );
-		}
-		soundOptionsInfo.openal.curvalue = (int)trap_Cvar_VariableValue( "s_useopenal" );
-		break;
-
 	case ID_BACK:
 		UI_PopMenu();
 		break;
@@ -274,15 +260,6 @@ static void UI_SoundOptionsMenu_Init( void ) {
 	soundOptionsInfo.a3d.generic.x				= 400;
 	soundOptionsInfo.a3d.generic.y				= y;
 */
-	y += BIGCHAR_HEIGHT+2;
-	soundOptionsInfo.openal.generic.type			= MTYPE_RADIOBUTTON;
-	soundOptionsInfo.openal.generic.name			= "OpenAL:";
-	soundOptionsInfo.openal.generic.flags			= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
-	soundOptionsInfo.openal.generic.callback		= UI_SoundOptionsMenu_Event;
-	soundOptionsInfo.openal.generic.id				= ID_OPENAL;
-	soundOptionsInfo.openal.generic.x				= 400;
-	soundOptionsInfo.openal.generic.y				= y;
-
 	soundOptionsInfo.back.generic.type			= MTYPE_BITMAP;
 	soundOptionsInfo.back.generic.name			= ART_BACK0;
 	soundOptionsInfo.back.generic.flags			= QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS;
@@ -305,14 +282,12 @@ static void UI_SoundOptionsMenu_Init( void ) {
 	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.musicvolume );
 	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.quality );
 //	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.a3d );
-	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.openal );
 	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.back );
 
 	soundOptionsInfo.sfxvolume.curvalue = trap_Cvar_VariableValue( "s_volume" ) * 10;
 	soundOptionsInfo.musicvolume.curvalue = trap_Cvar_VariableValue( "s_musicvolume" ) * 10;
 	soundOptionsInfo.quality.curvalue = !trap_Cvar_VariableValue( "s_compression" );
 //	soundOptionsInfo.a3d.curvalue = (int)trap_Cvar_VariableValue( "s_usingA3D" );
-	soundOptionsInfo.openal.curvalue = (int)trap_Cvar_VariableValue( "s_useopenal" );
 }
 
 

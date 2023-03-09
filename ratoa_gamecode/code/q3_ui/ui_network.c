@@ -15,7 +15,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Quake III Arena source code; if not, write to the Free Software
+along with Foobar; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
@@ -31,10 +31,10 @@ NETWORK OPTIONS MENU
 #include "ui_local.h"
 
 
-#define ART_FRAMEL			"menu/art_blueish/frame2_l"
-#define ART_FRAMER			"menu/art_blueish/frame1_r"
-#define ART_BACK0			"menu/art_blueish/back_0"
-#define ART_BACK1			"menu/art_blueish/back_1"
+#define ART_FRAMEL			"menu/art/frame2_l"
+#define ART_FRAMER			"menu/art/frame1_r"
+#define ART_BACK0			"menu/art/back_0"
+#define ART_BACK1			"menu/art/back_1"
 
 #define ID_GRAPHICS			10
 #define ID_DISPLAY			11
@@ -44,13 +44,13 @@ NETWORK OPTIONS MENU
 #define ID_BACK				15
 
 
-const char *rate_items[] = {
+static const char *rate_items[] = {
 	"<= 28.8K",
 	"33.6K",
 	"56K",
 	"ISDN",
 	"LAN/Cable/xDSL",
-	NULL
+	0
 };
 
 typedef struct {
@@ -116,7 +116,7 @@ static void UI_NetworkOptionsMenu_Event( void* ptr, int event ) {
 			trap_Cvar_SetValue( "rate", 5000 );
 		}
 		else if( networkOptionsInfo.rate.curvalue == 4 ) {
-			trap_Cvar_SetValue( "rate", RECOMMENDED_RATE );
+			trap_Cvar_SetValue( "rate", 25000 );
 		}
 		break;
 
