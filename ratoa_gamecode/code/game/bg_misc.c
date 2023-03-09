@@ -1079,7 +1079,7 @@ Only in Domination games
 	{
 		"item_armor_jacket", 
 		"sound/misc/ar2_pkup.wav",
-        { "models/powerups/armor/armor_green.md3", // TODO: make green armor model
+        { "models/powerups/armor/armor_gre.md3", // TODO: make green armor model
 		NULL, NULL, NULL},
 /* icon */		"icons/iconr_green",
 /* pickup */	"Light Armor",

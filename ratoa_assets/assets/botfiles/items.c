@@ -740,7 +740,7 @@ maxs		{13,13,13}
 iteminfo "item_armor_jacket"
 {
 name		"Light Armor"
-model		"models/powerups/armor/armor_green.md3"
+model		"models/powerups/armor/armor_gre.md3"
 modelindex	MODELINDEX_ARMORJACKET
 type		ARMORI
 index		INVENTORY_ARMOR

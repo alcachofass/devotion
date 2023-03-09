@@ -2402,6 +2402,10 @@ void Cmd_GoodGame_f( gentity_t *ent ) {
 	}
 }
 
+// delay until the player who dropped an item can pick it up again
+// to prevent immediately picking up a dropped item again
+#define DROP_PICKUPDELAY 1000 
+
 gentity_t *DropFlag( gentity_t *ent ) {
 	int item = 0;
 
@@ -2423,6 +2427,7 @@ gentity_t *DropFlag( gentity_t *ent ) {
 		return NULL;
 	}
 	ent->client->ps.powerups[item] = 0;
+	ent->dropPickupTime = level.time + DROP_PICKUPDELAY;
 	return Drop_ItemNonRandom(ent, BG_FindItemForPowerup( item ), 0 );
 }
 
@@ -2513,10 +2518,6 @@ gentity_t *DropWeapon( gentity_t *ent ) {
 	ent->client->ps.weaponTime += 500;
 	return item;
 }
-
-// delay until the player who dropped an item can pick it up again
-// to prevent immediately picking up a dropped item again
-#define DROP_PICKUPDELAY 500 
 
 void Cmd_Drop_f( gentity_t *ent ) {
 	gentity_t *item = NULL;
