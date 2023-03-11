@@ -662,7 +662,7 @@ static void CG_DrawRatStatusBar( void ) {
 	ps = &cg.snap->ps;
 
 
-	if (cg_ratStatusbar.integer == 2) {
+	if (cg_altStatusbar.integer == 2) {
 		//flagx = armorx + CG_HeightToWidth(ICON_SIZE + TEXT_ICON_SPACE*2) + char_width*3;
 		
 		// adjust for lagometer
@@ -940,7 +940,7 @@ static float CG_DrawDottedBar(float x, float y, dotbar_t *dotbar, int num_elemen
 }
 
 void CG_ResetStatusbar(void) {
-	if (cg_ratStatusbar.integer) {
+	if (cg_altStatusbar.integer) {
 		memset(&cg.healthbar, 0, sizeof(cg.healthbar));
 		memset(&cg.armorbar, 0, sizeof(cg.armorbar));
 		memset(&cg.weaponbar, 0, sizeof(cg.weaponbar));
@@ -1399,7 +1399,7 @@ static void CG_DrawWeaponAmmoBar(float x, float y, dotbar_t *dotbar, float barhe
 
 void CG_Ratstatusbar4RegisterShaders(void) {
 	int i;
-	int rsbtype = cg_ratStatusbar.integer;
+	int rsbtype = cg_altStatusbar.integer;
 	if (rsbtype < 4 || rsbtype > 5) {
 		rsbtype = 4;
 	}
@@ -1474,7 +1474,7 @@ static void CG_DrawRatStatusBar4( void ) {
 	int flagteam = TEAM_NUM_TEAMS;
 	int weaponSelect = CG_GetWeaponSelect();
 	float flag_x = RSB4_BAR_MARGIN;
-	qboolean vflipped = (cg_ratStatusbar.integer == 5);
+	qboolean vflipped = (cg_altStatusbar.integer == 5);
 	int number_yoffset = vflipped ? RSB5_NUMBER_YOFFSET : RSB4_NUMBER_YOFFSET;
 
 	static float colors[2][4] = { 
@@ -1493,7 +1493,7 @@ static void CG_DrawRatStatusBar4( void ) {
 	}
 	bigchar_width = CG_HeightToWidth(bigchar_height);
 
-	if (cgs.media.rsb4_shadersLoaded != cg_ratStatusbar.integer) {
+	if (cgs.media.rsb4_shadersLoaded != cg_altStatusbar.integer) {
 		CG_Ratstatusbar4RegisterShaders();
 	}
 
@@ -3796,7 +3796,7 @@ static float CG_DrawPowerups( float y ) {
 		return y;
 	}
 
-	if (cg_ratStatusbar.integer >= 4 && cg_ratStatusbar.integer <= 5) {
+	if (cg_altStatusbar.integer >= 4 && cg_altStatusbar.integer <= 5) {
 		char_height = DPW_CHAR_SIZE;
 		char_width = CG_HeightToWidth(char_height);
 		icon_sz = DPW_ICON_SIZE;
@@ -3853,7 +3853,7 @@ static float CG_DrawPowerups( float y ) {
 
 			y -= powerup_height;
 
-			if (cg_ratStatusbar.integer >= 4 && cg_ratStatusbar.integer <= 5) {
+			if (cg_altStatusbar.integer >= 4 && cg_altStatusbar.integer <= 5) {
 				int numDigits, v;
 
 				//CG_DrawPic( decor_x,
@@ -3899,7 +3899,7 @@ static float CG_DrawPowerups( float y ) {
 				size = icon_sz;
 			}
 			
-			if (cg_ratStatusbar.integer >= 4 && cg_ratStatusbar.integer <= 5) {
+			if (cg_altStatusbar.integer >= 4 && cg_altStatusbar.integer <= 5) {
 				CG_DrawPic( decor_x + CG_HeightToWidth(DPW_ICON_XOFFSET - size/2.0),
 					       	y + DPW_ICON_YOFFSET - size/2.0,
 						CG_HeightToWidth(size), size, trap_R_RegisterShader( item->icon ) );
@@ -5948,7 +5948,7 @@ static qboolean CG_DrawScoreboard( void ) {
 			CG_DrawSmallStringColor(320-w/2,400, "Click FIRE to respawn", colorGreen);
 		}
         }
-	if (cg_ratScoreboard.integer) {
+	if (cg_altScoreboard.integer) {
 		return CG_DrawRatScoreboard();
 	} else {
 		return CG_DrawOldScoreboard();
@@ -6538,8 +6538,8 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		// don't draw any status if dead or the scoreboard is being explicitly shown
 		if ( !cg.showScores && cg.snap->ps.stats[STAT_HEALTH] > 0 ) {
 			CG_DrawZoomScope();
-			// if ((cg_ratStatusbar.integer >= 4 && cg_ratStatusbar.integer <= 5) && cgs.gametype != GT_HARVESTER && cgs.gametype != GT_TREASURE_HUNTER) {
-			if ((cg_ratStatusbar.integer >= 4 && cg_ratStatusbar.integer <= 5)) {
+			// if ((cg_altStatusbar.integer >= 4 && cg_altStatusbar.integer <= 5) && cgs.gametype != GT_HARVESTER && cgs.gametype != GT_TREASURE_HUNTER) {
+			if ((cg_altStatusbar.integer >= 4 && cg_altStatusbar.integer <= 5)) {
 				CG_DrawRatStatusBar4Bg();
 			}
 			CG_DrawHudDamageIndicator();
@@ -6551,9 +6551,9 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 				CG_DrawTimedMenus();
 			}
 #else
-			// if (cg_ratStatusbar.integer && cgs.gametype != GT_HARVESTER && cgs.gametype != GT_TREASURE_HUNTER) {
-			if (cg_ratStatusbar.integer) {
-				switch (cg_ratStatusbar.integer) {
+			// if (cg_altStatusbar.integer && cgs.gametype != GT_HARVESTER && cgs.gametype != GT_TREASURE_HUNTER) {
+			if (cg_altStatusbar.integer) {
+				switch (cg_altStatusbar.integer) {
 					case 4:
 					case 5:
 						CG_DrawRatStatusBar4();

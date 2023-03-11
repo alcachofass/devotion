@@ -254,7 +254,7 @@ typedef struct {
         
         //Flags effecting movement (see dmflags)
         int                     pmove_flags;
-        //more flags affecting movement (see g_ratFlags)
+        //more flags affecting movement (see g_altFlags)
         int                     pmove_ratflags;
         // Selects between VQ3, CPM, and RM.
         movement_t              pmove_movement;
@@ -894,7 +894,7 @@ qboolean	BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const play
 #define VF_custom       256
 #define VF_shuffle      512
 
-//g_ratFlags->integer
+//g_altFlags->integer
 // autoparsed from various ratmod cvars
 #define RAT_EASYPICKUP		(1 << 0)
 #define RAT_POWERUPGLOWS 	(1 << 1)

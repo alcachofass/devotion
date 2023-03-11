@@ -209,28 +209,28 @@ vmCvar_t 	cg_pushNotificationTime;
 
 vmCvar_t 	cg_trackConsent;
 
-vmCvar_t 	cg_ratInitialized;
+vmCvar_t 	cg_altInitialized;
 
 vmCvar_t 	cg_predictTeleport;
 vmCvar_t 	cg_predictWeapons;
 vmCvar_t 	cg_predictExplosions;
 vmCvar_t 	cg_predictPlayerExplosions;
-vmCvar_t 	cg_ratPredictMissiles;
+vmCvar_t 	cg_altPredictMissiles;
 vmCvar_t 	cg_delagProjectileTrail;
-vmCvar_t 	cg_ratScoreboard;
-vmCvar_t 	cg_ratScoreboardAccuracy;
-vmCvar_t 	cg_ratStatusbar;
-vmCvar_t 	cg_ratStatusbarOldNumbers;
+vmCvar_t 	cg_altScoreboard;
+vmCvar_t 	cg_altScoreboardAccuracy;
+vmCvar_t 	cg_altStatusbar;
+vmCvar_t 	cg_altStatusbarOldNumbers;
 vmCvar_t 	cg_printDuelStats;
-vmCvar_t	cg_ratPlasmaTrail;
-vmCvar_t	cg_ratPlasmaTrailAlpha;
-vmCvar_t	cg_ratPlasmaTrailStep;
-vmCvar_t	cg_ratPlasmaTrailTime;
-vmCvar_t	cg_ratRail;
-vmCvar_t	cg_ratRailBeefy;
-vmCvar_t	cg_ratRailRadius;
-vmCvar_t	cg_ratLg;
-vmCvar_t	cg_ratLgImpact;
+vmCvar_t	cg_altPlasmaTrail;
+vmCvar_t	cg_altPlasmaTrailAlpha;
+vmCvar_t	cg_altPlasmaTrailStep;
+vmCvar_t	cg_altPlasmaTrailTime;
+vmCvar_t	cg_altRail;
+vmCvar_t	cg_altRailBeefy;
+vmCvar_t	cg_altRailRadius;
+vmCvar_t	cg_altLg;
+vmCvar_t	cg_altLgImpact;
 vmCvar_t	cg_lgSound;
 vmCvar_t	cg_rgSound;
 vmCvar_t	cg_consoleStyle;
@@ -640,32 +640,32 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_trackConsent, "cg_trackConsent", "0", CVAR_USERINFO | CVAR_ARCHIVE},
 
 	// RAT ===================
-	{ &cg_ratInitialized, "cg_ratInitialized", "0", CVAR_ARCHIVE},
+	{ &cg_altInitialized, "cg_altInitialized", "0", CVAR_ARCHIVE},
 
 	{ &cg_predictTeleport, "cg_predictTeleport", "1", CVAR_ARCHIVE},
 	{ &cg_predictWeapons, "cg_predictWeapons", "1", CVAR_ARCHIVE},
 	{ &cg_predictExplosions, "cg_predictExplosions", "1", CVAR_ARCHIVE},
 	{ &cg_predictPlayerExplosions, "cg_predictPlayerExplosions", "0", CVAR_ARCHIVE},
 
-	{ &cg_ratPredictMissiles, "cg_ratPredictMissiles", "1", CVAR_ARCHIVE},
+	{ &cg_altPredictMissiles, "cg_altPredictMissiles", "1", CVAR_ARCHIVE},
 	{ &cg_delagProjectileTrail, "cg_delagProjectileTrail", "1", CVAR_ARCHIVE},
-	{ &cg_ratScoreboard, "cg_ratScoreboard", "1", CVAR_ARCHIVE},
-	{ &cg_ratScoreboardAccuracy, "cg_ratScoreboardAccuracy", "1", CVAR_ARCHIVE},
-	{ &cg_ratStatusbar, "cg_ratStatusbar", "0", CVAR_ARCHIVE},
-	{ &cg_ratStatusbarOldNumbers, "cg_ratStatusbarOldNumbers", "0", CVAR_ARCHIVE},
+	{ &cg_altScoreboard, "cg_altScoreboard", "1", CVAR_ARCHIVE},
+	{ &cg_altScoreboardAccuracy, "cg_altScoreboardAccuracy", "1", CVAR_ARCHIVE},
+	{ &cg_altStatusbar, "cg_altStatusbar", "0", CVAR_ARCHIVE},
+	{ &cg_altStatusbarOldNumbers, "cg_altStatusbarOldNumbers", "0", CVAR_ARCHIVE},
 
 	{ &cg_printDuelStats, "cg_printDuelStats", "1", CVAR_ARCHIVE},
 
-	{ &cg_ratPlasmaTrail, "cg_ratPlasmaTrail", "0", CVAR_ARCHIVE},
-	{ &cg_ratPlasmaTrailAlpha, "cg_ratPlasmaTrailAlpha", "0.1", CVAR_ARCHIVE},
-	{ &cg_ratPlasmaTrailStep, "cg_ratPlasmaTrailStep", "12", CVAR_ARCHIVE},
-	{ &cg_ratPlasmaTrailTime, "cg_ratPlasmaTrailTime", "500", CVAR_ARCHIVE},
+	{ &cg_altPlasmaTrail, "cg_altPlasmaTrail", "0", CVAR_ARCHIVE},
+	{ &cg_altPlasmaTrailAlpha, "cg_altPlasmaTrailAlpha", "0.1", CVAR_ARCHIVE},
+	{ &cg_altPlasmaTrailStep, "cg_altPlasmaTrailStep", "12", CVAR_ARCHIVE},
+	{ &cg_altPlasmaTrailTime, "cg_altPlasmaTrailTime", "500", CVAR_ARCHIVE},
 	//
-	{ &cg_ratRail, "cg_ratRail", "0", CVAR_ARCHIVE | CVAR_LATCH},
-	{ &cg_ratRailBeefy, "cg_ratRailBeefy", "0", CVAR_ARCHIVE},
-	{ &cg_ratRailRadius, "cg_ratRailRadius", "0", CVAR_ARCHIVE},
-	{ &cg_ratLg, "cg_ratLg", "1", CVAR_ARCHIVE|CVAR_LATCH},
-	{ &cg_ratLgImpact, "cg_ratLgImpact", "1", CVAR_ARCHIVE},
+	{ &cg_altRail, "cg_altRail", "0", CVAR_ARCHIVE | CVAR_LATCH},
+	{ &cg_altRailBeefy, "cg_altRailBeefy", "0", CVAR_ARCHIVE},
+	{ &cg_altRailRadius, "cg_altRailRadius", "0", CVAR_ARCHIVE},
+	{ &cg_altLg, "cg_altLg", "1", CVAR_ARCHIVE|CVAR_LATCH},
+	{ &cg_altLgImpact, "cg_altLgImpact", "1", CVAR_ARCHIVE},
 	{ &cg_lgSound, "cg_lgSound", "2", CVAR_ARCHIVE|CVAR_LATCH},
 	{ &cg_rgSound, "cg_rgSound", "2", CVAR_ARCHIVE|CVAR_LATCH},
 	{ &cg_consoleStyle, "cg_consoleStyle", "2", CVAR_ARCHIVE},
@@ -1021,10 +1021,10 @@ int CG_MigrateOldCrosshair(int old) {
  * Make sure defaults are up to date
  */
 void CG_RatInitDefaults(void)  {
-	if (cg_ratInitialized.integer == 0) {
+	if (cg_altInitialized.integer == 0) {
 		CG_SetEngineCvars();
 		CG_CvarResetDefaults();
-		CG_Cvar_SetAndUpdate( "cg_ratInitialized", va("%i", LATEST_RATINITIALIZED) );
+		CG_Cvar_SetAndUpdate( "cg_altInitialized", va("%i", LATEST_RATINITIALIZED) );
 	}
 }
 
@@ -1081,8 +1081,8 @@ void CG_Cvar_PrintUserChanges( qboolean all ) {
 				// exclude non-cg cvars that might be in the table
 				continue;
 			}
-			if (Q_stricmp(cv->cvarName, "cg_ratInitialized") == 0) {
-				// exclude cg_ratInitialized because users should never
+			if (Q_stricmp(cv->cvarName, "cg_altInitialized") == 0) {
+				// exclude cg_altInitialized because users should never
 				// write that into their manual config files
 				continue;
 			}
@@ -1271,9 +1271,9 @@ void CG_UpdateCvars( void ) {
 		forceColorModificationCounts = i;
 	}
 
-	if ( ratStatusbarModificationCount != cg_ratStatusbar.modificationCount ) {
+	if ( ratStatusbarModificationCount != cg_altStatusbar.modificationCount ) {
 		CG_RegisterNumbers();
-		ratStatusbarModificationCount = cg_ratStatusbar.modificationCount;
+		ratStatusbarModificationCount = cg_altStatusbar.modificationCount;
 	}
 	
 	if ( hudMovementKeysModificationCount != cg_hudMovementKeys.modificationCount && !hudMovementKeysRegistered ) {
@@ -1966,8 +1966,8 @@ static void CG_RegisterNumbers(void) {
 		"gfx/2d/numbers%s/minus_32b",
 	};
 	char *suffix = "";
-	if (cg_ratStatusbar.integer > 2 
-			|| (cg_ratStatusbar.integer > 0 && !cg_ratStatusbarOldNumbers.integer)) {
+	if (cg_altStatusbar.integer > 2 
+			|| (cg_altStatusbar.integer > 0 && !cg_altStatusbarOldNumbers.integer)) {
 		suffix = "_trebfuture";
 	}
 	for ( i=0 ; i<11 ; i++) {
@@ -2335,7 +2335,7 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.eaward_medals[EAWARD_THAWBUDDY] = trap_R_RegisterShaderNoMip( "medal_thawbuddy" );
 	*/
 	/*
-	switch (cg_ratStatusbar.integer) {
+	switch (cg_altStatusbar.integer) {
 		case 3:
 			CG_Ratstatusbar3RegisterShaders();
 			break;

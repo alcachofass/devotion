@@ -307,14 +307,14 @@ static void CG_HUD_f( void ) {
 	num = atoi( CG_Argv( 1 ) );
 	switch (num) {
 		case 1:
-			CG_Cvar_SetAndUpdate("cg_ratStatusbar", "4");
+			CG_Cvar_SetAndUpdate("cg_altStatusbar", "4");
 			CG_Cvar_SetAndUpdate("cg_hudDamageIndicator", "1");
 			CG_Cvar_SetAndUpdate("cg_emptyIndicator", "1");
 			CG_Cvar_SetAndUpdate("cg_weaponbarStyle", "14");
 			CG_Cvar_SetAndUpdate("cg_drawFPS", "3");
 			break;
 		default:
-			CG_Cvar_SetAndUpdate("cg_ratStatusbar", "1");
+			CG_Cvar_SetAndUpdate("cg_altStatusbar", "1");
 			CG_Cvar_SetAndUpdate("cg_hudDamageIndicator", "0");
 			CG_Cvar_SetAndUpdate("cg_emptyIndicator", "0");
 			CG_Cvar_SetAndUpdate("cg_weaponbarStyle", "13");

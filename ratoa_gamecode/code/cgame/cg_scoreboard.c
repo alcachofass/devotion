@@ -225,7 +225,7 @@ qboolean CG_DrawRatAccboard( void ) {
 	int x;
 	
 
-	if (!cg_ratScoreboardAccuracy.integer) {
+	if (!cg_altScoreboardAccuracy.integer) {
 		return qfalse;
 	}
 

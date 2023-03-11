@@ -269,14 +269,14 @@ void CG_RailSpiral(clientInfo_t *ci, vec3_t start, vec3_t end) {
 			le->pos.trTime = cg.time;
 
 			VectorCopy( move, move2);
-			if (cg_ratRail.integer) {
-				VectorMA(move2, cg_ratRailRadius.value , axis[j], move2);
+			if (cg_altRail.integer) {
+				VectorMA(move2, cg_altRailRadius.value , axis[j], move2);
 			} else {
 				VectorMA(move2, RAIL_RADIUS , axis[j], move2);
 			}
 			VectorCopy(move2, le->pos.trBase);
 
-			if (cg_ratRail.integer) {
+			if (cg_altRail.integer) {
 				le->pos.trDelta[0] = axis[j][0]*4;
 				le->pos.trDelta[1] = axis[j][1]*4;
 				le->pos.trDelta[2] = axis[j][2]*4;
@@ -330,7 +330,7 @@ void CG_RailSpiral2(clientInfo_t *ci, vec3_t start, vec3_t end) {
 			skip = i + RAIL2_SPACING;
 
 			VectorCopy( move, move2);
-			VectorMA(move2, cg_ratRailRadius.value, axis[j], move2);
+			VectorMA(move2, cg_altRailRadius.value, axis[j], move2);
 
 			traj.trType = TR_LINEAR;
 			traj.trTime = cg.time;
@@ -355,7 +355,7 @@ void CG_RailSpiral2(clientInfo_t *ci, vec3_t start, vec3_t end) {
 			le->lifeRate = 1.0 / (le->endTime - le->startTime);
 
 			re->shaderTime = cg.time / 1000.0f;
-			if (cg_ratRailBeefy.integer) {
+			if (cg_altRailBeefy.integer) {
 				re->reType = RT_LIGHTNING;
 			} else {
 				re->reType = RT_RAIL_CORE;
@@ -377,7 +377,7 @@ void CG_RailSpiral2(clientInfo_t *ci, vec3_t start, vec3_t end) {
 
 			AxisClear( re->axis );
 
-			if (cg_ratRailBeefy.integer) {
+			if (cg_altRailBeefy.integer) {
 				// for RT_LIGHTNING, these must be reversed
 				VectorCopy(move2, re->oldorigin);
 				VectorCopy(last, re->origin);
@@ -516,8 +516,8 @@ void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end) {
 	// add the spiral first
 	// by adding the core last we ensure it is drawn even if we add too
 	// many entities
-	if (cg_ratRailRadius.value > 0 || (!cg_ratRail.integer && !cg_oldRail.integer)) {
-		switch (cg_ratRail.integer) {
+	if (cg_altRailRadius.value > 0 || (!cg_altRail.integer && !cg_oldRail.integer)) {
+		switch (cg_altRail.integer) {
 			case 2:
 				CG_RailSpiral2(ci, start, end);
 				break;
@@ -540,7 +540,7 @@ void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end) {
 	le->lifeRate = 1.0 / (le->endTime - le->startTime);
  
 	re->shaderTime = cg.time / 1000.0f;
-	if (cg_ratRailBeefy.integer) {
+	if (cg_altRailBeefy.integer) {
 		// this will draw the core 4 at different angles times instead
 		// of just once, with a core width of 8
 		re->reType = RT_LIGHTNING;
@@ -548,7 +548,7 @@ void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end) {
 		re->reType = RT_RAIL_CORE;
 	}
 
-	if (cg_ratRail.integer) {
+	if (cg_altRail.integer) {
 		re->customShader = cgs.media.ratRailCoreShader;
 	} else {
 		re->customShader = cgs.media.railCoreShader;
@@ -568,7 +568,7 @@ void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end) {
 	le->color[3] = 1.0f;
 
 	AxisClear( re->axis );
-	if (cg_ratRail.integer) {
+	if (cg_altRail.integer) {
 		le = CG_AllocLocalEntity();
 		re = &le->refEntity; 
 		//le->leType = LE_FADE_RGB;
@@ -578,7 +578,7 @@ void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end) {
 		le->endTime = cg.time + MIN(1200,railTrailTime)/2.0;
 		le->lifeRate = 1.0 / (le->endTime - le->startTime);
 		re->shaderTime = cg.time / 1000.0f;
-		if (cg_ratRailBeefy.integer) {
+		if (cg_altRailBeefy.integer) {
 			re->reType = RT_LIGHTNING;
 		} else {
 			re->reType = RT_RAIL_CORE;
@@ -596,7 +596,7 @@ void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end) {
 		le->color[3] = 1.0f;
 		AxisClear( re->axis );
 	}
-	if (cg_oldRail.integer && !cg_ratRail.integer) {
+	if (cg_oldRail.integer && !cg_altRail.integer) {
 		// nudge down a bit so it isn't exactly in center
 		re->origin[2] -= 8;
 		re->oldorigin[2] -= 8;
@@ -895,7 +895,7 @@ static void CG_RatPlasmaTrail( centity_t *ent, const weaponInfo_t *wi ) {
 	up[1] = 0;
 	up[2] = 0;
 
-	step = cg_ratPlasmaTrailStep.integer;
+	step = cg_altPlasmaTrailStep.integer;
 
 	es = &ent->currentState;
 	startTime = ent->trailTime;
@@ -928,8 +928,8 @@ static void CG_RatPlasmaTrail( centity_t *ent, const weaponInfo_t *wi ) {
 		smoke = CG_SmokePuff( origin, up, 
 					  5,
 					  1, 1, 1, 
-					  cg_ratPlasmaTrailAlpha.value,
-					  cg_ratPlasmaTrailTime.value, 
+					  cg_altPlasmaTrailAlpha.value,
+					  cg_altPlasmaTrailTime.value, 
 					  t,
 					  0,
 					  LEF_PUFF_DONT_SCALE, 
@@ -1097,7 +1097,7 @@ static void CG_RocketTrail( centity_t *ent, const weaponInfo_t *wi ) {
 */
 static void CG_PlasmaTrail( centity_t *ent, const weaponInfo_t *wi ) {
 
-	if (cg_ratPlasmaTrail.integer) {
+	if (cg_altPlasmaTrail.integer) {
 		//CG_RatPlasmaTrail(ent, wi);
 	}
 	// these aren't delagged correctly (yet)
@@ -1251,7 +1251,7 @@ void CG_RegisterWeapon( int weaponNum ) {
 		weaponInfo->firingSound = trap_S_RegisterSound( "sound/weapons/lightning/lg_hum.wav", qfalse );
 
 		weaponInfo->flashSound[0] = trap_S_RegisterSound( "sound/weapons/lightning/lg_fire.wav", qfalse );
-		switch (cg_ratLg.integer) {
+		switch (cg_altLg.integer) {
 			case 1:
 				cgs.media.lightningShader = trap_R_RegisterShader( "lightningBoltRat1");
 				break;
@@ -1396,7 +1396,7 @@ void CG_RegisterWeapon( int weaponNum ) {
 		cgs.media.railExplosionShader = trap_R_RegisterShader( "railExplosion" );
 		cgs.media.railRingsShader = trap_R_RegisterShader( "railDisc" );
 		cgs.media.railCoreShader = trap_R_RegisterShader( "railCore" );
-		switch (cg_ratRail.integer) {
+		switch (cg_altRail.integer) {
 			case 4:
 				cgs.media.ratRailCoreShader = trap_R_RegisterShader( "ratRailCoreFat" );
 				cgs.media.ratRailCoreShaderOverlay = trap_R_RegisterShader( "ratRailCoreOverlayFat" );
@@ -1695,7 +1695,7 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 	trap_R_AddRefEntityToScene( &beam );
 
 	// add the impact flare if it hit something
-	if (cg_ratLgImpact.integer) {
+	if (cg_altLgImpact.integer) {
 		if ( trace.fraction < 1.0 ) {
 			vec3_t	angles;
 			vec3_t	dir;

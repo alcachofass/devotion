@@ -632,8 +632,8 @@ void CG_AddRailtube( localEntity_t *le ) {
 	VectorNormalize(re->axis[1]);
 	VectorNormalize(re->axis[2]);
 	f = 1.0 - f;
-	VectorScale(re->axis[1], f * RAIL3_EXPAND_DIAMETER + cg_ratRailRadius.value * 2, re->axis[1]);
-	VectorScale(re->axis[2], f * RAIL3_EXPAND_DIAMETER + cg_ratRailRadius.value * 2, re->axis[2]);
+	VectorScale(re->axis[1], f * RAIL3_EXPAND_DIAMETER + cg_altRailRadius.value * 2, re->axis[1]);
+	VectorScale(re->axis[2], f * RAIL3_EXPAND_DIAMETER + cg_altRailRadius.value * 2, re->axis[2]);
 
 	trap_R_AddRefEntityToScene( re );
 }

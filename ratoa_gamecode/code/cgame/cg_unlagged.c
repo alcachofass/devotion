@@ -153,7 +153,7 @@ void CG_RecoverMissile(centity_t *missile) {
 void CG_RemovePredictedMissile( centity_t *missile) {
 	predictedMissile_t	*pm, *next;
 
-	if (!cg_ratPredictMissiles.integer) {
+	if (!cg_altPredictMissiles.integer) {
 		return;
 	}
 
@@ -202,7 +202,7 @@ qboolean CG_ShouldPredictExplosion(void) {
 qboolean CG_ExplosionPredicted(centity_t *cent, int checkFlags, vec3_t realExpOrigin, int realHitEnt) {
 	int flags = checkFlags;
 	if (cent->currentState.eType != ET_MISSILE
-			|| cg_ratPredictMissiles.integer <= 0
+			|| cg_altPredictMissiles.integer <= 0
 			|| !(cgs.ratFlags & RAT_PREDICTMISSILES) 
 			|| !cg_predictExplosions.integer) {
 		return qfalse;
@@ -249,7 +249,7 @@ void CG_PredictedExplosion(trace_t *tr, int weapon, predictedMissile_t *predMiss
 	}
 
 	if (!cg_predictExplosions.integer 
-			|| cg_ratPredictMissiles.integer <= 0
+			|| cg_altPredictMissiles.integer <= 0
 			|| !(cgs.ratFlags & RAT_PREDICTMISSILES)
 			|| tr->surfaceFlags & SURF_NOIMPACT
 			|| !(predMissile || missileEnt)) {
@@ -676,7 +676,7 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			CG_Bullet( tr.endpos, cg.predictedPlayerState.clientNum, tr.plane.normal, flesh, fleshEntityNum );
 			//Com_Printf( "Predicted bullet\n" );
 		}
-	}*/ else if ((cg_ratPredictMissiles.integer > 0 && (cgs.ratFlags & RAT_PREDICTMISSILES))
+	}*/ else if ((cg_altPredictMissiles.integer > 0 && (cgs.ratFlags & RAT_PREDICTMISSILES))
 		       	&& (ent->weapon == WP_PLASMAGUN
 			    || ent->weapon == WP_ROCKET_LAUNCHER 
 			    || ent->weapon == WP_GRENADE_LAUNCHER

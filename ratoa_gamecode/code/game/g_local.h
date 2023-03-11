@@ -1802,7 +1802,7 @@ extern  vmCvar_t        g_statsboard;
 extern  vmCvar_t        g_exportStats;
 extern  vmCvar_t        g_exportStatsServerId;
 extern  vmCvar_t        g_predictMissiles;
-extern  vmCvar_t        g_ratFlags;
+extern  vmCvar_t        g_altFlags;
 extern  vmCvar_t        g_allowDuplicateGuid;
 
 extern  vmCvar_t        g_botshandicapped;

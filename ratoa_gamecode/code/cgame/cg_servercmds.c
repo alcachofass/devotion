@@ -1249,7 +1249,7 @@ void CG_ParseServerinfo( void ) {
 
 	cgs.predictedMissileNudge = atoi( Info_ValueForKey( info, "g_delagMissileBaseNudge" ) );
 
-	cgs.ratFlags = atoi( Info_ValueForKey( info, "g_ratFlags" ) );
+	cgs.ratFlags = atoi( Info_ValueForKey( info, "g_altFlags" ) );
 
 	cgs.movement = atoi( Info_ValueForKey( info, "g_movement" ) );
 	if ((cgs.movement >= MOVEMENT_NUM_MOVEMENTS) || (cgs.movement < MOVEMENT_VQ3)) {
