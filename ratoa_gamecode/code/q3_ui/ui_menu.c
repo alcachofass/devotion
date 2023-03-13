@@ -36,7 +36,8 @@ MAIN MENU
 #define ID_MULTIPLAYER			11
 #define ID_SETUP				12
 #define ID_DEMOS				13
-#define ID_CINEMATICS			14
+//#define ID_CINEMATICS			14
+#define ID_CHALLENGES                   14
 #define ID_TEAMARENA		15
 #define ID_MODS					16
 #define ID_EXIT					17
@@ -52,12 +53,14 @@ typedef struct {
 	menutext_s		multiplayer;
 	menutext_s		setup;
 	menutext_s		demos;
-	menutext_s		cinematics;
+	//menutext_s		cinematics;
+        menutext_s              challenges;
 	menutext_s		teamArena;
 	menutext_s		mods;
 	menutext_s		exit;
 
-	qhandle_t		bannerModel;
+	//qhandle_t		bannerModel;
+	qhandle_t		bannerLogo;
 } mainmenu_t;
 
 
@@ -75,13 +78,14 @@ static errorMessage_t s_errorMessage;
 MainMenu_ExitAction
 =================
 */
-static void MainMenu_ExitAction( qboolean result ) {
+/*static void MainMenu_ExitAction( qboolean result ) {
 	if( !result ) {
 		return;
 	}
 	UI_PopMenu();
-	UI_CreditMenu();
-}
+	//UI_CreditMenu();
+        trap_Cmd_ExecuteText( EXEC_APPEND, "quit\n" );
+}*/
 
 
 
@@ -101,8 +105,11 @@ void Main_MenuEvent (void* ptr, int event) {
 		break;
 
 	case ID_MULTIPLAYER:
+            if(ui_setupchecked.integer)
 		UI_ArenaServersMenu();
-		break;
+            else
+                UI_FirstConnectMenu();
+	    break;
 
 	case ID_SETUP:
 		UI_SetupMenu();
@@ -112,21 +119,26 @@ void Main_MenuEvent (void* ptr, int event) {
 		UI_DemosMenu();
 		break;
 
-	case ID_CINEMATICS:
+	/*case ID_CINEMATICS:
 		UI_CinematicsMenu();
-		break;
+		break;*/
+
+            case ID_CHALLENGES:
+                UI_Challenges();
+                break;
 
 	case ID_MODS:
 		UI_ModsMenu();
 		break;
 
 	case ID_TEAMARENA:
-		trap_Cvar_Set( "fs_game", BASETA);
+		trap_Cvar_Set( "fs_game", "missionpack");
 		trap_Cmd_ExecuteText( EXEC_APPEND, "vid_restart;" );
 		break;
 
 	case ID_EXIT:
-		UI_ConfirmMenu( "EXIT GAME?", 0, MainMenu_ExitAction );
+		//UI_ConfirmMenu( "EXIT GAME?", 0, MainMenu_ExitAction );
+                UI_CreditMenu();
 		break;
 	}
 }
@@ -138,7 +150,9 @@ MainMenu_Cache
 ===============
 */
 void MainMenu_Cache( void ) {
-	s_main.bannerModel = trap_R_RegisterModel( MAIN_BANNER_MODEL );
+	//s_main.bannerModel = trap_R_RegisterModel( MAIN_BANNER_MODEL );
+	s_main.bannerLogo = trap_R_RegisterShaderNoMip( "ratmod_menulogo_white" );
+
 }
 
 sfxHandle_t ErrorMessage_Key(int key)
@@ -156,60 +170,62 @@ TTimo: this function is common to the main menu and errorMessage menu
 */
 
 static void Main_MenuDraw( void ) {
-	refdef_t		refdef;
-	refEntity_t		ent;
-	vec3_t			origin;
-	vec3_t			angles;
-	float			adjust;
-	float			x, y, w, h;
-	vec4_t			color = {0.5, 0, 0, 1};
+	//refdef_t		refdef;
+	//refEntity_t		ent;
+	//vec3_t			origin;
+	//vec3_t			angles;
+	//float			adjust;
+	//float			x, y, w, h;
+	vec4_t			color = {1.0, 1.0, 0, 1};
 
-	// setup the refdef
+	//// setup the refdef
 
-	memset( &refdef, 0, sizeof( refdef ) );
+	//memset( &refdef, 0, sizeof( refdef ) );
 
-	refdef.rdflags = RDF_NOWORLDMODEL;
+	//refdef.rdflags = RDF_NOWORLDMODEL;
 
-	AxisClear( refdef.viewaxis );
+	//AxisClear( refdef.viewaxis );
 
-	x = 0;
-	y = 0;
-	w = 640;
-	h = 120;
-	UI_AdjustFrom640( &x, &y, &w, &h );
-	refdef.x = x;
-	refdef.y = y;
-	refdef.width = w;
-	refdef.height = h;
+	//x = 0;
+	//y = 0;
+	//w = 640;
+	//h = 120;
+	//UI_AdjustFrom640( &x, &y, &w, &h );
+	//refdef.x = x;
+	//refdef.y = y;
+	//refdef.width = w;
+	//refdef.height = h;
 
-	adjust = 0; // JDC: Kenneth asked me to stop this 1.0 * sin( (float)uis.realtime / 1000 );
-	refdef.fov_x = 60 + adjust;
-	refdef.fov_y = 19.6875 + adjust;
+	//adjust = 0; // JDC: Kenneth asked me to stop this 1.0 * sin( (float)uis.realtime / 1000 );
+	//refdef.fov_x = 60 + adjust;
+	//refdef.fov_y = 19.6875 + adjust;
 
-	refdef.time = uis.realtime;
+	//refdef.time = uis.realtime;
 
-	origin[0] = 300;
-	origin[1] = 0;
-	origin[2] = -32;
+	//origin[0] = 300;
+	//origin[1] = 0;
+	//origin[2] = -32;
 
-	trap_R_ClearScene();
+	//trap_R_ClearScene();
 
-	// add the model
+	//// add the model
 
-	memset( &ent, 0, sizeof(ent) );
+	//memset( &ent, 0, sizeof(ent) );
 
-	adjust = 5.0 * sin( (float)uis.realtime / 5000 );
-	VectorSet( angles, 0, 180 + adjust, 0 );
-	AnglesToAxis( angles, ent.axis );
-	ent.hModel = s_main.bannerModel;
-	VectorCopy( origin, ent.origin );
-	VectorCopy( origin, ent.lightingOrigin );
-	ent.renderfx = RF_LIGHTING_ORIGIN | RF_NOSHADOW;
-	VectorCopy( ent.origin, ent.oldorigin );
+	//adjust = 5.0 * sin( (float)uis.realtime / 5000 );
+	//VectorSet( angles, 0, 180 + adjust, 0 );
+	//AnglesToAxis( angles, ent.axis );
+	//ent.hModel = s_main.bannerModel;
+	//VectorCopy( origin, ent.origin );
+	//VectorCopy( origin, ent.lightingOrigin );
+	//ent.renderfx = RF_LIGHTING_ORIGIN | RF_NOSHADOW;
+	//VectorCopy( ent.origin, ent.oldorigin );
 
-	trap_R_AddRefEntityToScene( &ent );
+	//trap_R_AddRefEntityToScene( &ent );
 
-	trap_R_RenderScene( &refdef );
+	//trap_R_RenderScene( &refdef );
+
+	UI_DrawHandlePic( 320-60, 0, 120, 120, s_main.bannerLogo );
 	
 	if (strlen(s_errorMessage.errorMessage))
 	{
@@ -221,40 +237,46 @@ static void Main_MenuDraw( void ) {
 		Menu_Draw( &s_main.menu );		
 	}
 
-	if (uis.demoversion) {
-		UI_DrawProportionalString( 320, 372, "DEMO      FOR MATURE AUDIENCES      DEMO", UI_CENTER|UI_SMALLFONT, color );
-		UI_DrawString( 320, 400, "Quake III Arena(c) 1999-2000, Id Software, Inc.  All Rights Reserved", UI_CENTER|UI_SMALLFONT, color );
-	} else {
-		UI_DrawString( 320, 450, "Quake III Arena(c) 1999-2000, Id Software, Inc.  All Rights Reserved", UI_CENTER|UI_SMALLFONT, color );
-	}
+		UI_DrawProportionalString( 320, 372, "", UI_CENTER|UI_SMALLFONT, color );
+		UI_DrawString( 320, 386, "RatArena(c) 2017-2021 Ratmod Team", UI_CENTER|UI_SMALLFONT, color );
+		UI_DrawString( 320, 400, "based on OpenArena(c) 2005-2012 OpenArena Team", UI_CENTER|UI_SMALLFONT, color );
+		UI_DrawString( 320, 414, "Ratmod/OpenArena comes with ABSOLUTELY NO WARRANTY; this is free software", UI_CENTER|UI_SMALLFONT, color );
+		UI_DrawString( 320, 428, "and you are welcome to redistribute it under certain conditions;", UI_CENTER|UI_SMALLFONT, color );
+		UI_DrawString( 320, 444, "read COPYING for details.", UI_CENTER|UI_SMALLFONT, color );
+                
+                //Draw version.
+		color[0] = 0;
+                UI_DrawString( 320, 480-14, RATMOD_VERSION, UI_CENTER|UI_SMALLFONT, color );
+                if((int)trap_Cvar_VariableValue("protocol")!=71)
+                    UI_DrawString( 0, 480-14, va("^7Protocol: %i",(int)trap_Cvar_VariableValue("protocol")), UI_SMALLFONT, color);
 }
 
 
-/*
-===============
-UI_TeamArenaExists
-===============
-*/
-static qboolean UI_TeamArenaExists( void ) {
-	int		numdirs;
-	char	dirlist[2048];
-	char	*dirptr;
-  char  *descptr;
-	int		i;
-	int		dirlen;
-
-	numdirs = trap_FS_GetFileList( "$modlist", "", dirlist, sizeof(dirlist) );
-	dirptr  = dirlist;
-	for( i = 0; i < numdirs; i++ ) {
-		dirlen = strlen( dirptr ) + 1;
-    descptr = dirptr + dirlen;
-		if (Q_stricmp(dirptr, BASETA) == 0) {
-			return qtrue;
-		}
-    dirptr += dirlen + strlen(descptr) + 1;
-	}
-	return qfalse;
-}
+///*
+//===============
+//UI_TeamArenaExists
+//===============
+//*/
+//static qboolean UI_TeamArenaExists( void ) {
+//	int		numdirs;
+//	char	dirlist[2048];
+//	char	*dirptr;
+//  char  *descptr;
+//	int		i;
+//	int		dirlen;
+//
+//	numdirs = trap_FS_GetFileList( "$modlist", "", dirlist, sizeof(dirlist) );
+//	dirptr  = dirlist;
+//	for( i = 0; i < numdirs; i++ ) {
+//		dirlen = strlen( dirptr ) + 1;
+//    descptr = dirptr + dirlen;
+//		if (Q_stricmp(dirptr, "missionpack") == 0) {
+//			return qtrue;
+//		}
+//    dirptr += dirlen + strlen(descptr) + 1;
+//	}
+//	return qfalse;
+//}
 
 
 /*
@@ -272,17 +294,8 @@ void UI_MainMenu( void ) {
 	int		style = UI_CENTER | UI_DROPSHADOW;
 
 	trap_Cvar_Set( "sv_killserver", "1" );
+        trap_Cvar_SetValue( "handicap", 100 ); //Reset handicap during server change, it must be ser per game
 
-	if( !uis.demoversion && !ui_cdkeychecked.integer ) {
-		char	key[17];
-
-		trap_GetCDKey( key, sizeof(key) );
-		if( trap_VerifyCDKey( key, NULL ) == qfalse ) {
-			UI_CDKeyMenu();
-			return;
-		}
-	}
-	
 	memset( &s_main, 0 ,sizeof(mainmenu_t) );
 	memset( &s_errorMessage, 0 ,sizeof(errorMessage_t) );
 
@@ -354,7 +367,7 @@ void UI_MainMenu( void ) {
 	s_main.demos.color						= color_red;
 	s_main.demos.style						= style;
 
-	y += MAIN_MENU_VERTICAL_SPACING;
+	/*y += MAIN_MENU_VERTICAL_SPACING;
 	s_main.cinematics.generic.type			= MTYPE_PTEXT;
 	s_main.cinematics.generic.flags			= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
 	s_main.cinematics.generic.x				= 320;
@@ -363,34 +376,43 @@ void UI_MainMenu( void ) {
 	s_main.cinematics.generic.callback		= Main_MenuEvent; 
 	s_main.cinematics.string				= "CINEMATICS";
 	s_main.cinematics.color					= color_red;
-	s_main.cinematics.style					= style;
+	s_main.cinematics.style					= style;*/
 
-	if ( !uis.demoversion && UI_TeamArenaExists() ) {
-		teamArena = qtrue;
-		y += MAIN_MENU_VERTICAL_SPACING;
-		s_main.teamArena.generic.type			= MTYPE_PTEXT;
-		s_main.teamArena.generic.flags			= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
-		s_main.teamArena.generic.x				= 320;
-		s_main.teamArena.generic.y				= y;
-		s_main.teamArena.generic.id				= ID_TEAMARENA;
-		s_main.teamArena.generic.callback		= Main_MenuEvent; 
-		s_main.teamArena.string					= "TEAM ARENA";
-		s_main.teamArena.color					= color_red;
-		s_main.teamArena.style					= style;
-	}
+        y += MAIN_MENU_VERTICAL_SPACING;
+	s_main.challenges.generic.type			= MTYPE_PTEXT;
+	s_main.challenges.generic.flags			= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
+	s_main.challenges.generic.x				= 320;
+	s_main.challenges.generic.y				= y;
+	s_main.challenges.generic.id			= ID_CHALLENGES;
+	s_main.challenges.generic.callback		= Main_MenuEvent;
+	s_main.challenges.string				= "STATISTICS";
+	s_main.challenges.color					= color_red;
+	s_main.challenges.style					= style;
 
-	if ( !uis.demoversion ) {
-		y += MAIN_MENU_VERTICAL_SPACING;
-		s_main.mods.generic.type			= MTYPE_PTEXT;
-		s_main.mods.generic.flags			= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
-		s_main.mods.generic.x				= 320;
-		s_main.mods.generic.y				= y;
-		s_main.mods.generic.id				= ID_MODS;
-		s_main.mods.generic.callback		= Main_MenuEvent; 
-		s_main.mods.string					= "MODS";
-		s_main.mods.color					= color_red;
-		s_main.mods.style					= style;
-	}
+	//if (UI_TeamArenaExists()) {
+	//	teamArena = qtrue;
+	//	y += MAIN_MENU_VERTICAL_SPACING;
+	//	s_main.teamArena.generic.type			= MTYPE_PTEXT;
+	//	s_main.teamArena.generic.flags			= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
+	//	s_main.teamArena.generic.x				= 320;
+	//	s_main.teamArena.generic.y				= y;
+	//	s_main.teamArena.generic.id				= ID_TEAMARENA;
+	//	s_main.teamArena.generic.callback		= Main_MenuEvent; 
+	//	s_main.teamArena.string					= "MISSION PACK";
+	//	s_main.teamArena.color					= color_red;
+	//	s_main.teamArena.style					= style;
+	//}
+
+	y += MAIN_MENU_VERTICAL_SPACING;
+	s_main.mods.generic.type			= MTYPE_PTEXT;
+	s_main.mods.generic.flags			= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
+	s_main.mods.generic.x				= 320;
+	s_main.mods.generic.y				= y;
+	s_main.mods.generic.id				= ID_MODS;
+	s_main.mods.generic.callback		= Main_MenuEvent; 
+	s_main.mods.string					= "MODS";
+	s_main.mods.color					= color_red;
+	s_main.mods.style					= style;
 
 	y += MAIN_MENU_VERTICAL_SPACING;
 	s_main.exit.generic.type				= MTYPE_PTEXT;
@@ -407,13 +429,12 @@ void UI_MainMenu( void ) {
 	Menu_AddItem( &s_main.menu,	&s_main.multiplayer );
 	Menu_AddItem( &s_main.menu,	&s_main.setup );
 	Menu_AddItem( &s_main.menu,	&s_main.demos );
-	Menu_AddItem( &s_main.menu,	&s_main.cinematics );
+	//Menu_AddItem( &s_main.menu,	&s_main.cinematics );
+        Menu_AddItem( &s_main.menu,	&s_main.challenges );
 	if (teamArena) {
 		Menu_AddItem( &s_main.menu,	&s_main.teamArena );
 	}
-	if ( !uis.demoversion ) {
-		Menu_AddItem( &s_main.menu,	&s_main.mods );
-	}
+	Menu_AddItem( &s_main.menu,	&s_main.mods );
 	Menu_AddItem( &s_main.menu,	&s_main.exit );             
 
 	trap_Key_SetCatcher( KEYCATCH_UI );

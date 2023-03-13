@@ -169,13 +169,13 @@ static void UI_LoadArenas( void ) {
 	int			numdirs;
 	vmCvar_t	arenasFile;
 	char		filename[128];
-	char		dirlist[4096];
+	char		dirlist[20*1024];
 	char*		dirptr;
 	int			i, n;
 	int			dirlen;
 	char		*type;
 	char		*tag;
-	int			singlePlayerNum, specialNum, otherNum;
+	int		singlePlayerNum, specialNum, otherNum;
 
 	ui_numArenas = 0;
 
@@ -188,7 +188,7 @@ static void UI_LoadArenas( void ) {
 	}
 
 	// get all arenas from .arena files
-	numdirs = trap_FS_GetFileList("scripts", ".arena", dirlist, 4096 );
+	numdirs = trap_FS_GetFileList("scripts", ".arena", dirlist, sizeof(dirlist) );
 	dirptr  = dirlist;
 	for (i = 0; i < numdirs; i++, dirptr += dirlen+1) {
 		dirlen = strlen(dirptr);
@@ -197,7 +197,7 @@ static void UI_LoadArenas( void ) {
 		UI_LoadArenasFromFile(filename);
 	}
 	trap_Print( va( "%i arenas parsed\n", ui_numArenas ) );
-	if (outOfMemory) trap_Print(S_COLOR_YELLOW"WARNING: not enough memory in pool to load all arenas\n");
+	if (outOfMemory) trap_Print(S_COLOR_YELLOW"WARNING: not anough memory in pool to load all arenas\n");
 
 	// set initial numbers
 	for( n = 0; n < ui_numArenas; n++ ) {
@@ -237,7 +237,7 @@ static void UI_LoadArenas( void ) {
 	// go through once more and assign number to the levels
 	singlePlayerNum = 0;
 	specialNum = singlePlayerNum + ui_numSinglePlayerArenas;
-	otherNum = specialNum + ui_numSpecialSinglePlayerArenas;
+	otherNum = specialNum + ui_numSpecialSinglePlayerArenas + n;
 	for( n = 0; n < ui_numArenas; n++ ) {
 		// determine type
 		type = Info_ValueForKey( ui_arenaInfos[n], "type" );
@@ -347,7 +347,7 @@ static void UI_LoadBotsFromFile( char *filename ) {
 	trap_FS_FCloseFile( f );
 
 	ui_numBots += UI_ParseInfos( buf, MAX_BOTS - ui_numBots, &ui_botInfos[ui_numBots] );
-	if (outOfMemory) trap_Print(S_COLOR_YELLOW"WARNING: not enough memory in pool to load all bots\n");
+	if (outOfMemory) trap_Print(S_COLOR_YELLOW"WARNING: not anough memory in pool to load all bots\n");
 }
 
 /*
@@ -659,7 +659,7 @@ Returns the next level the player has not won
 */
 int UI_GetCurrentGame( void ) {
 	int		level;
-	int		rank = 0;
+	int		rank;
 	int		skill;
 	const char *info;
 
@@ -796,7 +796,7 @@ void UI_SPUnlockMedals_f( void ) {
 
 	trap_Cvar_Set( "g_spAwards", awardData );
 
-	trap_Print( "All awards unlocked at 100\n" );
+	trap_Print( "All levels unlocked at 100\n" );
 }
 
 

@@ -27,12 +27,14 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "ui_local.h"
 
 
-#define TEAMMAIN_FRAME	"menu/art/cut_frame"
+#define TEAMMAIN_FRAME	"menu/art_blueish/cut_frame"
 
 #define ID_JOINRED		100
 #define ID_JOINBLUE		101
 #define ID_JOINGAME		102
 #define ID_SPECTATE		103
+#define ID_AFK			104
+#define ID_AUTOFOLLOW		105
 
 
 typedef struct
@@ -43,9 +45,21 @@ typedef struct
 	menutext_s		joinblue;
 	menutext_s		joingame;
 	menutext_s		spectate;
+	menutext_s		afk;
+	menutext_s		autofollow;
 } teammain_t;
 
 static teammain_t	s_teammain;
+
+// bk001204 - unused
+//static menuframework_s	s_teammain_menu;
+//static menuaction_s		s_teammain_orders;
+//static menuaction_s		s_teammain_voice;
+//static menuaction_s		s_teammain_joinred;
+//static menuaction_s		s_teammain_joinblue;
+//static menuaction_s		s_teammain_joingame;
+//static menuaction_s		s_teammain_spectate;
+
 
 /*
 ===============
@@ -77,6 +91,16 @@ static void TeamMain_MenuEvent( void* ptr, int event ) {
 		trap_Cmd_ExecuteText( EXEC_APPEND, "cmd team spectator\n" );
 		UI_ForceMenuOff();
 		break;
+
+	case ID_AFK:
+		trap_Cmd_ExecuteText( EXEC_APPEND, "cmd team afk\n" );
+		UI_ForceMenuOff();
+		break;
+
+	case ID_AUTOFOLLOW:
+		trap_Cmd_ExecuteText( EXEC_APPEND, "cmd team autofollow\n" );
+		UI_ForceMenuOff();
+		break;
 	}
 }
 
@@ -106,7 +130,10 @@ void TeamMain_MenuInit( void ) {
 	s_teammain.frame.width			= 359;
 	s_teammain.frame.height			= 256;
 
-	y = 194;
+	trap_GetConfigString(CS_SERVERINFO, info, MAX_INFO_STRING);   
+	gametype = atoi( Info_ValueForKey( info,"g_gametype" ) );
+
+	y = 184;
 
 	s_teammain.joinred.generic.type     = MTYPE_PTEXT;
 	s_teammain.joinred.generic.flags    = QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
@@ -136,7 +163,15 @@ void TeamMain_MenuInit( void ) {
 	s_teammain.joingame.generic.callback = TeamMain_MenuEvent;
 	s_teammain.joingame.generic.x        = 320;
 	s_teammain.joingame.generic.y        = y;
-	s_teammain.joingame.string           = "JOIN GAME";
+	if (gametype == GT_TOURNAMENT
+#ifdef WITH_MULTITOURNAMENT
+			|| gametype == GT_MULTITOURNAMENT
+#endif
+			) {
+		s_teammain.joingame.string           = "JOIN GAME/QUEUE";
+	} else {
+		s_teammain.joingame.string           = "JOIN GAME";
+	}
 	s_teammain.joingame.style            = UI_CENTER|UI_SMALLFONT;
 	s_teammain.joingame.color            = colorRed;
 	y += 20;
@@ -150,15 +185,40 @@ void TeamMain_MenuInit( void ) {
 	s_teammain.spectate.string           = "SPECTATE";
 	s_teammain.spectate.style            = UI_CENTER|UI_SMALLFONT;
 	s_teammain.spectate.color            = colorRed;
+	y += 20;
 
-	trap_GetConfigString(CS_SERVERINFO, info, MAX_INFO_STRING);   
-	gametype = atoi( Info_ValueForKey( info,"g_gametype" ) );
+	s_teammain.afk.generic.type     = MTYPE_PTEXT;
+	s_teammain.afk.generic.flags    = QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
+	s_teammain.afk.generic.id       = ID_AFK;
+	s_teammain.afk.generic.callback = TeamMain_MenuEvent;
+	s_teammain.afk.generic.x        = 320;
+	s_teammain.afk.generic.y        = y;
+	s_teammain.afk.string           = "AFK";
+	s_teammain.afk.style            = UI_CENTER|UI_SMALLFONT;
+	s_teammain.afk.color            = colorRed;
+	y += 20;
+
+	s_teammain.autofollow.generic.type     = MTYPE_PTEXT;
+	s_teammain.autofollow.generic.flags    = QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
+	s_teammain.autofollow.generic.id       = ID_AUTOFOLLOW;
+	s_teammain.autofollow.generic.callback = TeamMain_MenuEvent;
+	s_teammain.autofollow.generic.x        = 320;
+	s_teammain.autofollow.generic.y        = y;
+	s_teammain.autofollow.string           = "AUTO-CAMERA";
+	s_teammain.autofollow.style            = UI_CENTER|UI_SMALLFONT;
+	s_teammain.autofollow.color            = colorRed;
+	y += 20;
+
 			      
 	// set initial states
 	switch( gametype ) {
 	case GT_SINGLE_PLAYER:
 	case GT_FFA:
+	case GT_LMS:
 	case GT_TOURNAMENT:
+#ifdef WITH_MULTITOURNAMENT
+	case GT_MULTITOURNAMENT:
+#endif
 		s_teammain.joinred.generic.flags  |= QMF_GRAYED;
 		s_teammain.joinblue.generic.flags |= QMF_GRAYED;
 		break;
@@ -166,7 +226,10 @@ void TeamMain_MenuInit( void ) {
 	default:
 	case GT_TEAM:
 	case GT_CTF:
-		s_teammain.joingame.generic.flags |= QMF_GRAYED;
+	case GT_ELIMINATION:
+	case GT_CTF_ELIMINATION:
+		//s_teammain.joingame.generic.flags |= QMF_GRAYED;
+		s_teammain.joingame.string           = "AUTO JOIN GAME";
 		break;
 	}
 
@@ -175,6 +238,8 @@ void TeamMain_MenuInit( void ) {
 	Menu_AddItem( &s_teammain.menu, (void*) &s_teammain.joinblue );
 	Menu_AddItem( &s_teammain.menu, (void*) &s_teammain.joingame );
 	Menu_AddItem( &s_teammain.menu, (void*) &s_teammain.spectate );
+	Menu_AddItem( &s_teammain.menu, (void*) &s_teammain.afk );
+	Menu_AddItem( &s_teammain.menu, (void*) &s_teammain.autofollow );
 }
 
 

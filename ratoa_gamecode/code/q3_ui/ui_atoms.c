@@ -38,7 +38,7 @@ void QDECL Com_Error( int level, const char *error, ... ) {
 	Q_vsnprintf (text, sizeof(text), error, argptr);
 	va_end (argptr);
 
-	trap_Error( text );
+	trap_Error( va("%s", text) );
 }
 
 void QDECL Com_Printf( const char *msg, ... ) {
@@ -49,7 +49,7 @@ void QDECL Com_Printf( const char *msg, ... ) {
 	Q_vsnprintf (text, sizeof(text), msg, argptr);
 	va_end (argptr);
 
-	trap_Print( text );
+	trap_Print( va("%s", text) );
 }
 
 /*
@@ -124,6 +124,16 @@ void UI_PushMenu( menuframework_s *menu )
 	}
 
 	uis.firstdraw = qtrue;
+}
+
+/*
+=================
+UI_PushedMenus
+=================
+*/
+int UI_PushedMenus (void)
+{
+	return uis.menusp;
 }
 
 /*
@@ -330,6 +340,8 @@ static int propMapB[26][3] = {
 #define PROPB_SPACE_WIDTH	12
 #define PROPB_HEIGHT		36
 
+// bk001205 - code below duplicated in cgame/cg_drawtools.c
+// bk001205 - FIXME: does this belong in ui_shared.c?
 /*
 =================
 UI_DrawBannerString
@@ -338,7 +350,7 @@ UI_DrawBannerString
 static void UI_DrawBannerString2( int x, int y, const char* str, vec4_t color )
 {
 	const char* s;
-	unsigned char	ch;
+	unsigned char	ch; // bk001204 - unsigned
 	float	ax;
 	float	ay;
 	float	aw;
@@ -448,10 +460,10 @@ int UI_ProportionalStringWidth( const char* str ) {
 static void UI_DrawProportionalString2( int x, int y, const char* str, vec4_t color, float sizeScale, qhandle_t charset )
 {
 	const char* s;
-	unsigned char	ch;
+	unsigned char	ch; // bk001204 - unsigned
 	float	ax;
 	float	ay;
-	float	aw = 0;
+	float	aw = 0; // bk001204 - init
 	float	ah;
 	float	frow;
 	float	fcol;
@@ -511,10 +523,6 @@ void UI_DrawProportionalString( int x, int y, const char* str, int style, vec4_t
 	vec4_t	drawcolor;
 	int		width;
 	float	sizeScale;
-
-	if( !str ) {
-		return;
-	}
 
 	sizeScale = UI_ProportionalSizeScale( style );
 
@@ -807,7 +815,7 @@ static void NeedCDKeyAction( qboolean result ) {
 
 void UI_SetActiveMenu( uiMenuCommand_t menu ) {
 	// this should be the ONLY way the menu system is brought up
-	// ensure minimum menu data is cached
+	// enusure minumum menu data is cached
 	Menu_Cache();
 
 	switch ( menu ) {
@@ -833,6 +841,7 @@ void UI_SetActiveMenu( uiMenuCommand_t menu ) {
 		UI_InGameMenu();
 		return;
 		
+	// bk001204
 	case UIMENU_TEAM:
 	case UIMENU_POSTGAME:
 	default:
@@ -876,21 +885,17 @@ UI_MouseEvent
 void UI_MouseEvent( int dx, int dy )
 {
 	int				i;
-	int				bias;
 	menucommon_s*	m;
 
 	if (!uis.activemenu)
 		return;
 
-	// convert X bias to 640 coords
-	bias = uis.bias / uis.xscale;
-
 	// update mouse screen position
 	uis.cursorx += dx;
-	if (uis.cursorx < -bias)
-		uis.cursorx = -bias;
-	else if (uis.cursorx > SCREEN_WIDTH+bias)
-		uis.cursorx = SCREEN_WIDTH+bias;
+	if (uis.cursorx < -uis.bias)
+		uis.cursorx = -uis.bias;
+	else if (uis.cursorx > SCREEN_WIDTH+uis.bias)
+		uis.cursorx = SCREEN_WIDTH+uis.bias;
 
 	uis.cursory += dy;
 	if (uis.cursory < 0)
@@ -944,6 +949,11 @@ char *UI_Argv( int arg ) {
 	return buffer;
 }
 
+int UI_Argc( void ) {
+	return trap_Argc();
+
+}
+
 
 char *UI_Cvar_VariableString( const char *var_name ) {
 	static char	buffer[MAX_STRING_CHARS];
@@ -951,6 +961,18 @@ char *UI_Cvar_VariableString( const char *var_name ) {
 	trap_Cvar_VariableStringBuffer( var_name, buffer, sizeof( buffer ) );
 
 	return buffer;
+}
+
+int UI_Cvar_VariableInteger( const char *var_name ) {
+	return atoi(UI_Cvar_VariableString(var_name));
+}
+
+/*
+ * Sends a client command to the server via cgame
+ */
+void UI_SendClientCommand( const char *command ) {
+	trap_Cvar_Set("cg_ui_clientCommand", command);
+	trap_Cmd_ExecuteText( EXEC_APPEND, "cg_ui_SendCLientCommand\n");
 }
 
 
@@ -1048,6 +1070,36 @@ qboolean UI_ConsoleCommand( int realTime ) {
 
 	if ( Q_stricmp (cmd, "ui_cdkey") == 0 ) {
 		UI_CDKeyMenu_f();
+		return qtrue;
+	}
+
+        //if ( Q_stricmp (cmd, "ui_mappage") == 0 ) {
+	//	int i;
+	//	mappage.pagenumber = atoi(UI_Argv( 1 ));
+	//	for (i = 0; i < MAPPAGE_NUM; ++i) {
+	//		Q_strncpyz(mappage.mapname[i],UI_Argv(i+2),MAX_MAPNAME_LENGTH);
+	//	}
+
+        //        UI_VoteMapMenuInternal();
+	//	return qtrue;
+	//}
+	
+        if ( Q_stricmp (cmd, "ui_mappage_update") == 0 ) {
+                UI_VoteMapMenuInternal();
+		return qtrue;
+	}
+
+        if ( Q_stricmp (cmd, "ui_votemapmenu") == 0 ) {
+		UI_VoteMapMenu();
+		return qtrue;
+	}
+        if ( Q_stricmp (cmd, "ui_nextmapvote") == 0 ) {
+		UI_VoteNextMapMenu();
+		return qtrue;
+	}
+
+        if ( Q_stricmp (cmd, "ui_trackconsentmenu") == 0 ) {
+		UI_TrackConsentMenu(UI_TrackConsentAction);
 		return qtrue;
 	}
 

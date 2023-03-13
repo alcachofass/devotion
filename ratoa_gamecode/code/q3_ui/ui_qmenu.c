@@ -38,6 +38,8 @@ static qhandle_t	sliderBar;
 static qhandle_t	sliderButton_0;
 static qhandle_t	sliderButton_1;
 
+// Original colors
+/*
 vec4_t menu_text_color	    = {1.0f, 1.0f, 1.0f, 1.0f};
 vec4_t menu_dim_color       = {0.0f, 0.0f, 0.0f, 0.75f};
 vec4_t color_black	    = {0.00f, 0.00f, 0.00f, 1.00f};
@@ -49,13 +51,33 @@ vec4_t color_orange	    = {1.00f, 0.43f, 0.00f, 1.00f};
 vec4_t color_red	    = {1.00f, 0.00f, 0.00f, 1.00f};
 vec4_t color_dim	    = {0.00f, 0.00f, 0.00f, 0.25f};
 
-// current color scheme
-vec4_t pulse_color          = {1.00f, 1.00f, 1.00f, 1.00f};
+  vec4_t pulse_color          = {1.00f, 1.00f, 1.00f, 1.00f};
 vec4_t text_color_disabled  = {0.50f, 0.50f, 0.50f, 1.00f};	// light gray
 vec4_t text_color_normal    = {1.00f, 0.43f, 0.00f, 1.00f};	// light orange
 vec4_t text_color_highlight = {1.00f, 1.00f, 0.00f, 1.00f};	// bright yellow
 vec4_t listbar_color        = {1.00f, 0.43f, 0.00f, 0.30f};	// transluscent orange
-vec4_t text_color_status    = {1.00f, 1.00f, 1.00f, 1.00f};	// bright white	
+vec4_t text_color_status    = {1.00f, 1.00f, 1.00f, 1.00f};	// bright white
+
+*/
+// NEW AND IMPLOVED colors
+vec4_t menu_text_color	    = {1.0f, 1.0f, 1.0f, 1.0f};
+vec4_t menu_dim_color       = {0.0f, 0.0f, 0.0f, 0.75f};
+vec4_t color_black	    = {0.00f, 0.00f, 0.00f, 1.00f};
+vec4_t color_white	    = {1.00f, 1.00f, 1.00f, 1.00f};
+vec4_t color_yellow	    = {1.00f, 1.00f, 0.00f, 1.00f};
+vec4_t color_blue	    = {0.00f, 0.00f, 1.00f, 1.00f};
+vec4_t color_lightOrange    = {0.30f, 0.45f, 0.58f, 1.00f };
+vec4_t color_orange	    = {0.30f, 0.45f, 0.58f, 1.00f};
+vec4_t color_red	    = {0.55f, 0.65f, 0.73f, 1.00f};
+vec4_t color_dim	    = {0.00f, 0.00f, 0.00f, 0.25f};
+
+// current color scheme
+vec4_t pulse_color          = {1.00f, 1.00f, 1.00f, 1.00f};
+vec4_t text_color_disabled  = {0.35f, 0.24f, 0.29f, 1.00f};	// light gray
+vec4_t text_color_normal    = {0.30f, 0.45f, 0.58f, 1.00f};	// light orange
+vec4_t text_color_highlight = {0.76f, 0.89f, 0.93f, 1.00f};	// bright yellow
+vec4_t listbar_color        = {0.13f, 0.26f, 0.38f, 0.30f};	// transluscent orange
+vec4_t text_color_status    = {1.00f, 1.00f, 1.00f, 1.00f};	// bright white
 
 // action widget
 static void	Action_Init( menuaction_s *a );
@@ -327,6 +349,7 @@ void Bitmap_Draw( menubitmap_s *b )
 		if (b->shader)
 			UI_DrawHandlePic( x, y, w, h, b->shader );
 
+		// bk001204 - parentheses
 		if (  ( (b->generic.flags & QMF_PULSE) 
 			|| (b->generic.flags & QMF_PULSEIFFOCUS) )
 		      && (Menu_ItemAtCursor( b->generic.parent ) == b))
@@ -465,10 +488,7 @@ static sfxHandle_t RadioButton_Key( menuradiobutton_s *rb, int key )
 		case K_JOY3:
 		case K_JOY4:
 		case K_ENTER:
-		case K_KP_ENTER:
-		case K_KP_LEFTARROW:
 		case K_LEFTARROW:
-		case K_KP_RIGHTARROW:
 		case K_RIGHTARROW:
 			rb->curvalue = !rb->curvalue;
 			if ( rb->generic.callback )
@@ -586,7 +606,6 @@ static sfxHandle_t Slider_Key( menuslider_s *s, int key )
 				sound = 0;
 			break;
 
-		case K_KP_LEFTARROW:
 		case K_LEFTARROW:
 			if (s->curvalue > s->minvalue)
 			{
@@ -597,7 +616,6 @@ static sfxHandle_t Slider_Key( menuslider_s *s, int key )
 				sound = menu_buzz_sound;
 			break;			
 
-		case K_KP_RIGHTARROW:
 		case K_RIGHTARROW:
 			if (s->curvalue < s->maxvalue)
 			{
@@ -798,8 +816,6 @@ static sfxHandle_t SpinControl_Key( menulist_s *s, int key )
 	sound = 0;
 	switch (key)
 	{
-		case K_KP_RIGHTARROW:
-		case K_RIGHTARROW:
 		case K_MOUSE1:
 			s->curvalue++;
 			if (s->curvalue >= s->numitems)
@@ -807,12 +823,24 @@ static sfxHandle_t SpinControl_Key( menulist_s *s, int key )
 			sound = menu_move_sound;
 			break;
 		
-		case K_KP_LEFTARROW:
 		case K_LEFTARROW:
-			s->curvalue--;
-			if (s->curvalue < 0)
-				s->curvalue = s->numitems-1;
-			sound = menu_move_sound;
+			if (s->curvalue > 0)
+			{
+				s->curvalue--;
+				sound = menu_move_sound;
+			}
+			else
+				sound = menu_buzz_sound;
+			break;
+
+		case K_RIGHTARROW:
+			if (s->curvalue < s->numitems-1)
+			{
+				s->curvalue++;
+				sound = menu_move_sound;
+			}
+			else
+				sound = menu_buzz_sound;
 			break;
 	}
 
@@ -881,13 +909,13 @@ static void ScrollList_Init( menulist_s *l )
 
 	if( !l->columns ) {
 		l->columns = 1;
-		l->separation = 0;
+		l->seperation = 0;
 	}
-	else if( !l->separation ) {
-		l->separation = 3;
+	else if( !l->seperation ) {
+		l->seperation = 3;
 	}
 
-	w = ( (l->width + l->separation) * l->columns - l->separation) * SMALLCHAR_WIDTH;
+	w = ( (l->width + l->seperation) * l->columns - l->seperation) * SMALLCHAR_WIDTH;
 
 	l->generic.left   =	l->generic.x;
 	l->generic.top    = l->generic.y;	
@@ -926,14 +954,14 @@ sfxHandle_t ScrollList_Key( menulist_s *l, int key )
 				// check scroll region
 				x = l->generic.x;
 				y = l->generic.y;
-				w = ( (l->width + l->separation) * l->columns - l->separation) * SMALLCHAR_WIDTH;
+				w = ( (l->width + l->seperation) * l->columns - l->seperation) * SMALLCHAR_WIDTH;
 				if( l->generic.flags & QMF_CENTER_JUSTIFY ) {
 					x -= w / 2;
 				}
 				if (UI_CursorInRect( x, y, w, l->height*SMALLCHAR_HEIGHT ))
 				{
 					cursorx = (uis.cursorx - x)/SMALLCHAR_WIDTH;
-					column = cursorx / (l->width + l->separation);
+					column = cursorx / (l->width + l->seperation);
 					cursory = (uis.cursory - y)/SMALLCHAR_HEIGHT;
 					index = column * l->height + cursory;
 					if (l->top + index < l->numitems)
@@ -954,7 +982,6 @@ sfxHandle_t ScrollList_Key( menulist_s *l, int key )
 			}
 			break;
 
-		case K_KP_HOME:
 		case K_HOME:
 			l->oldvalue = l->curvalue;
 			l->curvalue = 0;
@@ -967,7 +994,6 @@ sfxHandle_t ScrollList_Key( menulist_s *l, int key )
 			}
 			return (menu_buzz_sound);
 
-		case K_KP_END:
 		case K_END:
 			l->oldvalue = l->curvalue;
 			l->curvalue = l->numitems-1;
@@ -989,7 +1015,6 @@ sfxHandle_t ScrollList_Key( menulist_s *l, int key )
 			return (menu_buzz_sound);
 
 		case K_PGUP:
-		case K_KP_PGUP:
 			if( l->columns > 1 ) {
 				return menu_null_sound;
 			}
@@ -1012,7 +1037,6 @@ sfxHandle_t ScrollList_Key( menulist_s *l, int key )
 			return (menu_buzz_sound);
 
 		case K_PGDN:
-		case K_KP_PGDN:
 			if( l->columns > 1 ) {
 				return menu_null_sound;
 			}
@@ -1034,51 +1058,6 @@ sfxHandle_t ScrollList_Key( menulist_s *l, int key )
 			}
 			return (menu_buzz_sound);
 
-		case K_MWHEELUP:
-			if( l->columns > 1 ) {
-				return menu_null_sound;
-			}
-
-			if (l->top > 0)
-			{
-				// if scrolling 3 lines would replace over half of the
-				// displayed items, only scroll 1 item at a time.
-				int scroll = l->height < 6 ? 1 : 3;
-				l->top -= scroll;
-				if (l->top < 0)
-					l->top = 0;
-
-				if (l->generic.callback)
-					l->generic.callback( l, QM_GOTFOCUS );
-
-				// make scrolling silent
-				return (menu_null_sound);
-			}
-			return (menu_buzz_sound);
-
-		case K_MWHEELDOWN:
-			if( l->columns > 1 ) {
-				return menu_null_sound;
-			}
-
-			if (l->top < l->numitems-l->height)
-			{
-				// if scrolling 3 items would replace over half of the
-				// displayed items, only scroll 1 item at a time.
-				int scroll = l->height < 6 ? 1 : 3;
-				l->top += scroll;
-				if (l->top > l->numitems-l->height)
-					l->top = l->numitems-l->height;
-
-				if (l->generic.callback)
-					l->generic.callback( l, QM_GOTFOCUS );
-
-				// make scrolling silent
-				return (menu_null_sound);
-			}
-			return (menu_buzz_sound);
-
-		case K_KP_UPARROW:
 		case K_UPARROW:
 			if( l->curvalue == 0 ) {
 				return menu_buzz_sound;
@@ -1102,7 +1081,6 @@ sfxHandle_t ScrollList_Key( menulist_s *l, int key )
 
 			return (menu_move_sound);
 
-		case K_KP_DOWNARROW:
 		case K_DOWNARROW:
 			if( l->curvalue == l->numitems - 1 ) {
 				return menu_buzz_sound;
@@ -1126,7 +1104,6 @@ sfxHandle_t ScrollList_Key( menulist_s *l, int key )
 
 			return menu_move_sound;
 
-		case K_KP_LEFTARROW:
 		case K_LEFTARROW:
 			if( l->columns == 1 ) {
 				return menu_null_sound;
@@ -1149,7 +1126,6 @@ sfxHandle_t ScrollList_Key( menulist_s *l, int key )
 
 			return menu_move_sound;
 
-		case K_KP_RIGHTARROW:
 		case K_RIGHTARROW:
 			if( l->columns == 1 ) {
 				return menu_null_sound;
@@ -1285,7 +1261,7 @@ void ScrollList_Draw( menulist_s *l )
 
 			y += SMALLCHAR_HEIGHT;
 		}
-		x += (l->width + l->separation) * SMALLCHAR_WIDTH;
+		x += (l->width + l->seperation) * SMALLCHAR_WIDTH;
 	}
 }
 
@@ -1653,6 +1629,9 @@ sfxHandle_t Menu_DefaultKey( menuframework_s *m, int key )
 
 			case MTYPE_FIELD:
 				sound = MenuField_Key( (menufield_s*)item, &key );
+				if (((menufield_s*)item)->generic.callback) {
+					((menufield_s*)item)->generic.callback(item, QM_ACTIVATED);
+				}
 				break;
 		}
 
@@ -1674,7 +1653,6 @@ sfxHandle_t Menu_DefaultKey( menuframework_s *m, int key )
 			trap_Cmd_ExecuteText(EXEC_APPEND, "screenshot\n");
 			break;
 #endif
-		case K_KP_UPARROW:
 		case K_UPARROW:
 			cursor_prev    = m->cursor;
 			m->cursor_prev = m->cursor;
@@ -1687,7 +1665,6 @@ sfxHandle_t Menu_DefaultKey( menuframework_s *m, int key )
 			break;
 
 		case K_TAB:
-		case K_KP_DOWNARROW:
 		case K_DOWNARROW:
 			cursor_prev    = m->cursor;
 			m->cursor_prev = m->cursor;
@@ -1753,14 +1730,17 @@ void Menu_Cache( void )
 	uis.rb_off          = trap_R_RegisterShaderNoMip( "menu/art/switch_off" );
 
 	uis.whiteShader = trap_R_RegisterShaderNoMip( "white" );
-	if ( uis.glconfig.hardwareType == GLHW_RAGEPRO ) {
-		// the blend effect turns to shit with the normal 
-		uis.menuBackShader	= trap_R_RegisterShaderNoMip( "menubackRagePro" );
-	} else {
-		uis.menuBackShader	= trap_R_RegisterShaderNoMip( "menuback" );
-	}
-	uis.menuBackNoLogoShader = trap_R_RegisterShaderNoMip( "menubacknologo" );
+	//if ( uis.glconfig.hardwareType == GLHW_RAGEPRO ) {
+	//	// the blend effect turns to shit with the normal 
+	//	uis.menuBackShader	= trap_R_RegisterShaderNoMip( "menubackRagePro" );
+	//} else {
+	//	uis.menuBackShader	= trap_R_RegisterShaderNoMip( "menuback_blueish" );
+	//}
+	//uis.menuBackNoLogoShader = trap_R_RegisterShaderNoMip( "menubacknologo_blueish" );
 
+	uis.menuBackShader	= trap_R_RegisterShaderNoMip( "menuback_ratmod" );
+	uis.menuBackNoLogoShader = trap_R_RegisterShaderNoMip( "menubacknologo_ratmod" );
+	
 	menu_in_sound	= trap_S_RegisterSound( "sound/misc/menu1.wav", qfalse );
 	menu_move_sound	= trap_S_RegisterSound( "sound/misc/menu2.wav", qfalse );
 	menu_out_sound	= trap_S_RegisterSound( "sound/misc/menu3.wav", qfalse );

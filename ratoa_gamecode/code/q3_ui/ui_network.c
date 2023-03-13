@@ -31,10 +31,10 @@ NETWORK OPTIONS MENU
 #include "ui_local.h"
 
 
-#define ART_FRAMEL			"menu/art/frame2_l"
-#define ART_FRAMER			"menu/art/frame1_r"
-#define ART_BACK0			"menu/art/back_0"
-#define ART_BACK1			"menu/art/back_1"
+#define ART_FRAMEL			"menu/art_blueish/frame2_l"
+#define ART_FRAMER			"menu/art_blueish/frame1_r"
+#define ART_BACK0			"menu/art_blueish/back_0"
+#define ART_BACK1			"menu/art_blueish/back_1"
 
 #define ID_GRAPHICS			10
 #define ID_DISPLAY			11
@@ -44,7 +44,7 @@ NETWORK OPTIONS MENU
 #define ID_BACK				15
 
 
-static const char *rate_items[] = {
+const char *rate_items[] = {
 	"<= 28.8K",
 	"33.6K",
 	"56K",
@@ -116,7 +116,7 @@ static void UI_NetworkOptionsMenu_Event( void* ptr, int event ) {
 			trap_Cvar_SetValue( "rate", 5000 );
 		}
 		else if( networkOptionsInfo.rate.curvalue == 4 ) {
-			trap_Cvar_SetValue( "rate", 25000 );
+			trap_Cvar_SetValue( "rate", RECOMMENDED_RATE );
 		}
 		break;
 

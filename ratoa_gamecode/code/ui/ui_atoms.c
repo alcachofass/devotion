@@ -37,7 +37,7 @@ void QDECL Com_Error( int level, const char *error, ... ) {
 	Q_vsnprintf (text, sizeof(text), error, argptr);
 	va_end (argptr);
 
-	trap_Error( text );
+	trap_Error( va("%s", text) );
 }
 
 void QDECL Com_Printf( const char *msg, ... ) {
@@ -48,7 +48,7 @@ void QDECL Com_Printf( const char *msg, ... ) {
 	Q_vsnprintf (text, sizeof(text), msg, argptr);
 	va_end (argptr);
 
-	trap_Print( text );
+	trap_Print( va("%s", text) );
 }
 
 qboolean newUI = qfalse;
@@ -76,7 +76,7 @@ void UI_StartDemoLoop( void ) {
 }
 
 
-#ifndef MISSIONPACK
+#ifndef MISSIONPACK // bk001206
 static void NeedCDAction( qboolean result ) {
 	if ( !result ) {
 		trap_Cmd_ExecuteText( EXEC_APPEND, "quit\n" );
@@ -84,7 +84,7 @@ static void NeedCDAction( qboolean result ) {
 }
 #endif // MISSIONPACK
 
-#ifndef MISSIONPACK
+#ifndef MISSIONPACK // bk001206
 static void NeedCDKeyAction( qboolean result ) {
 	if ( !result ) {
 		trap_Cmd_ExecuteText( EXEC_APPEND, "quit\n" );
@@ -146,13 +146,10 @@ void UI_SetBestScores(postGameInfo_t *newInfo, qboolean postGame) {
 	}
 }
 
-void UI_LoadBestScores(const char *map, int game)
-{
+void UI_LoadBestScores(const char *map, int game) {
 	char		fileName[MAX_QPATH];
 	fileHandle_t f;
 	postGameInfo_t newInfo;
-	int protocol, protocolLegacy;
-	
 	memset(&newInfo, 0, sizeof(postGameInfo_t));
 	Com_sprintf(fileName, MAX_QPATH, "games/%s_%i.game", map, game);
 	if (trap_FS_FOpenFile(fileName, &f, FS_READ) >= 0) {
@@ -165,30 +162,11 @@ void UI_LoadBestScores(const char *map, int game)
 	}
 	UI_SetBestScores(&newInfo, qfalse);
 
+	Com_sprintf(fileName, MAX_QPATH, "demos/%s_%d.dm_%d", map, game, (int)trap_Cvar_VariableValue("protocol"));
 	uiInfo.demoAvailable = qfalse;
-
-	protocolLegacy = trap_Cvar_VariableValue("com_legacyprotocol");
-	protocol = trap_Cvar_VariableValue("com_protocol");
-
-	if(!protocol)
-		protocol = trap_Cvar_VariableValue("protocol");
-	if(protocolLegacy == protocol)
-		protocolLegacy = 0;
-
-	Com_sprintf(fileName, MAX_QPATH, "demos/%s_%d.%s%d", map, game, DEMOEXT, protocol);
-	if(trap_FS_FOpenFile(fileName, &f, FS_READ) >= 0)
-	{
+	if (trap_FS_FOpenFile(fileName, &f, FS_READ) >= 0) {
 		uiInfo.demoAvailable = qtrue;
 		trap_FS_FCloseFile(f);
-	}
-	else if(protocolLegacy > 0)
-	{
-		Com_sprintf(fileName, MAX_QPATH, "demos/%s_%d.%s%d", map, game, DEMOEXT, protocolLegacy);
-		if (trap_FS_FOpenFile(fileName, &f, FS_READ) >= 0)
-		{
-			uiInfo.demoAvailable = qtrue;
-			trap_FS_FCloseFile(f);
-		}
 	} 
 }
 
@@ -351,7 +329,6 @@ qboolean UI_ConsoleCommand( int realTime ) {
 
 	if ( Q_stricmp (cmd, "ui_test") == 0 ) {
 		UI_ShowPostGame(qtrue);
-		return qtrue;
 	}
 
 	if ( Q_stricmp (cmd, "ui_report") == 0 ) {
@@ -420,10 +397,18 @@ Adjusted for resolution and screen aspect ratio
 */
 void UI_AdjustFrom640( float *x, float *y, float *w, float *h ) {
 	// expect valid pointers
-	*x = *x * uiInfo.uiDC.xscale + uiInfo.uiDC.bias;
+#if 0
+	*x = *x * uiInfo.uiDC.scale + uiInfo.uiDC.bias;
+	*y *= uiInfo.uiDC.scale;
+	*w *= uiInfo.uiDC.scale;
+	*h *= uiInfo.uiDC.scale;
+#endif
+
+	*x *= uiInfo.uiDC.xscale;
 	*y *= uiInfo.uiDC.yscale;
 	*w *= uiInfo.uiDC.xscale;
 	*h *= uiInfo.uiDC.yscale;
+
 }
 
 void UI_DrawNamedPic( float x, float y, float width, float height, const char *picname ) {

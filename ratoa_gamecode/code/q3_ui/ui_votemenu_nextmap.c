@@ -33,15 +33,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define NMV_MAX_MAPCOLS		3
 #define NMV_MAX_MAPROWS		2
 #define NMV_MAX_MAPSPERPAGE	(NMV_MAX_MAPCOLS * NMV_MAX_MAPROWS)
-#define NEXTMAPVOTE_MAP_NUM	6
-#define MAX_MAPNAME_LENGTH	32
 
 struct nextmapvote_maplist_s {
 	char mapname[NEXTMAPVOTE_MAP_NUM][MAX_MAPNAME_LENGTH];
 	int votes[NEXTMAPVOTE_MAP_NUM];
 };
-
-extern vmCvar_t ui_nextmapvote_remaining;
 
 struct nextmapvote_maplist_s nextmapvote_maplist;
 

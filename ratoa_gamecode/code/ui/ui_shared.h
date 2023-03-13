@@ -203,7 +203,6 @@ typedef struct multiDef_s {
 	float cvarValue[MAX_MULTI_CVARS];
 	int count;
 	qboolean strDef;
-	qboolean videoMode;
 } multiDef_t;
 
 typedef struct modelDef_s {
@@ -355,8 +354,8 @@ typedef struct {
 	void (*getBindingBuf)( int keynum, char *buf, int buflen );
 	void (*setBinding)( int keynum, const char *binding );
 	void (*executeText)(int exec_when, const char *text );	
-	void (*Error)(int level, const char *error, ...) __attribute__ ((noreturn, format (printf, 2, 3)));
-	void (*Print)(const char *msg, ...) __attribute__ ((format (printf, 1, 2)));
+	void (*Error)(int level, const char *error, ...);
+	void (*Print)(const char *msg, ...);
 	void (*Pause)(qboolean b);
 	int (*ownerDrawWidth)(int ownerDraw, float scale);
 	sfxHandle_t (*registerSound)(const char *name, qboolean compressed);
@@ -418,7 +417,6 @@ void Menu_Reset( void );
 qboolean Menus_AnyFullScreenVisible( void );
 void  Menus_Activate(menuDef_t *menu);
 
-int UI_SelectForKey(int key);
 displayContextDef_t *Display_GetContext( void );
 void *Display_CaptureItem(int x, int y);
 qboolean Display_MouseMove(void *p, int x, int y);
@@ -439,9 +437,11 @@ void *UI_Alloc( int size );
 void UI_InitMemory( void );
 qboolean UI_OutOfMemory( void );
 
+#ifndef BASEOA
 void Controls_GetConfig( void );
 void Controls_SetConfig(qboolean restart);
 void Controls_SetDefaults( void );
+#endif
 
 int			trap_PC_AddGlobalDefine( char *define );
 int			trap_PC_LoadSource( const char *filename );

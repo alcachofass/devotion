@@ -31,24 +31,24 @@ SINGLE PLAYER LEVEL SELECT MENU
 #include "ui_local.h"
 
 
-#define ART_LEVELFRAME_FOCUS		"menu/art/maps_select"
-#define ART_LEVELFRAME_SELECTED		"menu/art/maps_selected"
-#define ART_ARROW					"menu/art/narrow_0"
-#define ART_ARROW_FOCUS				"menu/art/narrow_1"
-#define ART_MAP_UNKNOWN				"menu/art/unknownmap"
-#define ART_MAP_COMPLETE1			"menu/art/level_complete1"
-#define ART_MAP_COMPLETE2			"menu/art/level_complete2"
-#define ART_MAP_COMPLETE3			"menu/art/level_complete3"
-#define ART_MAP_COMPLETE4			"menu/art/level_complete4"
-#define ART_MAP_COMPLETE5			"menu/art/level_complete5"
-#define ART_BACK0					"menu/art/back_0"
-#define ART_BACK1					"menu/art/back_1"	
-#define ART_FIGHT0					"menu/art/fight_0"
-#define ART_FIGHT1					"menu/art/fight_1"
-#define ART_RESET0					"menu/art/reset_0"
-#define ART_RESET1					"menu/art/reset_1"	
-#define ART_CUSTOM0					"menu/art/skirmish_0"
-#define ART_CUSTOM1					"menu/art/skirmish_1"
+#define ART_LEVELFRAME_FOCUS		"menu/art_blueish/maps_select"
+#define ART_LEVELFRAME_SELECTED		"menu/art_blueish/maps_selected"
+#define ART_ARROW			"menu/art_blueish/narrow_0"
+#define ART_ARROW_FOCUS			"menu/art_blueish/narrow_1"
+#define ART_MAP_UNKNOWN			"menu/art/unknownmap"
+#define ART_MAP_COMPLETE1		"menu/art/level_complete1"
+#define ART_MAP_COMPLETE2		"menu/art/level_complete2"
+#define ART_MAP_COMPLETE3		"menu/art/level_complete3"
+#define ART_MAP_COMPLETE4		"menu/art/level_complete4"
+#define ART_MAP_COMPLETE5		"menu/art/level_complete5"
+#define ART_BACK0			"menu/art_blueish/back_0"
+#define ART_BACK1			"menu/art_blueish/back_1"
+#define ART_FIGHT0			"menu/art_blueish/fight_0"
+#define ART_FIGHT1			"menu/art_blueish/fight_1"
+#define ART_RESET0			"menu/art_blueish/reset_0"
+#define ART_RESET1			"menu/art_blueish/reset_1"
+#define ART_CUSTOM0			"menu/art_blueish/skirmish_0"
+#define ART_CUSTOM1			"menu/art_blueish/skirmish_1"
 
 #define ID_LEFTARROW		10
 #define ID_PICTURE0			11
@@ -183,7 +183,7 @@ static void UI_SPLevelMenu_SetBots( void ) {
 		while( *p && *p == ' ' ) {
 			p++;
 		}
-		if( !*p ) {
+		if( !p ) {
 			break;
 		}
 
@@ -199,11 +199,9 @@ static void UI_SPLevelMenu_SetBots( void ) {
 		}
 
 		botInfo = UI_GetBotInfoByName( bot );
-		if(!botInfo)
-		{
-			botInfo = UI_GetBotInfoByNumber( levelMenuInfo.numBots );
-		}
-	
+                if( !botInfo )	{
+                     botInfo = UI_GetBotInfoByNumber( levelMenuInfo.numBots );
+                }
 		if( botInfo ) {
 			levelMenuInfo.botPics[levelMenuInfo.numBots] = PlayerIconHandle( Info_ValueForKey( botInfo, "model" ) );
 			Q_strncpyz( levelMenuInfo.botNames[levelMenuInfo.numBots], Info_ValueForKey( botInfo, "name" ), 10 );
@@ -236,7 +234,7 @@ static void UI_SPLevelMenu_SetMenuArena( int n, int level, const char *arenaInfo
 		levelMenuInfo.levelScores[n] = 8;
 	}
 
-	Com_sprintf( levelMenuInfo.levelPicNames[n], sizeof(levelMenuInfo.levelPicNames[n]), "levelshots/%s.tga", map );
+	strcpy( levelMenuInfo.levelPicNames[n], va( "levelshots/%s.tga", map ) );
 	if( !trap_R_RegisterShaderNoMip( levelMenuInfo.levelPicNames[n] ) ) {
 		strcpy( levelMenuInfo.levelPicNames[n], ART_MAP_UNKNOWN );
 	}
@@ -368,11 +366,7 @@ static void UI_SPLevelMenu_ResetAction( qboolean result ) {
 
 	// clear game variables
 	UI_NewGame();
-	if ( UI_GetSpecialArenaInfo( "training" ) ) {
-		trap_Cvar_SetValue( "ui_spSelection", -4 );
-	} else {
-		trap_Cvar_SetValue( "ui_spSelection", 0 );
-	}
+	trap_Cvar_SetValue( "ui_spSelection", -4 );
 
 	// make the level select menu re-initialize
 	UI_PopMenu();
@@ -729,6 +723,7 @@ static void UI_SPLevelMenu_Init( void ) {
 	skill = (int)trap_Cvar_VariableValue( "g_spSkill" );
 	if( skill < 1 || skill > 5 ) {
 		trap_Cvar_Set( "g_spSkill", "2" );
+		skill = 2;
 	}
 
 	memset( &levelMenuInfo, 0, sizeof(levelMenuInfo) );

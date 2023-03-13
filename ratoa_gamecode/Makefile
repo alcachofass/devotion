@@ -152,8 +152,8 @@ GDIR=$(MOUNT_DIR)/game
 CGDIR=$(MOUNT_DIR)/cgame
 BLIBDIR=$(MOUNT_DIR)/botlib
 NDIR=$(MOUNT_DIR)/null
-#UIDIR=$(MOUNT_DIR)/ui
-#Q3UIDIR=$(MOUNT_DIR)/q3_ui
+UIDIR=$(MOUNT_DIR)/ui
+Q3UIDIR=$(MOUNT_DIR)/q3_ui
 JPDIR=$(MOUNT_DIR)/jpeg-6b
 SPEEXDIR=$(MOUNT_DIR)/libspeex
 Q3ASMDIR=$(MOUNT_DIR)/tools/asm
@@ -813,12 +813,12 @@ ifneq ($(BUILD_GAME_QVM),0)
     TARGETS += \
       $(B)/baseq3/vm/cgame.qvm \
       $(B)/baseq3/vm/qagame.qvm \
-      #$(B)/baseq3/vm/ui.qvm
+      $(B)/baseq3/vm/ui.qvm
     ifneq ($(BUILD_MISSIONPACK),0)
       TARGETS += \
       $(B)/missionpack/vm/qagame.qvm \
       $(B)/missionpack/vm/cgame.qvm \
-      #$(B)/missionpack/vm/ui.qvm
+      $(B)/missionpack/vm/ui.qvm
     endif
   endif
 endif
@@ -1915,9 +1915,9 @@ $(B)/baseq3/ui$(ARCH).$(SHLIBEXT): $(Q3UIOBJ)
 	$(echo_cmd) "LD $@"
 	$(Q)$(CC) $(CFLAGS) $(SHLIBLDFLAGS) -o $@ $(Q3UIOBJ)
 
-#$(B)/baseq3/vm/ui.qvm: $(Q3UIVMOBJ) $(UIDIR)/ui_syscalls.asm $(Q3ASM)
-#	$(echo_cmd) "Q3ASM $@"
-#	$(Q)$(Q3ASM) -o $@ $(Q3UIVMOBJ) $(UIDIR)/ui_syscalls.asm
+$(B)/baseq3/vm/ui.qvm: $(Q3UIVMOBJ) $(UIDIR)/ui_syscalls.asm $(Q3ASM)
+	$(echo_cmd) "Q3ASM $@"
+	$(Q)$(Q3ASM) -o $@ $(Q3UIVMOBJ) $(UIDIR)/ui_syscalls.asm
 
 #############################################################################
 ## MISSIONPACK UI
@@ -1943,9 +1943,9 @@ $(B)/missionpack/ui$(ARCH).$(SHLIBEXT): $(MPUIOBJ)
 	$(echo_cmd) "LD $@"
 	$(Q)$(CC) $(CFLAGS) $(SHLIBLDFLAGS) -o $@ $(MPUIOBJ)
 
-#$(B)/missionpack/vm/ui.qvm: $(MPUIVMOBJ) $(UIDIR)/ui_syscalls.asm $(Q3ASM)
-#	$(echo_cmd) "Q3ASM $@"
-#	$(Q)$(Q3ASM) -o $@ $(MPUIVMOBJ) $(UIDIR)/ui_syscalls.asm
+$(B)/missionpack/vm/ui.qvm: $(MPUIVMOBJ) $(UIDIR)/ui_syscalls.asm $(Q3ASM)
+	$(echo_cmd) "Q3ASM $@"
+	$(Q)$(Q3ASM) -o $@ $(MPUIVMOBJ) $(UIDIR)/ui_syscalls.asm
 
 
 
@@ -2064,26 +2064,26 @@ $(B)/missionpack/game/%.asm: $(GDIR)/%.c $(Q3LCC)
 $(B)/baseq3/ui/bg_%.o: $(GDIR)/bg_%.c
 	$(DO_UI_CC)
 
-#$(B)/baseq3/ui/%.o: $(Q3UIDIR)/%.c
-#	$(DO_UI_CC)
+$(B)/baseq3/ui/%.o: $(Q3UIDIR)/%.c
+	$(DO_UI_CC)
 
 $(B)/baseq3/ui/bg_%.asm: $(GDIR)/bg_%.c $(Q3LCC)
 	$(DO_UI_Q3LCC)
 
-#$(B)/baseq3/ui/%.asm: $(Q3UIDIR)/%.c $(Q3LCC)
-#	$(DO_UI_Q3LCC)
+$(B)/baseq3/ui/%.asm: $(Q3UIDIR)/%.c $(Q3LCC)
+	$(DO_UI_Q3LCC)
 
 $(B)/missionpack/ui/bg_%.o: $(GDIR)/bg_%.c
 	$(DO_UI_CC_MISSIONPACK)
 
-#$(B)/missionpack/ui/%.o: $(UIDIR)/%.c
-#	$(DO_UI_CC_MISSIONPACK)
+$(B)/missionpack/ui/%.o: $(UIDIR)/%.c
+	$(DO_UI_CC_MISSIONPACK)
 
 $(B)/missionpack/ui/bg_%.asm: $(GDIR)/bg_%.c $(Q3LCC)
 	$(DO_UI_Q3LCC_MISSIONPACK)
 
-#$(B)/missionpack/ui/%.asm: $(UIDIR)/%.c $(Q3LCC)
-#	$(DO_UI_Q3LCC_MISSIONPACK)
+$(B)/missionpack/ui/%.asm: $(UIDIR)/%.c $(Q3LCC)
+	$(DO_UI_Q3LCC_MISSIONPACK)
 
 
 $(B)/baseq3/qcommon/%.o: $(CMDIR)/%.c
