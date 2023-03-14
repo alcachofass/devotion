@@ -2,7 +2,7 @@ ratmod_menulogo_white
 {
 	nopicmip
 	{
-		map textures/sfx/logo-light.tga
+		map textures/sfx/devotion_logo_white.tga
 		blendFunc blend
 	}
 }
