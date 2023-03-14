@@ -238,8 +238,10 @@ static void Main_MenuDraw( void ) {
 	}
 
 		UI_DrawProportionalString( 320, 372, "", UI_CENTER|UI_SMALLFONT, color );
-		UI_DrawString( 320, 386, "Devotion(c) 2023 Devotion Team", UI_CENTER|UI_SMALLFONT, color );
-		UI_DrawString( 320, 400, "based on RatArena(c) 2017-2021 Ratmod Team", UI_CENTER|UI_SMALLFONT, color );
+		UI_DrawString( 320, 414, "Devotion(c) 2023 Devotion Team", UI_CENTER|UI_SMALLFONT, color );
+		UI_DrawString( 320, 428, "based on RatArena(c) 2017-2021 Ratmod Team", UI_CENTER|UI_SMALLFONT, color );
+		//UI_DrawString( 320, 386, "Devotion(c) 2023 Devotion Team", UI_CENTER|UI_SMALLFONT, color );
+		//UI_DrawString( 320, 400, "based on RatArena(c) 2017-2021 Ratmod Team", UI_CENTER|UI_SMALLFONT, color );
 		//UI_DrawString( 320, 414, "Devotion comes with ABSOLUTELY NO WARRANTY; this is free software", UI_CENTER|UI_SMALLFONT, color );
 		//UI_DrawString( 320, 428, "and you are welcome to redistribute it under certain conditions;", UI_CENTER|UI_SMALLFONT, color );
 		//UI_DrawString( 320, 444, "read COPYING for details.", UI_CENTER|UI_SMALLFONT, color );
