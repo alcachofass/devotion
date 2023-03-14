@@ -327,7 +327,7 @@ gentity_t *SelectMultiTournamentSpawnPoint ( gentity_t *player, gclient_t *clien
 		return SelectSpawnPoint ( player, client->ps.origin, origin, angles);
 	}
 
-	return SelectRandomFurthestSpawnPoint(player, opponent->ps.origin, origin, angles);
+	return SelectRandomFurthestSpawnPoint(player, client->ps.origin, origin, angles);
 
 }
 #endif // WITH_MULTITOURNAMENT
@@ -363,8 +363,8 @@ gentity_t *SelectTournamentSpawnPoint ( gentity_t *player, gclient_t *client, ve
 			|| g_entities[opponentClientNum].health <= 0) {
 		return SelectSpawnPoint ( player, client->ps.origin, origin, angles);
 	}
-
-	return SelectRandomFurthestSpawnPoint(player, opponent->ps.origin, origin, angles);
+	Com_Printf("tournament spawn system on");
+	return SelectRandomFurthestSpawnPoint(player, client->ps.origin, origin, angles);
 
 	////nearestSpot = SelectNearestDeathmatchSpawnPoint( opponent->ps.origin );
 	//
