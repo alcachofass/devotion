@@ -101,21 +101,22 @@ MULTIPLAYER MENU (SERVER BROWSER)
 #define SORT_HUMANS                     5
 
 #define GAMES_ALL			0
-#define GAMES_FFA			1
-#define GAMES_TEAMPLAY                  2
-#define GAMES_TOURNEY                   3
-#define GAMES_CTF			4
-#define GAMES_1FCTF                     5
-#define GAMES_OBELISK                   6
-#define GAMES_HARVESTER                 7
-#define GAMES_ELIMINATION		8
-#define GAMES_CTF_ELIMINATION		9
-#define GAMES_LMS			10
-#define GAMES_DOUBLE_D			11
-#define GAMES_DOM                       12
-#define GAMES_TH                        13
+#define GAMES_DEVOTION			1
+#define GAMES_FFA			2
+#define GAMES_TEAMPLAY                  3
+#define GAMES_TOURNEY                   4
+#define GAMES_CTF			5
+#define GAMES_1FCTF                     6
+#define GAMES_OBELISK                   7
+#define GAMES_HARVESTER                 8
+#define GAMES_ELIMINATION		9
+#define GAMES_CTF_ELIMINATION		10
+#define GAMES_LMS			11
+#define GAMES_DOUBLE_D			12
+#define GAMES_DOM                       13
+#define GAMES_TH                        14
 #ifdef WITH_MULTITOURNAMENT
-#define GAMES_MULTITOURNAMENT           14
+#define GAMES_MULTITOURNAMENT           15
 #endif
 
 
@@ -132,6 +133,7 @@ static const char *master_items[] = {
 
 static const char *servertype_items[] = {
 	"All",
+	"Devotion",
 	"Free For All",
 	"Team Deathmatch",
 	"Tournament",
@@ -639,6 +641,12 @@ static void ArenaServers_UpdateMenu( void ) {
 
 		switch( g_gametype ) {
 		case GAMES_ALL:
+			break;
+
+		case GAMES_DEVOTION:
+			if( strcmp( servernodeptr->gamename, "devotion" ) != 0 ) {
+				continue;
+			}
 			break;
 
 		case GAMES_FFA:
