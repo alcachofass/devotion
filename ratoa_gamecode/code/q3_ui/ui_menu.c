@@ -32,6 +32,7 @@ MAIN MENU
 #include "ui_local.h"
 
 
+#define ID_INTRODUCTION			9
 #define ID_SINGLEPLAYER			10
 #define ID_MULTIPLAYER			11
 #define ID_SETUP				12
@@ -49,6 +50,7 @@ MAIN MENU
 typedef struct {
 	menuframework_s	menu;
 
+	menutext_s		introduction;
 	menutext_s		singleplayer;
 	menutext_s		multiplayer;
 	menutext_s		setup;
@@ -100,6 +102,10 @@ void Main_MenuEvent (void* ptr, int event) {
 	}
 
 	switch( ((menucommon_s*)ptr)->id ) {
+	case ID_INTRODUCTION:
+		trap_Cmd_ExecuteText( EXEC_APPEND, "map q3dm0;" );
+		break;
+
 	case ID_SINGLEPLAYER:
 		UI_SPLevelMenu();
 		break;
@@ -238,8 +244,11 @@ static void Main_MenuDraw( void ) {
 	}
 
 		UI_DrawProportionalString( 320, 372, "", UI_CENTER|UI_SMALLFONT, color );
-		UI_DrawString( 320, 414, "Devotion(c) 2023 Devotion Team", UI_CENTER|UI_SMALLFONT, color );
-		UI_DrawString( 320, 428, "based on RatArena(c) 2017-2021 Ratmod Team", UI_CENTER|UI_SMALLFONT, color );
+		UI_DrawString( 320, 386, "RatArena(c) 2017-2021 Ratmod Team", UI_CENTER|UI_SMALLFONT, color );
+		UI_DrawString( 320, 400, "based on OpenArena(c) 2005-2012 OpenArena Team", UI_CENTER|UI_SMALLFONT, color );
+		UI_DrawString( 320, 414, "Ratmod/OpenArena comes with ABSOLUTELY NO WARRANTY; this is free software", UI_CENTER|UI_SMALLFONT, color );
+		UI_DrawString( 320, 428, "and you are welcome to redistribute it under certain conditions;", UI_CENTER|UI_SMALLFONT, color );
+		UI_DrawString( 320, 444, "read COPYING for details.", UI_CENTER|UI_SMALLFONT, color );
                 
         //Draw version.
 		color[0] = 0;
@@ -321,6 +330,17 @@ void UI_MainMenu( void ) {
 	s_main.menu.showlogo = qtrue;
 
 	y = 134;
+	s_main.introduction.generic.type		= MTYPE_PTEXT;
+	s_main.introduction.generic.flags		= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
+	s_main.introduction.generic.x			= 320;
+	s_main.introduction.generic.y			= y;
+	s_main.introduction.generic.id			= ID_INTRODUCTION;
+	s_main.introduction.generic.callback	= Main_MenuEvent; 
+	s_main.introduction.string				= "INTRODUCTION";
+	s_main.introduction.color				= color_red;
+	s_main.introduction.style				= style;
+
+	y += MAIN_MENU_VERTICAL_SPACING;
 	s_main.singleplayer.generic.type		= MTYPE_PTEXT;
 	s_main.singleplayer.generic.flags		= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
 	s_main.singleplayer.generic.x			= 320;
@@ -422,6 +442,7 @@ void UI_MainMenu( void ) {
 	s_main.exit.color						= color_red;
 	s_main.exit.style						= style;
 
+	Menu_AddItem( &s_main.menu,	&s_main.introduction );
 	Menu_AddItem( &s_main.menu,	&s_main.singleplayer );
 	Menu_AddItem( &s_main.menu,	&s_main.multiplayer );
 	Menu_AddItem( &s_main.menu,	&s_main.setup );
