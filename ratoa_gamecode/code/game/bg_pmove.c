@@ -64,6 +64,23 @@ const float	pm_cpm_airstrafeaccelerate = 70.0f;
 const float	pm_cpm_airstrafewishspeed = 30.0f;
 const float	pm_cpm_aircontrol = 150.0f;
 
+const float	pm_ql_wishspeed = 400.0f;
+const int	pm_ql_WeaponRaiseTime = 200;
+const int	pm_ql_WeaponDropTime = 200;
+const float	pm_ql_WaterWadeScale = 0.8f;
+const float	pm_ql_WaterSwimScale = 0.6f;
+const float	pm_ql_WalkFriction = 6.0f;
+const float	pm_ql_WalkAccel = 6.0f;
+const int	pm_ql_velocity_gh = 800;
+const float	pm_StrafeAccel = 1.0f;
+const float	pm_StepJumpVelocity = 48.0f;
+const int 	pm_ql_StepJump = 1;
+const float	pm_ql_StepHeight = 22.0f;
+const float	pm_ql_RampJumpScale = 1.0f;
+const int	pm_ql_RampJump = 0;
+const int	pm_ql_noPlayerClip = 0;
+
+
 const float	pm_friction = 6.0f;
 const float	pm_waterfriction = 1.0f;
 const float	pm_flightfriction = 3.0f;
