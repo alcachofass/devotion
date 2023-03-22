@@ -2184,8 +2184,8 @@ static void CG_RegisterGraphics( void ) {
 
 		cgs.media.friendFrozenShader = trap_R_RegisterShaderNoMip("sprites/friendFrozen.tga");
 
-		cgs.media.radarShader = trap_R_RegisterShader("radar");
-		cgs.media.radarDotShader = trap_R_RegisterShader("radardot");
+		//cgs.media.radarShader = trap_R_RegisterShader("radar");
+		//cgs.media.radarDotShader = trap_R_RegisterShader("radardot");
 
 		if (cg_pingLocation.integer) {
 			cgs.media.pingLocation = trap_R_RegisterShaderNoMip("gfx/2d/pings/ping1.tga");

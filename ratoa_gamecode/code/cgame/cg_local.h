@@ -1043,8 +1043,8 @@ typedef struct {
 	
 	qhandle_t	friendFrozenShader;
 
-	qhandle_t	radarShader;
-	qhandle_t	radarDotShader;
+//	qhandle_t	radarShader;
+//	qhandle_t	radarDotShader;
 
 	qhandle_t	pingLocation;
 	qhandle_t	pingLocationHudMarker;
