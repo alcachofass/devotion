@@ -3721,14 +3721,14 @@ static const char *gameNames[] = {
 	"Single Player",
 	"Team Deathmatch",
 	"Capture the Flag",
-	"One Flag CTF",
-	"Overload",
-	"Harvester",
-	"Elimination",
-	"CTF Elimination",
-	"Last Man Standing",
-	"Double Domination",
-	"Domination"
+	"Elimination",        //"One Flag CTF",
+	"CTF Elimination",    //"Overload",
+	"Last Man Standing",  //"Harvester",
+	"Multi Tournament",   //"Elimination",
+	//"CTF Elimination",
+	//"Last Man Standing",
+	//"Double Domination",
+	//"Domination"
 };
 
 
