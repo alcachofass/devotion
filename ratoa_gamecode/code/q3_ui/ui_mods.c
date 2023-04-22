@@ -161,7 +161,7 @@ static void UI_Mods_LoadMods( void ) {
 
 	// always start off with baseoa
 	s_mods.list.numitems = 1;
-	s_mods.list.itemnames[0] = s_mods.descriptionList[0] = "OpenArena";
+	s_mods.list.itemnames[0] = s_mods.descriptionList[0] = "Quake 3 Arena";
 	s_mods.fs_gameList[0] = "";
 
 	numdirs = trap_FS_GetFileList( "$modlist", "", dirlist, sizeof(dirlist) );

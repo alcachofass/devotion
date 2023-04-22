@@ -133,7 +133,7 @@ static const char *master_items[] = {
 
 static const char *servertype_items[] = {
 	"All",
-	"Devotion",
+	"Devotion Plus",          // was Devotion
 	"Free For All",
 	"Team Deathmatch",
 	"Tournament",
@@ -190,7 +190,7 @@ static char* netnames[] = {
 	NULL
 };
 
-static char quake3worldMessage[] = "Visit www.openarena.ws - News, Community, Events, Files";
+static char quake3worldMessage[] = ""; //Visit www.openarena.ws - News, Community, Events, Files";
 
 
 typedef struct {
@@ -644,7 +644,7 @@ static void ArenaServers_UpdateMenu( void ) {
 			break;
 
 		case GAMES_DEVOTION:
-			if( strcmp( servernodeptr->gamename, "devotion" ) != 0 ) {
+			if( strcmp( servernodeptr->gamename, "devotionplus" ) != 0 ) {            // was "devotion"
 				continue;
 			}
 			break;
@@ -1687,7 +1687,7 @@ static void ArenaServers_MenuInit( void ) {
         
         y += SMALLCHAR_HEIGHT;
 	g_arenaservers.onlyhumans.generic.type		= MTYPE_RADIOBUTTON;
-	g_arenaservers.onlyhumans.generic.name		= "Only humans:";
+	g_arenaservers.onlyhumans.generic.name		= "Only Humans:";
 	g_arenaservers.onlyhumans.generic.flags		= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	g_arenaservers.onlyhumans.generic.callback	= ArenaServers_Event;
 	g_arenaservers.onlyhumans.generic.id			= ID_ONLY_HUMANS;
@@ -1696,7 +1696,7 @@ static void ArenaServers_MenuInit( void ) {
         
         y += SMALLCHAR_HEIGHT;
 	g_arenaservers.hideprivate.generic.type		= MTYPE_RADIOBUTTON;
-	g_arenaservers.hideprivate.generic.name		= "Hide private:";
+	g_arenaservers.hideprivate.generic.name		= "Hide Private:";
 	g_arenaservers.hideprivate.generic.flags		= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	g_arenaservers.hideprivate.generic.callback	= ArenaServers_Event;
 	g_arenaservers.hideprivate.generic.id			= ID_HIDE_PRIVATE;

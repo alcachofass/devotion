@@ -132,7 +132,7 @@ static char* netnames[] = {
 };
 
 #ifndef MISSIONPACK // bk001206
-static char quake3worldMessage[] = "Visit www.openarena.ws - News, Community, Events, Files";
+static char quake3worldMessage[] = ""; //Visit www.openarena.ws - News, Community, Events, Files";
 #endif
 
 static int gamecodetoui[] = {4,2,3,0,5,1,6};

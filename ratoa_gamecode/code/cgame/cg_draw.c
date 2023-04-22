@@ -5749,8 +5749,8 @@ static void CG_DrawSpectator(void) {
 		s = S_COLOR_GREEN "ESC" S_COLOR_WHITE "->" S_COLOR_GREEN "JOIN" S_COLOR_WHITE " to play.";
 	}
 	CG_DrawTinyScoreString(320 - (CG_DrawStrlen(s)*SCORETINYCHAR_WIDTH)/2, 458, s, 1.0F);
-	s = "Help: " S_COLOR_GREEN "\\help" S_COLOR_WHITE " or " S_COLOR_GREEN "\\doc" S_COLOR_WHITE " or visit "
-	       	S_COLOR_CYAN "https://devoq3.net/";
+	s = "Help: " S_COLOR_GREEN "\\help" S_COLOR_WHITE " or " S_COLOR_GREEN "\\doc" S_COLOR_WHITE; // " or visit "
+	      // 	S_COLOR_CYAN "https://devoq3.net/";
 	CG_DrawTinyScoreString(320 - (CG_DrawStrlen(s)*SCORETINYCHAR_WIDTH)/2, 468, s, 1.0F);
 }
 
