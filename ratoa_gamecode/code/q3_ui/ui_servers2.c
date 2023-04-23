@@ -106,17 +106,17 @@ MULTIPLAYER MENU (SERVER BROWSER)
 #define GAMES_TEAMPLAY                  3
 #define GAMES_TOURNEY                   4
 #define GAMES_CTF			5
-#define GAMES_1FCTF                     6
-#define GAMES_OBELISK                   7
-#define GAMES_HARVESTER                 8
-#define GAMES_ELIMINATION		9
-#define GAMES_CTF_ELIMINATION		10
-#define GAMES_LMS			11
-#define GAMES_DOUBLE_D			12
-#define GAMES_DOM                       13
-#define GAMES_TH                        14
+//#define GAMES_1FCTF                     6
+//#define GAMES_OBELISK                   7
+//#define GAMES_HARVESTER                 8
+#define GAMES_ELIMINATION		6 //9
+#define GAMES_CTF_ELIMINATION		7 //10
+#define GAMES_LMS			8 //11
+//#define GAMES_DOUBLE_D			12
+//#define GAMES_DOM                       13
+//#define GAMES_TH                        14
 #ifdef WITH_MULTITOURNAMENT
-#define GAMES_MULTITOURNAMENT           15
+#define GAMES_MULTITOURNAMENT          9 // 15
 #endif
 
 
@@ -138,15 +138,15 @@ static const char *servertype_items[] = {
 	"Team Deathmatch",
 	"Tournament",
 	"Capture the Flag",
-        "One Flag Capture",
-        "Overload",
-        "Harvester",
+    //    "One Flag Capture",
+    //    "Overload",
+    //    "Harvester",
 	"Elimination",
 	"CTF Elimination",
 	"Last Man Standing",
-	"Double Domination",
-        "Domination",
-        "Treasure Hunter",
+	//"Double Domination",
+    //    "Domination",
+    //    "Treasure Hunter",
 #ifdef WITH_MULTITOURNAMENT
         "Multitournament",
 #endif
