@@ -100,14 +100,14 @@ static const char *gametype_items[] = {
 	"Team Deathmatch",
 	"Tournament",
 	"Capture the Flag",
-        "One Flag Capture",
-        "Overload",
-        "Harvester",
+    //    "One Flag Capture",          // Remove bogus game types from create start server dialog
+    //    "Overload",
+    //    "Harvester",
 	"Elimination",
 	"CTF Elimination",
 	"Last Man Standing",
-	"Double Domination",
-        "Domination",
+	//"Double Domination",
+    //    "Domination",
 	NULL
 };
 
