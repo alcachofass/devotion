@@ -69,6 +69,7 @@ vec4_t color_blue	    = {0.00f, 0.00f, 1.00f, 1.00f};
 vec4_t color_lightOrange    = {0.30f, 0.45f, 0.58f, 1.00f };
 vec4_t color_orange	    = {0.30f, 0.45f, 0.58f, 1.00f};
 vec4_t color_red	    = {0.55f, 0.65f, 0.73f, 1.00f};
+vec4_t color_red_original	    = {1.00f, 0.00f, 0.00f, 1.00f};
 vec4_t color_dim	    = {0.00f, 0.00f, 0.00f, 0.25f};
 
 // current color scheme

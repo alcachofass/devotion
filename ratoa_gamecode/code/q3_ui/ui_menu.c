@@ -252,7 +252,7 @@ static void Main_MenuDraw( void ) {
                 
         //Draw version.
 		//color[0] = 0;
-                //UI_DrawString( 320, 480-14, RATMOD_VERSION, UI_CENTER|UI_SMALLFONT, color );
+                UI_DrawString( 320, 480-14, COMPILE_VERSION, UI_CENTER|UI_DROPSHADOW|UI_SMALLFONT, color_red_original );
                 //if((int)trap_Cvar_VariableValue("protocol")!=71)
                     //UI_DrawString( 0, 480-14, va("^7Protocol: %i",(int)trap_Cvar_VariableValue("protocol")), UI_SMALLFONT, color);
 }
