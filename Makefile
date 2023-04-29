@@ -28,7 +28,7 @@ GAMECODE_OPTS := WITH_MULTITOURNAMENT=0
 OUTPUT_DIR := build
 PK3_DIR := $(OUTPUT_DIR)/pk3
 
-RATMOD_PK3 = devotion+.pk3
+RATMOD_PK3 = devotion.pk3
 
 TIMESTAMP = @$(shell cd $(GAMECODE_DIR) && git show -s --format=%ct)
 

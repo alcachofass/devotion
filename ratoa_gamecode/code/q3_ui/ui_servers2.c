@@ -133,7 +133,7 @@ static const char *master_items[] = {
 
 static const char *servertype_items[] = {
 	"All",
-	"Devotion Plus",          // was Devotion
+	"Devotion",          // was Devotion
 	"Free For All",
 	"Team Deathmatch",
 	"Tournament",
@@ -644,7 +644,7 @@ static void ArenaServers_UpdateMenu( void ) {
 			break;
 
 		case GAMES_DEVOTION:
-			if( strcmp( servernodeptr->gamename, "devotionplus" ) != 0 ) {            // was "devotion"
+			if( strcmp( servernodeptr->gamename, "devotion" ) != 0 ) {
 				continue;
 			}
 			break;

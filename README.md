@@ -11,12 +11,9 @@ oitzujoey
 Parker1200  
 EddieBrrrock  
 ZerTerO (High Quality Quake v3.7 assets)  
-  
+alcachofass
+
 Please note that despite the license applied to this mod, such license is obviously not valid for High Quality Quake. They are only here due to insistence of a few friends. [This commit](https://github.com/ceular/devotion/commit/b3ddf1a6f04633add631ff5c4b75eda7448ee7c5) references all such assets that aren't GPLv2, thankfully, ZerTerO is fine with its usage. In addition to that, the model used for green armor is not GPLv2 because the model itself comes from OSP which is still taken from Quake III itself, the only difference is the path contained within the md3 file to a different skin, and such skin is a derivative of the yellow armor skin, just changed to green. The PM models aren't compatible either and they seem to come from Quake Live. Needless to say, the non-GPLv2 assets are here but my conscience keeps nagging me to remove them.  
-
-# Devotion Plus
-
-Since _Devotion_ development was abandoned as of 4/20/2023, the _devotionplus_ branch aims to resolve open functional and interface issues while maintaining quality of life improvements. If the original _Devotion_ developers return, the worthwhile changes in _devotionplus_ would be PR'd back to upstream. 
 
 # Documentation
 
@@ -31,7 +28,7 @@ make
 # Dedicated Server Example
 
 ```sh
-/usr/lib/ioquake3/ioq3ded +set dedicated 2 +set fs_game devotionplus +set sv_fps 40 +set rconpassword "yourSecretPassword" +exec server.cfg
+quake3-server +set dedicated 2 +set fs_game devotion +exec server.cfg
 ```
 
 # Sample server.cfg 
@@ -59,6 +56,7 @@ set timelimit 10
 set g_specMuted 0
 set g_tournamentMuteSpec 0
 set sv_floodprotect 0
+set rconpassword "YourSecretPassword"
 
 // Files
 set sv_dlurl "https://your.url.tld"
