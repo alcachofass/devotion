@@ -22,8 +22,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "ui_local.h"
 
-#define ART_SELECT			"menu/art_blueish/maps_select"
-#define ART_SELECTED			"menu/art_blueish/maps_selected"
+#define ART_SELECT			"menu/art/maps_select"
+#define ART_SELECTED			"menu/art/maps_selected"
 #define ART_UNKNOWNMAP           	"menu/art/unknownmap"
 
 #define ID_PICTURES			12	// 12-22

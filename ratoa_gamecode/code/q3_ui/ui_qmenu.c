@@ -68,8 +68,7 @@ vec4_t color_yellow	    = {1.00f, 1.00f, 0.00f, 1.00f};
 vec4_t color_blue	    = {0.00f, 0.00f, 1.00f, 1.00f};
 vec4_t color_lightOrange    = {0.30f, 0.45f, 0.58f, 1.00f };
 vec4_t color_orange	    = {0.30f, 0.45f, 0.58f, 1.00f};
-vec4_t color_red	    = {0.55f, 0.65f, 0.73f, 1.00f};
-vec4_t color_red_original	    = {1.00f, 0.00f, 0.00f, 1.00f};
+vec4_t color_red	    = {1.00f, 0.00f, 0.00f, 1.00f};
 vec4_t color_dim	    = {0.00f, 0.00f, 0.00f, 0.25f};
 
 // current color scheme
@@ -1726,7 +1725,7 @@ void Menu_Cache( void )
 	uis.charsetProp		= trap_R_RegisterShaderNoMip( "menu/art/font1_prop.tga" );
 	uis.charsetPropGlow	= trap_R_RegisterShaderNoMip( "menu/art/font1_prop_glo.tga" );
 	uis.charsetPropB	= trap_R_RegisterShaderNoMip( "menu/art/font2_prop.tga" );
-	uis.cursor          = trap_R_RegisterShaderNoMip( "menu/art_blueish/3_cursor2" );
+	uis.cursor          = trap_R_RegisterShaderNoMip( "menu/art/3_cursor2" );
 	uis.rb_on           = trap_R_RegisterShaderNoMip( "menu/art/switch_on" );
 	uis.rb_off          = trap_R_RegisterShaderNoMip( "menu/art/switch_off" );
 
