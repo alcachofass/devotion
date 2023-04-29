@@ -106,17 +106,17 @@ MULTIPLAYER MENU (SERVER BROWSER)
 #define GAMES_TEAMPLAY                  3
 #define GAMES_TOURNEY                   4
 #define GAMES_CTF			5
-#define GAMES_1FCTF                     6
-#define GAMES_OBELISK                   7
-#define GAMES_HARVESTER                 8
-#define GAMES_ELIMINATION		9
-#define GAMES_CTF_ELIMINATION		10
-#define GAMES_LMS			11
-#define GAMES_DOUBLE_D			12
-#define GAMES_DOM                       13
-#define GAMES_TH                        14
+//#define GAMES_1FCTF                     6
+//#define GAMES_OBELISK                   7
+//#define GAMES_HARVESTER                 8
+#define GAMES_ELIMINATION		6 //9
+#define GAMES_CTF_ELIMINATION		7 //10
+#define GAMES_LMS			8 //11
+//#define GAMES_DOUBLE_D			12
+//#define GAMES_DOM                       13
+//#define GAMES_TH                        14
 #ifdef WITH_MULTITOURNAMENT
-#define GAMES_MULTITOURNAMENT           15
+#define GAMES_MULTITOURNAMENT          9 // 15
 #endif
 
 
@@ -133,20 +133,20 @@ static const char *master_items[] = {
 
 static const char *servertype_items[] = {
 	"All",
-	"Devotion",
+	"Devotion Plus",          // was Devotion
 	"Free For All",
 	"Team Deathmatch",
 	"Tournament",
 	"Capture the Flag",
-        "One Flag Capture",
-        "Overload",
-        "Harvester",
+    //    "One Flag Capture",
+    //    "Overload",
+    //    "Harvester",
 	"Elimination",
 	"CTF Elimination",
 	"Last Man Standing",
-	"Double Domination",
-        "Domination",
-        "Treasure Hunter",
+	//"Double Domination",
+    //    "Domination",
+    //    "Treasure Hunter",
 #ifdef WITH_MULTITOURNAMENT
         "Multitournament",
 #endif
@@ -190,7 +190,7 @@ static char* netnames[] = {
 	NULL
 };
 
-static char quake3worldMessage[] = "Visit www.openarena.ws - News, Community, Events, Files";
+static char quake3worldMessage[] = ""; //Visit www.openarena.ws - News, Community, Events, Files";
 
 
 typedef struct {
@@ -644,7 +644,7 @@ static void ArenaServers_UpdateMenu( void ) {
 			break;
 
 		case GAMES_DEVOTION:
-			if( strcmp( servernodeptr->gamename, "devotion" ) != 0 ) {
+			if( strcmp( servernodeptr->gamename, "devotionplus" ) != 0 ) {            // was "devotion"
 				continue;
 			}
 			break;
@@ -1687,7 +1687,7 @@ static void ArenaServers_MenuInit( void ) {
         
         y += SMALLCHAR_HEIGHT;
 	g_arenaservers.onlyhumans.generic.type		= MTYPE_RADIOBUTTON;
-	g_arenaservers.onlyhumans.generic.name		= "Only humans:";
+	g_arenaservers.onlyhumans.generic.name		= "Only Humans:";
 	g_arenaservers.onlyhumans.generic.flags		= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	g_arenaservers.onlyhumans.generic.callback	= ArenaServers_Event;
 	g_arenaservers.onlyhumans.generic.id			= ID_ONLY_HUMANS;
@@ -1696,7 +1696,7 @@ static void ArenaServers_MenuInit( void ) {
         
         y += SMALLCHAR_HEIGHT;
 	g_arenaservers.hideprivate.generic.type		= MTYPE_RADIOBUTTON;
-	g_arenaservers.hideprivate.generic.name		= "Hide private:";
+	g_arenaservers.hideprivate.generic.name		= "Hide Private:";
 	g_arenaservers.hideprivate.generic.flags		= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	g_arenaservers.hideprivate.generic.callback	= ArenaServers_Event;
 	g_arenaservers.hideprivate.generic.id			= ID_HIDE_PRIVATE;

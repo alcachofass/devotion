@@ -50,13 +50,13 @@ MAIN MENU
 typedef struct {
 	menuframework_s	menu;
 
-	menutext_s		introduction;
+	//menutext_s		introduction;
 	menutext_s		singleplayer;
 	menutext_s		multiplayer;
 	menutext_s		setup;
 	menutext_s		demos;
 	//menutext_s		cinematics;
-        menutext_s              challenges;
+    //    menutext_s              challenges;
 	menutext_s		teamArena;
 	menutext_s		mods;
 	menutext_s		exit;
@@ -244,17 +244,17 @@ static void Main_MenuDraw( void ) {
 	}
 
 		UI_DrawProportionalString( 320, 372, "", UI_CENTER|UI_SMALLFONT, color );
-		UI_DrawString( 320, 386, "RatArena(c) 2017-2021 Ratmod Team", UI_CENTER|UI_SMALLFONT, color );
-		UI_DrawString( 320, 400, "based on OpenArena(c) 2005-2012 OpenArena Team", UI_CENTER|UI_SMALLFONT, color );
-		UI_DrawString( 320, 414, "Ratmod/OpenArena comes with ABSOLUTELY NO WARRANTY; this is free software", UI_CENTER|UI_SMALLFONT, color );
-		UI_DrawString( 320, 428, "and you are welcome to redistribute it under certain conditions;", UI_CENTER|UI_SMALLFONT, color );
-		UI_DrawString( 320, 444, "read COPYING for details.", UI_CENTER|UI_SMALLFONT, color );
+		//UI_DrawString( 320, 386, "RatArena(c) 2017-2021 Ratmod Team", UI_CENTER|UI_SMALLFONT, color );
+		//UI_DrawString( 320, 400, "based on OpenArena(c) 2005-2012 OpenArena Team", UI_CENTER|UI_SMALLFONT, color );
+		//UI_DrawString( 320, 414, "Ratmod/OpenArena comes with ABSOLUTELY NO WARRANTY; this is free software", UI_CENTER|UI_SMALLFONT, color );
+		//UI_DrawString( 320, 428, "and you are welcome to redistribute it under certain conditions;", UI_CENTER|UI_SMALLFONT, color );
+		//UI_DrawString( 320, 444, "read COPYING for details.", UI_CENTER|UI_SMALLFONT, color );
                 
         //Draw version.
-		color[0] = 0;
-                UI_DrawString( 320, 480-14, RATMOD_VERSION, UI_CENTER|UI_SMALLFONT, color );
-                if((int)trap_Cvar_VariableValue("protocol")!=71)
-                    UI_DrawString( 0, 480-14, va("^7Protocol: %i",(int)trap_Cvar_VariableValue("protocol")), UI_SMALLFONT, color);
+		//color[0] = 0;
+                UI_DrawString( 320, 480-14, COMPILE_VERSION, UI_CENTER|UI_DROPSHADOW|UI_SMALLFONT, color_red_original );
+                //if((int)trap_Cvar_VariableValue("protocol")!=71)
+                    //UI_DrawString( 0, 480-14, va("^7Protocol: %i",(int)trap_Cvar_VariableValue("protocol")), UI_SMALLFONT, color);
 }
 
 
@@ -329,7 +329,10 @@ void UI_MainMenu( void ) {
 	s_main.menu.wrapAround = qtrue;
 	s_main.menu.showlogo = qtrue;
 
-	y = 134;
+	//y = 134;
+	y = 154;
+
+	/*
 	s_main.introduction.generic.type		= MTYPE_PTEXT;
 	s_main.introduction.generic.flags		= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
 	s_main.introduction.generic.x			= 320;
@@ -341,6 +344,7 @@ void UI_MainMenu( void ) {
 	s_main.introduction.style				= style;
 
 	y += MAIN_MENU_VERTICAL_SPACING;
+	*/	
 	s_main.singleplayer.generic.type		= MTYPE_PTEXT;
 	s_main.singleplayer.generic.flags		= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
 	s_main.singleplayer.generic.x			= 320;
@@ -394,8 +398,8 @@ void UI_MainMenu( void ) {
 	s_main.cinematics.string				= "CINEMATICS";
 	s_main.cinematics.color					= color_red;
 	s_main.cinematics.style					= style;*/
-
-        y += MAIN_MENU_VERTICAL_SPACING;
+/*
+    y += MAIN_MENU_VERTICAL_SPACING;
 	s_main.challenges.generic.type			= MTYPE_PTEXT;
 	s_main.challenges.generic.flags			= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
 	s_main.challenges.generic.x				= 320;
@@ -405,6 +409,7 @@ void UI_MainMenu( void ) {
 	s_main.challenges.string				= "STATISTICS";
 	s_main.challenges.color					= color_red;
 	s_main.challenges.style					= style;
+*/
 
 	//if (UI_TeamArenaExists()) {
 	//	teamArena = qtrue;
@@ -442,13 +447,13 @@ void UI_MainMenu( void ) {
 	s_main.exit.color						= color_red;
 	s_main.exit.style						= style;
 
-	Menu_AddItem( &s_main.menu,	&s_main.introduction );
+//	Menu_AddItem( &s_main.menu,	&s_main.introduction );
 	Menu_AddItem( &s_main.menu,	&s_main.singleplayer );
 	Menu_AddItem( &s_main.menu,	&s_main.multiplayer );
 	Menu_AddItem( &s_main.menu,	&s_main.setup );
 	Menu_AddItem( &s_main.menu,	&s_main.demos );
 	//Menu_AddItem( &s_main.menu,	&s_main.cinematics );
-        Menu_AddItem( &s_main.menu,	&s_main.challenges );
+    //Menu_AddItem( &s_main.menu,	&s_main.challenges );
 	if (teamArena) {
 		Menu_AddItem( &s_main.menu,	&s_main.teamArena );
 	}

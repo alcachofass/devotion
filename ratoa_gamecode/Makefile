@@ -4,6 +4,9 @@
 # GNU Make required
 #
 
+# Define a version for the mod
+COMPILE_VERSION=v20230425
+
 COMPILE_PLATFORM=$(shell uname|sed -e s/_.*//|tr '[:upper:]' '[:lower:]')
 
 COMPILE_ARCH=$(shell uname -m | sed -e s/i.86/i386/)
@@ -863,6 +866,9 @@ BASE_CFLAGS += -DPRODUCT_VERSION=\\\"$(VERSION)\\\"
 
 BASE_CFLAGS += -DRATMOD_VERSION=\\\"$(RATMOD_VERSION)\\\"
 QVM_CFLAGS += -DRATMOD_VERSION=\"$(RATMOD_VERSION)\"
+
+BASE_CFLAGS += -DCOMPILE_VERSION=\\\"$(COMPILE_VERSION)\\\"
+QVM_CFLAGS += -DCOMPILE_VERSION=\"$(COMPILE_VERSION)\"
 
 ifeq ($(V),1)
 echo_cmd=@:

@@ -192,7 +192,7 @@ static void UI_SetupMenu_Init( void ) {
 	setupMenuInfo.setupplayer.generic.callback		= UI_SetupMenu_Event; 
 	setupMenuInfo.setupplayer.string				= "PLAYER";
 	setupMenuInfo.setupplayer.color					= color_red;
-	setupMenuInfo.setupplayer.style					= UI_CENTER;
+	setupMenuInfo.setupplayer.style					= UI_CENTER|UI_DROPSHADOW;
 
 	y += SETUP_MENU_VERTICAL_SPACING;
 	setupMenuInfo.setupcontrols.generic.type		= MTYPE_PTEXT;
@@ -203,7 +203,7 @@ static void UI_SetupMenu_Init( void ) {
 	setupMenuInfo.setupcontrols.generic.callback	= UI_SetupMenu_Event; 
 	setupMenuInfo.setupcontrols.string				= "CONTROLS";
 	setupMenuInfo.setupcontrols.color				= color_red;
-	setupMenuInfo.setupcontrols.style				= UI_CENTER;
+	setupMenuInfo.setupcontrols.style				= UI_CENTER|UI_DROPSHADOW;
 
 	y += SETUP_MENU_VERTICAL_SPACING;
 	setupMenuInfo.setupsystem.generic.type			= MTYPE_PTEXT;
@@ -214,7 +214,7 @@ static void UI_SetupMenu_Init( void ) {
 	setupMenuInfo.setupsystem.generic.callback		= UI_SetupMenu_Event; 
 	setupMenuInfo.setupsystem.string				= "SYSTEM";
 	setupMenuInfo.setupsystem.color					= color_red;
-	setupMenuInfo.setupsystem.style					= UI_CENTER;
+	setupMenuInfo.setupsystem.style					= UI_CENTER|UI_DROPSHADOW;
 
 	y += SETUP_MENU_VERTICAL_SPACING;
 	setupMenuInfo.game.generic.type					= MTYPE_PTEXT;
@@ -225,7 +225,7 @@ static void UI_SetupMenu_Init( void ) {
 	setupMenuInfo.game.generic.callback				= UI_SetupMenu_Event; 
 	setupMenuInfo.game.string						= "GAME OPTIONS";
 	setupMenuInfo.game.color						= color_red;
-	setupMenuInfo.game.style						= UI_CENTER;
+	setupMenuInfo.game.style						= UI_CENTER|UI_DROPSHADOW;
 
 /*	y += SETUP_MENU_VERTICAL_SPACING;
 	setupMenuInfo.cdkey.generic.type				= MTYPE_PTEXT;
@@ -272,7 +272,7 @@ static void UI_SetupMenu_Init( void ) {
 		setupMenuInfo.defaults.generic.callback			= UI_SetupMenu_Event; 
 		setupMenuInfo.defaults.string					= "DEFAULTS";
 		setupMenuInfo.defaults.color					= color_red;
-		setupMenuInfo.defaults.style					= UI_CENTER;
+		setupMenuInfo.defaults.style					= UI_CENTER|UI_DROPSHADOW;
 	}
 
 	setupMenuInfo.back.generic.type					= MTYPE_BITMAP;

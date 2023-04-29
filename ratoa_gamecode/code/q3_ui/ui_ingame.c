@@ -46,7 +46,7 @@ INGAME MENU
 #define ID_QUIT					17
 #define ID_RESUME				18
 #define ID_TEAMORDERS			19
-#define ID_VOTE                         20
+//#define ID_VOTE                         20
 
 
 typedef struct {
@@ -63,7 +63,7 @@ typedef struct {
 	menutext_s		teamorders;
 	menutext_s		quit;
 	menutext_s		resume;
-        menutext_s              vote;
+    //menutext_s              vote;
 } ingamemenu_t;
 
 static ingamemenu_t	s_ingame;
@@ -150,9 +150,9 @@ void InGame_Event( void *ptr, int notification ) {
 		UI_PopMenu();
 		break;
                 
-        case ID_VOTE:
-                UI_VoteMenuMenu();
-                break;
+    //case ID_VOTE:
+    //            UI_VoteMenuMenu();
+    //            break;
 	}
 }
 
@@ -245,6 +245,7 @@ void InGame_MenuInit( void ) {
 		}
 	}
 
+	/*
         y += INGAME_MENU_VERTICAL_SPACING;
 	s_ingame.vote.generic.type		= MTYPE_PTEXT;
 	s_ingame.vote.generic.flags		= QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
@@ -259,6 +260,7 @@ void InGame_MenuInit( void ) {
         if( atoi( Info_ValueForKey(info,"g_allowVote") )==0 || trap_Cvar_VariableValue("g_gametype")==GT_SINGLE_PLAYER ) {
 		s_ingame.vote.generic.flags |= QMF_GRAYED;
 	}
+	*/
 
 	y += INGAME_MENU_VERTICAL_SPACING;
 	s_ingame.setup.generic.type			= MTYPE_PTEXT;
@@ -334,7 +336,7 @@ void InGame_MenuInit( void ) {
 	Menu_AddItem( &s_ingame.menu, &s_ingame.addbots );
 	Menu_AddItem( &s_ingame.menu, &s_ingame.removebots );
 	Menu_AddItem( &s_ingame.menu, &s_ingame.teamorders );
-        Menu_AddItem( &s_ingame.menu, &s_ingame.vote );
+    //    Menu_AddItem( &s_ingame.menu, &s_ingame.vote );
 	Menu_AddItem( &s_ingame.menu, &s_ingame.setup );
 	Menu_AddItem( &s_ingame.menu, &s_ingame.server );
 	Menu_AddItem( &s_ingame.menu, &s_ingame.restart );

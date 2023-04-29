@@ -178,11 +178,11 @@ void CG_DrawInformation( void ) {
 	color[3] = 0.6;
 	CG_FillRect( 0, 450, 640, 40, color);
 			
-	CG_DrawScoreString(10, 465-SCORECHAR_HEIGHT/2, S_COLOR_YELLOW "DEVOTION" S_COLOR_BLACK "mod", 1.0, 0);
+	CG_DrawScoreString(10, 465-SCORECHAR_HEIGHT/2, S_COLOR_YELLOW "DEVOTIONPLUS" S_COLOR_BLACK "mod", 1.0, 0);
 	s = S_COLOR_YELLOW "A pristine, unlagged experience for Quake III Arena.";
 	CG_DrawTinyScoreString(635-CG_DrawStrlen(s)*SCORETINYCHAR_WIDTH, 465-1-SCORETINYCHAR_HEIGHT, s, 1.0);
-	s = S_COLOR_CYAN "https://devoq3.net/";
-	CG_DrawTinyScoreString(635-CG_DrawStrlen(s)*SCORETINYCHAR_WIDTH, 465+1, s, 1.0);
+	//s = S_COLOR_CYAN "https://devoq3.net/";
+	//CG_DrawTinyScoreString(635-CG_DrawStrlen(s)*SCORETINYCHAR_WIDTH, 465+1, s, 1.0);
 
 	// the first 150 rows are reserved for the client connection
 	// screen to write into

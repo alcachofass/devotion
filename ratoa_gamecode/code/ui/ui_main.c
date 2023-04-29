@@ -132,7 +132,7 @@ static char* netnames[] = {
 };
 
 #ifndef MISSIONPACK // bk001206
-static char quake3worldMessage[] = "Visit www.openarena.ws - News, Community, Events, Files";
+static char quake3worldMessage[] = ""; //Visit www.openarena.ws - News, Community, Events, Files";
 #endif
 
 static int gamecodetoui[] = {4,2,3,0,5,1,6};
@@ -5187,7 +5187,7 @@ void _UI_Init( qboolean inGameLoad ) {
 
 	String_Init();
   
-	uiInfo.uiDC.cursor	= trap_R_RegisterShaderNoMip( "menu/art/3_cursor2" );
+	uiInfo.uiDC.cursor	= trap_R_RegisterShaderNoMip( "menu/art_blueish/3_cursor2" );
 	uiInfo.uiDC.whiteShader = trap_R_RegisterShaderNoMip( "white" );
 
 	AssetCache();

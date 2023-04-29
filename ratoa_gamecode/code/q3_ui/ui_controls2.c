@@ -1722,8 +1722,8 @@ static void Controls_MenuInit( void )
 	Menu_AddItem( &s_controls.menu, &s_controls.freelook );
 	Menu_AddItem( &s_controls.menu, &s_controls.centerview );
 	Menu_AddItem( &s_controls.menu, &s_controls.zoomview );
-	Menu_AddItem( &s_controls.menu, &s_controls.joyenable );
-	Menu_AddItem( &s_controls.menu, &s_controls.joythreshold );
+	//Menu_AddItem( &s_controls.menu, &s_controls.joyenable );
+	//Menu_AddItem( &s_controls.menu, &s_controls.joythreshold );
 
 	Menu_AddItem( &s_controls.menu, &s_controls.alwaysrun );
 	Menu_AddItem( &s_controls.menu, &s_controls.run );
@@ -1740,7 +1740,7 @@ static void Controls_MenuInit( void )
 	Menu_AddItem( &s_controls.menu, &s_controls.attack );
 	Menu_AddItem( &s_controls.menu, &s_controls.nextweapon );
 	Menu_AddItem( &s_controls.menu, &s_controls.prevweapon );
-	Menu_AddItem( &s_controls.menu, &s_controls.drop );
+	//Menu_AddItem( &s_controls.menu, &s_controls.drop );
 	Menu_AddItem( &s_controls.menu, &s_controls.autoswitch );
 	Menu_AddItem( &s_controls.menu, &s_controls.chainsaw );
 	Menu_AddItem( &s_controls.menu, &s_controls.machinegun );
@@ -1751,10 +1751,10 @@ static void Controls_MenuInit( void )
 	Menu_AddItem( &s_controls.menu, &s_controls.railgun );
 	Menu_AddItem( &s_controls.menu, &s_controls.plasma );
 	Menu_AddItem( &s_controls.menu, &s_controls.bfg );
-        Menu_AddItem( &s_controls.menu, &s_controls.grapple );
-        Menu_AddItem( &s_controls.menu, &s_controls.nailgun );
-        Menu_AddItem( &s_controls.menu, &s_controls.proxmine );
-        Menu_AddItem( &s_controls.menu, &s_controls.chaingun );
+    //    Menu_AddItem( &s_controls.menu, &s_controls.grapple );
+    //    Menu_AddItem( &s_controls.menu, &s_controls.nailgun );
+    //    Menu_AddItem( &s_controls.menu, &s_controls.proxmine );
+    //    Menu_AddItem( &s_controls.menu, &s_controls.chaingun );
 
 	Menu_AddItem( &s_controls.menu, &s_controls.showscores );
 	Menu_AddItem( &s_controls.menu, &s_controls.useitem );
@@ -1763,11 +1763,11 @@ static void Controls_MenuInit( void )
 	Menu_AddItem( &s_controls.menu, &s_controls.chat2 );
 	Menu_AddItem( &s_controls.menu, &s_controls.chat3 );
 	Menu_AddItem( &s_controls.menu, &s_controls.chat4 );
-        Menu_AddItem( &s_controls.menu, &s_controls.voip_talk );
-        Menu_AddItem( &s_controls.menu, &s_controls.voip_teamonly );
-	Menu_AddItem( &s_controls.menu, &s_controls.ping );
-	Menu_AddItem( &s_controls.menu, &s_controls.ping_warn );
-	Menu_AddItem( &s_controls.menu, &s_controls.ready );
+    //    Menu_AddItem( &s_controls.menu, &s_controls.voip_talk );
+    //    Menu_AddItem( &s_controls.menu, &s_controls.voip_teamonly );
+	//Menu_AddItem( &s_controls.menu, &s_controls.ping );
+	//Menu_AddItem( &s_controls.menu, &s_controls.ping_warn );
+	//Menu_AddItem( &s_controls.menu, &s_controls.ready );
 
 	Menu_AddItem( &s_controls.menu, &s_controls.back );
 

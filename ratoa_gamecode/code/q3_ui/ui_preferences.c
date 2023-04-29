@@ -92,7 +92,7 @@ typedef struct {
 	menulist_s			drawteamoverlay;
         menuradiobutton_s	delaghitscan;
 	menuradiobutton_s	allowdownload;
-	menuradiobutton_s	trackconsent;
+//	menuradiobutton_s	trackconsent;
         menuradiobutton_s       chatbeep;
         menuradiobutton_s       teamchatbeep;
 	menubitmap_s		back;
@@ -128,16 +128,18 @@ static void Preferences_SetMenuItems( void ) {
 	s_preferences.forcemodel.curvalue		= trap_Cvar_VariableValue( "cg_forcemodel" ) != 0;
 	s_preferences.drawteamoverlay.curvalue	= Com_Clamp( 0, 3, trap_Cvar_VariableValue( "cg_drawTeamOverlay" ) );
 	s_preferences.allowdownload.curvalue	= trap_Cvar_VariableValue( "cl_allowDownload" ) != 0;
-	s_preferences.trackconsent.curvalue	= trap_Cvar_VariableValue( "cg_trackConsent" ) == 1;
+	//s_preferences.trackconsent.curvalue	= trap_Cvar_VariableValue( "cg_trackConsent" ) == 1;
         s_preferences.delaghitscan.curvalue	= trap_Cvar_VariableValue( "cg_delag" ) != 0;
         s_preferences.chatbeep.curvalue         = trap_Cvar_VariableValue( "cg_chatBeep" ) != 0;
         s_preferences.teamchatbeep.curvalue     = trap_Cvar_VariableValue( "cg_teamChatBeep" ) != 0;
 }
 
+/*
 static void TrackConsentActionPreferences( qboolean result ) {
 	UI_TrackConsentAction(result);
 	s_preferences.trackconsent.curvalue = result;
 }
+*/
 
 static void Preferences_Event( void* ptr, int notification ) {
 	if( notification != QM_ACTIVATED ) {
@@ -227,7 +229,7 @@ static void Preferences_Event( void* ptr, int notification ) {
 		trap_Cvar_SetValue( "cl_allowDownload", s_preferences.allowdownload.curvalue );
 		trap_Cvar_SetValue( "sv_allowDownload", s_preferences.allowdownload.curvalue );
 		break;
-
+/*
 	case ID_TRACKCONSENT:
 		if ( s_preferences.trackconsent.curvalue ) {
 			if (trap_Cvar_VariableValue( "cg_trackConsent" ) != 1) {
@@ -237,6 +239,7 @@ static void Preferences_Event( void* ptr, int notification ) {
 			trap_Cvar_SetValue( "cg_trackConsent", 0);
 		}
 		break;
+		*/
                
         case ID_DELAGHITSCAN:
                 trap_Cvar_SetValue( "g_delagHitscan", s_preferences.delaghitscan.curvalue );
@@ -364,7 +367,7 @@ static void Preferences_MenuInit( void ) {
 
         y += BIGCHAR_HEIGHT+2;
 	s_preferences.crosshairHealth.generic.type        = MTYPE_RADIOBUTTON;
-	s_preferences.crosshairHealth.generic.name	      = "Crosshair shows health:";
+	s_preferences.crosshairHealth.generic.name	      = "Crosshair Shows Health:";
 	s_preferences.crosshairHealth.generic.flags	      = QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	s_preferences.crosshairHealth.generic.callback    = Preferences_Event;
 	s_preferences.crosshairHealth.generic.id          = ID_CROSSHAIRHEALTH;
@@ -373,7 +376,7 @@ static void Preferences_MenuInit( void ) {
 
         y += BIGCHAR_HEIGHT;
         s_preferences.crosshairColorRed.generic.type		= MTYPE_SLIDER;
-	s_preferences.crosshairColorRed.generic.name		= "Crosshair red:";
+	s_preferences.crosshairColorRed.generic.name		= "Crosshair Red:";
 	s_preferences.crosshairColorRed.generic.flags		= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	s_preferences.crosshairColorRed.generic.callback	= Preferences_Event;
 	s_preferences.crosshairColorRed.generic.id		= ID_COLORRED;
@@ -384,7 +387,7 @@ static void Preferences_MenuInit( void ) {
 
         y += BIGCHAR_HEIGHT+2;
         s_preferences.crosshairColorGreen.generic.type		= MTYPE_SLIDER;
-	s_preferences.crosshairColorGreen.generic.name		= "Crosshair green:";
+	s_preferences.crosshairColorGreen.generic.name		= "Crosshair Green:";
 	s_preferences.crosshairColorGreen.generic.flags		= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	s_preferences.crosshairColorGreen.generic.callback	= Preferences_Event;
 	s_preferences.crosshairColorGreen.generic.id		= ID_COLORGREEN;
@@ -395,7 +398,7 @@ static void Preferences_MenuInit( void ) {
 
         y += BIGCHAR_HEIGHT+2;
         s_preferences.crosshairColorBlue.generic.type		= MTYPE_SLIDER;
-	s_preferences.crosshairColorBlue.generic.name		= "Crosshair blue:";
+	s_preferences.crosshairColorBlue.generic.name		= "Crosshair Blue:";
 	s_preferences.crosshairColorBlue.generic.flags		= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	s_preferences.crosshairColorBlue.generic.callback	= Preferences_Event;
 	s_preferences.crosshairColorBlue.generic.id		= ID_COLORBLUE;
@@ -423,7 +426,7 @@ static void Preferences_MenuInit( void ) {
         //Elimination
         y += BIGCHAR_HEIGHT;
 	s_preferences.alwaysweaponbar.generic.type        = MTYPE_RADIOBUTTON;
-	s_preferences.alwaysweaponbar.generic.name	      = "Always show weapons:";
+	s_preferences.alwaysweaponbar.generic.name	      = "Always Show Weapons:";
 	s_preferences.alwaysweaponbar.generic.flags	      = QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	s_preferences.alwaysweaponbar.generic.callback    = Preferences_Event;
 	s_preferences.alwaysweaponbar.generic.id          = ID_WEAPONBAR;
@@ -505,7 +508,7 @@ static void Preferences_MenuInit( void ) {
 
         y += BIGCHAR_HEIGHT+2;
 	s_preferences.delaghitscan.generic.type     = MTYPE_RADIOBUTTON;
-	s_preferences.delaghitscan.generic.name	   = "Unlag hitscan:";
+	s_preferences.delaghitscan.generic.name	   = "Unlag Weapons:"; // "hitscan"
 	s_preferences.delaghitscan.generic.flags	   = QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	s_preferences.delaghitscan.generic.callback = Preferences_Event;
 	s_preferences.delaghitscan.generic.id       = ID_DELAGHITSCAN;
@@ -520,7 +523,7 @@ static void Preferences_MenuInit( void ) {
 	s_preferences.allowdownload.generic.id       = ID_ALLOWDOWNLOAD;
 	s_preferences.allowdownload.generic.x	       = PREFERENCES_X_POS;
 	s_preferences.allowdownload.generic.y	       = y;
-
+/*
 	y += BIGCHAR_HEIGHT+2;
 	s_preferences.trackconsent.generic.type     = MTYPE_RADIOBUTTON;
 	s_preferences.trackconsent.generic.name	   = "Track me on Ratstats:";
@@ -529,10 +532,11 @@ static void Preferences_MenuInit( void ) {
 	s_preferences.trackconsent.generic.id       = ID_TRACKCONSENT;
 	s_preferences.trackconsent.generic.x	       = PREFERENCES_X_POS;
 	s_preferences.trackconsent.generic.y	       = y;
+	*/
         
         y += BIGCHAR_HEIGHT+2;
 	s_preferences.chatbeep.generic.type     = MTYPE_RADIOBUTTON;
-	s_preferences.chatbeep.generic.name	   = "Beep on chat:";
+	s_preferences.chatbeep.generic.name	   = "Beep on Chat:";
 	s_preferences.chatbeep.generic.flags	   = QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	s_preferences.chatbeep.generic.callback = Preferences_Event;
 	s_preferences.chatbeep.generic.id       = ID_CHATBEEP;
@@ -541,7 +545,7 @@ static void Preferences_MenuInit( void ) {
         
         y += BIGCHAR_HEIGHT+2;
 	s_preferences.teamchatbeep.generic.type     = MTYPE_RADIOBUTTON;
-	s_preferences.teamchatbeep.generic.name	   = "Beep on team chat:";
+	s_preferences.teamchatbeep.generic.name	   = "Beep on Team Chat:";
 	s_preferences.teamchatbeep.generic.flags	   = QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	s_preferences.teamchatbeep.generic.callback = Preferences_Event;
 	s_preferences.teamchatbeep.generic.id       = ID_TEAMCHATBEEP;
@@ -581,7 +585,7 @@ static void Preferences_MenuInit( void ) {
 	Menu_AddItem( &s_preferences.menu, &s_preferences.drawteamoverlay );
         Menu_AddItem( &s_preferences.menu, &s_preferences.delaghitscan );
 	Menu_AddItem( &s_preferences.menu, &s_preferences.allowdownload );
-	Menu_AddItem( &s_preferences.menu, &s_preferences.trackconsent );
+	//Menu_AddItem( &s_preferences.menu, &s_preferences.trackconsent );
         Menu_AddItem( &s_preferences.menu, &s_preferences.teamchatbeep );
         Menu_AddItem( &s_preferences.menu, &s_preferences.chatbeep );
 
