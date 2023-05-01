@@ -12,6 +12,7 @@ Parker1200
 EddieBrrrock  
 ZerTerO (High Quality Quake v3.7 assets)  
 alcachofass
+Music / Instrumental by Aries Beats + <https://free-songs.de/Aries_Beats_-_Sad_Synthwave.mp3> 
 
 Please note that despite the license applied to this mod, such license is obviously not valid for High Quality Quake. They are only here due to insistence of a few friends. [This commit](https://github.com/ceular/devotion/commit/b3ddf1a6f04633add631ff5c4b75eda7448ee7c5) references all such assets that aren't GPLv2, thankfully, ZerTerO is fine with its usage. In addition to that, the model used for green armor is not GPLv2 because the model itself comes from OSP which is still taken from Quake III itself, the only difference is the path contained within the md3 file to a different skin, and such skin is a derivative of the yellow armor skin, just changed to green. The PM models aren't compatible either and they seem to come from Quake Live. Needless to say, the non-GPLv2 assets are here but my conscience keeps nagging me to remove them.  
 
