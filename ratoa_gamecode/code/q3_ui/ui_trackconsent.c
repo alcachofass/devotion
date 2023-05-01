@@ -22,7 +22,7 @@ void UI_TrackConsentAction( qboolean result ) {
 void UI_TrackConsentMenu( void (*action)( qboolean result ) ) {
 	UI_ConfirmMenu_Style2(
 			"Track me",
-			"on Ratstats?",
+			"on Devostats?",
 			qtrue,
 			UI_CENTER|UI_SMALLFONT,
 			UI_ConfirmTrackStats_Draw,

@@ -526,7 +526,7 @@ static void Preferences_MenuInit( void ) {
 /*
 	y += BIGCHAR_HEIGHT+2;
 	s_preferences.trackconsent.generic.type     = MTYPE_RADIOBUTTON;
-	s_preferences.trackconsent.generic.name	   = "Track me on Ratstats:";
+	s_preferences.trackconsent.generic.name	   = "Track me on Devostats:";
 	s_preferences.trackconsent.generic.flags	   = QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	s_preferences.trackconsent.generic.callback = Preferences_Event;
 	s_preferences.trackconsent.generic.id       = ID_TRACKCONSENT;
