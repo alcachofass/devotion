@@ -463,6 +463,6 @@ void UI_MainMenu( void ) {
 	trap_Key_SetCatcher( KEYCATCH_UI );
 	uis.menusp = 0;
 	UI_PushMenu ( &s_main.menu );
-	trap_S_StartBackgroundTrack("sound/misc/Aries_Beats_-_Sad_Synthwave.wav", NULL);
+	trap_S_StartBackgroundTrack("sound/misc/Aries_Beats_-_Sad_Synthwave.ogg", NULL);
 		
 }

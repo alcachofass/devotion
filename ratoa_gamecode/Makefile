@@ -5,7 +5,7 @@
 #
 
 # Define a version for the mod
-COMPILE_VERSION=v20230425
+COMPILE_VERSION='IVSTITIA VERSION'
 
 COMPILE_PLATFORM=$(shell uname|sed -e s/_.*//|tr '[:upper:]' '[:lower:]')
 
