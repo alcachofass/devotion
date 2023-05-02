@@ -263,7 +263,7 @@ static void Demos_MenuInit( void ) {
 
 		// concatenate demo names in listing to keep them framed correctly and prevent overflowing
 		if (len >= s_demos.list.width)
-			demoname[s_demos.list.width] = '\0';	
+			demoname[s_demos.list.width-1] = '\0';	
 
 //		Q_strupr(demoname);
 
