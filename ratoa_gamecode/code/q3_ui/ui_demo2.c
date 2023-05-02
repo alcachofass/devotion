@@ -228,14 +228,14 @@ static void Demos_MenuInit( void ) {
 	s_demos.list.generic.flags		= QMF_HIGHLIGHT_IF_FOCUS|QMF_SMALLFONT;
 	s_demos.list.generic.callback	= Demos_MenuEvent;
 	s_demos.list.generic.id			= ID_LIST;
-	s_demos.list.generic.x			= 22;
-	s_demos.list.generic.y			= 50;
-	s_demos.list.width				= 70;
-	s_demos.list.height				= 23;
+	s_demos.list.generic.x			= 120;
+	s_demos.list.generic.y			= 130;
+	s_demos.list.width				= 51;
+	s_demos.list.height				= 22;
 	Com_sprintf(extension, sizeof(extension), "dm_%d", (int)trap_Cvar_VariableValue( "protocol" ) );
 	s_demos.list.numitems			= trap_FS_GetFileList( "demos", extension, s_demos.names, NAMEBUFSIZE );
 	s_demos.list.itemnames			= (const char **)s_demos.demolist;
-	//s_demos.list.columns			= 1;
+	s_demos.list.columns			= 1;
 
 	if (!s_demos.list.numitems) {
 		strcpy( s_demos.names, "No Demos Found." );
@@ -251,10 +251,19 @@ static void Demos_MenuInit( void ) {
 	for ( i = 0; i < s_demos.list.numitems; i++ ) {
 		s_demos.list.itemnames[i] = demoname;
 
-		// strip extension
+		// strip extension - release version extension
 		len = strlen( demoname );
 		if (!Q_stricmp(demoname +  len - 4,".dm3"))
 			demoname[len-4] = '\0';
+
+		// strip extension - protocol 68 extension
+		len = strlen( demoname );
+		if (!Q_stricmp(demoname +  len - 6,".dm_68"))
+			demoname[len-6] = '\0';	
+
+		// concatenate demo names in listing to keep them framed correctly and prevent overflowing
+		if (len >= s_demos.list.width)
+			demoname[s_demos.list.width] = '\0';	
 
 //		Q_strupr(demoname);
 
