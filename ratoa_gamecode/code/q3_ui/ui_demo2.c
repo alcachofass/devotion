@@ -177,15 +177,15 @@ static void Demos_MenuInit( void ) {
 	s_demos.arrows.generic.type		= MTYPE_BITMAP;
 	s_demos.arrows.generic.name		= ART_ARROWS;
 	s_demos.arrows.generic.flags	= QMF_INACTIVE;
-	s_demos.arrows.generic.x		= 512+48+12;
-	s_demos.arrows.generic.y		= 240-64+48;
+	s_demos.arrows.generic.x		= 512+32;
+	s_demos.arrows.generic.y		= 240-64+5;
 	s_demos.arrows.width			= 64;
 	s_demos.arrows.height			= 128;
 
 	s_demos.left.generic.type		= MTYPE_BITMAP;
 	s_demos.left.generic.flags		= QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS|QMF_MOUSEONLY;
-	s_demos.left.generic.x			= 512+48+12;
-	s_demos.left.generic.y			= 240-64+48;
+	s_demos.left.generic.x			= 512+32;
+	s_demos.left.generic.y			= 240-64+5;
 	s_demos.left.generic.id			= ID_SCROLLUP;
 	s_demos.left.generic.callback	= Demos_MenuEvent;
 	s_demos.left.width				= 64;
@@ -194,8 +194,8 @@ static void Demos_MenuInit( void ) {
 
 	s_demos.right.generic.type		= MTYPE_BITMAP;
 	s_demos.right.generic.flags		= QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS|QMF_MOUSEONLY;
-	s_demos.right.generic.x			= 512+48+12;
-	s_demos.right.generic.y			= 240+48;
+	s_demos.right.generic.x			= 512+32;
+	s_demos.right.generic.y			= 240+5;
 	s_demos.right.generic.id		= ID_SCROLLDN;
 	s_demos.right.generic.callback	= Demos_MenuEvent;
 	s_demos.right.width				= 64;
