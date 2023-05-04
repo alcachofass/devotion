@@ -563,7 +563,7 @@ static void CG_DrawStatusBarHead( float x ) {
 			cg.headEndPitch = 5 * cos( crandom()*M_PI );
 		}
 
-		size = ICON_SIZE * 1.25;
+		size = ICON_SIZE;
 	}
 
 	// if the server was frozen for a while we may have a bad head start time
@@ -1989,9 +1989,9 @@ static void CG_DrawStatusBar( void ) {
 	if (cg_drawTeamBackground.integer) {
 		// draw the team background
 		if ( !(cg.snap->ps.pm_flags & PMF_FOLLOW) ) //If not following anybody:
-			CG_DrawTeamBackground( 0, 420, 640, 60, 0.33f, cg.snap->ps.persistant[PERS_TEAM] );
+			CG_DrawTeamBackground( 0, 420+12, 640, 48, 0.33f, cg.snap->ps.persistant[PERS_TEAM] );
 		else //Sago: If we follow find the teamcolor of the guy we follow. It might not be our own team!
-			CG_DrawTeamBackground( 0, 420, 640, 60, 0.33f, cgs.clientinfo[ cg.snap->ps.clientNum ].team );
+			CG_DrawTeamBackground( 0, 420+12, 640, 48, 0.33f, cgs.clientinfo[ cg.snap->ps.clientNum ].team );
 	}
 
 	cent = &cg_entities[cg.snap->ps.clientNum];
@@ -3634,7 +3634,7 @@ static float CG_DrawScores( float y ) {
 	}
 #endif
 
-	y -= SCOREBOX_HEIGHT + 4;
+	y -= SCOREBOX_HEIGHT;
 
 	y1 = y;
 
@@ -3982,13 +3982,13 @@ static void CG_DrawLowerRight( void ) {
 	y = 480 - ICON_SIZE;
 
 	if ( CG_IsTeamGametype() && cg_drawTeamOverlay.integer == 2 ) {
-		y = CG_DrawTeamOverlay( y, qtrue, qfalse );
+		y = CG_DrawTeamOverlay( y + 4, qtrue, qfalse );
 	} 
 
 	y = CG_DrawScores( y );
 
 	if ( CG_IsTeamGametype() && cg_drawTeamOverlay.integer == 4 ) {
-		y = CG_DrawTeamOverlay( y, qtrue, qfalse );
+		y = CG_DrawTeamOverlay( y + 4, qtrue, qfalse );
 	} 
 
 	if (cg_radar.integer == 2) {
