@@ -234,6 +234,9 @@ typedef struct
         menuaction_s		voip_talk;
         menuradiobutton_s	voip_teamonly;
 	menuaction_s		ready;
+	menuaction_s		dropflag;
+	menuaction_s		dropweapon;
+	menuaction_s		droppowerup;
 	menuradiobutton_s	joyenable;
 	menuslider_s		joythreshold;
 	int					section;
@@ -262,10 +265,10 @@ static const char *autoswitch_items[] = {
 };
 
 // OLD
-//static vec4_t controls_binding_color  = {1.00f, 0.43f, 0.00f, 1.00f}; // bk: Win32 C4305
+static vec4_t controls_binding_color  = {1.00f, 0.43f, 0.00f, 1.00f}; // bk: Win32 C4305
 
 // New!
-static vec4_t controls_binding_color  = {0.58f, 0.70f, 0.81f, 1.00f};
+//static vec4_t controls_binding_color  = {0.58f, 0.70f, 0.81f, 1.00f};
 
 static bind_t g_bindings[] = 
 {
@@ -311,7 +314,9 @@ static bind_t g_bindings[] =
 	{"+ping", 		"ping location",	ID_PING,		ANIM_CHAT,		'v',				-1,		-1, -1},
         {"+pingWarn", 		"warn about location",  ID_PINGWARN,		ANIM_CHAT,		'b',				-1,		-1, -1},
         {"ready", 		"ready",            	ID_READY,		ANIM_IDLE,		K_F3,				-1,		-1, -1},
-	{"drop", 		"drop powerup/weapon",		ID_DROP,	ANIM_IDLE,		'n',			-1,		-1, -1},
+	{"dropweapon", 		"drop weapon",		ID_DROP,	ANIM_IDLE,		'n',			-1,		-1, -1},
+	{"droppowerup", 	"drop powerup",		ID_DROP,	ANIM_IDLE,		'n',			-1,		-1, -1},
+	{"dropflag",	 	"drop flag",		ID_DROP,	ANIM_IDLE,		'n',			-1,		-1, -1},
 	{(char*)NULL,		(char*)NULL,		0,				0,				-1,				-1,		-1,	-1},
 };
 
@@ -395,6 +400,9 @@ static menucommon_s *g_misc_controls[] = {
 	(menucommon_s *)&s_controls.ping,
 	(menucommon_s *)&s_controls.ping_warn,
 	(menucommon_s *)&s_controls.ready,
+	(menucommon_s *)&s_controls.dropflag,
+	(menucommon_s *)&s_controls.dropweapon,
+	(menucommon_s *)&s_controls.droppowerup,
 	NULL,
 };
 
@@ -1643,13 +1651,13 @@ static void Controls_MenuInit( void )
 	s_controls.chat4.generic.callback  = Controls_ActionEvent;
 	s_controls.chat4.generic.ownerdraw = Controls_DrawKeyBinding;
 	s_controls.chat4.generic.id        = ID_CHAT4;
-        
+        /*
         s_controls.voip_talk.generic.type	   = MTYPE_ACTION;
 	s_controls.voip_talk.generic.flags     = QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS|QMF_GRAYED|QMF_HIDDEN;
 	s_controls.voip_talk.generic.callback  = Controls_ActionEvent;
 	s_controls.voip_talk.generic.ownerdraw = Controls_DrawKeyBinding;
 	s_controls.voip_talk.generic.id        = ID_VOIP_TALK;
-
+	
         s_controls.voip_teamonly.generic.type      = MTYPE_RADIOBUTTON;
 	s_controls.voip_teamonly.generic.flags	    = QMF_SMALLFONT;
 	s_controls.voip_teamonly.generic.x	        = SCREEN_WIDTH/2;
@@ -1657,7 +1665,7 @@ static void Controls_MenuInit( void )
 	s_controls.voip_teamonly.generic.id        = ID_VOIP_TEAMONLY;
 	s_controls.voip_teamonly.generic.callback  = Controls_MenuEvent;
 	s_controls.voip_teamonly.generic.statusbar = Controls_StatusBar;
-
+	*/
 	s_controls.ping.generic.type	   = MTYPE_ACTION;
 	s_controls.ping.generic.flags     = QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS|QMF_GRAYED|QMF_HIDDEN;
 	s_controls.ping.generic.callback  = Controls_ActionEvent;
@@ -1675,6 +1683,24 @@ static void Controls_MenuInit( void )
 	s_controls.ready.generic.callback  = Controls_ActionEvent;
 	s_controls.ready.generic.ownerdraw = Controls_DrawKeyBinding;
 	s_controls.ready.generic.id        = ID_READY;
+
+	s_controls.dropflag.generic.type	   = MTYPE_ACTION;
+	s_controls.dropflag.generic.flags     = QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS|QMF_GRAYED|QMF_HIDDEN;
+	s_controls.dropflag.generic.callback  = Controls_ActionEvent;
+	s_controls.dropflag.generic.ownerdraw = Controls_DrawKeyBinding;
+	s_controls.dropflag.generic.id        = ID_READY;
+
+	s_controls.dropweapon.generic.type	   = MTYPE_ACTION;
+	s_controls.dropweapon.generic.flags     = QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS|QMF_GRAYED|QMF_HIDDEN;
+	s_controls.dropweapon.generic.callback  = Controls_ActionEvent;
+	s_controls.dropweapon.generic.ownerdraw = Controls_DrawKeyBinding;
+	s_controls.dropweapon.generic.id        = ID_READY;
+
+	s_controls.droppowerup.generic.type	   = MTYPE_ACTION;
+	s_controls.droppowerup.generic.flags     = QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS|QMF_GRAYED|QMF_HIDDEN;
+	s_controls.droppowerup.generic.callback  = Controls_ActionEvent;
+	s_controls.droppowerup.generic.ownerdraw = Controls_DrawKeyBinding;
+	s_controls.droppowerup.generic.id        = ID_READY;
 
 	s_controls.joyenable.generic.type      = MTYPE_RADIOBUTTON;
 	s_controls.joyenable.generic.flags	   = QMF_SMALLFONT;
@@ -1765,9 +1791,12 @@ static void Controls_MenuInit( void )
 	Menu_AddItem( &s_controls.menu, &s_controls.chat4 );
     //    Menu_AddItem( &s_controls.menu, &s_controls.voip_talk );
     //    Menu_AddItem( &s_controls.menu, &s_controls.voip_teamonly );
-	//Menu_AddItem( &s_controls.menu, &s_controls.ping );
-	//Menu_AddItem( &s_controls.menu, &s_controls.ping_warn );
-	//Menu_AddItem( &s_controls.menu, &s_controls.ready );
+	Menu_AddItem( &s_controls.menu, &s_controls.ping );
+	Menu_AddItem( &s_controls.menu, &s_controls.ping_warn );
+	Menu_AddItem( &s_controls.menu, &s_controls.ready );
+	Menu_AddItem( &s_controls.menu, &s_controls.dropflag );
+	Menu_AddItem( &s_controls.menu, &s_controls.droppowerup );
+	Menu_AddItem( &s_controls.menu, &s_controls.dropweapon );
 
 	Menu_AddItem( &s_controls.menu, &s_controls.back );
 
