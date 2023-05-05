@@ -103,10 +103,14 @@ typedef struct
 #define ID_WEAPON7		23	
 #define ID_WEAPON8		24	
 #define ID_WEAPON9		25
+/*
 #define ID_WEAPON10		26
 #define ID_WEAPON11		27 //Nailgun
 #define ID_WEAPON12		28 //ProxMines
 #define ID_WEAPON13		29 //Chaingun
+*/
+
+/*
 #define ID_ATTACK		30
 #define ID_WEAPPREV		31
 #define ID_WEAPNEXT		32
@@ -120,6 +124,27 @@ typedef struct
 #define ID_PINGWARN 40
 #define ID_READY 41
 #define ID_DROP 42
+#define ID_DROPWEAPON 43
+#define ID_DROPPOWERUP 44
+#define ID_DROPFLAG 45
+*/
+
+#define ID_ATTACK		26
+#define ID_WEAPPREV		27
+#define ID_WEAPNEXT		28
+#define ID_GESTURE		29
+#define ID_CHAT			30
+#define ID_CHAT2		31
+#define ID_CHAT3		32
+#define ID_CHAT4		33
+#define ID_VOIP_TALK		34
+#define ID_PING 35
+#define ID_PINGWARN 36
+#define ID_READY 37
+#define ID_DROP 38
+#define ID_DROPWEAPON 39
+#define ID_DROPPOWERUP 40
+#define ID_DROPFLAG 41
 
 // all others
 #define ID_FREELOOK	80
@@ -199,11 +224,13 @@ typedef struct
 	menuaction_s		railgun;
 	menuaction_s		plasma;
 	menuaction_s		bfg;
+	/*
         menuaction_s		grapple;
         //New in Beta 23
         menuaction_s		nailgun;
         menuaction_s		proxmine;
         menuaction_s		chaingun;
+	*/
         //New in 23 end
 	menuaction_s		attack;
 	menuaction_s		prevweapon;
@@ -298,10 +325,12 @@ static bind_t g_bindings[] =
 	{"weapon 7",		"railgun",		ID_WEAPON7,	ANIM_WEAPON7,	'7',	-1,	-1, -1},
 	{"weapon 8",		"plasma gun",		ID_WEAPON8,	ANIM_WEAPON8,	'8',	-1,	-1, -1},
 	{"weapon 9",		"BFG",			ID_WEAPON9,	ANIM_WEAPON9,	'9',	-1,	-1, -1},
-        {"weapon 10",		"Grapple",		ID_WEAPON10,	ANIM_WEAPON10,	-1,	-1,	-1, -1},
+	/*
+	{"weapon 10",		"Grapple",		ID_WEAPON10,	ANIM_WEAPON10,	-1,	-1,	-1, -1},
         {"weapon 11",		"nailgun",		ID_WEAPON11,	ANIM_WEAPON11,	-1,	-1,	-1, -1},
         {"weapon 12",		"mine Launcher",	ID_WEAPON12,	ANIM_WEAPON12,	-1,	-1,	-1, -1},
         {"weapon 13",		"chaingun",		ID_WEAPON13,	ANIM_WEAPON13,	-1,	-1,	-1, -1},
+	*/
 	{"+attack", 		"attack",		ID_ATTACK,	ANIM_ATTACK,	K_CTRL,			-1,		-1, -1},
 	{"weapprev",		"prev weapon",		ID_WEAPPREV,	ANIM_IDLE,		'[',			-1,		-1, -1},
 	{"weapnext", 		"next weapon",		ID_WEAPNEXT,	ANIM_IDLE,		']',			-1,		-1, -1},
@@ -314,9 +343,10 @@ static bind_t g_bindings[] =
 	{"+ping", 		"ping location",	ID_PING,		ANIM_CHAT,		'v',				-1,		-1, -1},
         {"+pingWarn", 		"warn about location",  ID_PINGWARN,		ANIM_CHAT,		'b',				-1,		-1, -1},
         {"ready", 		"ready",            	ID_READY,		ANIM_IDLE,		K_F3,				-1,		-1, -1},
-	{"dropweapon", 		"drop weapon",		ID_DROP,	ANIM_IDLE,		'n',			-1,		-1, -1},
-	{"droppowerup", 	"drop powerup",		ID_DROP,	ANIM_IDLE,		'n',			-1,		-1, -1},
-	{"dropflag",	 	"drop flag",		ID_DROP,	ANIM_IDLE,		'n',			-1,		-1, -1},
+        {"drop", 		"drop weapon/powerup", 	ID_DROP,		ANIM_IDLE,		'x',				-1,		-1, -1},
+	{"dropweapon", 		"drop weapon",		ID_DROPWEAPON,		ANIM_IDLE,		'g',			-1,		-1, -1},
+	{"droppowerup", 	"drop powerup",		ID_DROPPOWERUP,		ANIM_IDLE,		'c',			-1,		-1, -1},
+	{"dropflag",	 	"drop flag",		ID_DROPFLAG,		ANIM_IDLE,		'f',			-1,		-1, -1},
 	{(char*)NULL,		(char*)NULL,		0,				0,				-1,				-1,		-1,	-1},
 };
 
@@ -355,6 +385,9 @@ static menucommon_s *g_weapons_controls[] = {
 	(menucommon_s *)&s_controls.nextweapon,
 	(menucommon_s *)&s_controls.prevweapon,
 	(menucommon_s *)&s_controls.drop,
+	(menucommon_s *)&s_controls.dropflag,
+	(menucommon_s *)&s_controls.dropweapon,
+	(menucommon_s *)&s_controls.droppowerup,
 	(menucommon_s *)&s_controls.autoswitch,    
 	(menucommon_s *)&s_controls.chainsaw,         
 	(menucommon_s *)&s_controls.machinegun,
@@ -365,10 +398,12 @@ static menucommon_s *g_weapons_controls[] = {
 	(menucommon_s *)&s_controls.railgun,          
 	(menucommon_s *)&s_controls.plasma,           
 	(menucommon_s *)&s_controls.bfg,
+	/*
         (menucommon_s *)&s_controls.grapple,
         (menucommon_s *)&s_controls.nailgun,
         (menucommon_s *)&s_controls.proxmine,
         (menucommon_s *)&s_controls.chaingun,
+	*/
 	NULL,
 };
 
@@ -400,9 +435,6 @@ static menucommon_s *g_misc_controls[] = {
 	(menucommon_s *)&s_controls.ping,
 	(menucommon_s *)&s_controls.ping_warn,
 	(menucommon_s *)&s_controls.ready,
-	(menucommon_s *)&s_controls.dropflag,
-	(menucommon_s *)&s_controls.dropweapon,
-	(menucommon_s *)&s_controls.droppowerup,
 	NULL,
 };
 
@@ -1480,7 +1512,7 @@ static void Controls_MenuInit( void )
 	s_controls.bfg.generic.callback  = Controls_ActionEvent;
 	s_controls.bfg.generic.ownerdraw = Controls_DrawKeyBinding;
 	s_controls.bfg.generic.id        = ID_WEAPON9;
-
+	/*
         s_controls.grapple.generic.type	     = MTYPE_ACTION;
 	s_controls.grapple.generic.flags     = QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS|QMF_GRAYED|QMF_HIDDEN;
 	s_controls.grapple.generic.callback  = Controls_ActionEvent;
@@ -1504,7 +1536,7 @@ static void Controls_MenuInit( void )
 	s_controls.chaingun.generic.callback  = Controls_ActionEvent;
 	s_controls.chaingun.generic.ownerdraw = Controls_DrawKeyBinding;
 	s_controls.chaingun.generic.id        = ID_WEAPON13;
-
+	*/
 	s_controls.attack.generic.type	    = MTYPE_ACTION;
 	s_controls.attack.generic.flags     = QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS|QMF_GRAYED|QMF_HIDDEN;
 	s_controls.attack.generic.callback  = Controls_ActionEvent;
@@ -1688,19 +1720,19 @@ static void Controls_MenuInit( void )
 	s_controls.dropflag.generic.flags     = QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS|QMF_GRAYED|QMF_HIDDEN;
 	s_controls.dropflag.generic.callback  = Controls_ActionEvent;
 	s_controls.dropflag.generic.ownerdraw = Controls_DrawKeyBinding;
-	s_controls.dropflag.generic.id        = ID_READY;
+	s_controls.dropflag.generic.id        = ID_DROPFLAG;
 
 	s_controls.dropweapon.generic.type	   = MTYPE_ACTION;
 	s_controls.dropweapon.generic.flags     = QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS|QMF_GRAYED|QMF_HIDDEN;
 	s_controls.dropweapon.generic.callback  = Controls_ActionEvent;
 	s_controls.dropweapon.generic.ownerdraw = Controls_DrawKeyBinding;
-	s_controls.dropweapon.generic.id        = ID_READY;
+	s_controls.dropweapon.generic.id        = ID_DROPWEAPON;
 
 	s_controls.droppowerup.generic.type	   = MTYPE_ACTION;
 	s_controls.droppowerup.generic.flags     = QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS|QMF_GRAYED|QMF_HIDDEN;
 	s_controls.droppowerup.generic.callback  = Controls_ActionEvent;
 	s_controls.droppowerup.generic.ownerdraw = Controls_DrawKeyBinding;
-	s_controls.droppowerup.generic.id        = ID_READY;
+	s_controls.droppowerup.generic.id        = ID_DROPPOWERUP;
 
 	s_controls.joyenable.generic.type      = MTYPE_RADIOBUTTON;
 	s_controls.joyenable.generic.flags	   = QMF_SMALLFONT;
@@ -1766,7 +1798,11 @@ static void Controls_MenuInit( void )
 	Menu_AddItem( &s_controls.menu, &s_controls.attack );
 	Menu_AddItem( &s_controls.menu, &s_controls.nextweapon );
 	Menu_AddItem( &s_controls.menu, &s_controls.prevweapon );
-	//Menu_AddItem( &s_controls.menu, &s_controls.drop );
+	Menu_AddItem( &s_controls.menu, &s_controls.drop );
+	Menu_AddItem( &s_controls.menu, &s_controls.dropflag );
+	Menu_AddItem( &s_controls.menu, &s_controls.droppowerup );
+	Menu_AddItem( &s_controls.menu, &s_controls.dropweapon );
+
 	Menu_AddItem( &s_controls.menu, &s_controls.autoswitch );
 	Menu_AddItem( &s_controls.menu, &s_controls.chainsaw );
 	Menu_AddItem( &s_controls.menu, &s_controls.machinegun );
@@ -1794,9 +1830,6 @@ static void Controls_MenuInit( void )
 	Menu_AddItem( &s_controls.menu, &s_controls.ping );
 	Menu_AddItem( &s_controls.menu, &s_controls.ping_warn );
 	Menu_AddItem( &s_controls.menu, &s_controls.ready );
-	Menu_AddItem( &s_controls.menu, &s_controls.dropflag );
-	Menu_AddItem( &s_controls.menu, &s_controls.droppowerup );
-	Menu_AddItem( &s_controls.menu, &s_controls.dropweapon );
 
 	Menu_AddItem( &s_controls.menu, &s_controls.back );
 
