@@ -1719,9 +1719,9 @@ static void ArenaServers_MenuInit( void ) {
 	g_arenaservers.list.generic.flags			= QMF_HIGHLIGHT_IF_FOCUS;
 	g_arenaservers.list.generic.id				= ID_LIST;
 	g_arenaservers.list.generic.callback		= ArenaServers_Event;
-	g_arenaservers.list.generic.x				= 22;
+	g_arenaservers.list.generic.x				= 10; //22;
 	g_arenaservers.list.generic.y				= y;
-	g_arenaservers.list.width					= MAX_LISTBOXWIDTH;
+	g_arenaservers.list.width					= MAX_LISTBOXWIDTH + 1;
 	g_arenaservers.list.height					= 11;
 	g_arenaservers.list.itemnames				= (const char **)g_arenaservers.items;
 	for( i = 0; i < MAX_LISTBOXITEMS; i++ ) {
@@ -1740,8 +1740,8 @@ static void ArenaServers_MenuInit( void ) {
 	g_arenaservers.arrows.generic.name			= ART_ARROWS0;
 	g_arenaservers.arrows.generic.flags			= QMF_LEFT_JUSTIFY|QMF_INACTIVE;
 	g_arenaservers.arrows.generic.callback		= ArenaServers_Event;
-	g_arenaservers.arrows.generic.x				= 512+48+12;
-	g_arenaservers.arrows.generic.y				= 240-64+48;
+	g_arenaservers.arrows.generic.x				= 512+48+24;
+	g_arenaservers.arrows.generic.y				= 240-64+5;
 	g_arenaservers.arrows.width					= 64;
 	g_arenaservers.arrows.height				= 128;
 
@@ -1749,8 +1749,8 @@ static void ArenaServers_MenuInit( void ) {
 	g_arenaservers.up.generic.flags				= QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS|QMF_MOUSEONLY;
 	g_arenaservers.up.generic.callback			= ArenaServers_Event;
 	g_arenaservers.up.generic.id				= ID_SCROLL_UP;
-	g_arenaservers.up.generic.x					= 512+48+12;
-	g_arenaservers.up.generic.y					= 240-64+48;
+	g_arenaservers.up.generic.x					= 512+48+24;
+	g_arenaservers.up.generic.y					= 240-64+5;
 	g_arenaservers.up.width						= 64;
 	g_arenaservers.up.height					= 64;
 	g_arenaservers.up.focuspic					= ART_ARROWS_UP;
@@ -1759,8 +1759,8 @@ static void ArenaServers_MenuInit( void ) {
 	g_arenaservers.down.generic.flags			= QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS|QMF_MOUSEONLY;
 	g_arenaservers.down.generic.callback		= ArenaServers_Event;
 	g_arenaservers.down.generic.id				= ID_SCROLL_DOWN;
-	g_arenaservers.down.generic.x				= 512+48+12;
-	g_arenaservers.down.generic.y				= 240+48;
+	g_arenaservers.down.generic.x				= 512+48+24;
+	g_arenaservers.down.generic.y				= 240+5;
 	g_arenaservers.down.width					= 64;
 	g_arenaservers.down.height					= 64;
 	g_arenaservers.down.focuspic				= ART_ARROWS_DOWN;
