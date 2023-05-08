@@ -707,11 +707,10 @@ static int ShowScoreboardNum(void) {
 		return 0;
 	}
 
-	if (cg.stats_available && cg.medals_available) {
-		available_num = 3;
-	} else if (cg.medals_available) {
+	if (cg.stats_available) {
 		available_num = 2;
-	}
+	} 
+
 
 	// cg.showScoreboardNum increases each time the player presses the
 	// scoreboard key (TAB) during intermission
@@ -764,7 +763,7 @@ static int CG_RatTeamScoreboard(int y, team_t team, float fade, int maxClients, 
 				CG_RatDrawClientMedals(y + lineHeight * count, score, color, fade);
 				break;
 			*/
-			case 2:
+			case 1:  // was 2
 				CG_RatDrawClientStats(y + lineHeight * count, score, color, fade);
 				break;
 			default:
@@ -1020,17 +1019,26 @@ qboolean CG_DrawRatScoreboard(void) {
 	y = RATSB_HEADER;
 
 	if (ShowScoreboardNum() == 1) {
-		// show medals board instead of normal scoreboard
+		// show stats board instead of normal scoreboard
 		//CG_DrawTinyScoreString(RATSB2_NAME_X, y, "Name", fade);
 		//CG_DrawTinyScoreString(RATSB2_AWARDS_X, y, "Awards", fade);
 
-	} else if (ShowScoreboardNum() == 2) {
+		CG_DrawTinyScoreString(RATSB3_NAME_X, y, "Name", fade);
+		CG_DrawTinyScoreString(RATSB3_MEGA_CENTER - 1.5 * SCORETINYCHAR_WIDTH, y, "MHs", fade);
+		CG_DrawTinyScoreString(RATSB3_RA_CENTER - 1.5 * SCORETINYCHAR_WIDTH, y, "RAs", fade);
+		CG_DrawTinyScoreString(RATSB3_YA_CENTER - 1.5 * SCORETINYCHAR_WIDTH, y, "YAs", fade);
+
+	} 
+	
+	/*else if (ShowScoreboardNum() == 2) {
 		// show stats board instead of normal scoreboard
 		CG_DrawTinyScoreString(RATSB3_NAME_X, y, "Name", fade);
 		CG_DrawTinyScoreString(RATSB3_MEGA_CENTER - 1.5 * SCORETINYCHAR_WIDTH, y, "MHs", fade);
 		CG_DrawTinyScoreString(RATSB3_RA_CENTER - 1.5 * SCORETINYCHAR_WIDTH, y, "RAs", fade);
 		CG_DrawTinyScoreString(RATSB3_YA_CENTER - 1.5 * SCORETINYCHAR_WIDTH, y, "YAs", fade);
-	} else {
+	} */
+	
+	else {
 		if (cgs.gametype == GT_TOURNAMENT
 #ifdef WITH_MULTITOURNAMENT
 				|| cgs.gametype == GT_MULTITOURNAMENT
