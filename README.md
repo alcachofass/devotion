@@ -11,6 +11,7 @@ Credit goes to these guys:
 - Parker1200  
 - EddieBrrrock  
 - ZerTerO (High Quality Quake v3.7 assets)  
+- ceular
 - alcachofass
 - Music / Instrumental by Aries Beats + <https://free-songs.de/Aries_Beats_-_Sad_Synthwave.mp3> 
 
