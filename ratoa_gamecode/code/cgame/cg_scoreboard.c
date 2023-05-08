@@ -1021,8 +1021,8 @@ qboolean CG_DrawRatScoreboard(void) {
 
 	if (ShowScoreboardNum() == 1) {
 		// show medals board instead of normal scoreboard
-		CG_DrawTinyScoreString(RATSB2_NAME_X, y, "Name", fade);
-		CG_DrawTinyScoreString(RATSB2_AWARDS_X, y, "Awards", fade);
+		//CG_DrawTinyScoreString(RATSB2_NAME_X, y, "Name", fade);
+		//CG_DrawTinyScoreString(RATSB2_AWARDS_X, y, "Awards", fade);
 
 	} else if (ShowScoreboardNum() == 2) {
 		// show stats board instead of normal scoreboard
