@@ -510,7 +510,7 @@ static void StartServer_MenuInit( void ) {
 	s_startserver.framer.height  	   = 334;
 
         s_startserver.autonextmap.generic.type		= MTYPE_RADIOBUTTON;
-	s_startserver.autonextmap.generic.name		= "Auto change map:";
+	s_startserver.autonextmap.generic.name		= "Auto Change Map:";
 	s_startserver.autonextmap.generic.flags	= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	s_startserver.autonextmap.generic.callback	= StartServer_MenuEvent;
 	s_startserver.autonextmap.generic.id		= ID_AUTONEXTMAP;
