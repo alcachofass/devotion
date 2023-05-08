@@ -1,7 +1,8 @@
 # Devotion
 
-Devotion is a partial conversion of RatArena v0.15.5 to Quake III  
-Credit goes to these guys:  
+Devotion is a partial conversion of RatArena v0.15.5 to Quake III Arena. Many have contributed in different ways over the 20+ years since the game was originaly released.   
+
+Credit goes to:  
 - Id Software  
 - ioQuake3 contributors  
 - Open Arena contributors  
