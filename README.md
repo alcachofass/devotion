@@ -2,7 +2,7 @@
 
 Devotion is a partial conversion of RatArena v0.15.5 to Quake III  
 Credit goes to these guys:  
-Id Software (duh)  
+Id Software  
 ioQuake3 contributors  
 Open Arena contributors  
 Rodent Control  
