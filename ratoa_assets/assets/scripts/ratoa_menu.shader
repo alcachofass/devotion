@@ -15,10 +15,10 @@ menubacknologo_ratmod
 
 	{
 		//map $whiteimage 
-		//rgbGen const ( 0.00 0.00 0.00 ) //0.03 0.03 0.03
+		rgbGen const ( 0.00 0.00 0.00 ) //0.03 0.03 0.03
 
-		videomap video/devoq3.roq
-		rgbgen identity
+		//videomap video/devoq3.roq
+		//rgbgen identity
 	}
 }
 menuback_ratmod
