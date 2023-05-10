@@ -496,9 +496,9 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_ignore, "cg_ignore", "0", 0 },	// used for debugging
 	{ &cg_autoswitch, "cg_autoswitch", "0", CVAR_ARCHIVE },
 	{ &cg_drawGun, "cg_drawGun", "1", CVAR_ARCHIVE },
-	{ &cg_zoomFov, "cg_zoomfov", "30", CVAR_ARCHIVE },
+	{ &cg_zoomFov, "cg_zoomfov", "22.5", CVAR_ARCHIVE }, //vq3 default
 	{ &cg_zoomFovTmp, "cg_zoomfovTmp", "0", 0 },
-	{ &cg_fov, "cg_fov", "100", CVAR_ARCHIVE },
+	{ &cg_fov, "cg_fov", "90", CVAR_ARCHIVE }, // vq3 default
 	{ &cg_horplus, "cg_horplus", "0", CVAR_ARCHIVE },
 	{ &cg_viewsize, "cg_viewsize", "100", CVAR_ARCHIVE },
 	{ &cg_shadows, "cg_shadows", "1", CVAR_ARCHIVE  },
