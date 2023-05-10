@@ -5,7 +5,7 @@
 #
 
 # Define a version for the mod
-COMPILE_VERSION='IVSTITIA VERSION'
+COMPILE_VERSION='v0.1.8 - JANELA'
 
 COMPILE_PLATFORM=$(shell uname|sed -e s/_.*//|tr '[:upper:]' '[:lower:]')
 
