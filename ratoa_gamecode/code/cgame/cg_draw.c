@@ -6279,7 +6279,7 @@ static void CG_DrawWarmup( void ) {
 		CG_Text_Paint(320 - w / 2, 125, scale, colorWhite, s, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
 #else
 	w = CG_DrawStrlen( s );
-	CG_DrawStringExt( 320 - w * cw/2, 90, s, colorWhite, 
+	CG_DrawStringExt( 320 - w * cw/2, 68, s, colorWhite, // was 90
 			qfalse, qtrue, cw, (int)(cw * 1.5), 0 );
 #endif
 }
