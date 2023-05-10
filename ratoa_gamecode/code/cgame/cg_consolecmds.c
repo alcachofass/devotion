@@ -311,18 +311,20 @@ static void CG_HUD_f( void ) {
 		// Futuristic
 		case 1:
 			CG_Cvar_SetAndUpdate("cg_altStatusbar", "4");
-			CG_Cvar_SetAndUpdate("cg_hudDamageIndicator", "0");
+			CG_Cvar_SetAndUpdate("cg_hudDamageIndicator", "1");
 			CG_Cvar_SetAndUpdate("cg_emptyIndicator", "1");
 			CG_Cvar_SetAndUpdate("cg_weaponbarStyle", "14");
 			CG_Cvar_SetAndUpdate("cg_drawFPS", "3");
+			trap_SendConsoleCommand("vid_restart\n");
 			break;
 		// Quake 3
 		case 2:
 			CG_Cvar_SetAndUpdate("cg_altStatusbar", "0");
-			CG_Cvar_SetAndUpdate("cg_hudDamageIndicator", "0");
+			CG_Cvar_SetAndUpdate("cg_hudDamageIndicator", "3");
 			CG_Cvar_SetAndUpdate("cg_emptyIndicator", "1");
 			CG_Cvar_SetAndUpdate("cg_weaponbarStyle", "13");
 			CG_Cvar_SetAndUpdate("cg_drawFPS", "3");
+			trap_SendConsoleCommand("vid_restart\n");
 			break;
 		// Legacy RatMod
 		default:
@@ -331,6 +333,7 @@ static void CG_HUD_f( void ) {
 			CG_Cvar_SetAndUpdate("cg_emptyIndicator", "0");
 			CG_Cvar_SetAndUpdate("cg_weaponbarStyle", "13");
 			CG_Cvar_SetAndUpdate("cg_drawFPS", "1");
+			trap_SendConsoleCommand("vid_restart\n");
 			break;
 	}
 

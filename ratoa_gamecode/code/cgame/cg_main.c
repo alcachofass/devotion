@@ -677,7 +677,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_sensScaleWithFOV, "cg_sensScaleWithFOV", "0", CVAR_ARCHIVE},
 	{ &cg_drawHabarBackground, "cg_drawHabarBackground", "0", CVAR_ARCHIVE | CVAR_LATCH},
 	{ &cg_drawHabarDecor, "cg_drawHabarDecor", "1", CVAR_ARCHIVE | CVAR_LATCH},
-	{ &cg_hudDamageIndicator, "cg_hudDamageIndicator", "0", CVAR_ARCHIVE|CVAR_LATCH},
+	{ &cg_hudDamageIndicator, "cg_hudDamageIndicator", "3", CVAR_ARCHIVE|CVAR_LATCH},
 	{ &cg_hudDamageIndicatorScale, "cg_hudDamageIndicatorScale", "1.0", CVAR_ARCHIVE},
 	{ &cg_hudDamageIndicatorOffset, "cg_hudDamageIndicatorOffset", "0.0", CVAR_ARCHIVE},
 	{ &cg_hudDamageIndicatorAlpha, "cg_hudDamageIndicatorAlpha", "1.0", CVAR_ARCHIVE},
