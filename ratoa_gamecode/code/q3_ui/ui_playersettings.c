@@ -506,12 +506,15 @@ static void PlayerSettings_MenuInit( void ) {
 	Menu_AddItem( &s_playersettings.menu, &s_playersettings.name );
 	Menu_AddItem( &s_playersettings.menu, &s_playersettings.handicap );
 	Menu_AddItem( &s_playersettings.menu, &s_playersettings.effects );
-        Menu_AddItem( &s_playersettings.menu, &s_playersettings.effects2 );
+    Menu_AddItem( &s_playersettings.menu, &s_playersettings.effects2 );
+
+	// Draw the player on screen before the navigation buttons
+	Menu_AddItem( &s_playersettings.menu, &s_playersettings.player );
+
 	Menu_AddItem( &s_playersettings.menu, &s_playersettings.model );
 	Menu_AddItem( &s_playersettings.menu, &s_playersettings.back );
 
-	Menu_AddItem( &s_playersettings.menu, &s_playersettings.player );
-
+	// Menu_AddItem( &s_playersettings.menu, &s_playersettings.player );
 	Menu_AddItem( &s_playersettings.menu, &s_playersettings.item_null );
 
 	PlayerSettings_SetMenuItems();
