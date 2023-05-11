@@ -1310,7 +1310,7 @@ static void ServerOptions_InitBotNames( void ) {
 	//this SHOULD work
 	if( s_serveroptions.gametype >= GT_TEAM && s_serveroptions.gametype != GT_LMS ) {
 		Q_strncpyz( s_serveroptions.playerNameBuffers[1], "Bitterman", 16 );
-		Q_strncpyz( s_serveroptions.playerNameBuffers[2], "Blisk", 16 );
+		Q_strncpyz( s_serveroptions.playerNameBuffers[2], "Gorre", 16 );
 		Q_strncpyz( s_serveroptions.playerNameBuffers[3], "Bones", 16 );
                 if( s_serveroptions.gametype != GT_TEAM ) {
 			s_serveroptions.playerType[3].curvalue = 2;
