@@ -404,7 +404,7 @@ void FirstConnect_MenuInit( void )
 
         y += BIGCHAR_HEIGHT+2;
 	s_firstconnect.delaghitscan.generic.type     = MTYPE_RADIOBUTTON;
-	s_firstconnect.delaghitscan.generic.name	   = "Compensate latency:";
+	s_firstconnect.delaghitscan.generic.name	   = "Compensate Latency:";
 	s_firstconnect.delaghitscan.generic.flags	   = QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	s_firstconnect.delaghitscan.generic.callback = FirstConnect_Event;
 	s_firstconnect.delaghitscan.generic.id       = ID_DELAGHITSCAN;
