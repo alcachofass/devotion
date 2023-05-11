@@ -90,8 +90,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	DEFAULT_MODEL			"sarge"
 /*
 #ifdef MISSIONPACK
-#define	DEFAULT_TEAM_MODEL		"sergei"
-#define	DEFAULT_TEAM_HEAD		"*sergei"
+#define	DEFAULT_TEAM_MODEL		"sarge"
+#define	DEFAULT_TEAM_HEAD		"*sarge"
 #else
 */
 #define	DEFAULT_TEAM_MODEL		"sarge"

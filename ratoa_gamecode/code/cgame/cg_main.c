@@ -1914,31 +1914,31 @@ static void CG_RegisterSounds( void ) {
 
 #ifdef MISSIONPACK
 /*
-	trap_S_RegisterSound("sound/player/sergei/death1.wav", qfalse );
-	trap_S_RegisterSound("sound/player/sergei/death2.wav", qfalse );
-	trap_S_RegisterSound("sound/player/sergei/death3.wav", qfalse );
-	trap_S_RegisterSound("sound/player/sergei/jump1.wav", qfalse );
-	trap_S_RegisterSound("sound/player/sergei/pain25_1.wav", qfalse );
-	trap_S_RegisterSound("sound/player/sergei/pain75_1.wav", qfalse );
-	trap_S_RegisterSound("sound/player/sergei/pain100_1.wav", qfalse );
-	trap_S_RegisterSound("sound/player/sergei/falling1.wav", qfalse );
-	trap_S_RegisterSound("sound/player/sergei/gasp.wav", qfalse );
-	trap_S_RegisterSound("sound/player/sergei/drown.wav", qfalse );
-	trap_S_RegisterSound("sound/player/sergei/fall1.wav", qfalse );
-	trap_S_RegisterSound("sound/player/sergei/taunt.wav", qfalse );
+	trap_S_RegisterSound("sound/player/sarge/death1.wav", qfalse );
+	trap_S_RegisterSound("sound/player/sarge/death2.wav", qfalse );
+	trap_S_RegisterSound("sound/player/sarge/death3.wav", qfalse );
+	trap_S_RegisterSound("sound/player/sarge/jump1.wav", qfalse );
+	trap_S_RegisterSound("sound/player/sarge/pain25_1.wav", qfalse );
+	trap_S_RegisterSound("sound/player/sarge/pain75_1.wav", qfalse );
+	trap_S_RegisterSound("sound/player/sarge/pain100_1.wav", qfalse );
+	trap_S_RegisterSound("sound/player/sarge/falling1.wav", qfalse );
+	trap_S_RegisterSound("sound/player/sarge/gasp.wav", qfalse );
+	trap_S_RegisterSound("sound/player/sarge/drown.wav", qfalse );
+	trap_S_RegisterSound("sound/player/sarge/fall1.wav", qfalse );
+	trap_S_RegisterSound("sound/player/sarge/taunt.wav", qfalse );
 
-	trap_S_RegisterSound("sound/player/kyonshi/death1.wav", qfalse );
-	trap_S_RegisterSound("sound/player/kyonshi/death2.wav", qfalse );
-	trap_S_RegisterSound("sound/player/kyonshi/death3.wav", qfalse );
-	trap_S_RegisterSound("sound/player/kyonshi/jump1.wav", qfalse );
-	trap_S_RegisterSound("sound/player/kyonshi/pain25_1.wav", qfalse );
-	trap_S_RegisterSound("sound/player/kyonshi/pain75_1.wav", qfalse );
-	trap_S_RegisterSound("sound/player/kyonshi/pain100_1.wav", qfalse );
-	trap_S_RegisterSound("sound/player/kyonshi/falling1.wav", qfalse );
-	trap_S_RegisterSound("sound/player/kyonshi/gasp.wav", qfalse );
-	trap_S_RegisterSound("sound/player/kyonshi/drown.wav", qfalse );
-	trap_S_RegisterSound("sound/player/kyonshi/fall1.wav", qfalse );
-	trap_S_RegisterSound("sound/player/kyonshi/taunt.wav", qfalse );
+	trap_S_RegisterSound("sound/player/crash/death1.wav", qfalse );
+	trap_S_RegisterSound("sound/player/crash/death2.wav", qfalse );
+	trap_S_RegisterSound("sound/player/crash/death3.wav", qfalse );
+	trap_S_RegisterSound("sound/player/crash/jump1.wav", qfalse );
+	trap_S_RegisterSound("sound/player/crash/pain25_1.wav", qfalse );
+	trap_S_RegisterSound("sound/player/crash/pain75_1.wav", qfalse );
+	trap_S_RegisterSound("sound/player/crash/pain100_1.wav", qfalse );
+	trap_S_RegisterSound("sound/player/crash/falling1.wav", qfalse );
+	trap_S_RegisterSound("sound/player/crash/gasp.wav", qfalse );
+	trap_S_RegisterSound("sound/player/crash/drown.wav", qfalse );
+	trap_S_RegisterSound("sound/player/crash/fall1.wav", qfalse );
+	trap_S_RegisterSound("sound/player/crash/taunt.wav", qfalse );
 	*/
 #endif
 
@@ -2476,13 +2476,13 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.flagShaders[1] = trap_R_RegisterShaderNoMip("ui/assets/statusbar/flag_capture.tga");
 	cgs.media.flagShaders[2] = trap_R_RegisterShaderNoMip("ui/assets/statusbar/flag_missing.tga");
 
-	trap_R_RegisterModel( "models/players/sergei/lower.md3" );
-	trap_R_RegisterModel( "models/players/sergei/upper.md3" );
-	trap_R_RegisterModel( "models/players/sergei/head.md3" );
+	trap_R_RegisterModel( "models/players/sarge/lower.md3" );
+	trap_R_RegisterModel( "models/players/sarge/upper.md3" );
+	trap_R_RegisterModel( "models/players/sarge/head.md3" );
 
-	trap_R_RegisterModel( "models/players/kyonshi/lower.md3" );
-	trap_R_RegisterModel( "models/players/kyonshi/upper.md3" );
-	trap_R_RegisterModel( "models/players/kyonshi/head.md3" );
+	trap_R_RegisterModel( "models/players/crash/lower.md3" );
+	trap_R_RegisterModel( "models/players/crash/upper.md3" );
+	trap_R_RegisterModel( "models/players/crash/head.md3" );
 
 #endif
 	CG_ClearParticles ();
