@@ -131,18 +131,19 @@ static int gametype_remap[] = {
 
 static int gametype_remap2[] = {
 		0, 
-		2, 
-		0, 
-		1, 
-		3, 
-		4,
-		5,
-		6,
-		7, 
-		8,
-		9, 
-		10,
-                11 };		//this works and should increment for more gametypes
+		3, //2,     // match actual gametype #'s
+		1, //0, 
+		4, //1, 
+		   //3, 
+		   //4,
+		   //5,
+		5, //6,
+		6, //7, 
+		7  //,
+		   //9, 
+		   //10,
+           //11 
+		};		//this works and should increment for more gametypes
 
 static void UI_ServerOptionsMenu( qboolean multiplayer );
 
