@@ -1309,27 +1309,27 @@ static void ServerOptions_InitBotNames( void ) {
 
 	//this SHOULD work
 	if( s_serveroptions.gametype >= GT_TEAM && s_serveroptions.gametype != GT_LMS ) {
-		Q_strncpyz( s_serveroptions.playerNameBuffers[1], "gargoyle", 16 );
-		Q_strncpyz( s_serveroptions.playerNameBuffers[2], "kyonshi", 16 );
-		Q_strncpyz( s_serveroptions.playerNameBuffers[3], "grism", 16 );
+		Q_strncpyz( s_serveroptions.playerNameBuffers[1], "Bitterman", 16 );
+		Q_strncpyz( s_serveroptions.playerNameBuffers[2], "Blisk", 16 );
+		Q_strncpyz( s_serveroptions.playerNameBuffers[3], "Bones", 16 );
                 if( s_serveroptions.gametype != GT_TEAM ) {
 			s_serveroptions.playerType[3].curvalue = 2;
 		}
-                Q_strncpyz( s_serveroptions.playerNameBuffers[4], "merman", 16 );
+                Q_strncpyz( s_serveroptions.playerNameBuffers[4], "Cadavre", 16 );
 		s_serveroptions.playerType[4].curvalue = 2;
-                Q_strncpyz( s_serveroptions.playerNameBuffers[5], "skelebot", 16 );
+                Q_strncpyz( s_serveroptions.playerNameBuffers[5], "Doom", 16 );
 		s_serveroptions.playerType[5].curvalue = 2;
 
-		Q_strncpyz( s_serveroptions.playerNameBuffers[6], "sergei", 16 );
-		Q_strncpyz( s_serveroptions.playerNameBuffers[7], "assassin", 16 );
-		Q_strncpyz( s_serveroptions.playerNameBuffers[8], "grunt", 16 );
-                Q_strncpyz( s_serveroptions.playerNameBuffers[9], "skelebot", 16 );
+		Q_strncpyz( s_serveroptions.playerNameBuffers[6], "Daemia", 16 );
+		Q_strncpyz( s_serveroptions.playerNameBuffers[7], "Angel", 16 );
+		Q_strncpyz( s_serveroptions.playerNameBuffers[8], "Grunt", 16 );
+                Q_strncpyz( s_serveroptions.playerNameBuffers[9], "Mynx", 16 );
 		if( s_serveroptions.gametype != GT_TEAM ) {
 			s_serveroptions.playerType[9].curvalue = 2;
 		}
-                Q_strncpyz( s_serveroptions.playerNameBuffers[10], "merman", 16 );
+                Q_strncpyz( s_serveroptions.playerNameBuffers[10], "Orbb", 16 );
 		s_serveroptions.playerType[10].curvalue = 2;
-                Q_strncpyz( s_serveroptions.playerNameBuffers[11], "skelebot", 16 );
+                Q_strncpyz( s_serveroptions.playerNameBuffers[11], "Keel", 16 );
 		s_serveroptions.playerType[11].curvalue = 2;
 
 		return;
@@ -1380,13 +1380,13 @@ static void ServerOptions_InitBotNames( void ) {
                     strcpy( s_serveroptions.playerNameBuffers[n], "Grunt" );
                      break;
                  case 1:
-                     strcpy( s_serveroptions.playerNameBuffers[n], "Merman" );
+                     strcpy( s_serveroptions.playerNameBuffers[n], "Phobos" );
                      break;
                  case 2:
-                     strcpy( s_serveroptions.playerNameBuffers[n], "Kyonshi" );
+                     strcpy( s_serveroptions.playerNameBuffers[n], "Sarge" );
                      break;
                  default:
-                     strcpy( s_serveroptions.playerNameBuffers[n], "Skelebot" );
+                     strcpy( s_serveroptions.playerNameBuffers[n], "Uriel" );
              }
 	}
 
