@@ -137,8 +137,8 @@ void CG_Taunt_f( void ) {
 
 #define MAX_DOCCFGSIZE (24*1024)
 void CG_Doc_f( void ) {
-	char *source_fn = "configs/ratmod_doc.cfg";
-	char *dest_fn = "ratmod_doc.cfg";
+	char *source_fn = "configs/devotion_doc.cfg";
+	char *dest_fn = "devotion_doc.cfg";
 	fileHandle_t f;
 	int len;
 	char *p1;
