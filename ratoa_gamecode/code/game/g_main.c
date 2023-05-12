@@ -879,8 +879,8 @@ static cvarTable_t		gameCvarTable[] = {
         { &g_allowDuplicateNames, "g_allowDuplicateNames", "1", CVAR_ARCHIVE, 0, qfalse},
 
         { &g_unnamedPlayersAllowed, "g_unnamedPlayersAllowed", "0", CVAR_ARCHIVE, 0, qfalse},
-        { &g_unnamedRenameAdjlist, "g_unnamedRenameAdjlist", "name-adjectives.txt", CVAR_ARCHIVE, 0, qfalse},
-        { &g_unnamedRenameNounlist, "g_unnamedRenameNounlist", "name-nouns.txt", CVAR_ARCHIVE, 0, qfalse},
+        { &g_unnamedRenameAdjlist, "g_unnamedRenameAdjlist", "ratname-adjectives.txt", CVAR_ARCHIVE, 0, qfalse},
+        { &g_unnamedRenameNounlist, "g_unnamedRenameNounlist", "ratname-nouns.txt", CVAR_ARCHIVE, 0, qfalse},
 
         { &g_timestamp_startgame, "g_timestamp", "0001-01-01 00:00:00", 0, 0, qfalse},
 
