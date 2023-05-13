@@ -89,3 +89,16 @@ set mode_start 1
 
 map pro-q3dm6
 ```
+# Other Useful Commands
+
+## Restricting Callvote Verbs
+
+set g_votenames "/map_restart/map/kick/clientkick/shuffle/nextmap/g_gametype/fraglimit/timelimit/g_dowarmup/"
+
+## Configuring Player Models
+
+set model "visor/pm"             // Sets visor/pm as the player's model
+set cg_enemyModel "keel/pm"      // Sets _all_ enemies as keel/pm
+set cg_enemyColor "green"        // Sets _all_ enemies as the color "green"
+set cg_teamModel "visor"         // In team games, sets _all_ members as "visor" (including your character)
+set cg_teamColor ""              // Sets your team's color
