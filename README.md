@@ -106,3 +106,13 @@ set cg_enemyColor "green"        // Sets _all_ enemies as the color "green"
 set cg_teamModel "visor"         // In team games, sets _all_ members as "visor" (including your character)
 set cg_teamColor ""              // Sets your team's color
 ```
+
+## Selecting a HUD
+
+The "hud" console command can be used to toggle between available HUDs. Each HUD sets four cvars: cg_hudDamageIndicator, cg_emptyIndicator, cg_weaponbarStyle, and cg_drawFPS. After executing the command, a vid_restart is executed to prevent display errors on screen.
+
+```
+hud 0                            // Legacy RatMod HUD
+hud 1                            // Futuristic HUD
+hud 2                            // Quake 3 HUD (default)
+```
