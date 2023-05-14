@@ -60,6 +60,7 @@ set g_specMuted 0
 set g_tournamentMuteSpec 0
 set sv_floodprotect 0
 set rconpassword "YourSecretPassword"
+set sv_fps 40
 
 // Files
 set sv_dlurl "https://your.url.tld"
