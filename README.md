@@ -95,7 +95,7 @@ map pro-q3dm6
 ## Restricting Callvote Verbs
 
 ```
-set g_votenames "/map_restart/map/kick/clientkick/shuffle/nextmap/g_gametype/fraglimit/timelimit/g_dowarmup/"
+set g_votenames "/map_restart/map/kick/clientkick/shuffle/nextmap/g_gametype/fraglimit/timelimit/g_dowarmup/custom/"
 ```
 ## Custom Callvote File
 
