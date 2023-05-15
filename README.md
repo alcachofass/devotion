@@ -97,6 +97,47 @@ map pro-q3dm6
 ```
 set g_votenames "/map_restart/map/kick/clientkick/shuffle/nextmap/g_gametype/fraglimit/timelimit/g_dowarmup/"
 ```
+## Custom Callvote File
+
+```
+seta g_votecustomfile "votecustom.cfg"
+```
+## Sample votecustom.cfg 
+
+```
+// Sample votecustom.cfg file thanks to Raw @ play.ur-face.com
+{
+votecommand     "instagib_on"
+displayname     "instagib_on"
+command         "g_instantgib 2 ; g_railJump 1 ; set g_regen 5 ; set fraglimit 50 ; map_restart"
+}
+{
+votecommand     "instagib_off"
+displayname     "instagib_off"
+command         "g_instantgib 0 ; g_railJump 0 ; set g_regen 0 ; set fraglimit 0 ; map_restart"
+}
+{
+votecommand     "rockets_only_on"
+displayname     "rockets_only_on"
+command         "g_rockets 1 ; g_rocketspeed 1100 ; set g_regen 25 ; set g_spawnHealthBonus 0  ; set fraglimit 50 ; map_restart"
+}
+{
+votecommand     "rockets_only_off"
+displayname     "rockets_only_off"
+command         "g_rockets 0 ; g_rocketspeed 900 ; set g_regen 0 ; set g_spawnHealthBonus 25 ; set fraglimit 20 ; map_restart"
+}
+{
+votecommand     "portal_projectiles_on"
+displayname     "portal_projectiles_on"
+command         "g_teleMissiles 1"
+}
+{
+votecommand     "portal_projectiles_off"
+displayname     "portal_projectiles_off"
+command         "g_teleMissiles 0"
+}
+```
+
 ## Configuring Player Models
 
 ```
