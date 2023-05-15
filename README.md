@@ -100,12 +100,12 @@ set g_votenames "/map_restart/map/kick/clientkick/shuffle/nextmap/g_gametype/fra
 ## Custom Callvote File
 
 ```
-seta g_votecustomfile "votecustom.cfg"
+set g_votecustomfile "votecustom.cfg"
 ```
 ## Sample votecustom.cfg 
+Sample votecustom.cfg file thanks to Raw @ play.ur-face.com
 
 ```
-// Sample votecustom.cfg file thanks to Raw @ play.ur-face.com
 {
 votecommand     "instagib_on"
 displayname     "instagib_on"
@@ -137,6 +137,8 @@ displayname     "portal_projectiles_off"
 command         "g_teleMissiles 0"
 }
 ```
+
+# Client Settings
 
 ## Configuring Player Models
 
