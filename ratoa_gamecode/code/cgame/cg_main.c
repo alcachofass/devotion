@@ -372,6 +372,7 @@ vmCvar_t	pmove_fixed;
 //vmCvar_t	cg_pmove_fixed;
 vmCvar_t	pmove_msec;
 vmCvar_t        pmove_float;
+vmCvar_t    pmove_accurate;
 vmCvar_t	cg_pmove_msec;
 vmCvar_t	cg_cameraMode;
 vmCvar_t	cg_cameraOrbit;
@@ -506,7 +507,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_draw2D, "cg_draw2D", "1", CVAR_ARCHIVE  },
 	{ &cg_drawStatus, "cg_drawStatus", "1", CVAR_ARCHIVE  },
 	{ &cg_drawTimer, "cg_drawTimer", "1", CVAR_ARCHIVE  },
-	{ &cg_timerPosition, "cg_timerPosition", "1", CVAR_ARCHIVE  },
+	{ &cg_timerPosition, "cg_timerPosition", "0", CVAR_ARCHIVE  },
 	{ &cg_drawFPS, "cg_drawFPS", "3", CVAR_ARCHIVE  },
 	{ &cg_drawSnapshot, "cg_drawSnapshot", "0", CVAR_ARCHIVE  },
 	{ &cg_draw3dIcons, "cg_draw3dIcons", "0", CVAR_ARCHIVE  },
@@ -515,7 +516,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_attackerScale, "cg_attackerScale", "0.75", CVAR_ARCHIVE  },
 	{ &cg_drawAttacker, "cg_drawAttacker", "1", CVAR_ARCHIVE  },
 	{ &cg_drawPickup, "cg_drawPickup", "1", CVAR_ARCHIVE  },
-	{ &cg_drawSpeed, "cg_drawSpeed", "1", CVAR_ARCHIVE  },
+	{ &cg_drawSpeed, "cg_drawSpeed", "0", CVAR_ARCHIVE  },
 	{ &cg_drawSpeed3D, "cg_drawSpeed3D", "0", 0  },
 	{ &cg_drawZoomScope, "cg_drawZoomScope", "0", CVAR_ARCHIVE | CVAR_LATCH },
 	{ &cg_zoomScopeSize, "cg_zoomScopeSize", "1.0", CVAR_ARCHIVE },
@@ -812,8 +813,9 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_cameraMode, "com_cameraMode", "0", CVAR_CHEAT},
 
 	{ &pmove_fixed, "pmove_fixed", "0", CVAR_SYSTEMINFO},
-	{ &pmove_msec, "pmove_msec", "11", CVAR_SYSTEMINFO},
-        { &pmove_float, "pmove_float", "1", CVAR_SYSTEMINFO},
+	{ &pmove_msec, "pmove_msec", "8", CVAR_SYSTEMINFO},                        // This was 11 before
+    { &pmove_float, "pmove_float", "0", CVAR_SYSTEMINFO},
+	{ &pmove_accurate, "pmove_accurate", "75", CVAR_SYSTEMINFO },
 	{ &cg_taunts, "cg_taunts", "1", CVAR_ARCHIVE},
 	{ &cg_noProjectileTrail, "cg_noProjectileTrail", "0", CVAR_ARCHIVE},
 	{ &cg_smallFont, "ui_smallFont", "0.25", CVAR_ARCHIVE},

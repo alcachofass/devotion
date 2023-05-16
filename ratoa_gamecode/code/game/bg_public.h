@@ -251,6 +251,7 @@ typedef struct {
 
         //Sago's pmove
         int                     pmove_float;
+		int						pmove_accurate;
         
         //Flags effecting movement (see dmflags)
         int                     pmove_flags;

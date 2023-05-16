@@ -808,10 +808,11 @@ static const char *lmsMode_list[] = {
 };
 
 static const char *pmove_list[] = {
-	"Framerate dependent",
-	"Fixed framerate 125Hz",
-        "Fixed framerate 91Hz",
-	"Accurate",
+	"Accurate 2.0",
+	"Fixed Framerate 125Hz",
+    "Fixed Framerate 91Hz",
+	"Accurate 1.0",
+	"Framerate Dependent",
 	NULL
 };
 
@@ -979,22 +980,35 @@ static void ServerOptions_Start( void ) {
                 trap_Cvar_SetValue( "pmove_fixed", 1);
                 trap_Cvar_SetValue( "pmove_msec", 8);
                 trap_Cvar_SetValue( "pmove_float", 0);
+				trap_Cvar_SetValue( "pmove_accurate", 0);
                 break;
             case 2:
                 //Fixed framerate 91 Hz
                 trap_Cvar_SetValue( "pmove_fixed", 1);
                 trap_Cvar_SetValue( "pmove_msec", 11);
                 trap_Cvar_SetValue( "pmove_float", 0);
+				trap_Cvar_SetValue( "pmove_accurate", 0);
                 break;
             case 3:
-                //Accurate physics
+                //Accurate physics 1.0
                 trap_Cvar_SetValue( "pmove_fixed", 0);
+				trap_Cvar_SetValue( "pmove_msec", 8);
                 trap_Cvar_SetValue( "pmove_float", 1);
+				trap_Cvar_SetValue( "pmove_accurate", 0);
+                break;
+			case 4:
+			    //Framerate dependent
+                trap_Cvar_SetValue( "pmove_fixed", 0);
+				trap_Cvar_SetValue( "pmove_msec", 8);
+                trap_Cvar_SetValue( "pmove_float", 0);
+				trap_Cvar_SetValue( "pmove_accurate", 0);
                 break;
             default:
-                //Framerate dependent
+                //Accurate physics 2.0
                 trap_Cvar_SetValue( "pmove_fixed", 0);
+				trap_Cvar_SetValue( "pmove_msec", 8);
                 trap_Cvar_SetValue( "pmove_float", 0);
+				trap_Cvar_SetValue( "pmove_accurate", 75);
                 break;
         };
 	trap_Cvar_Set("sv_hostname", s_serveroptions.hostname.field.buffer );
@@ -1245,10 +1259,13 @@ ServerOptions_StatusBar_Pmove
 static void ServerOptions_StatusBar_Pmove( void* ptr ) {
     switch( ((menulist_s*)ptr)->curvalue ) {
         case 0:
-            UI_DrawString( 320, 440, "Physics depends on players framerates", UI_CENTER|UI_SMALLFONT, colorWhite );
-            UI_DrawString( 320, 460, "Not all players are equal", UI_CENTER|UI_SMALLFONT, colorWhite );
+		    UI_DrawString( 320, 440, "Alternative floating point physics", UI_CENTER|UI_SMALLFONT, colorWhite );
+            UI_DrawString( 320, 460, "All players are equal", UI_CENTER|UI_SMALLFONT, colorWhite );
             break;
         case 1:
+		    UI_DrawString( 320, 440, "Physics are calculated at fixed intervals", UI_CENTER|UI_SMALLFONT, colorWhite );
+            UI_DrawString( 320, 460, "All players are equal", UI_CENTER|UI_SMALLFONT, colorWhite );
+            break;
         case 2:
             UI_DrawString( 320, 440, "Physics are calculated at fixed intervals", UI_CENTER|UI_SMALLFONT, colorWhite );
             UI_DrawString( 320, 460, "All players are equal", UI_CENTER|UI_SMALLFONT, colorWhite );
@@ -1257,7 +1274,11 @@ static void ServerOptions_StatusBar_Pmove( void* ptr ) {
             UI_DrawString( 320, 440, "Physics are calculated exactly", UI_CENTER|UI_SMALLFONT, colorWhite );
             UI_DrawString( 320, 460, "All players are equal", UI_CENTER|UI_SMALLFONT, colorWhite );
             break;
-	default:
+		case 4:
+            UI_DrawString( 320, 440, "Physics depends on players framerates", UI_CENTER|UI_SMALLFONT, colorWhite );
+            UI_DrawString( 320, 460, "Not all players are equal", UI_CENTER|UI_SMALLFONT, colorWhite );
+            break;
+	    default:
             UI_DrawString( 320, 440, "Framerate dependent or not", UI_CENTER|UI_SMALLFONT, colorWhite );
             break;
     }

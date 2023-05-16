@@ -874,6 +874,7 @@ void CG_PredictPlayerState( void ) {
         cg_pmove.pmove_flags = cgs.dmflags;
         cg_pmove.pmove_ratflags = cgs.ratFlags;
         cg_pmove.pmove_movement = cgs.movement;
+		cg_pmove.pmove_accurate = pmove_accurate.integer;
 
 //unlagged - optimized prediction
 	// Like the comments described above, a player's state is entirely

@@ -2462,11 +2462,52 @@ void PmoveSingle (pmove_t *pmove) {
 
 	// entering / leaving water splashes
 	PM_WaterEvents();
-
+/*
 	// snap some parts of playerstate to save network bandwidth
         //But only if pmove_float is not enabled. We always snap on slick surfaces to prevent acceleration.
         if(!(pm->pmove_float) || pml.groundTrace.surfaceFlags & SURF_SLICK || pm->ps->stats[STAT_EXTFLAGS] & EXTFL_SLIDING)
             trap_SnapVector( pm->ps->velocity );
+
+*/
+
+	if (pm->pmove_accurate && pm->ps->stats[STAT_HEALTH] > 0) {
+		if (VectorLengthSquared(pm->ps->velocity) < 0.25f) {
+			VectorClear(pm->ps->velocity);
+		}
+		else {
+			int i;
+			float fac;
+			float fps = pm->pmove_accurate;
+
+			if (fps > 125) {             // was 250
+				fps = 125;
+			}
+			else if (fps < 30) {
+				fps = 30;
+			}
+			fac = (float)pml.msec / (1000.0f / (float)fps);
+			// add some error...
+			for (i = 0; i < 3; ++i) {
+				// ...if the velocity in this direction changed enough
+				if (fabs(pm->ps->velocity[i] - pml.previous_velocity[i]) > 0.5f / fac) {
+					if (pm->ps->velocity[i] < 0) {
+						pm->ps->velocity[i] -= 0.5f * fac;
+					}
+					else {
+						pm->ps->velocity[i] += 0.5f * fac;
+					}
+				}
+			}
+		}
+	}
+	else {
+		// snap some parts of playerstate to save network bandwidth
+		// but only if pmove_float is not enabled
+		if(!(pm->pmove_float))
+			trap_SnapVector(pm->ps->velocity);
+	}
+
+
 }
 
 
