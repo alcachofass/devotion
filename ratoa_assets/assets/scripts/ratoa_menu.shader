@@ -3,6 +3,7 @@ ratmod_menulogo_white
 	nopicmip
 	{
 		map textures/sfx/devotion_logo_white.tga
+		rgbGen const ( 1 0 0 )
 		blendFunc blend
 	}
 }
@@ -21,13 +22,21 @@ menubacknologo_ratmod
 }
 menuback_ratmod
 {
-	
-	nopicmip
-	nomipmaps
-
-
 	{
-		videomap video/devoq3.roq
-		rgbgen identity
+		map textures/liquids/lavahell
+		rgbGen const ( 0.33 0 0 )
+		tcMod scroll 0.05 0.05
+	}
+	{
+		map textures/liquids/lavahell
+		blendfunc gl_dst_color gl_src_color
+		rgbGen const ( 0.33 0 0 )
+		tcMod scroll -0.02 0.05
+		tcMod scale -1.1 0.8
+	}
+	{
+		map textures/sfx/detail.jpg
+		blendfunc gl_dst_color gl_src_color
+		tcMod scale 2 2
 	}
 }
