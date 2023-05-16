@@ -1418,10 +1418,10 @@ void SetTeam_Force( gentity_t *ent, char *s, gentity_t *by, qboolean tryforce ) 
 #endif
 
     	if (tryforce) {
-		if (by == NULL) {
-			force = qtrue;
-		} else {
-			force = G_admin_permission(by, ADMF_FORCETEAMCHANGE);
+			if (by == NULL) {
+				force = qtrue;
+			} else {
+				force = G_admin_permission(by, ADMF_FORCETEAMCHANGE);
 		}
 	}
 	
@@ -1429,9 +1429,9 @@ void SetTeam_Force( gentity_t *ent, char *s, gentity_t *by, qboolean tryforce ) 
 	// see what change is requested
 	//
 	client = ent->client;
-
+	
 	clientNum = client - level.clients;
-        trap_GetUserinfo( clientNum, userinfo, sizeof( userinfo ) );
+    trap_GetUserinfo( clientNum, userinfo, sizeof( userinfo ) );
 	specClient = 0;
 	specState = SPECTATOR_NOT;
 	specGroup = SPECTATORGROUP_SPEC;
@@ -1601,7 +1601,13 @@ void SetTeam_Force( gentity_t *ent, char *s, gentity_t *by, qboolean tryforce ) 
 			 specState != SPECTATOR_FREE
 			)
 			) {
-		return;
+				// We don't want to return if in a Tournament. Otherwise players never rotate. 
+				if (g_gametype.integer == GT_TOURNAMENT) {
+					//trap_SendServerCommand( ent - g_entities, "print \"\\^1Debug: ^2 Did I get here in Tourney?\n\"" );
+				}
+				else {
+					return; 
+				}				
 	}
 
 	//KK-OAX Check to make sure the team is not locked from Admin
@@ -1647,27 +1653,27 @@ void SetTeam_Force( gentity_t *ent, char *s, gentity_t *by, qboolean tryforce ) 
 
 	}
 
-        if(oldTeam!=TEAM_SPECTATOR)
+        if(oldTeam!=TEAM_SPECTATOR) 
             PlayerStore_store(Info_ValueForKey(userinfo,"cl_guid"),client->ps);
         
 	// they go to the end of the line for tournements
 	oldGroup = client->sess.spectatorGroup;
         if(team == TEAM_SPECTATOR) {
-		if (G_IsTeamGametype()
-				&& g_teamForceQueue.integer
-				&& oldTeam != TEAM_SPECTATOR
-				&& (specGroup == SPECTATORGROUP_QUEUED
-					|| specGroup == SPECTATORGROUP_QUEUED_RED
-					|| specGroup == SPECTATORGROUP_QUEUED_BLUE)) {
-			// player left the (unbalanced) game to re-queue, so
-			// put him in front of the queue for fairness
-			AddTournamentQueueFront(client);
-		} else if (oldTeam != team
-			       	|| specGroup == SPECTATORGROUP_AFK 
-				|| oldGroup == SPECTATORGROUP_AFK) {
-			AddTournamentQueue(client);
+			if (G_IsTeamGametype()
+					&& g_teamForceQueue.integer
+					&& oldTeam != TEAM_SPECTATOR
+					&& (specGroup == SPECTATORGROUP_QUEUED
+						|| specGroup == SPECTATORGROUP_QUEUED_RED
+						|| specGroup == SPECTATORGROUP_QUEUED_BLUE)) {
+				// player left the (unbalanced) game to re-queue, so
+				// put him in front of the queue for fairness
+				AddTournamentQueueFront(client);
+			} else if (oldTeam != team
+			        	|| specGroup == SPECTATORGROUP_AFK 
+						|| oldGroup == SPECTATORGROUP_AFK) {
+				AddTournamentQueue(client);
+			}
 		}
-	}
 
 
 	client->sess.sessionTeam = team;
