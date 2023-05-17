@@ -1008,7 +1008,7 @@ static void ServerOptions_Start( void ) {
                 trap_Cvar_SetValue( "pmove_fixed", 0);
 				trap_Cvar_SetValue( "pmove_msec", 8);
                 trap_Cvar_SetValue( "pmove_float", 0);
-				trap_Cvar_SetValue( "pmove_accurate", 75);
+				trap_Cvar_SetValue( "pmove_accurate", 1);
                 break;
         };
 	trap_Cvar_Set("sv_hostname", s_serveroptions.hostname.field.buffer );

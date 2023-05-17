@@ -815,7 +815,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &pmove_fixed, "pmove_fixed", "0", CVAR_SYSTEMINFO},
 	{ &pmove_msec, "pmove_msec", "8", CVAR_SYSTEMINFO},                        // This was 11 before
     { &pmove_float, "pmove_float", "0", CVAR_SYSTEMINFO},
-	{ &pmove_accurate, "pmove_accurate", "75", CVAR_SYSTEMINFO },
+	{ &pmove_accurate, "pmove_accurate", "1", CVAR_SYSTEMINFO },
 	{ &cg_taunts, "cg_taunts", "1", CVAR_ARCHIVE},
 	{ &cg_noProjectileTrail, "cg_noProjectileTrail", "0", CVAR_ARCHIVE},
 	{ &cg_smallFont, "ui_smallFont", "0.25", CVAR_ARCHIVE},

@@ -1602,11 +1602,8 @@ void SetTeam_Force( gentity_t *ent, char *s, gentity_t *by, qboolean tryforce ) 
 			)
 			) {
 				// We don't want to return if in a Tournament. Otherwise players never rotate. 
-				if (g_gametype.integer == GT_TOURNAMENT) {
-					//trap_SendServerCommand( ent - g_entities, "print \"\\^1Debug: ^2 Did I get here in Tourney?\n\"" );
-				}
-				else {
-					return; 
+				if (g_gametype.integer != GT_TOURNAMENT) {
+					return;
 				}				
 	}
 

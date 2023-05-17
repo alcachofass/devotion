@@ -2477,14 +2477,16 @@ void PmoveSingle (pmove_t *pmove) {
 		else {
 			int i;
 			float fac;
-			float fps = pm->pmove_accurate;
+			float fps = 75;				 // FPS 75 is very close to VQ3 125 FPS movement, was pm->pmove_accurate;
 
+			/*
 			if (fps > 125) {             // was 250
 				fps = 125;
 			}
 			else if (fps < 30) {
 				fps = 30;
 			}
+			*/
 			fac = (float)pml.msec / (1000.0f / (float)fps);
 			// add some error...
 			for (i = 0; i < 3; ++i) {

@@ -590,7 +590,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &pmove_msec, "pmove_msec", "8", CVAR_SYSTEMINFO | CVAR_ARCHIVE, 0, qfalse},
 
         { &pmove_float, "pmove_float", "0", CVAR_SYSTEMINFO | CVAR_ARCHIVE, 0, qtrue},
-		{ &pmove_accurate, "pmove_accurate", "75", CVAR_SYSTEMINFO | CVAR_ARCHIVE, 0, qtrue },
+		{ &pmove_accurate, "pmove_accurate", "1", CVAR_SYSTEMINFO | CVAR_ARCHIVE, 0, qtrue },
 
         { &g_floatPlayerPosition, "g_floatPlayerPosition", "1", CVAR_ARCHIVE, 0, qfalse},
 
