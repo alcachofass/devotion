@@ -1798,8 +1798,59 @@ gentity_t *SelectRandomTeamSpawnPointArena( int teamstate, team_t team, int aren
 	return spots[ selection ];
 }
 
+gentity_t *SelectRandomTeamSpawnPointVQ3A( int teamstate, team_t team ) {
+	gentity_t	*spot = NULL;
+	int			count = 0;
+	int			selection;
+	gentity_t	*spots[MAX_TEAM_SPAWN_POINTS];
+	char		*classname;
+
+	if (teamstate == TEAM_BEGIN) {
+		if (team == TEAM_RED)
+			classname = "team_CTF_redplayer";
+		else if (team == TEAM_BLUE)
+			classname = "team_CTF_blueplayer";
+		else
+			return NULL;
+	} else {
+		if (team == TEAM_RED)
+			classname = "team_CTF_redspawn";
+		else if (team == TEAM_BLUE)
+			classname = "team_CTF_bluespawn";
+		else
+			return NULL;
+	}
+
+	while ((spot = G_Find (spot, FOFS(classname), classname)) != NULL) {
+		if ( SpotWouldTelefrag( spot ) ) {
+			continue;
+		}
+		spots[ count ] = spot;
+		if (++count == MAX_TEAM_SPAWN_POINTS)
+			break;
+	}
+
+	if (!count) {
+			return G_Find( NULL, FOFS(classname), classname);
+	}
+
+	selection = rand() % count;
+	return spots[ selection ];
+}
+
 gentity_t *SelectRandomTeamSpawnPoint( int teamstate, team_t team ) {
-	return SelectRandomTeamSpawnPointArena(teamstate, team, -1);
+	// Elimination should use SelectRandomTeamSpawnPointArena()
+	if(g_gametype.integer == GT_ELIMINATION) {
+		return SelectRandomTeamSpawnPointArena(teamstate, team, -1);
+	}
+	// Keep CTF using the classic spawn system
+	else if (g_gametype.integer == GT_CTF ) {
+		return SelectRandomTeamSpawnPointVQ3A(teamstate, team);
+	}
+	// Send everything else to SelectRandomTeamSpawnPointArena() until more users complain
+	else { 
+		return SelectRandomTeamSpawnPointArena(teamstate, team, -1);
+	}
 }
 
 /*
