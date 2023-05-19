@@ -499,7 +499,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_drawGun, "cg_drawGun", "1", CVAR_ARCHIVE },
 	{ &cg_zoomFov, "cg_zoomfov", "22.5", CVAR_ARCHIVE }, //vq3 default
 	{ &cg_zoomFovTmp, "cg_zoomfovTmp", "0", 0 },
-	{ &cg_fov, "cg_fov", "90", CVAR_ARCHIVE }, // vq3 default
+	{ &cg_fov, "cg_fov", "115", CVAR_ARCHIVE }, // HQ Quake default
 	{ &cg_horplus, "cg_horplus", "0", CVAR_ARCHIVE },
 	{ &cg_viewsize, "cg_viewsize", "100", CVAR_ARCHIVE },
 	{ &cg_shadows, "cg_shadows", "1", CVAR_ARCHIVE  },
@@ -510,7 +510,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_timerPosition, "cg_timerPosition", "0", CVAR_ARCHIVE  },
 	{ &cg_drawFPS, "cg_drawFPS", "0", CVAR_ARCHIVE  },
 	{ &cg_drawSnapshot, "cg_drawSnapshot", "0", CVAR_ARCHIVE  },
-	{ &cg_draw3dIcons, "cg_draw3dIcons", "0", CVAR_ARCHIVE  },
+	{ &cg_draw3dIcons, "cg_draw3dIcons", "1", CVAR_ARCHIVE  },
 	{ &cg_drawIcons, "cg_drawIcons", "1", CVAR_ARCHIVE  },
 	{ &cg_drawAmmoWarning, "cg_drawAmmoWarning", "1", CVAR_ARCHIVE  },
 	{ &cg_attackerScale, "cg_attackerScale", "0.75", CVAR_ARCHIVE  },
@@ -753,8 +753,8 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_teamFootsteps ,   "cg_teamFootsteps", "-1", CVAR_ARCHIVE},
 	{ &cg_enemyFootsteps ,  "cg_enemyFootsteps", "-1", CVAR_ARCHIVE},
 
-	{ &cg_brightShells ,     "cg_brightShells", "2", CVAR_ARCHIVE},
-	{ &cg_brightShellAlpha , "cg_brightShellAlpha", "1.0", CVAR_ARCHIVE},
+	{ &cg_brightShells ,     "cg_brightShells", "0", CVAR_ARCHIVE},
+	{ &cg_brightShellAlpha , "cg_brightShellAlpha", "0.2", CVAR_ARCHIVE},
 	{ &cg_brightOutline ,     "cg_brightOutline", "0", CVAR_ARCHIVE},
 
 	{ &cg_enemyModel ,     "cg_enemyModel", "", CVAR_ARCHIVE},
@@ -766,7 +766,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 
 	// either color name ("green", "white"), color index, or 
 	// HSV color in the format 'H125 1.0 1.0" (H<H> <S> <V>)
-	{ &cg_enemyColor ,     "cg_enemyColor", "green", CVAR_ARCHIVE},
+	{ &cg_enemyColor ,     "cg_enemyColor", "", CVAR_ARCHIVE},
 	{ &cg_teamColor ,      "cg_teamColor", "", CVAR_ARCHIVE},
 	{ &cg_enemyHeadColor ,     "cg_enemyHeadColor", "", CVAR_ARCHIVE},
 	{ &cg_teamHeadColor ,      "cg_teamHeadColor", "", CVAR_ARCHIVE},
