@@ -65,20 +65,7 @@ set sv_fps 40
 // Files
 set sv_dlurl "https://your.url.tld"
 
-// Tweaks
-set pmove_float 0
-set pmove_fixed 0
-set g_gravitymodifier 1.0
-set g_gravityjumppadfix 0
-set g_additivejump 0
-set g_gravity 800
-set g_movement 0
-set g_railjump 0
-set g_rampjump 0
-set g_smoothstairs 0
-set g_synchronousClients 0
-
-// Weapons
+// Weapon Damage
 set g_lgDamage 8
 set g_mgDamage 7
 set g_railgunDamage 100
@@ -143,11 +130,12 @@ command         "g_teleMissiles 0"
 ## Configuring Player Models
 
 ```
-set model "visor/pm"             // Sets visor/pm as the player's model
+set model "visor/pm"             // Sets visor/pm as you player model
+set team_model "visor/pm"        // Sets visor/pm as your player model during team games
 set cg_enemyModel "keel/pm"      // Sets _all_ enemies as keel/pm
-set cg_enemyColor "green"        // Sets _all_ enemies as the color "green"
-set cg_teamModel "visor"         // In team games, sets _all_ members as "visor" (including your character)
-set cg_teamColor ""              // Sets your team's color
+set cg_enemyColor "green"        // Sets _all_ enemies as the color "green" if bright shells are turned on
+set cg_teamModel "sarge/default" // In team games, sets _all_ members as sarge/default
+set cg_teamColor ""              // Sets your team's color if bright shells are turned on
 ```
 
 ## Selecting a HUD
