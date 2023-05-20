@@ -2046,6 +2046,7 @@ static void CG_RegisterGraphics( void ) {
 	//cgs.media.quadShaderSpots = trap_R_RegisterShader("powerups/ratQuadSpots" );
 	cgs.media.quadWeaponShader = trap_R_RegisterShader("powerups/quadWeapon" );
 	//cgs.media.battleSuitShader = trap_R_RegisterShader("powerups/ratBattleSuit" );
+	cgs.media.battleSuitShader = trap_R_RegisterShader("powerups/battleSuit" );
 	cgs.media.battleWeaponShader = trap_R_RegisterShader("powerups/battleWeapon" );
 	cgs.media.invisShader = trap_R_RegisterShader("powerups/invisibility" );
 	cgs.media.regenShader = trap_R_RegisterShader("powerups/regen" );
