@@ -6143,9 +6143,10 @@ static void CG_DrawWarmup( void ) {
 			return;
 		}
 		s = "Waiting for players";		
-		w = CG_DrawStrlen( s ) * MEDIUMCHAR_WIDTH;
-		CG_DrawBigString(248 - w / 2, 24, s, 1.0F);
+		w = CG_DrawStrlen( s ) * SMALLCHAR_WIDTH; 
+		//CG_DrawBigString(248 - w / 2, 24, s, 1.0F);
 		//CG_DrawMediumString(320 - w / 2, 48, s, 0.75F);
+		CG_DrawSmallString(320 - w / 2, 300, s, 1.0F);
 		cg.warmupCount = 0;
 		return;
 	}
@@ -6176,7 +6177,7 @@ static void CG_DrawWarmup( void ) {
 			} else {
 				cw = BIGCHAR_WIDTH;
 			}
-			CG_DrawStringExt( 320 - w * cw/2, 8,s, colorWhite, 
+			CG_DrawStringExt( 320 - w * cw/2, 300,s, colorWhite, 
 					qfalse, qtrue, cw, (int)(cw * 1.5f), 0 );
 #endif
 		}
