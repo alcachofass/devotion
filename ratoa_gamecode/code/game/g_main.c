@@ -3597,12 +3597,15 @@ void ExitLevel (void) {
 	if ( g_gametype.integer == GT_TOURNAMENT  ) {
 		if ( !level.restarted ) {
 			RemoveTournamentLoser();
-			trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\n" );
-			level.restarted = qtrue;
-			level.changemap = NULL;
-			level.intermissiontime = 0;
+			if( !g_autonextmap.integer ) {
+				trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\n" );	
+				level.restarted = qtrue;
+				level.changemap = NULL;
+				level.intermissiontime = 0;
+			}
 		}
-		return;	
+
+		//return;
 	} 
 #ifdef WITH_MULTITOURNAMENT
 	else if ( g_gametype.integer == GT_MULTITOURNAMENT  ) {
