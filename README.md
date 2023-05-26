@@ -74,6 +74,9 @@ set g_newShotgun 0
 // Game Type
 set g_gametype 1
 set mode_start 1
+set g_doWarmup 1
+set g_startWhenReady 2                // "1" - over 50% ready needed to start, "2" - 100% ready needed to start, "3" - over 50% ready needed to start in team games
+
 
 map pro-q3dm6
 ```
@@ -82,7 +85,7 @@ map pro-q3dm6
 ## Restricting Callvote Verbs
 
 ```
-set g_votenames "/map_restart/map/kick/clientkick/shuffle/nextmap/g_gametype/fraglimit/timelimit/g_dowarmup/custom/"
+set g_votenames "/map_restart/map/kick/clientkick/shuffle/nextmap/g_gametype/fraglimit/timelimit/g_dowarmup/custom/lock/unlock/"
 ```
 ## Custom Callvote File
 
