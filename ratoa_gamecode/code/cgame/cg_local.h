@@ -520,6 +520,11 @@ typedef struct {
 
 	int 		lastPinglocationTime;
 
+	qboolean    coloredSkin;
+	vec3_t      headColor;
+	vec3_t      bodyColor;
+	vec3_t      legsColor;
+
 #ifdef WITH_MULTITOURNAMENT
 	// for GT_MULTITOURNAMENT
 	int		gameId;
@@ -1879,7 +1884,9 @@ extern vmCvar_t			cg_teamHueDefault;
 extern vmCvar_t			cg_teamHueRed;
 
 extern vmCvar_t			cg_enemyColor;
+extern vmCvar_t			cg_enemyColors;
 extern vmCvar_t			cg_teamColor;
+extern vmCvar_t			cg_teamColors;
 extern vmCvar_t			cg_enemyHeadColor;
 extern vmCvar_t			cg_teamHeadColor;
 extern vmCvar_t			cg_enemyTorsoColor;

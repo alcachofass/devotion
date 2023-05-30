@@ -137,8 +137,10 @@ set model "visor/pm"             // Sets visor/pm as you player model
 set team_model "visor/pm"        // Sets visor/pm as your player model during team games
 set cg_enemyModel "keel/pm"      // Sets _all_ enemies as keel/pm
 set cg_enemyColor "green"        // Sets _all_ enemies as the color "green" if bright shells are turned on
+set cg_enemyColors "222"         // Sets _all_ enemies as the PM color green in head, body, and torso without the need for bright shells
 set cg_teamModel "sarge/default" // In team games, sets _all_ members as sarge/default
-set cg_teamColor ""              // Sets your team's color if bright shells are turned on
+set cg_teamColor "orange"        // Sets your team's color if bright shells are turned on
+set cg_teamColors "111"          // Sets your team's PM color "red" in head, body, and torso without the need for bright shells
 ```
 
 ## Selecting a HUD

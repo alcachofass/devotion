@@ -2016,3 +2016,21 @@ qboolean BG_IsElimTeamGT(gametype_t gametype) {
 qboolean BG_IsElimGT(gametype_t gametype) {
 	return BG_IsElimTeamGT(gametype) || gametype == GT_LMS;
 }
+
+qboolean replace1( const char match, const char replace, char *str )
+{
+	qboolean	res = qfalse;
+
+	if ( !str ) 
+		return res;
+
+	while ( *str ) {
+		if ( *str == match ) {
+			*str = replace;
+			res = qtrue;
+		}
+		str++;
+	}
+
+	return res;
+}

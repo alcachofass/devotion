@@ -1050,5 +1050,6 @@ qboolean BG_IsTeamGametype(gametype_t gametype);
 qboolean BG_IsElimTeamGT(gametype_t gametype);
 qboolean BG_IsElimGT(gametype_t gametype);
 
+qboolean replace1( const char match, const char replace, char *str );
 
 #endif

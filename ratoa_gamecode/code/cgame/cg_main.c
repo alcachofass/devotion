@@ -30,7 +30,11 @@ displayContextDef_t cgDC;
 #endif
 
 int forceModelModificationCount = -1;
+int enemyModelModificationCount  = -1;
+int	enemyColorsModificationCount = -1;
 int enemyTeamModelModificationCounts = -1;
+int teamModelModificationCount  = -1;
+int	teamColorsModificationCount = -1;
 int mySoundModificationCount = -1;
 int teamSoundModificationCount = -1;
 int enemySoundModificationCount = -1;
@@ -319,7 +323,9 @@ vmCvar_t	cg_teamHueDefault;
 vmCvar_t	cg_teamHueRed;
 
 vmCvar_t	cg_enemyColor;
+vmCvar_t	cg_enemyColors;
 vmCvar_t	cg_teamColor;
+vmCvar_t	cg_teamColors;
 vmCvar_t	cg_enemyHeadColor;
 vmCvar_t	cg_teamHeadColor;
 vmCvar_t	cg_enemyTorsoColor;
@@ -767,7 +773,9 @@ static cvarTable_t cvarTable[] = { // bk001129
 	// either color name ("green", "white"), color index, or 
 	// HSV color in the format 'H125 1.0 1.0" (H<H> <S> <V>)
 	{ &cg_enemyColor ,     "cg_enemyColor", "", CVAR_ARCHIVE},
+	{ &cg_enemyColors, "cg_enemyColors", "", CVAR_ARCHIVE},
 	{ &cg_teamColor ,      "cg_teamColor", "", CVAR_ARCHIVE},
+	{ &cg_teamColors ,      "cg_teamColors", "", CVAR_ARCHIVE},
 	{ &cg_enemyHeadColor ,     "cg_enemyHeadColor", "", CVAR_ARCHIVE},
 	{ &cg_teamHeadColor ,      "cg_teamHeadColor", "", CVAR_ARCHIVE},
 	{ &cg_enemyTorsoColor ,     "cg_enemyTorsoColor", "", CVAR_ARCHIVE},
@@ -916,6 +924,10 @@ void CG_RegisterCvars( void ) {
 
 	forceModelModificationCount = cg_forceModel.modificationCount;
 	enemyTeamModelModificationCounts = cg_enemyModel.modificationCount + cg_teamModel.modificationCount;
+
+	enemyModelModificationCount = cg_enemyModel.modificationCount;
+	enemyColorsModificationCount = cg_enemyColors.modificationCount;
+	teamColorsModificationCount = cg_teamColors.modificationCount;
 
 	trap_Cvar_Register(NULL, "model", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
 	trap_Cvar_Register(NULL, "headmodel", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
@@ -1283,6 +1295,23 @@ void CG_UpdateCvars( void ) {
 		hudMovementKeysRegistered = qtrue;
 		hudMovementKeysModificationCount = cg_hudMovementKeys.modificationCount;
 	}
+
+	// if model changed (catch-all)
+	if ( forceModelModificationCount != cg_forceModel.modificationCount 
+		|| enemyModelModificationCount != cg_enemyModel.modificationCount
+		|| enemyColorsModificationCount != cg_enemyColors.modificationCount
+		|| teamModelModificationCount != cg_teamModel.modificationCount
+		|| teamColorsModificationCount != cg_teamColors.modificationCount ) {
+
+		forceModelModificationCount = cg_forceModel.modificationCount;
+		enemyModelModificationCount = cg_enemyModel.modificationCount;
+		enemyColorsModificationCount = cg_enemyColors.modificationCount;
+		teamModelModificationCount = cg_teamModel.modificationCount;
+		teamColorsModificationCount = cg_teamColors.modificationCount;
+
+		CG_ForceModelChange();
+	}
+
 }
 
 int CG_CrosshairPlayer( void ) {
