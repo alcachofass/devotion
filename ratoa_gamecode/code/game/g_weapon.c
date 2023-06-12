@@ -750,10 +750,23 @@ void weapon_railgun_fire (gentity_t *ent) {
 	// the final trace endpos will be the terminal point of the rail trail
 
 	// snap the endpos to integers to save net bandwidth, but nudged towards the line
-	trap_Printf((char)trace.endpos);
-	SnapVectorTowards( trace.endpos, muzzle );
-	trap_Printf((char)trace.endpos);
-
+	//mrd
+	/*
+	#if MRD_RGTRACE_DEBUG
+	trap_Printf( va( S_COLOR_GREEN "pre-snap X: %f\n", trace.endpos[0] ) );
+	trap_Printf( va( S_COLOR_GREEN "pre-snap Y: %f\n", trace.endpos[1] ) );
+	trap_Printf( va( S_COLOR_GREEN "pre-snap Z: %f\n", trace.endpos[2] ) );
+	#endif
+	*/
+	//SnapVectorTowards( trace.endpos, muzzle ); //mrd - fuck this
+	/*
+	#if MRD_RGTRACE_DEBUG
+	trap_Printf( va( S_COLOR_RED "post-snap X: %f\n", trace.endpos[0] ) );
+	trap_Printf( va( S_COLOR_RED "post-snap Y: %f\n", trace.endpos[1] ) );
+	trap_Printf( va( S_COLOR_RED "post-snap Z: %f\n", trace.endpos[2] ) );
+	#endif
+	*/
+		
 	// send railgun beam effect
 	tent = G_TempEntity( trace.endpos, EV_RAILTRAIL );
 

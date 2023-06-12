@@ -89,6 +89,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define KILLCMD_GAME	1
 #define KILLCMD_WARMUP	2
 
+#define MRD_RGTRACE_DEBUG 1
+
 typedef enum {
 	FROZEN_NOT = 0, // not frozen
 	FROZEN_ONMAP, // remnant is still around

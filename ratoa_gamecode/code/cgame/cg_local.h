@@ -434,6 +434,9 @@ typedef struct {
 #ifdef WITH_MULTITOURNAMENT
 	int			gameId;
 #endif
+	int			green_armors; //mrd 
+	int			shard_armors; //mrd
+	int			weaponPickupCounts[10];	//mrd - don't count Gauntlet or MG, they are never P/U'd
 
 } score_t;
 
@@ -708,6 +711,7 @@ typedef struct {
 	int			numScores;
 	qboolean		medals_available;
 	qboolean		stats_available;
+	qboolean		weaponPU_available;	//mrd
 	int			selectedScore;
 	int			teamScores[2];
 	score_t		scores[MAX_CLIENTS];
