@@ -1122,6 +1122,7 @@ qboolean CG_DrawRatScoreboard(void) {
 
 	else if (ShowScoreboardNum() == 2) {
 		//mrd - show weapon P/U stats scoreboard. Ignore BFG, useless info. 
+		CG_DrawTinyScoreString(RATSB3_NAME_X, y, "Name", fade);
 		CG_DrawTinyScoreStringColor(RATSB4_SG_CENTER, y, "SG", colorMdGrey);
 		CG_DrawTinyScoreStringColor(RATSB4_GL_CENTER, y, "GL", colorMdGrey);
 		CG_DrawTinyScoreStringColor(RATSB4_RL_CENTER, y, "RL", colorMdGrey);
