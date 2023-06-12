@@ -370,12 +370,29 @@ void Ratscores5Message( gentity_t *ent ) {
 	
 	for (i=0 ; i < numSorted ; i++) {
 		cl = &level.clients[level.sortedClients[i]];
-
 		Com_sprintf (entry, sizeof(entry),
-				" %i %i %i",
-				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Armor"))],
+				" %i %i %i %i %i %i %i %i %i %i %i %i /* #ifdef MISSIONPACK %i %i %i #endif */", //mrd - GA and weapon P/U's
+				//" %i %i %i",
+				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Armor"))],			
 				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Heavy Armor"))],
-				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Mega Health"))]
+				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Mega Health"))],
+				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Light Armor"))],	
+				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Armor Shard"))],
+				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Shotgun"))],	
+				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Grenade Launcher"))],	
+				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Rocket Launcher"))],	
+				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Lightning Gun"))],	
+				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Railgun"))],	
+				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Plasma Gun"))],	
+				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("BFG10K"))]	
+				/*
+				#ifdef MISSIONPACK
+				,
+				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Nailgun"))],	
+				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Prox Launcher"))],	
+				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Chaingun"))]	
+				#endif
+				*/
 			    );
 
 		j = strlen(entry);

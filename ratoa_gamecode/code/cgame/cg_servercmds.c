@@ -167,7 +167,7 @@ static void CG_CheckScoreUpdate(void) {
 	memcpy( cg.scores, cg.scores_buf, sizeof(cg.scores));
 	cg.numScores = cg.numScores_buf;
 	cg.medals_available = (cg.received_ratscores >= 4);
-	cg.stats_available = (cg.received_ratscores == 5);
+	cg.stats_available = cg.weaponPU_available = (cg.received_ratscores == 5); //mrd
 
 	CG_PurgeScoreBuf();
 }
@@ -425,18 +425,38 @@ static void CG_ParseRatScores5( void ) {
 		CG_PurgeScoreBuf();
 		return;
 	}
-#define NUM_RAT5_DATA 3
+//#ifdef MISSIONPACK
+//#define NUM_RAT5_DATA 15
+//#else
+#define NUM_RAT5_DATA 12 //mrd - bumped to include for GA, shards, and weapon P/U's. We'll skip gauntlet, MG since they can't be picked up. We'll track BFG but won't display it. 
+//#endif
+//#define NUM_RAT5_DATA 15
+//#define NUM_RAT5_DATA 3
 #define FIRST_RAT5_DATA 1
 
 	for ( i = 0 ; i < numScores ; i++ ) {
-		cg.scores_buf[i].yellow_armors = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 1));
+		cg.scores_buf[i].yellow_armors = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 1));	
 		cg.scores_buf[i].red_armors = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 2));
-		cg.scores_buf[i].mega_healths = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 3));
+		cg.scores_buf[i].mega_healths = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 3));			
+		cg.scores_buf[i].green_armors = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 4)); //mrd - we'll track GA and shard score too
+		cg.scores_buf[i].shard_armors = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 5)); //mrd
+		//mrd - we'll count weapon P/U's here too
+		cg.scores_buf[i].weaponPickupCounts[0] = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 6));	//SG
+		cg.scores_buf[i].weaponPickupCounts[1] = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 7));	//GL
+		cg.scores_buf[i].weaponPickupCounts[2] = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 8));	//RL
+		cg.scores_buf[i].weaponPickupCounts[3] = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 9));	//LG
+		cg.scores_buf[i].weaponPickupCounts[4] = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 10));	//RG
+		cg.scores_buf[i].weaponPickupCounts[5] = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 11));	//PG
+		cg.scores_buf[i].weaponPickupCounts[6] = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 12));	//BFG
+		/*#ifdef MISSIONPACK
+		cg.scores_buf[i].weaponPickupCounts[7] = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 13));	//NG
+		cg.scores_buf[i].weaponPickupCounts[8] = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 14));	//PL
+		cg.scores_buf[i].weaponPickupCounts[9] = atoi(CG_Argv(i * NUM_RAT5_DATA + FIRST_RAT5_DATA + 15));	//CG
+		#endif*/
 	}
 
 	CG_CheckScoreUpdate();
 }
-
 
 /*
 =================

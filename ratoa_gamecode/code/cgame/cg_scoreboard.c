@@ -140,19 +140,61 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define RATSB2_AWARD_HEIGHT	(SCORECHAR_HEIGHT)
 
+#define RATSB3_MEGA_WIDTH       (2 * SCORESMALLCHAR_WIDTH) 
+#define RATSB3_RA_WIDTH         (2 * SCORESMALLCHAR_WIDTH)
+#define RATSB3_YA_WIDTH         (2 * SCORESMALLCHAR_WIDTH)
+#define RATSB3_GA_WIDTH			(2 * SCORESMALLCHAR_WIDTH) //mrd
+#define RATSB3_SH_WIDTH			(2 * SCORESMALLCHAR_WIDTH) //mrd
+
 #define RATSB3_NAME_X           (RATSCOREBOARD_X+10)
 #define RATSB3_NAME_WIDTH     	(RATSB3_NAME_LENGTH * SCORECHAR_WIDTH)
 #define RATSB3_MEGA_X           (RATSB3_NAME_X      + RATSB3_NAME_WIDTH      + 1 * SCORESMALLCHAR_WIDTH)
 #define RATSB3_RA_X             (RATSB3_MEGA_X      + RATSB3_MEGA_WIDTH      + 1 * SCORESMALLCHAR_WIDTH)
 #define RATSB3_YA_X             (RATSB3_RA_X        + RATSB3_RA_WIDTH        + 1 * SCORESMALLCHAR_WIDTH)
+#define RATSB3_GA_X				(RATSB3_YA_X		+ RATSB3_YA_WIDTH		 + 1 * SCORESMALLCHAR_WIDTH) //mrd
+#define RATSB3_SH_X				(RATSB3_GA_X		+ RATSB3_GA_WIDTH		 + 1 * SCORESMALLCHAR_WIDTH) //mrd
 
-#define RATSB3_MEGA_WIDTH       (3 * SCORESMALLCHAR_WIDTH)
-#define RATSB3_RA_WIDTH         (3 * SCORESMALLCHAR_WIDTH)
-#define RATSB3_YA_WIDTH         (3 * SCORESMALLCHAR_WIDTH)
 
-#define RATSB3_MEGA_CENTER     (RATSB3_MEGA_X + RATSB3_MEGA_WIDTH/2)
-#define RATSB3_RA_CENTER       (RATSB3_RA_X + RATSB3_RA_WIDTH/2)
-#define RATSB3_YA_CENTER       (RATSB3_YA_X + RATSB3_YA_WIDTH/2)
+//mrd - new block for weapon P/U scoreboard
+
+#define RATSB4_SG_WIDTH			(2 * SCORESMALLCHAR_WIDTH)
+#define RATSB4_GL_WIDTH			(2 * SCORESMALLCHAR_WIDTH)
+#define RATSB4_RL_WIDTH			(2 * SCORESMALLCHAR_WIDTH)
+#define RATSB4_LG_WIDTH			(2 * SCORESMALLCHAR_WIDTH)
+#define RATSB4_RG_WIDTH			(2 * SCORESMALLCHAR_WIDTH)
+#define RATSB4_PG_WIDTH			(2 * SCORESMALLCHAR_WIDTH)
+#define RATSB4_BFG_WIDTH		(2 * SCORESMALLCHAR_WIDTH)
+#define RATSB4_NG_WIDTH			(2 * SCORESMALLCHAR_WIDTH)	//missionpack
+#define RATSB4_PL_WIDTH			(2 * SCORESMALLCHAR_WIDTH)	//missionpack
+#define RATSB4_CG_WIDTH			(2 * SCORESMALLCHAR_WIDTH)	//missionpack
+
+#define RATSB4_SG_X			(RATSB3_NAME_X     + RATSB3_NAME_WIDTH   + 1 * SCORESMALLCHAR_WIDTH)
+#define RATSB4_GL_X			(RATSB4_SG_X      + RATSB4_SG_WIDTH      + 1 * SCORESMALLCHAR_WIDTH)	
+#define RATSB4_RL_X			(RATSB4_GL_X      + RATSB4_GL_WIDTH      + 1 * SCORESMALLCHAR_WIDTH)
+#define RATSB4_LG_X			(RATSB4_RL_X      + RATSB4_RL_WIDTH      + 1 * SCORESMALLCHAR_WIDTH)
+#define RATSB4_RG_X			(RATSB4_LG_X      + RATSB4_LG_WIDTH      + 1 * SCORESMALLCHAR_WIDTH)
+#define RATSB4_PG_X			(RATSB4_RG_X      + RATSB4_RG_WIDTH      + 1 * SCORESMALLCHAR_WIDTH)
+#define RATSB4_BFG_X		(RATSB4_PG_X      + RATSB4_PG_WIDTH      + 1 * SCORESMALLCHAR_WIDTH)
+#define RATSB4_NG_X			(RATSB4_BFG_X     + RATSB4_BFG_WIDTH     + 1 * SCORESMALLCHAR_WIDTH)	//missionpack
+#define RATSB4_PL_X			(RATSB4_NG_X      + RATSB4_NG_WIDTH      + 1 * SCORESMALLCHAR_WIDTH)	//missionpack
+#define RATSB4_CG_X			(RATSB4_PL_X      + RATSB4_PL_WIDTH      + 1 * SCORESMALLCHAR_WIDTH)	//missionpack
+
+#define RATSB4_SG_CENTER		(RATSB4_SG_X + RATSB4_SG_WIDTH/2)
+#define RATSB4_GL_CENTER		(RATSB4_GL_X + RATSB4_GL_WIDTH/2)
+#define RATSB4_RL_CENTER		(RATSB4_RL_X + RATSB4_RL_WIDTH/2)
+#define RATSB4_LG_CENTER		(RATSB4_LG_X + RATSB4_LG_WIDTH/2)
+#define RATSB4_RG_CENTER		(RATSB4_RG_X + RATSB4_RG_WIDTH/2)
+#define RATSB4_PG_CENTER		(RATSB4_PG_X + RATSB4_PG_WIDTH/2)
+#define RATSB4_BFG_CENTER		(RATSB4_BFG_X + RATSB4_BFG_WIDTH/2)
+#define RATSB4_NG_CENTER		(RATSB4_NG_X + RATSB4_NG_WIDTH/2)	//missionpack
+#define RATSB4_PL_CENTER		(RATSB4_PL_X + RATSB4_PL_WIDTH/2)	//missionpack
+#define RATSB4_CG_CENTER		(RATSB4_CG_X + RATSB4_CG_WIDTH/2)	//missionpack
+
+#define RATSB3_MEGA_CENTER		(RATSB3_MEGA_X + RATSB3_MEGA_WIDTH/2)
+#define RATSB3_RA_CENTER		(RATSB3_RA_X + RATSB3_RA_WIDTH/2)
+#define RATSB3_YA_CENTER		(RATSB3_YA_X + RATSB3_YA_WIDTH/2)
+#define RATSB3_GA_CENTER		(RATSB3_GA_X + RATSB3_GA_WIDTH/2) //mrd
+#define RATSB3_SH_CENTER		(RATSB3_SH_X + RATSB3_SH_WIDTH/2) //mrd
 
 #define RATSB_MAP_Y (RATSB_HEADER - 20)
 #define RATSB_MAP_X (RATSB_PING_X + RATSB_PING_WIDTH)
@@ -432,10 +474,45 @@ static void CG_RatDrawClientStats(int y, score_t *score, float *color, float fad
 		return;
 	}
 
- 	CG_DrawSmallScoreString(RATSB3_MEGA_X, y, va(S_COLOR_CYAN "%3i", score->mega_healths), fade);
- 	CG_DrawSmallScoreString(RATSB3_RA_X, y, va(S_COLOR_RED "%3i", score->red_armors), fade);
- 	CG_DrawSmallScoreString(RATSB3_YA_X, y, va(S_COLOR_YELLOW "%3i", score->yellow_armors), fade);
+ 	CG_DrawSmallScoreString(RATSB3_MEGA_X, y, va(S_COLOR_CYAN "%2i", score->mega_healths), fade);
+ 	CG_DrawSmallScoreString(RATSB3_RA_X, y, va(S_COLOR_RED "%2i", score->red_armors), fade);
+ 	CG_DrawSmallScoreString(RATSB3_YA_X, y, va(S_COLOR_YELLOW "%2i", score->yellow_armors), fade);
+	CG_DrawSmallScoreString(RATSB3_GA_X, y, va(S_COLOR_GREEN "%2i", score->green_armors), fade); //mrd - we'll draw GA and shards score too
+	CG_DrawSmallScoreString(RATSB3_SH_X, y, va(S_COLOR_WHITE "%2i", score->shard_armors), fade); //mrd
+}
 
+//mrd - add a block for weapon P/U stats
+static void CG_RatDrawWeaponPUStats(int y, score_t *score, float *color, float fade) {
+	char string[1024];
+	clientInfo_t *ci;
+	
+	if (score->client < 0 || score->client >= cgs.maxclients) {
+		Com_Printf("Bad score->client: %i\n", score->client);
+		return;
+	}
+
+	ci = &cgs.clientinfo[score->client];
+
+	CG_RatHighlightScore(RATSB3_NAME_X, y, score, fade);
+
+	Com_sprintf(string, sizeof (string), "%s", ci->name);
+	CG_DrawScoreString(RATSB3_NAME_X, y, string, fade, RATSB3_NAME_LENGTH);
+
+	if (ci->team == TEAM_SPECTATOR) {
+		return;
+	}
+
+ 	CG_DrawSmallScoreString(RATSB4_SG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[0]), fade); //SG
+	CG_DrawSmallScoreString(RATSB4_GL_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[1]), fade); //GL
+	CG_DrawSmallScoreString(RATSB4_RL_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[2]), fade); //RL
+	CG_DrawSmallScoreString(RATSB4_LG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[3]), fade); //LG
+	CG_DrawSmallScoreString(RATSB4_RG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[4]), fade); //RG
+	CG_DrawSmallScoreString(RATSB4_PG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[5]), fade); //PG
+	#ifdef MISSIONPACK
+	CG_DrawSmallScoreString(RATSB4_NG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[7]), fade);
+	CG_DrawSmallScoreString(RATSB4_PL_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[8]), fade);
+	CG_DrawSmallScoreString(RATSB4_CG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[9]), fade);
+	#endif
 }
 
 
@@ -711,6 +788,11 @@ static int ShowScoreboardNum(void) {
 		available_num = 2;
 	} 
 
+	// mrd
+	if (cg.weaponPU_available) {
+		available_num = 3;
+	}
+
 
 	// cg.showScoreboardNum increases each time the player presses the
 	// scoreboard key (TAB) during intermission
@@ -765,6 +847,9 @@ static int CG_RatTeamScoreboard(int y, team_t team, float fade, int maxClients, 
 			*/
 			case 1:  // was 2
 				CG_RatDrawClientStats(y + lineHeight * count, score, color, fade);
+				break;
+			case 2:	// mrd - case 2 for weapon P/U stats
+				CG_RatDrawWeaponPUStats(y + lineHeight * count, score, color, fade);
 				break;
 			default:
 				CG_RatDrawClientScore(y + lineHeight * count, score, color, fade, lineHeight == RATSB_NORMAL_HEIGHT);
@@ -1024,12 +1109,32 @@ qboolean CG_DrawRatScoreboard(void) {
 		//CG_DrawTinyScoreString(RATSB2_AWARDS_X, y, "Awards", fade);
 
 		CG_DrawTinyScoreString(RATSB3_NAME_X, y, "Name", fade);
-		CG_DrawTinyScoreString(RATSB3_MEGA_CENTER - 1.5 * SCORETINYCHAR_WIDTH, y, "MHs", fade);
-		CG_DrawTinyScoreString(RATSB3_RA_CENTER - 1.5 * SCORETINYCHAR_WIDTH, y, "RAs", fade);
-		CG_DrawTinyScoreString(RATSB3_YA_CENTER - 1.5 * SCORETINYCHAR_WIDTH, y, "YAs", fade);
+		//CG_DrawTinyScoreString(RATSB3_MEGA_CENTER - 1.5 * SCORETINYCHAR_WIDTH, y, "MHs", fade);
+		CG_DrawTinyScoreStringColor(RATSB3_MEGA_CENTER, y, "MH", colorBlue);
+		//CG_DrawTinyScoreString(RATSB3_RA_CENTER - 1.5 * SCORETINYCHAR_WIDTH, y, "RAs", fade);
+		CG_DrawTinyScoreStringColor(RATSB3_RA_CENTER, y, "RA", colorRed);
+		//CG_DrawTinyScoreString(RATSB3_YA_CENTER - 1.5 * SCORETINYCHAR_WIDTH, y, "YAs", fade);
+		CG_DrawTinyScoreStringColor(RATSB3_YA_CENTER, y, "YA", colorYellow);
+		CG_DrawTinyScoreStringColor(RATSB3_GA_CENTER, y, "GA", colorGreen); //mrd - add GA and shards to the mix
+		CG_DrawTinyScoreStringColor(RATSB3_SH_CENTER, y, "Sh", colorMdGrey); //mrd
 
 	} 
-	
+
+	else if (ShowScoreboardNum() == 2) {
+		//mrd - show weapon P/U stats scoreboard. Ignore BFG, useless info. 
+		CG_DrawTinyScoreStringColor(RATSB4_SG_CENTER, y, "SG", colorMdGrey);
+		CG_DrawTinyScoreStringColor(RATSB4_GL_CENTER, y, "GL", colorMdGrey);
+		CG_DrawTinyScoreStringColor(RATSB4_RL_CENTER, y, "RL", colorMdGrey);
+		CG_DrawTinyScoreStringColor(RATSB4_LG_CENTER, y, "LG", colorMdGrey);
+		CG_DrawTinyScoreStringColor(RATSB4_RG_CENTER, y, "RG", colorMdGrey);
+		CG_DrawTinyScoreStringColor(RATSB4_PG_CENTER, y, "PG", colorMdGrey);
+		#ifdef MISSIONPACK
+		CG_DrawTinyScoreStringColor(RATSB4_NG_X - 1.5 * SCORETINYCHAR_WIDTH, y, "NG", colorMdGrey);
+		CG_DrawTinyScoreStringColor(RATSB4_PL_X - 1.5 * SCORETINYCHAR_WIDTH, y, "PL", colorMdGrey);
+		CG_DrawTinyScoreStringColor(RATSB4_CG_X - 1.5 * SCORETINYCHAR_WIDTH, y, "CG", colorMdGrey);
+		#endif
+	}
+		
 	/*else if (ShowScoreboardNum() == 2) {
 		// show stats board instead of normal scoreboard
 		CG_DrawTinyScoreString(RATSB3_NAME_X, y, "Name", fade);

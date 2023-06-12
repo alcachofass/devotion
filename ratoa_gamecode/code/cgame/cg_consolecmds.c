@@ -234,8 +234,9 @@ static void CG_ScoresDown_f( void ) {
 #ifdef MISSIONPACK
 		CG_BuildSpectatorString();
 #endif
-	if ( cg.scoresRequestTime + 1000 < cg.time ) {
-		// the scores are more than 2s out of data,
+	//if ( cg.scoresRequestTime + 1000 < cg.time ) {
+	if ( cg.scoresRequestTime + 200 < cg.time ) {	//mrd - make scores updates snappier
+		// the scores are more than 200ms out of data,
 		// so request new ones
 		cg.scoresRequestTime = cg.time;
 
