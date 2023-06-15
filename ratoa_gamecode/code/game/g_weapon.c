@@ -675,7 +675,8 @@ void weapon_railgun_fire (gentity_t *ent) {
 	if(g_instantgib.integer)
 		damage = 800;
 
-	VectorMA (muzzle, 8192, forward, end);
+//	VectorMA (muzzle, 8192, forward, end);
+	VectorMA (muzzle, 8192*16, forward, end);	//mrd - let's go all the way, it's 2023, baby
 
 //unlagged - backward reconciliation #2
 	// backward-reconcile the other clients
@@ -750,23 +751,8 @@ void weapon_railgun_fire (gentity_t *ent) {
 	// the final trace endpos will be the terminal point of the rail trail
 
 	// snap the endpos to integers to save net bandwidth, but nudged towards the line
-	//mrd
-	/*
-	#if MRD_RGTRACE_DEBUG
-	trap_Printf( va( S_COLOR_GREEN "pre-snap X: %f\n", trace.endpos[0] ) );
-	trap_Printf( va( S_COLOR_GREEN "pre-snap Y: %f\n", trace.endpos[1] ) );
-	trap_Printf( va( S_COLOR_GREEN "pre-snap Z: %f\n", trace.endpos[2] ) );
-	#endif
-	*/
 	//SnapVectorTowards( trace.endpos, muzzle ); //mrd - fuck this
-	/*
-	#if MRD_RGTRACE_DEBUG
-	trap_Printf( va( S_COLOR_RED "post-snap X: %f\n", trace.endpos[0] ) );
-	trap_Printf( va( S_COLOR_RED "post-snap Y: %f\n", trace.endpos[1] ) );
-	trap_Printf( va( S_COLOR_RED "post-snap Z: %f\n", trace.endpos[2] ) );
-	#endif
-	*/
-		
+			
 	// send railgun beam effect
 	tent = G_TempEntity( trace.endpos, EV_RAILTRAIL );
 
@@ -871,8 +857,9 @@ void Weapon_LightningFire( gentity_t *ent ) {
 	damage = g_lgDamage.integer * s_quadFactor;
 
 	passent = ent->s.number;
-	for (i = 0; i < 10; i++) {
+	//for (i = 0; i < 10; i++) { //mrd - why is this loop even here? removing it seems to have no effect. #MRD_LGLOOP
 		VectorMA( muzzle, LIGHTNING_RANGE, forward, end );
+		VectorMA( muzzle, 4, right, muzzle );	//mrd - shift bolt a bit
 
 //Sago: I'm not sure this should recieve backward reconciliation. It is not a real instant hit weapon, it can normally be dogded
 //unlagged - backward reconciliation #2
@@ -922,7 +909,7 @@ void Weapon_LightningFire( gentity_t *ent ) {
 					VectorCopy( tr.endpos, muzzle );
 					passent = traceEnt->s.number;
 				}
-				continue;
+				//continue; //mrd - #MRD_LGLOOP
 			}
 			else {
 				if( LogAccuracyHit( traceEnt, ent ) ) {
@@ -947,8 +934,8 @@ void Weapon_LightningFire( gentity_t *ent ) {
 			tent->s.clientNum = ent->s.clientNum;
 		}
 
-		break;
-	}
+		//break; //mrd - #MRD_LGLOOP
+	//} //mrd - #MRD_LGLOOP
 }
 
 /*
@@ -1076,6 +1063,7 @@ void CalcMuzzlePoint ( gentity_t *ent, vec3_t forward, vec3_t right, vec3_t up, 
 	VectorCopy( ent->s.pos.trBase, muzzlePoint );
 	muzzlePoint[2] += ent->client->ps.viewheight;
 	VectorMA( muzzlePoint, 14, forward, muzzlePoint );
+	VectorMA( muzzlePoint, 4, right, muzzlePoint);	//mrd - shift it a bit
 	// snap to integer coordinates for more efficient network bandwidth usage
 	//SnapVector( muzzlePoint );
 }
@@ -1091,6 +1079,7 @@ void CalcMuzzlePointOrigin ( gentity_t *ent, vec3_t origin, vec3_t forward, vec3
 	VectorCopy( ent->s.pos.trBase, muzzlePoint );
 	muzzlePoint[2] += ent->client->ps.viewheight;
 	VectorMA( muzzlePoint, 14, forward, muzzlePoint );
+	VectorMA( muzzlePoint, 4, right, muzzlePoint);	//mrd - shift it a bit
 	// snap to integer coordinates for more efficient network bandwidth usage
 	//SnapVector( muzzlePoint );
 }

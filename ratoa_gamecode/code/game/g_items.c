@@ -532,7 +532,7 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 	}
 
 	G_LogPrintf( "Item: %i %s\n", other->s.number, ent->item->classname );
-	//G_Printf( "Client %i picked up %s\n", other->s.number, ent->item->classname ); //mrd
+	//G_Printf( "Client %i picked up %s\n", other->s.number, ent->item->classname ); //mrd - uncomment this line to print client p/u's to console
 	other->client->pers.items_collected[ITEM_INDEX(ent->item)]++;
 
 	predict = other->client->pers.predictItemPickup;
