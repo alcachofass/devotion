@@ -508,6 +508,7 @@ static void CG_RatDrawWeaponPUStats(int y, score_t *score, float *color, float f
 	CG_DrawSmallScoreString(RATSB4_LG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[3]), fade); //LG
 	CG_DrawSmallScoreString(RATSB4_RG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[4]), fade); //RG
 	CG_DrawSmallScoreString(RATSB4_PG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[5]), fade); //PG
+	CG_DrawSmallScoreString(RATSB4_BFG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[6]), fade); //BFG
 	#ifdef MISSIONPACK
 	CG_DrawSmallScoreString(RATSB4_NG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[7]), fade);
 	CG_DrawSmallScoreString(RATSB4_PL_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[8]), fade);
@@ -1129,6 +1130,7 @@ qboolean CG_DrawRatScoreboard(void) {
 		CG_DrawTinyScoreStringColor(RATSB4_LG_CENTER, y, "LG", colorMdGrey);
 		CG_DrawTinyScoreStringColor(RATSB4_RG_CENTER, y, "RG", colorMdGrey);
 		CG_DrawTinyScoreStringColor(RATSB4_PG_CENTER, y, "PG", colorMdGrey);
+		CG_DrawTinyScoreStringColor(RATSB4_BFG_CENTER, y, "BFG", colorMdGrey);
 		#ifdef MISSIONPACK
 		CG_DrawTinyScoreStringColor(RATSB4_NG_X - 1.5 * SCORETINYCHAR_WIDTH, y, "NG", colorMdGrey);
 		CG_DrawTinyScoreStringColor(RATSB4_PL_X - 1.5 * SCORETINYCHAR_WIDTH, y, "PL", colorMdGrey);
