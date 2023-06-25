@@ -1350,9 +1350,11 @@ void SendMotdAndHelpOnce(gentity_t *ent) {
 	Cmd_Motd_f(ent);
 }
 
+/*
 void Cmd_RatVersion_f( gentity_t *ent ) {
 	trap_SendServerCommand( ent - g_entities, va("print \" GAME version: %s\n\"", RATMOD_VERSION));
 }
+*/
 
 /*
 =================
@@ -2410,7 +2412,7 @@ void Cmd_SpecGame_f( gentity_t *ent ) {
 }
 #endif // WITH_MULTITOURNAMENT
 
-
+/*
 void Cmd_GoodGame_f( gentity_t *ent ) {
 	if (G_Forfeit(ent, qfalse)) {
 #ifdef WITH_MULTITOURNAMENT
@@ -2421,6 +2423,7 @@ void Cmd_GoodGame_f( gentity_t *ent ) {
 		G_Say(ent, NULL, SAY_ALL, "I give up, you win. Good Game!");
 	}
 }
+*/
 
 // delay until the player who dropped an item can pick it up again
 // to prevent immediately picking up a dropped item again
@@ -4585,7 +4588,7 @@ commands_t cmds[ ] =
   { "pause", 0, Cmd_Timeout_f },
   { "unpause", 0, Cmd_Timein_f },
 
-  { "gg", 0, Cmd_GoodGame_f },
+//{ "gg", 0, Cmd_GoodGame_f },
 
   { "drop", CMD_LIVING, Cmd_Drop_f },
   { "dropflag", CMD_LIVING, Cmd_Drop_flag },
@@ -4608,7 +4611,7 @@ commands_t cmds[ ] =
   { "help", 0, Cmd_Motd_f },
   { "nextmapvote", CMD_INTERMISSION|CMD_FLOODLIMITED, Cmd_NextmapVote_f },
   { "arena", 0, Cmd_Arena_f },
-  { "ratversion", 0, Cmd_RatVersion_f }
+// { "ratversion", 0, Cmd_RatVersion_f }
 #ifdef WITH_MULTITOURNAMENT
   ,
   { "game", 0, Cmd_Game_f },
