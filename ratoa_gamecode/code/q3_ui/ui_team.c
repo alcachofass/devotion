@@ -46,7 +46,7 @@ typedef struct
 	menutext_s		joingame;
 	menutext_s		spectate;
 	menutext_s		afk;
-	menutext_s		autofollow;
+//	menutext_s		autofollow;
 } teammain_t;
 
 static teammain_t	s_teammain;
@@ -97,10 +97,10 @@ static void TeamMain_MenuEvent( void* ptr, int event ) {
 		UI_ForceMenuOff();
 		break;
 
-	case ID_AUTOFOLLOW:
-		trap_Cmd_ExecuteText( EXEC_APPEND, "cmd team autofollow\n" );
-		UI_ForceMenuOff();
-		break;
+//	case ID_AUTOFOLLOW:
+//		trap_Cmd_ExecuteText( EXEC_APPEND, "cmd team autofollow\n" );
+//		UI_ForceMenuOff();
+//		break;
 	}
 }
 
@@ -168,7 +168,7 @@ void TeamMain_MenuInit( void ) {
 			|| gametype == GT_MULTITOURNAMENT
 #endif
 			) {
-		s_teammain.joingame.string           = "JOIN GAME/QUEUE";
+		s_teammain.joingame.string           = "JOIN GAME/(RE)QUEUE";
 	} else {
 		s_teammain.joingame.string           = "JOIN GAME";
 	}
@@ -182,7 +182,12 @@ void TeamMain_MenuInit( void ) {
 	s_teammain.spectate.generic.callback = TeamMain_MenuEvent;
 	s_teammain.spectate.generic.x        = 320;
 	s_teammain.spectate.generic.y        = y;
+	if (gametype == GT_TOURNAMENT) {
+	s_teammain.spectate.string           = "SPECTATE/QUEUE";
+	} else {
 	s_teammain.spectate.string           = "SPECTATE";
+	}
+
 	s_teammain.spectate.style            = UI_CENTER|UI_SMALLFONT;
 	s_teammain.spectate.color            = colorRed;
 	y += 20;
@@ -193,21 +198,26 @@ void TeamMain_MenuInit( void ) {
 	s_teammain.afk.generic.callback = TeamMain_MenuEvent;
 	s_teammain.afk.generic.x        = 320;
 	s_teammain.afk.generic.y        = y;
+	if (gametype == GT_TOURNAMENT) {
+	s_teammain.afk.string           = "AFK/LEAVE QUEUE";
+	} else {
 	s_teammain.afk.string           = "AFK";
+	}
 	s_teammain.afk.style            = UI_CENTER|UI_SMALLFONT;
 	s_teammain.afk.color            = colorRed;
 	y += 20;
 
-	s_teammain.autofollow.generic.type     = MTYPE_PTEXT;
-	s_teammain.autofollow.generic.flags    = QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
-	s_teammain.autofollow.generic.id       = ID_AUTOFOLLOW;
-	s_teammain.autofollow.generic.callback = TeamMain_MenuEvent;
-	s_teammain.autofollow.generic.x        = 320;
-	s_teammain.autofollow.generic.y        = y;
-	s_teammain.autofollow.string           = "AUTO-CAMERA";
-	s_teammain.autofollow.style            = UI_CENTER|UI_SMALLFONT;
-	s_teammain.autofollow.color            = colorRed;
-	y += 20;
+// AUTO-CAMERA seems to break the queue.
+//	s_teammain.autofollow.generic.type     = MTYPE_PTEXT;
+//	s_teammain.autofollow.generic.flags    = QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
+//	s_teammain.autofollow.generic.id       = ID_AUTOFOLLOW;
+//	s_teammain.autofollow.generic.callback = TeamMain_MenuEvent;
+//	s_teammain.autofollow.generic.x        = 320;
+//	s_teammain.autofollow.generic.y        = y;
+//	s_teammain.autofollow.string           = "AUTO-CAMERA";
+//	s_teammain.autofollow.style            = UI_CENTER|UI_SMALLFONT;
+//	s_teammain.autofollow.color            = colorRed;
+//	y += 20;
 
 			      
 	// set initial states
@@ -239,7 +249,7 @@ void TeamMain_MenuInit( void ) {
 	Menu_AddItem( &s_teammain.menu, (void*) &s_teammain.joingame );
 	Menu_AddItem( &s_teammain.menu, (void*) &s_teammain.spectate );
 	Menu_AddItem( &s_teammain.menu, (void*) &s_teammain.afk );
-	Menu_AddItem( &s_teammain.menu, (void*) &s_teammain.autofollow );
+//	Menu_AddItem( &s_teammain.menu, (void*) &s_teammain.autofollow );
 }
 
 

@@ -1457,21 +1457,22 @@ void SetTeam_Force( gentity_t *ent, char *s, gentity_t *by, qboolean tryforce ) 
 	if ( Q_strequal( s, "scoreboard" ) || Q_strequal( s, "score" )  ) {
 		team = TEAM_SPECTATOR;
 		specState = SPECTATOR_SCOREBOARD;
-	} else if ( Q_strequal( s, "follow1" ) ) {
-		team = TEAM_SPECTATOR;
-		specState = SPECTATOR_FOLLOW;
-		specClient = -1;
-	} else if ( Q_strequal( s, "follow2" ) ) {
-		team = TEAM_SPECTATOR;
-		specState = SPECTATOR_FOLLOW;
-		specClient = -2;
-	} else if ( Q_strequal( s, "autofollow" ) ) {
-		team = TEAM_SPECTATOR;
-		specState = SPECTATOR_FOLLOW;
-		specClient = -3;
+//	} else if ( Q_strequal( s, "follow1" ) ) {
+//		team = TEAM_SPECTATOR;
+//		specState = SPECTATOR_FOLLOW;
+//		specClient = -1;
+//	} else if ( Q_strequal( s, "follow2" ) ) {
+//		team = TEAM_SPECTATOR;
+//		specState = SPECTATOR_FOLLOW;
+//		specClient = -2;
+//	} else if ( Q_strequal( s, "autofollow" ) ) {
+//		team = TEAM_SPECTATOR;
+//		specState = SPECTATOR_FOLLOW;
+//		specClient = -3;
 	} else if ( Q_strequal( s, "spectator" ) || Q_strequal( s, "s" ) ) {
 		team = TEAM_SPECTATOR;
 		specState = SPECTATOR_FREE;
+		specGroup = SPECTATORGROUP_QUEUED;
 	} else if ((!G_IsTeamGametype()) 
 			&& (Q_strequal( s, "queue" ) || Q_strequal(s, "q")) ) {
 		team = TEAM_SPECTATOR;
@@ -1801,19 +1802,19 @@ void Cmd_Team_f( gentity_t *ent ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Red team\n\"" );
 			break;
 		case TEAM_FREE:
-			trap_SendServerCommand( ent-g_entities, "print \"Deathmatch-Playing\n\"" );
+			trap_SendServerCommand( ent-g_entities, "print \"In Game - Playing\n\"" );
 			break;
 		case TEAM_SPECTATOR:
 			switch ( oldSpecGroup ) {
 				case SPECTATORGROUP_AFK:
-					trap_SendServerCommand( ent-g_entities, "print \"Spectator team (AFK)\n\"" );
+					trap_SendServerCommand( ent-g_entities, "print \"Spectator team (AFK) - NOT queued\n\"" );
 					break;
 				case SPECTATORGROUP_SPEC:
-					trap_SendServerCommand( ent-g_entities, "print \"Spectator team\n\"" );
+					trap_SendServerCommand( ent-g_entities, "print \"Spectator team (Spec)- NOT queued\n\"" );
 					break;
 				case SPECTATORGROUP_QUEUED:
 				default:
-					trap_SendServerCommand( ent-g_entities, "print \"Spectator team (Queued)\n\"" );
+					trap_SendServerCommand( ent-g_entities, "print \"Spectator team (Queued) - Queued and will play soon\n\"" );
 					break;
 			}
 			break;
