@@ -163,15 +163,7 @@ void TeamMain_MenuInit( void ) {
 	s_teammain.joingame.generic.callback = TeamMain_MenuEvent;
 	s_teammain.joingame.generic.x        = 320;
 	s_teammain.joingame.generic.y        = y;
-	if (gametype == GT_TOURNAMENT
-#ifdef WITH_MULTITOURNAMENT
-			|| gametype == GT_MULTITOURNAMENT
-#endif
-			) {
-		s_teammain.joingame.string           = "JOIN GAME/(RE)QUEUE";
-	} else {
-		s_teammain.joingame.string           = "JOIN GAME";
-	}
+	s_teammain.joingame.string           = "JOIN GAME";
 	s_teammain.joingame.style            = UI_CENTER|UI_SMALLFONT;
 	s_teammain.joingame.color            = colorRed;
 	y += 20;
@@ -182,12 +174,7 @@ void TeamMain_MenuInit( void ) {
 	s_teammain.spectate.generic.callback = TeamMain_MenuEvent;
 	s_teammain.spectate.generic.x        = 320;
 	s_teammain.spectate.generic.y        = y;
-	if (gametype == GT_TOURNAMENT) {
-	s_teammain.spectate.string           = "SPECTATE/QUEUE";
-	} else {
 	s_teammain.spectate.string           = "SPECTATE";
-	}
-
 	s_teammain.spectate.style            = UI_CENTER|UI_SMALLFONT;
 	s_teammain.spectate.color            = colorRed;
 	y += 20;
@@ -198,11 +185,7 @@ void TeamMain_MenuInit( void ) {
 	s_teammain.afk.generic.callback = TeamMain_MenuEvent;
 	s_teammain.afk.generic.x        = 320;
 	s_teammain.afk.generic.y        = y;
-	if (gametype == GT_TOURNAMENT) {
-	s_teammain.afk.string           = "AFK/LEAVE QUEUE";
-	} else {
 	s_teammain.afk.string           = "AFK";
-	}
 	s_teammain.afk.style            = UI_CENTER|UI_SMALLFONT;
 	s_teammain.afk.color            = colorRed;
 	y += 20;

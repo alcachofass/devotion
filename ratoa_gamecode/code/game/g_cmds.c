@@ -1473,11 +1473,11 @@ void SetTeam_Force( gentity_t *ent, char *s, gentity_t *by, qboolean tryforce ) 
 		team = TEAM_SPECTATOR;
 		specState = SPECTATOR_FREE;
 		specGroup = SPECTATORGROUP_QUEUED;
-	} else if ((!G_IsTeamGametype()) 
-			&& (Q_strequal( s, "queue" ) || Q_strequal(s, "q")) ) {
-		team = TEAM_SPECTATOR;
-		specState = SPECTATOR_FREE;
-		specGroup = SPECTATORGROUP_QUEUED;
+//	} else if ((!G_IsTeamGametype()) 
+//			&& (Q_strequal( s, "queue" ) || Q_strequal(s, "q")) ) {
+//		team = TEAM_SPECTATOR;
+//		specState = SPECTATOR_FREE;
+//		specGroup = SPECTATORGROUP_QUEUED;
 	} else if ( Q_strequal( s, "afk" ) || Q_strequal(s, "a") ) {
 		team = TEAM_SPECTATOR;
 		specState = SPECTATOR_FREE;
@@ -1805,18 +1805,24 @@ void Cmd_Team_f( gentity_t *ent ) {
 			trap_SendServerCommand( ent-g_entities, "print \"In Game - Playing\n\"" );
 			break;
 		case TEAM_SPECTATOR:
-			switch ( oldSpecGroup ) {
-				case SPECTATORGROUP_AFK:
-					trap_SendServerCommand( ent-g_entities, "print \"Spectator team (AFK) - NOT queued\n\"" );
-					break;
-				case SPECTATORGROUP_SPEC:
-					trap_SendServerCommand( ent-g_entities, "print \"Spectator team (Spec)- NOT queued\n\"" );
-					break;
-				case SPECTATORGROUP_QUEUED:
-				default:
-					trap_SendServerCommand( ent-g_entities, "print \"Spectator team (Queued) - Queued and will play soon\n\"" );
-					break;
-			}
+			trap_SendServerCommand( ent-g_entities, "print \"Spectator\n\"" );
+//			switch ( oldSpecGroup ) {
+//				case SPECTATORGROUP_AFK:
+//					trap_SendServerCommand( ent-g_entities, "print \"Spectator team (AFK) - NOT queued\n\"" );
+//					break;
+//				case SPECTATORGROUP_SPEC:
+//					trap_SendServerCommand( ent-g_entities, "print \"Spectator team (Spec)- NOT queued\n\"" );
+//					break;
+//				case SPECTATORGROUP_QUEUED:
+//					trap_SendServerCommand( ent-g_entities, "print \"Spectator team (Queued) - Queued and will play soon\n\"" );
+//					break;
+//				default:
+//					trap_SendServerCommand( ent-g_entities, "print \"Spectator team (Spec) - NOT queued\n\"" );
+//					break;
+//			}
+			break;
+		default:
+			trap_SendServerCommand( ent-g_entities, "print \"ERROR: Cmd_Team_f() hit the default case!!! \n\"" );
 			break;
 		}
 		return;
@@ -1864,7 +1870,7 @@ Cmd_Follow_f
 void Cmd_Follow_f( gentity_t *ent ) {
 	int		i;
 	char	arg[MAX_TOKEN_CHARS];
-	
+
 	if ( trap_Argc() != 2 ) {
 		if ( ent->client->sess.spectatorState == SPECTATOR_FOLLOW ) {
 			StopFollowing( ent );
@@ -1872,43 +1878,30 @@ void Cmd_Follow_f( gentity_t *ent ) {
 		return;
 	}
 
-
 	trap_Argv( 1, arg, sizeof( arg ) );
 	i = ClientNumberFromString( ent, arg );
 	if ( i == -1 ) {
 		return;
 	}
 
-	
-
 	// can't follow self
 	if ( &level.clients[ i ] == ent->client ) {
 		return;
 	}
 
-	// can't follow another spectator (or an eliminated player)
-	if ( (level.clients[ i ].sess.sessionTeam == TEAM_SPECTATOR) || level.clients[ i ].isEliminated) {
+	// can't follow another spectator
+	if ( level.clients[ i ].sess.sessionTeam == TEAM_SPECTATOR ) {
 		return;
 	}
-
-        if ( G_IsElimTeamGT() && g_elimination_lockspectator.integer
-            &&  ((ent->client->sess.sessionTeam == TEAM_RED && level.clients[ i ].sess.sessionTeam == TEAM_BLUE) ||
-                 (ent->client->sess.sessionTeam == TEAM_BLUE && level.clients[ i ].sess.sessionTeam == TEAM_RED) ) ) {
-            return;
-        }
 
 	// if they are playing a tournement game, count as a loss
 	if ( (g_gametype.integer == GT_TOURNAMENT )
 		&& ent->client->sess.sessionTeam == TEAM_FREE ) {
 		ent->client->sess.losses++;
 	}
-#ifdef WITH_MULTITOURNAMENT
-	G_MultiTrnSpecLoss(ent);
-#endif
 
 	// first set them to spectator
-	//if ( ent->client->sess.sessionTeam != TEAM_SPECTATOR ) {
-	if ( ent->client->sess.spectatorState == SPECTATOR_NOT ) {
+	if ( ent->client->sess.sessionTeam != TEAM_SPECTATOR ) {
 		SetTeam( ent, "spectator" );
 	}
 
@@ -1935,82 +1928,41 @@ KK-OAX Modified to trap arguments.
 void Cmd_FollowCycle_f( gentity_t *ent ) {
 	int		clientnum;
 	int		original;
-    int     count;
-    char    args[11];
-    int     dir;
 
-    if( ent->client->sess.sessionTeam == TEAM_NONE ) {
-        dir = 1;
-    }
-    
-    trap_Argv( 0, args, sizeof( args ) );
-    if( Q_strequal( args, "followprev" )) {
-        dir = -1;
-    } else if( Q_strequal( args, "follownext" )) {
-        dir = 1;
-    } else {
-        dir = 1;
-    }
-    
 	// if they are playing a tournement game, count as a loss
 	if ( (g_gametype.integer == GT_TOURNAMENT )
 		&& ent->client->sess.sessionTeam == TEAM_FREE ) {
 		ent->client->sess.losses++;
 	}
-#ifdef WITH_MULTITOURNAMENT
-	G_MultiTrnSpecLoss(ent);
-#endif
-
 	// first set them to spectator
 	if ( ent->client->sess.spectatorState == SPECTATOR_NOT ) {
 		SetTeam( ent, "spectator" );
 	}
-
+/*
 	if ( dir != 1 && dir != -1 ) {
 		G_Error( "Cmd_FollowCycle_f: bad dir %i", dir );
 	}
-
+*/
 	clientnum = ent->client->sess.spectatorClient;
 	original = clientnum;
-        count = 0;
 	do {
-		clientnum += dir;
-                count++;
+		clientnum += 1;    //queue work
 		if ( clientnum >= level.maxclients ) {
 			clientnum = 0;
 		}
 		if ( clientnum < 0 ) {
 			clientnum = level.maxclients - 1;
 		}
-                
-                if(count>level.maxclients) //We have looked at all clients at least once and found nothing
-                    return; //We might end up in an infinite loop here. Stop it!
-                
+
 		// can only follow connected clients
 		if ( level.clients[ clientnum ].pers.connected != CON_CONNECTED ) {
 			continue;
 		}
 
 		// can't follow another spectator
-		if ( (level.clients[ clientnum ].sess.sessionTeam == TEAM_SPECTATOR) || level.clients[ clientnum ].isEliminated) {
+		if ( level.clients[ clientnum ].sess.sessionTeam == TEAM_SPECTATOR ) {
 			continue;
 		}
-
-                //Stop players from spectating players on the enemy team in elimination modes.
-                if ( G_IsElimTeamGT() && g_elimination_lockspectator.integer
-                    &&  ((ent->client->sess.sessionTeam == TEAM_RED && level.clients[ clientnum ].sess.sessionTeam == TEAM_BLUE) ||
-                         (ent->client->sess.sessionTeam == TEAM_BLUE && level.clients[ clientnum ].sess.sessionTeam == TEAM_RED) ) ) {
-                    continue;
-                }
-
-#ifdef WITH_MULTITOURNAMENT
-		// only cycle through players in the current current game if specOnlyCurrentGameId is set
-		if (g_gametype.integer == GT_MULTITOURNAMENT && ent->client->sess.gameId >= 0
-				&& ent->client->sess.specOnlyCurrentGameId
-				&& level.clients[ clientnum ].sess.gameId != ent->client->sess.gameId) {
-			continue;
-		}
-#endif
 
 		// this is good, we can use it
 		ent->client->sess.spectatorClient = clientnum;
@@ -2018,7 +1970,7 @@ void Cmd_FollowCycle_f( gentity_t *ent ) {
 		return;
 	} while ( clientnum != original );
 
-	// leave it where it was
+	// leave it where it was	
 }
 
 int timeoutend_minutes(void) {

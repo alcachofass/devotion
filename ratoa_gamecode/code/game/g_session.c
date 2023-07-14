@@ -158,7 +158,7 @@ void G_InitSessionData( gclient_t *client, char *userinfo, qboolean firstTime,
 	sess = &client->sess;
 
 	if (g_gametype.integer == GT_TOURNAMENT) {
-		sess->spectatorState = SPECTATOR_FREE;
+		//sess->spectatorState = SPECTATOR_FREE;
 		sess->spectatorGroup = SPECTATORGROUP_QUEUED;    //DUFFMAN91 - On tourney join, set spectatorGroup and spectatorState immediately. 
 
 		// \team q will set these three values:

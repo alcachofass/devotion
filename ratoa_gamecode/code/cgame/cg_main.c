@@ -772,8 +772,8 @@ static cvarTable_t cvarTable[] = { // bk001129
 
 	// either color name ("green", "white"), color index, or 
 	// HSV color in the format 'H125 1.0 1.0" (H<H> <S> <V>)
-	{ &cg_enemyColor ,     "cg_enemyColor", "", CVAR_ARCHIVE},
-	{ &cg_enemyColors, "cg_enemyColors", "", CVAR_ARCHIVE},
+	{ &cg_enemyColor ,     "cg_enemyColor", "green", CVAR_ARCHIVE},
+	{ &cg_enemyColors, "cg_enemyColors", "22222", CVAR_ARCHIVE},
 	{ &cg_teamColor ,      "cg_teamColor", "", CVAR_ARCHIVE},
 	{ &cg_teamColors ,      "cg_teamColors", "", CVAR_ARCHIVE},
 	{ &cg_enemyHeadColor ,     "cg_enemyHeadColor", "", CVAR_ARCHIVE},
