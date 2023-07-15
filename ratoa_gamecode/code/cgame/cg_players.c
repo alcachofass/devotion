@@ -756,7 +756,7 @@ static const char *CG_GetTeamColorsOSP( const char *color, team_t team ) {
 	switch ( team ) {
 		case TEAM_RED:  replace1( '?', '1', str ); break;
 		case TEAM_BLUE: replace1( '?', '4', str ); break;
-		case TEAM_FREE: replace1( '?', '7', str ); break;
+		case TEAM_FREE: replace1( '?', '2', str ); break;          // duffman91 - This was white '7', now it is green '2'. 
 		default: break;
     }
 
