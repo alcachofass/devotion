@@ -1028,7 +1028,8 @@ void ClientEvents( gentity_t *ent, int oldEventSequence ) {
 				}
 			}
 */
-			SelectSpawnPoint( ent, ent->client->ps.origin, origin, angles );
+			//SelectSpawnPoint( ent, ent->client->ps.origin, origin, angles );
+			SelectSpawnPoint( ent, ent->client->ps.origin, origin, angles, 0 );	//mrd
 			TeleportPlayer( ent, origin, angles );
 			break;
 
@@ -1535,6 +1536,9 @@ void ClientThink_real( gentity_t *ent ) {
     pm.pmove_ratflags = g_altFlags.integer;
     pm.pmove_movement = g_movement.integer;
 	pm.pmove_autohop = pmove_autohop.integer;
+	pm.hitBoxScale = g_hitBoxScale.value;	//mrd
+	pm.vortexGrenade = g_vortexGrenade.integer;	//mrd - for adjusting reload times
+	pm.vortexGrenadeRadius = g_vortexGrenadeRadius.integer;	//mrd - for drawing beam effect
 
 	VectorCopy( client->ps.origin, client->oldOrigin );
 

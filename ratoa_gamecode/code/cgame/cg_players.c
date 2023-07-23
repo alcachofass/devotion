@@ -998,7 +998,6 @@ static void CG_SetDeferredClientInfo( int clientNum, clientInfo_t *ci ) {
 		if ( !match->infoValid ) {
 			continue;
 		}
-
 		ci->deferred = qtrue;
 		CG_CopyClientInfoModel( match, ci );
 		return;

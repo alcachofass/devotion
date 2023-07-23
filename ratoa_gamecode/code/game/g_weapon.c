@@ -246,7 +246,8 @@ void Bullet_Fire (gentity_t *ent, float spread, int damage ) {
 		G_DoTimeShiftFor( ent );
 //unlagged - backward reconciliation #2
 
-		trap_Trace (&tr, muzzle, NULL, NULL, end, passent, MASK_SHOT);
+		//trap_Trace (&tr, muzzle, NULL, NULL, end, passent, MASK_SHOT);	//mrd
+		trap_Trace (&tr, muzzle, NULL, NULL, end, ENTITYNUM_NONE, MASK_SHOT);	//mrd - allow someone to shoot their own missiles for G_MissileDie()
                 
 //unlagged - backward reconciliation #2
 		// put them back
@@ -417,7 +418,8 @@ qboolean ShotgunPellet( vec3_t start, vec3_t end, gentity_t *ent, struct hitShot
 	VectorCopy( start, tr_start );
 	VectorCopy( end, tr_end );
 	for (i = 0; i < 10; i++) {
-		trap_Trace (&tr, tr_start, NULL, NULL, tr_end, passent, MASK_SHOT);
+		//trap_Trace (&tr, tr_start, NULL, NULL, tr_end, passent, MASK_SHOT);	//mrd
+		trap_Trace (&tr, tr_start, NULL, NULL, tr_end, ENTITYNUM_NONE, MASK_SHOT);	//mrd - allow SG to damage vulnerable missiles for G_MissileDie()
 		traceEnt = &g_entities[ tr.entityNum ];
 
 		// send bullet impact
@@ -688,7 +690,9 @@ void weapon_railgun_fire (gentity_t *ent) {
 	hits = 0;
 	passent = ent->s.number;
 	do {
-		trap_Trace (&trace, muzzle, NULL, NULL, end, passent, MASK_SHOT );
+		//trap_Trace (&trace, muzzle, NULL, NULL, end, passent, MASK_SHOT );	//mrd
+		trap_Trace (&trace, muzzle, NULL, NULL, end, ENTITYNUM_NONE, MASK_SHOT );	//mrd - allow shooter of missiles to hit their own missiles for G_MissileDie()
+
 		if ( trace.entityNum >= ENTITYNUM_MAX_NORMAL ) {
 			if (g_railJump.integer) {
 				G_RailJump( trace.endpos, ent );
@@ -696,6 +700,7 @@ void weapon_railgun_fire (gentity_t *ent) {
 			break;
 		}
 		traceEnt = &g_entities[ trace.entityNum ];
+		//traceEnt->client->pers.
 		if ( traceEnt->takedamage ) {
 			if ( traceEnt->client && traceEnt->client->invulnerabilityTime > level.time ) {
 				/*
@@ -720,7 +725,8 @@ void weapon_railgun_fire (gentity_t *ent) {
 				*/
 			}
 			else {
-				if( LogAccuracyHit( traceEnt, ent ) ) {
+				//if( LogAccuracyHit( traceEnt, ent ) ) {	//mrd
+				if( LogAccuracyHit( traceEnt, ent ) && (traceEnt->s.eFlags != ET_MISSILE) ) {	//mrd - don't log accuracy hits for shooting missiles
 					hits++;
 				}
 				G_Damage (traceEnt, ent, ent, forward, trace.endpos, damage, 0, MOD_RAILGUN);
@@ -859,7 +865,7 @@ void Weapon_LightningFire( gentity_t *ent ) {
 	passent = ent->s.number;
 	//for (i = 0; i < 10; i++) { //mrd - why is this loop even here? removing it seems to have no effect. #MRD_LGLOOP
 		VectorMA( muzzle, LIGHTNING_RANGE, forward, end );
-		VectorMA( muzzle, 4, right, muzzle );	//mrd - shift bolt a bit
+		//VectorMA( muzzle, 4, right, muzzle );	//mrd - shift bolt a bit
 
 //Sago: I'm not sure this should recieve backward reconciliation. It is not a real instant hit weapon, it can normally be dogded
 //unlagged - backward reconciliation #2
@@ -867,7 +873,8 @@ void Weapon_LightningFire( gentity_t *ent ) {
 	G_DoTimeShiftFor( ent );
 //unlagged - backward reconciliation #2
 
-		trap_Trace( &tr, muzzle, NULL, NULL, end, passent, MASK_SHOT );
+		//trap_Trace( &tr, muzzle, NULL, NULL, end, passent, MASK_SHOT );	//mrd
+		trap_Trace( &tr, muzzle, NULL, NULL, end, ENTITYNUM_NONE, MASK_SHOT );	//mrd - let LG damage vulnerable missiles for G_MissileDie()
 
 //unlagged - backward reconciliation #2
 	// put them back
@@ -1063,7 +1070,7 @@ void CalcMuzzlePoint ( gentity_t *ent, vec3_t forward, vec3_t right, vec3_t up, 
 	VectorCopy( ent->s.pos.trBase, muzzlePoint );
 	muzzlePoint[2] += ent->client->ps.viewheight;
 	VectorMA( muzzlePoint, 14, forward, muzzlePoint );
-	VectorMA( muzzlePoint, 4, right, muzzlePoint);	//mrd - shift it a bit
+	//VectorMA( muzzlePoint, 4, right, muzzlePoint);	//mrd - shift it a bit
 	// snap to integer coordinates for more efficient network bandwidth usage
 	//SnapVector( muzzlePoint );
 }
@@ -1079,7 +1086,7 @@ void CalcMuzzlePointOrigin ( gentity_t *ent, vec3_t origin, vec3_t forward, vec3
 	VectorCopy( ent->s.pos.trBase, muzzlePoint );
 	muzzlePoint[2] += ent->client->ps.viewheight;
 	VectorMA( muzzlePoint, 14, forward, muzzlePoint );
-	VectorMA( muzzlePoint, 4, right, muzzlePoint);	//mrd - shift it a bit
+	//VectorMA( muzzlePoint, 4, right, muzzlePoint);	//mrd - shift it a bit
 	// snap to integer coordinates for more efficient network bandwidth usage
 	//SnapVector( muzzlePoint );
 }

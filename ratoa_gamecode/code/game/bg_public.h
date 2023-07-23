@@ -267,6 +267,9 @@ typedef struct {
 
 	//Devotion
         int                     pmove_autohop;
+		float					hitBoxScale;		//mrd
+		int						vortexGrenade;		//mrd - for adjusting GL reload time
+		int						vortexGrenadeRadius;	//mrd - for drawing beam effect
 } pmove_t;
 
 // if a full pmove isn't done on the client, you can just update the angles
@@ -356,6 +359,7 @@ typedef enum {
 #define	EF_AWARD_ASSIST		0x00020000		// draw a assist sprite
 #define EF_AWARD_DENIED		0x00040000		// denied
 #define EF_TEAMVOTED		0x00080000		// already cast a team vote
+#define	EF_VORTEX_BOUNCE	0x00100000		//mrd - vortex grenades bounce differently
 
 // Additional awards (not visible to other players)
 /*
@@ -593,6 +597,7 @@ typedef enum {
 	EV_RAILTRAIL,
 	EV_SHOTGUN,
 	EV_BULLET,				// otherEntity is the shooter
+	EV_VORTEXGRENADE,		//mrd - for vortex grenade bounces
 
 	EV_PAIN,
 	EV_DEATH1,

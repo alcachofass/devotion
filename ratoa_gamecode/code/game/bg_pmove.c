@@ -1637,16 +1637,36 @@ static void PM_CheckDuck (void)
 	}*/
 	//pm->ps->pm_flags &= ~PMF_INVULEXPAND;
 
+	//mrd - hitbox scaling
+	//clamp values to 0.6 <=> 1.3
+	/*
+	if (pm->hitBoxScale < 0.6) {
+		pm->hitBoxScale = 0.6;
+	}
+	if (pm->hitBoxScale > 1.3) {
+		pm->hitBoxScale = 1.3;
+	}
+	*/
+
 	pm->mins[0] = -15;
 	pm->mins[1] = -15;
 
+	//pm->mins[0] = -( (32 * pm->hitBoxScale) / 2);	//mrd
+	//pm->mins[1] = -( (32 * pm->hitBoxScale) / 2);	//mrd
+
 	pm->maxs[0] = 15;
 	pm->maxs[1] = 15;
+	
+	//pm->maxs[0] = ( (32 * pm->hitBoxScale) / 2);	//mrd
+	//pm->maxs[1] = ( (32 * pm->hitBoxScale) / 2);	//mrd
 
 	pm->mins[2] = MINS_Z;
+	//mrd - don't scale floor plane otherwise it will breach through brushes, etc. 
 
 	if (pm->ps->pm_type == PM_DEAD && !(pm->ps->stats[STAT_FROZENSTATE] & FROZENSTATE_FROZEN))
 	{
+		//mrd - don't scale z-height of corpses or... frozen players?
+		//this bit about frozen players seems wrong... will look later.
 		pm->maxs[2] = -8;
 		pm->ps->viewheight = DEAD_VIEWHEIGHT;
 		return;
@@ -1662,9 +1682,13 @@ static void PM_CheckDuck (void)
 		{
 			// try to stand up
 			pm->maxs[2] = 32;
+			
+			//pm->maxs[2] = 32 * pm->hitBoxScale;	//mrd
+			//Com_Printf("Attempted to stand up in PM_CheckDuck().\n");	//mrd - debug	
 			pm->trace (&trace, pm->ps->origin, pm->mins, pm->maxs, pm->ps->origin, pm->ps->clientNum, pm->tracemask );
 			if (!trace.allsolid) {
 				pm->ps->pm_flags &= ~PMF_DUCKED;
+				//Com_Printf("Stand up successful in PM_CheckDuck().\n");	//mrd - debug	
 				if (pm->pmove_ratflags & RAT_CROUCHSLIDE) {
 					// pm->ps->stats[STAT_EXTFLAGS] &= ~EXTFL_SLIDING;
 					pm->ps->stats[STAT_SLIDETIMEOUT] = crouchGraceTime;
@@ -1680,7 +1704,8 @@ static void PM_CheckDuck (void)
 	}
 	else
 	{
-		pm->maxs[2] = 32;
+		//pm->maxs[2] = 32;
+		pm->maxs[2] = 32 * pm->hitBoxScale;	//mrd
 		pm->ps->viewheight = DEFAULT_VIEWHEIGHT;
 	}
 }
@@ -2091,8 +2116,12 @@ static void PM_Weapon( void ) {
 	case WP_MACHINEGUN:
 		addTime = 100;
 		break;
-	case WP_GRENADE_LAUNCHER:
-		addTime = 800;
+	case WP_GRENADE_LAUNCHER:	//mrd - slow GL with vortex mode
+		if (pm->vortexGrenade == 1) {
+			addTime = 1500;
+		} else {
+			addTime = 800;
+		}
 		break;
 	case WP_ROCKET_LAUNCHER:
 		addTime = 800;

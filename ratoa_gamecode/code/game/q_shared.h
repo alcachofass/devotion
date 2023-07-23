@@ -1324,6 +1324,8 @@ typedef struct entityState_s {
 	int		torsoAnim;		// mask off ANIM_TOGGLEBIT
 
 	int		generic1;
+
+	//int		vortexGrenadeRadius;	//mrd - for client side beam drawing
 } entityState_t;
 
 typedef enum {

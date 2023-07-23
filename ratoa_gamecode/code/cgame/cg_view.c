@@ -298,8 +298,9 @@ static void CG_StepOffset( void ) {
 	// smooth out stair climbing
 	timeDelta = cg.time - cg.stepTime;
 	if ( timeDelta < STEP_TIME ) {
-		cg.refdef.vieworg[2] -= cg.stepChange 
-			* (STEP_TIME - timeDelta) / STEP_TIME;
+		//Com_Printf("^3Viewheight pre-sag: %f\n",cg.refdef.vieworg[2]);	//mrd - test
+		cg.refdef.vieworg[2] -= cg.stepChange * (STEP_TIME - timeDelta) / STEP_TIME;	//mrd
+		//Com_Printf("^5Viewheight post-sag: %f, sag: %f\n",cg.refdef.vieworg[2], (cg.stepChange * (STEP_TIME - timeDelta) / STEP_TIME));	//mrd - test
 	}
 }
 

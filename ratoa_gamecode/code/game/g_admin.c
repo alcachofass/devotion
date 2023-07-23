@@ -4242,6 +4242,7 @@ static void admin_railtrail_dir(vec3_t target, vec3_t dir, vec_t dist, gentity_t
 }
 
 static void admin_star_railtrails(gentity_t *attacker, gentity_t *victim) {
+//void admin_star_railtrails(gentity_t *attacker, gentity_t *victim, vec_t dist) {  //mrd - we want to access this from g_missile.c for the Vortex Grenade radius star
 	vec3_t dir;
 	vec_t dist = 100;
 
@@ -4340,6 +4341,7 @@ qboolean G_admin_frag( gentity_t *ent, int skiparg )
 		}
 	}
 	admin_star_railtrails(ent, vic);
+  //admin_star_railtrails(ent, vic, 100); //mrd - hard code distance value for this call
 	G_Damage(vic, NULL, NULL, NULL, NULL, 100000, DAMAGE_NO_PROTECTION, MOD_UNKNOWN);
 	if (vic->health > 0) {
 		ent->flags &= ~FL_GODMODE;

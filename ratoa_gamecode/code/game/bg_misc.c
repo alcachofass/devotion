@@ -1663,6 +1663,7 @@ const char *eventnames[] = {
 	"EV_RAILTRAIL",
 	"EV_SHOTGUN",
 	"EV_BULLET",				// otherEntity is the shooter
+	"EV_VORTEXGRENADE",		//mrd
 
 	"EV_PAIN",
 	"EV_DEATH1",

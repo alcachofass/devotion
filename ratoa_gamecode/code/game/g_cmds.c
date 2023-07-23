@@ -2134,12 +2134,12 @@ void G_Timeout(gentity_t *caller) {
 
 void Cmd_Timeout_f( gentity_t *ent ) {
 	if ( !g_timeoutAllowed.integer ) {
-		trap_SendServerCommand(ent-g_entities,va("cp \"" S_COLOR_CYAN "timeout not allowed\"" ) );
+		trap_SendServerCommand(ent-g_entities,va("cp \"" S_COLOR_CYAN "Timeout not allowed.\"" ));
 		return;
 	}
 
 	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR) {
-		trap_SendServerCommand(ent-g_entities,va("cp \"" S_COLOR_CYAN "timeout not allowed as spectator\"" ) );
+		trap_SendServerCommand(ent-g_entities,va("cp \"" S_COLOR_CYAN "Timeout not allowed as spectator.\"" ) );
 		return;
 	}
 	if ( !(ent->client->timeouts < g_timeoutAllowed.integer) ) {
@@ -2162,9 +2162,9 @@ void G_TimeinCommand(gentity_t *caller) {
 	}
 
 
-	trap_SendServerCommand(-1,va("cp \"%s" S_COLOR_CYAN " unpaused.\nGame continues in 6s\"", 
+	trap_SendServerCommand(-1,va("cp \"%s" S_COLOR_CYAN " unpaused.\nGame continues in 6s.\"", 
 				caller->client->pers.netname));
-	trap_SendServerCommand(-1,va("print \"%s" S_COLOR_CYAN " unpaused.\n\"", 
+	trap_SendServerCommand(-1,va("print \"%s" S_COLOR_CYAN " unpaused.\n\"",
 				caller->client->pers.netname));
 
 	level.timein = qtrue;
