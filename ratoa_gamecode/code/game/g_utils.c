@@ -504,12 +504,24 @@ gentity_t *G_TempEntity( vec3_t origin, int event ) {
 	e = G_Spawn();
 	e->s.eType = ET_EVENTS + event;
 
+	if (g_vortexGrenade.integer == 1){
+		e->s.eventParm = g_vortexGrenadeRadius.integer;	//mrd 
+	}
+
 	e->classname = "tempEntity";
 	e->eventTime = level.time;
 	e->freeAfterEvent = qtrue;
 
 	VectorCopy( origin, snapped );
+	/* //mrd
+	if (event == EV_RAILTRAIL) {	//mrd - testing RG trail beam origins versus trace origins
+		Com_Printf("RG trail pre-snap coords: %f %f %f\n", origin[0],origin[1],origin[2]);
+	}
 	SnapVector( snapped );		// save network bandwidth
+	if (event == EV_RAILTRAIL) {	//mrd - testing RG trail beam origins versus trace origins
+		Com_Printf("RG trail post-snap coords: %f %f %f\n", snapped[0], snapped[1], snapped[2]);
+	}
+	*/ //mrd
 	G_SetOrigin( e, snapped );
 
 	// find cluster for PVS
@@ -799,3 +811,34 @@ void G_LinkGameId(int gameId) {
 	level.currentGameId = gameId;
 }
 #endif // WITH_MULTITOURNAMENT
+
+/*
+================
+G_FindRadius
+//mrd
+Locate an entity within a given radius. Used for vortex grenades.
+Credits for this block of code go to AssKicka (Code3Arena)
+================
+*/
+
+gentity_t *G_FindRadius(gentity_t *target, vec3_t grenadeOrigin, float radius) {
+	vec3_t	enemyOrigin;	//entity we're checking against
+	int		j;
+
+	if (!target)
+		target = g_entities;
+	else
+		target++;
+
+	for (; target < &g_entities[level.num_entities]; target++) {
+		if (!target->inuse)
+			continue;
+		VectorSubtract(grenadeOrigin,target->r.currentOrigin,enemyOrigin);
+		if (VectorLength(enemyOrigin) > radius) {
+			continue;	//target is outside radius
+		}
+		return target;
+			
+	}
+	return NULL;
+}

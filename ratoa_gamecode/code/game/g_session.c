@@ -165,7 +165,6 @@ void G_InitSessionData( gclient_t *client, char *userinfo, qboolean firstTime,
 		//    team = TEAM_SPECTATOR;
 		//    specState = SPECTATOR_FREE;
 		//    specGroup = SPECTATORGROUP_QUEUED;
-
 	} else {
 		sess->spectatorGroup = SPECTATORGROUP_SPEC;
 	}

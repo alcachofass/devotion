@@ -197,7 +197,7 @@ void G_BounceMissile( gentity_t *ent, trace_t *trace ) {
 	vec3_t	velocity;
 	float	dot;
 	int	hitTime;
-
+	
 	// reflect the velocity on the trace plane
 	hitTime = level.previousTime + ( level.time - level.previousTime ) * trace->fraction;
 	BG_EvaluateTrajectoryDelta( &ent->s.pos, hitTime, velocity );
@@ -210,6 +210,16 @@ void G_BounceMissile( gentity_t *ent, trace_t *trace ) {
 		if ( trace->plane.normal[2] > 0.2 && VectorLength( ent->s.pos.trDelta ) < 40 ) {
 			G_SetOrigin( ent, trace->endpos );
                         ent->s.time = level.time / 4;
+			return;
+		}
+	}
+
+	if ( ent->s.eFlags & EF_VORTEX_BOUNCE ) {
+		VectorScale( ent->s.pos.trDelta, 0.75, ent->s.pos.trDelta );	//mrd - less momentum subtracted on a vortex bounce
+		// check for stop
+		if ( trace->plane.normal[2] > 0.2 && VectorLength( ent->s.pos.trDelta ) < 125 ) {
+			G_SetOrigin( ent, trace->endpos );
+                        //ent->s.time = level.time / 4;		//mrd - unclear why this is here
 			return;
 		}
 	}
@@ -351,6 +361,160 @@ void G_ExplodeMissile( gentity_t *ent ) {
 
 	//G_CheckKamikazeAward(ent->parent, ownerKills, ownerDeaths);
 }
+
+/*
+================
+G_MissileDie
+//mrd
+Destroy a missile
+Credits go to Lancer (Code3Arena) and Chris Hilton (QDevels) for this code
+================
+*/
+void G_MissileDie( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod) {
+	if (inflictor == self)
+		return;
+	if (g_vulnerableMissiles.integer == 0)	//mrd - check for cvar
+		return;
+	self->takedamage = qfalse;
+	self->think = G_ExplodeMissile;
+	self->nextthink = level.time + 3;
+
+}
+
+/*
+================
+G_VortexGrenade
+//mrd
+Grenades pull a target in
+Credits go to AssKicka (Code3Arena) for the basis of this code.
+Physics related lines were tweaked as original code was:
+-tugging against player origin rather than trajectory base,
+-forcing player direction rather than merely influencing trajactory
+
+Also added many control methods behind g_vortexGrenade* cvar set
+================
+*/
+#define VORTEXGRENADE_TIMING	125
+#define VORTEXGRENADE_TRIGGER	56		//mrd - bounding box size for triggering the proximity effect
+#define VORTEXGRENADE_DELTA		200		//mrd - don't trigger proximity effect unless grenade trajectory has slowed a bit
+
+static void G_VortexGrenade( gentity_t *self) {
+	gentity_t *target, *tent, *trigger; //tent = temp entity for visual beam trace effect, trigger = prox effect
+	vec3_t start, dir, end, kickVelocity, mins, maxs, grenadeVelocity;
+	int targNum[MAX_GENTITIES], num, i, r;
+	vec3_t traceEndPos[3];	//fwd, right, up - derive new vectors from grenade trajectory for beam trace visual effect
+	
+	if (g_vortexGrenade.integer == 0) {
+		return;
+	}
+
+	target = NULL;
+
+	//mrd - clamp the vortex cvars to reasonable values
+	if (g_vortexGrenadeRadius.integer < 15) {
+		g_vortexGrenadeRadius.integer = 15;
+	}
+	else if (g_vortexGrenadeRadius.integer > 2000) {
+		g_vortexGrenadeRadius.integer = 2000;
+	}
+
+	if (g_vortexGrenadeSpeed.integer < 10) {
+		g_vortexGrenadeSpeed.integer = 10;
+	}
+	else if (g_vortexGrenadeSpeed.integer > 500) {
+		g_vortexGrenadeSpeed.integer = 500;
+	}
+
+	//draw a beam event radius for a visual effect
+	//this draws once every nextthink msec
+	BG_EvaluateTrajectoryDelta(&self->s.pos, level.time, grenadeVelocity); 
+	self->s.eventParm = g_vortexGrenadeRadius.integer;// / 8; //set entity state so client knows it
+	tent = G_TempEntity(self->r.currentOrigin, EV_VORTEXGRENADE);	//send beam effect
+	tent->s.clientNum = self->parent->s.clientNum;	//beam colours are from owner of grenade
+
+	
+	//G_AddEvent( self, EV_VORTEXGRENADE, g_vortexGrenadeRadius.integer);	//mrd
+	
+	//check for entities within the vortex radius
+	while ((target = G_FindRadius(target, self->r.currentOrigin, g_vortexGrenadeRadius.integer)) != NULL) {
+		if ( (target == self) || (!(target->client)) || (target == self->parent) || (!(target->takedamage)) || target->classname == "grenade")	//mrd - don't suck in other grenades
+		//if ( (target == self) || (!(target->client)) || (!(target->takedamage)) || target->classname == "grenade")	//mrd - debug, allow parent shooter to be sucked in
+			continue;	//mrd - ignore self, non-clients, shooter of the grenade, other grenades, and non-damageable clients (corpses)
+		if ( !CanDamage(target, self->s.pos.trBase))
+			continue;	//mrd - don't check through walls, closed doors, etc.
+		//copy target origin to start, grenade origin to end, find and normalize direction, scale it by cvar, then add it to target's velocity and direction
+		VectorCopy(target->s.pos.trBase, start);
+		VectorCopy(self->r.currentOrigin, end);
+		VectorSubtract(end, start, dir);
+		VectorNormalize(dir);
+		VectorScale(dir, g_vortexGrenadeSpeed.integer, kickVelocity);
+		VectorAdd(target->client->ps.velocity,kickVelocity,target->client->ps.velocity);
+		VectorAdd(target->s.pos.trBase,kickVelocity,target->s.pos.trBase);	//mrd - tugging on trajectoryBase seems to feel better
+		
+		//delay before the target player's commands can influence tugging effect
+		if (!target->client->ps.pm_time) {
+			//Com_Printf("Initiate vortex grenade timing.\n");
+			target->client->ps.pm_time = VORTEXGRENADE_TIMING - 1;
+			target->client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
+		}
+	}
+	self->nextthink = level.time + g_vortexGrenadeTimer.integer;	//mrd - tug inward every xx ms. decreasing this value causes more frequent tugs
+
+	//mrd - grenade timed out, blow it up
+	if (level.time > self->wait) {
+		G_ExplodeMissile(self);
+	}
+
+	//mrd - check if someone is right on top of grenade and detonate it
+	//setup a bounding box
+	for (i = 0; i<3; i++) {
+		mins[i] = -VORTEXGRENADE_TRIGGER * 1.42;
+		maxs[i] = VORTEXGRENADE_TRIGGER * 1.42;
+	}
+	r = VORTEXGRENADE_TRIGGER * 1.42;
+	
+	VectorAdd(self->s.pos.trBase, mins, mins);
+	VectorAdd(self->s.pos.trBase, maxs, maxs);
+
+	/* - alternate method to create a trigger entity - doesn't scan for entity types, it just blows up if anyone touches it
+	trigger = G_Spawn();
+	
+	trigger->classname = "trigger_multiple"
+
+	VectorSet(trigger->r.mins, -r, -r, -r);
+	VectorSet(trigger->r.maxs, r, r, r);
+
+	G_SetOrigin(trigger, self->s.pos.trBase);
+
+	trigger->parent = self;
+	trigger->r.contents = CONTENTS_TRIGGER;
+	trigger->touch = G_ExplodeMissile(self);
+
+	trap_LinkEntity(trigger);
+
+	self->activator = trigger;
+	*/
+
+	//check for trapped entities and explode on them if they are an enemy
+	num = trap_EntitiesInBox(mins,maxs,targNum,MAX_GENTITIES);
+	for (num--; num > 0; num--) {
+		target = &g_entities[targNum[num]];
+		if (target == self		//need this to prevent tracing against itself when vulnerable missiles is turned on
+		|| !target->client		//only check players
+		|| !target->takedamage)	{
+			continue;
+		}
+		//if (target == self->parent)	//mrd -- don't check the original shooter
+		//	continue;					//mrd -- should allow shooters to be damaged - more risky!
+
+		//only blow up if the grenade's trajectory has slowed
+		//otherwise they explode the instant they're in the vicinity of an enemy
+		if ((int)VectorLength(grenadeVelocity) < VORTEXGRENADE_DELTA) {
+			G_ExplodeMissile(self);	
+		}
+	}
+}
+
 
 /*
 ================
@@ -627,12 +791,18 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 	
 	// check for bounce
 	if ( !other->takedamage &&
-		( ent->s.eFlags & ( EF_BOUNCE | EF_BOUNCE_HALF ) ) ) {
+		//( ent->s.eFlags & ( EF_BOUNCE | EF_BOUNCE_HALF ) ) ) {	//mrd
+		( ent->s.eFlags & ( EF_BOUNCE | EF_BOUNCE_HALF | EF_VORTEX_BOUNCE) ) ) {
 		G_BounceMissile( ent, trace );
-		G_AddEvent( ent, EV_GRENADE_BOUNCE, 0 );
+		if (g_vortexGrenade.integer == 1){
+			G_AddEvent( ent, EV_VORTEXGRENADE, 0);	//mrd
+		} else {
+			G_AddEvent( ent, EV_GRENADE_BOUNCE, 0 );
+		}
 		return;
 	}
 
+	ent->takedamage = qfalse;	//mrd - prevent projectiles from registering "hit" sound from damaging themselves, for G_MissileDie / vulnerable missiles
 
 	if ( other->takedamage ) {
 		 //if ( ent->s.weapon != WP_PROX_LAUNCHER ) {
@@ -983,6 +1153,17 @@ gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->classname = "plasma";
 	bolt->nextthink = level.time + PLASMA_THINKTIME;
 	bolt->think = G_ExplodeMissile;
+	//mrd - added for G_MissileDie / vulnerable missiles
+	bolt->health = 5;
+	bolt->takedamage = qtrue;
+	bolt->die = G_MissileDie;
+	bolt->r.contents = CONTENTS_BODY;	//mrd - missiles are solid, shootable by original firer
+	//mrd - setup a small hitbox for the bolt
+	VectorSet(bolt->r.mins,-3,-3,-3);
+	VectorCopy(bolt->r.mins,bolt->r.absmin);
+	VectorSet(bolt->r.maxs,3,3,3);
+	VectorCopy(bolt->r.maxs,bolt->r.absmax);
+	//mrd - end G_MissileDie block
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
 	bolt->s.weapon = WP_PLASMAGUN;
@@ -1009,7 +1190,7 @@ gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t dir) {
 	G_ApplyMissileNudge(self, bolt);
 	VectorCopy( start, bolt->s.pos.trBase );
 	VectorScale( dir, PLASMA_VELOCITY, bolt->s.pos.trDelta );
-	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
+	//SnapVector( bolt->s.pos.trDelta );			// save net bandwidth //mrd
 
 	VectorCopy (start, bolt->r.currentOrigin);
 
@@ -1031,12 +1212,40 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 
 	bolt = G_Spawn();
 	bolt->classname = "grenade";
-	bolt->nextthink = level.time + 2500;
-	bolt->think = G_ExplodeMissile;
+	if (g_vortexGrenade.integer == 1) {
+		bolt->nextthink = level.time + g_vortexGrenadeTimer.integer;	//mrd - adjusted for vortex grenades
+		bolt->s.time = level.time;	//mrd - for drawing beams
+		bolt->wait = level.time + 4000;	//mrd - lifetime of vortex nade
+		bolt->think = G_VortexGrenade;
+		bolt->splashDamage = g_vortexGrenadeDamage.integer;
+		bolt->splashRadius = g_vortexGrenadeRadius.integer;
+	}
+	else {
+		bolt->nextthink = level.time + 2500;	
+		bolt->think = G_ExplodeMissile;
+		bolt->splashDamage = 100;
+		bolt->splashRadius = 150;
+	}
+	//mrd - added for G_MissileDie / vulnerable missiles 
+	if (g_vulnerableMissiles.integer == 1) {
+		bolt->health = 5;
+		bolt->takedamage = qtrue;
+		bolt->die = G_MissileDie;
+		bolt->r.contents = CONTENTS_BODY;	//mrd - missiles are solid, shootable by original firer
+		//mrd - setup a small hitbox for the grenade
+		VectorSet(bolt->r.mins,-6,-3,-3);
+		VectorCopy(bolt->r.mins,bolt->r.absmin);
+		VectorSet(bolt->r.maxs,6,3,3);
+		VectorCopy(bolt->r.maxs,bolt->r.absmax);
+		//mrd - end G_MissileDie block
+	}
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
 	bolt->s.weapon = WP_GRENADE_LAUNCHER;
-	bolt->s.eFlags = EF_BOUNCE_HALF;
+	if (g_vortexGrenade.integer == 1)	//mrd - vortex grenades bounce differently
+		bolt->s.eFlags = EF_VORTEX_BOUNCE;
+	else
+		bolt->s.eFlags = EF_BOUNCE_HALF;	
 	bolt->r.ownerNum = self->s.number;
 //unlagged - projectile nudge
 	// we'll need this for nudging projectiles later
@@ -1053,8 +1262,8 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 
 	bolt->parent = self;
 	bolt->damage = 100;
-	bolt->splashDamage = 100;
-	bolt->splashRadius = 150;
+	//bolt->splashDamage = 100;
+	//bolt->splashRadius = 150;
 	bolt->methodOfDeath = MOD_GRENADE;
 	bolt->splashMethodOfDeath = MOD_GRENADE_SPLASH;
 	bolt->clipmask = MASK_SHOT;
@@ -1068,8 +1277,11 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 	//bolt->s.pos.trTime = level.time;
 	G_ApplyMissileNudge(self, bolt);
 	VectorCopy( start, bolt->s.pos.trBase );
-	VectorScale( dir, GRENADE_VELOCITY, bolt->s.pos.trDelta );
-	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
+	if (g_vortexGrenade.integer == 1)	//mrd - vortex grenades fly farther
+		VectorScale( dir, GRENADE_VELOCITY*2, bolt->s.pos.trDelta );
+	else
+		VectorScale( dir, GRENADE_VELOCITY, bolt->s.pos.trDelta );
+	//SnapVector( bolt->s.pos.trDelta );			// save net bandwidth //mrd
 
 	VectorCopy (start, bolt->r.currentOrigin);
 
@@ -1119,7 +1331,7 @@ gentity_t *fire_bfg (gentity_t *self, vec3_t start, vec3_t dir) {
 	G_ApplyMissileNudge(self, bolt);
 	VectorCopy( start, bolt->s.pos.trBase );
 	VectorScale( dir, BFG_VELOCITY, bolt->s.pos.trDelta );
-	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
+	//SnapVector( bolt->s.pos.trDelta );			// save net bandwidth //mrd
 	VectorCopy (start, bolt->r.currentOrigin);
 
 	return bolt;
@@ -1142,6 +1354,17 @@ gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->classname = "rocket";
 	bolt->nextthink = level.time + 15000;
 	bolt->think = G_ExplodeMissile;
+	//mrd - added for G_MissileDie / vulnerable missiles
+	bolt->health = 5;
+	bolt->takedamage = qtrue;
+	bolt->die = G_MissileDie;
+	bolt->r.contents = CONTENTS_BODY;	//mrd - missiles are solid, shootable by original firer
+	//mrd - setup a small hitbox for the rocket
+	VectorSet(bolt->r.mins,-8,-3,-3);
+	VectorCopy(bolt->r.mins,bolt->r.absmin);
+	VectorSet(bolt->r.maxs,8,3,3);
+	VectorCopy(bolt->r.maxs,bolt->r.absmax);
+	//mrd - end G_MissileDie block
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
 	bolt->s.weapon = WP_ROCKET_LAUNCHER;
@@ -1170,7 +1393,7 @@ gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir) {
 	//VectorScale( dir, 900, bolt->s.pos.trDelta );
 	//VectorScale( dir, 1000, bolt->s.pos.trDelta );
 	VectorScale( dir, g_rocketSpeed.integer, bolt->s.pos.trDelta );
-	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
+	//SnapVector( bolt->s.pos.trDelta );			// save net bandwidth //mrd
 	VectorCopy (start, bolt->r.currentOrigin);
 
 	return bolt;

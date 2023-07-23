@@ -909,6 +909,7 @@ void CG_AddBoundingBox( centity_t *cent ) {
 
 	// if they don't exist, forget it
 	if ( !bboxShader || !bboxShader_nocull ) {
+		Com_Printf("CG_AddBoundingBox - no shaders found!\n");	//mrd
 		return;
 	}
 

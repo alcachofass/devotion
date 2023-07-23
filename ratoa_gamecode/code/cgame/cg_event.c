@@ -309,7 +309,8 @@ static void CG_Obituary( entityState_t *ent ) {
 			message = "was railed by";
 			break;
 		case MOD_LIGHTNING:
-			message = "was electrocuted by";
+			//message = "was electrocuted by";	//mrd
+			message = "was shafted by";	//mrd
 			break;
 		case MOD_BFG:
 		case MOD_BFG_SPLASH:
@@ -657,8 +658,10 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	entityState_t	*es;
 	int				event;
 	vec3_t			dir;
+	//vec3_t 			vortexBeam[3], vBeamEnd;	//mrd - for vortex grenade beams (0=fwd,1=right,2=up)
 	const char		*s;
 	int				clientNum;
+	//int				i;	//mrd
 	clientInfo_t	*ci;
 
 	es = &cent->currentState;
@@ -1260,7 +1263,24 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		}
 //unlagged - attack prediction #2
 		break;
-
+	case EV_VORTEXGRENADE:	//mrd
+		DEBUGNAME("EV_VORTEXGRENADE");
+		/*mrd - uncomment for vortex beam drawing - does not look that great
+		BG_EvaluateTrajectory(&es->pos,cg.snap->serverTime,vortexBeam[0]);
+		VectorNormalize(vortexBeam[0]);
+		PerpendicularVector(vortexBeam[1],vortexBeam[0]); //mrd - beam right
+		CrossProduct(vortexBeam[0],vortexBeam[1],vortexBeam[2]); //mrd - beam up
+		for (i=0;i<3;i++) {
+			VectorMA(es->pos.trBase,(int)(es->eventParm)*8,vortexBeam[i],vBeamEnd);
+			//VectorMA(es->pos.trBase,(int)(es->eventParm)*8,vortexBeam[0],vBeamEnd);
+			CG_RailTrail( ci, es->pos.trBase, vBeamEnd );
+			VectorSet(vortexBeam[i],-vortexBeam[i][0],-vortexBeam[i][1],-vortexBeam[i][2]);
+			//VectorSet(vortexBeam[0],-vortexBeam[0][0],-vortexBeam[0][1],-vortexBeam[0][2]);
+			VectorMA(es->pos.trBase,(int)(es->eventParm)*8,vortexBeam[i],vBeamEnd);
+			//VectorMA(es->pos.trBase,(int)(es->eventParm)*8,vortexBeam[0],vBeamEnd);
+			CG_RailTrail( ci, es->pos.trBase, vBeamEnd );
+		}*/
+		break;
 	case EV_GENERAL_SOUND:
 		DEBUGNAME("EV_GENERAL_SOUND");
 		if (es->eventParm < 0 || es->eventParm >= MAX_SOUNDS) {
