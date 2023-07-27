@@ -318,8 +318,11 @@ Explode a missile without an impact
 void G_ExplodeMissile( gentity_t *ent ) {
 	vec3_t		dir;
 	vec3_t		origin;
+	
 	int ownerKills = 0, ownerDeaths = 0;
 
+	//ent->takedamage = qfalse;	//mrd - prevent "hit" sound when missile explodes with no impact - this apparently has no effect
+	
 	BG_EvaluateTrajectory( &ent->s.pos, level.time, origin );
 	SnapVector( origin );
 	G_SetOrigin( ent, origin );
@@ -350,6 +353,24 @@ void G_ExplodeMissile( gentity_t *ent ) {
 	trap_LinkEntity( ent );
 
 	//G_CheckKamikazeAward(ent->parent, ownerKills, ownerDeaths);
+}
+
+/*
+================
+G_MissileDie
+//mrd
+Destroy a missile
+Credits go to Lancer (Code3Arena) and Chris Hilton (QDevels) for this code
+================
+*/
+void G_MissileDie( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod) {
+	if (inflictor == self)
+		return;
+	if (g_vulnerableMissiles.integer == 0)	//mrd - check for cvar
+		return;
+	self->takedamage = qfalse;
+	self->think = G_ExplodeMissile;
+	self->nextthink = level.time + 10;
 }
 
 /*
@@ -633,6 +654,30 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 		return;
 	}
 
+	//ent->takedamage = qfalse;	//mrd - prevent projectiles from registering hit sound FX from damaging themselves in G_MissileDie - this apparently has no effect
+
+	//mrd - two missiles collided!
+	if ( other->s.eType == ET_MISSILE && ent->s.eType == ET_MISSILE && g_vulnerableMissiles.integer == 1){
+		//Com_Printf("Two missiles collided in G_MissileImpact\n");	//mrd debug
+		other->think = G_ExplodeMissile;
+		ent->think = G_ExplodeMissile;
+
+		other->nextthink = level.time + 10;
+		ent->nextthink = level.time + 10;
+
+		other->takedamage = qfalse;
+		ent->takedamage = qfalse;
+
+		//other->freeAfterEvent = qtrue;
+		//ent->freeAfterEvent = qtrue;
+
+		other->missileExploded = qtrue;
+		ent->missileExploded = qtrue;
+
+		trap_LinkEntity (ent);
+		trap_LinkEntity (other);
+		return;
+	}
 
 	if ( other->takedamage ) {
 		 //if ( ent->s.weapon != WP_PROX_LAUNCHER ) {
@@ -770,7 +815,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 
 	ent->freeAfterEvent = qtrue;
 
-	SnapVectorTowards( trace->endpos, ent->s.pos.trBase );	// save net bandwidth
+	//SnapVectorTowards( trace->endpos, ent->s.pos.trBase );	// save net bandwidth	//mrd - nah
 
 	if (g_usesRatVM.integer) {
 		ent->missileExploded = qtrue;
@@ -817,7 +862,7 @@ void G_RunMissile( gentity_t *ent ) {
 	int		unlinked = 0;
 	int		i;
 	int		telepushed = 0;
-	int ownerKills = 0, ownerDeaths = 0;
+	//int ownerKills = 0, ownerDeaths = 0;	//mrd - don't seem to need this, seems to be related to TA Kamikaze powerup
 	gentity_t *owner = ent->parent;
 
 	ent->missileRan = 1;
@@ -840,12 +885,14 @@ void G_RunMissile( gentity_t *ent ) {
 	else {
 		// ignore interactions with the missile owner
 		passent = ent->r.ownerNum;
+		//passent = ENTITYNUM_NONE;	//mrd - uncomment this to self explode... could be a fun new game mode. g_rocketPropel?
 	}
 
-	if (ent->parent && ent->parent->client) {
+	//mrd - don't seem to need this, seems to be related to TA Kamikaze powerup
+	/*if (ent->parent && ent->parent->client) {
 		ownerKills = ent->parent->client->pers.kills;
 		ownerDeaths = ent->parent->client->pers.deaths;
-	}
+	}*/
 
 	if (g_teleMissiles.integer == 1 || g_pushGrenades.integer == 1) {
 		do {
@@ -929,6 +976,7 @@ void G_RunMissile( gentity_t *ent ) {
 		}
 		*/
 	}
+
 	// if the prox mine wasn't yet outside the player body
 	/* if (ent->s.weapon == WP_PROX_LAUNCHER && !ent->count) {
 		// check if the prox mine is outside the owner bbox
@@ -983,6 +1031,18 @@ gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->classname = "plasma";
 	bolt->nextthink = level.time + PLASMA_THINKTIME;
 	bolt->think = G_ExplodeMissile;
+	//mrd - added for G_MissileDie / vulnerable missiles
+	//if (g_vulnerableMissiles.integer == 1) {
+		bolt->health = 5;
+		bolt->takedamage = qtrue;
+		bolt->die = G_MissileDie;
+		bolt->r.contents = CONTENTS_BODY;	//mrd - missiles are solid, shootable by original firer
+		//mrd - setup a small hitbox for the bolt
+		VectorSet(bolt->r.mins,-4,-4,-4);
+		VectorCopy(bolt->r.mins,bolt->r.absmin);
+		VectorSet(bolt->r.maxs,4,4,4);
+		VectorCopy(bolt->r.maxs,bolt->r.absmax);
+	//}
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
 	bolt->s.weapon = WP_PLASMAGUN;
@@ -1009,7 +1069,7 @@ gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t dir) {
 	G_ApplyMissileNudge(self, bolt);
 	VectorCopy( start, bolt->s.pos.trBase );
 	VectorScale( dir, PLASMA_VELOCITY, bolt->s.pos.trDelta );
-	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
+	//SnapVector( bolt->s.pos.trDelta );			// save net bandwidth	//mrd - nah
 
 	VectorCopy (start, bolt->r.currentOrigin);
 
@@ -1033,6 +1093,19 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->classname = "grenade";
 	bolt->nextthink = level.time + 2500;
 	bolt->think = G_ExplodeMissile;
+	//mrd - added for G_MissileDie / vulnerable missiles 
+	//if (g_vulnerableMissiles.integer == 1) {
+		bolt->health = 5;
+		bolt->takedamage = qtrue;
+		bolt->die = G_MissileDie;
+		bolt->r.contents = CONTENTS_BODY;	//mrd - missiles are solid, shootable by original firer
+		//mrd - setup a small hitbox for the grenade
+		VectorSet(bolt->r.mins,-6,-4,-3);
+		VectorCopy(bolt->r.mins,bolt->r.absmin);
+		VectorSet(bolt->r.maxs,6,4,3);
+		VectorCopy(bolt->r.maxs,bolt->r.absmax);
+		//mrd - end G_MissileDie block
+	//}
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
 	bolt->s.weapon = WP_GRENADE_LAUNCHER;
@@ -1069,7 +1142,7 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 	G_ApplyMissileNudge(self, bolt);
 	VectorCopy( start, bolt->s.pos.trBase );
 	VectorScale( dir, GRENADE_VELOCITY, bolt->s.pos.trDelta );
-	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
+	//SnapVector( bolt->s.pos.trDelta );			// save net bandwidth	//mrd - nah
 
 	VectorCopy (start, bolt->r.currentOrigin);
 
@@ -1093,6 +1166,18 @@ gentity_t *fire_bfg (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->classname = "bfg";
 	bolt->nextthink = level.time + 10000;
 	bolt->think = G_ExplodeMissile;
+	//mrd - added for G_MissileDie / vulnerable missiles
+	//if (g_vulnerableMissiles.integer == 1) {
+		bolt->health = 5;
+		bolt->takedamage = qtrue;
+		bolt->die = G_MissileDie;
+		bolt->r.contents = CONTENTS_BODY;	//mrd - missiles are solid, shootable by original firer
+		//mrd - setup a small hitbox for the BFG
+		VectorSet(bolt->r.mins,-6,-5,-3);
+		VectorCopy(bolt->r.mins,bolt->r.absmin);
+		VectorSet(bolt->r.maxs,6,5,3);
+		VectorCopy(bolt->r.maxs,bolt->r.absmax);
+	//}
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
 	bolt->s.weapon = WP_BFG;
@@ -1119,7 +1204,7 @@ gentity_t *fire_bfg (gentity_t *self, vec3_t start, vec3_t dir) {
 	G_ApplyMissileNudge(self, bolt);
 	VectorCopy( start, bolt->s.pos.trBase );
 	VectorScale( dir, BFG_VELOCITY, bolt->s.pos.trDelta );
-	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
+	//SnapVector( bolt->s.pos.trDelta );			// save net bandwidth	//mrd - nah
 	VectorCopy (start, bolt->r.currentOrigin);
 
 	return bolt;
@@ -1142,6 +1227,18 @@ gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->classname = "rocket";
 	bolt->nextthink = level.time + 15000;
 	bolt->think = G_ExplodeMissile;
+	//mrd - added for G_MissileDie / vulnerable missiles
+	//if (g_vulnerableMissiles.integer == 1) {
+		bolt->health = 5;
+		bolt->takedamage = qtrue;
+		bolt->die = G_MissileDie;
+		bolt->r.contents = CONTENTS_BODY;	//mrd - missiles are solid, shootable by original firer
+		//mrd - setup a small hitbox for the rocket
+		VectorSet(bolt->r.mins,-8,-3,-3);
+		VectorCopy(bolt->r.mins,bolt->r.absmin);
+		VectorSet(bolt->r.maxs,8,3,3);
+		VectorCopy(bolt->r.maxs,bolt->r.absmax);
+	//}
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
 	bolt->s.weapon = WP_ROCKET_LAUNCHER;
@@ -1170,7 +1267,7 @@ gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir) {
 	//VectorScale( dir, 900, bolt->s.pos.trDelta );
 	//VectorScale( dir, 1000, bolt->s.pos.trDelta );
 	VectorScale( dir, g_rocketSpeed.integer, bolt->s.pos.trDelta );
-	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
+	//SnapVector( bolt->s.pos.trDelta );			// save net bandwidth	//mrd - nah
 	VectorCopy (start, bolt->r.currentOrigin);
 
 	return bolt;

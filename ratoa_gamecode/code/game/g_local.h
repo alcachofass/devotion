@@ -1119,6 +1119,7 @@ void G_ImmediateRunMissiles(gentity_t *client);
 void G_ImmediateLaunchMissile(gentity_t *ent);
 void G_ImmediateRunClientMissiles(gentity_t *client);
 void ProximityMine_RemoveAll( void );
+//void G_MissileDie( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod);	//mrd
 
 gentity_t *fire_blaster (gentity_t *self, vec3_t start, vec3_t aimdir);
 gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t aimdir);
@@ -1892,7 +1893,7 @@ extern  vmCvar_t    g_unnamedRenameNounlist;
 
 //Devotion
 extern	vmCvar_t	pmove_autohop;
-
+extern	vmCvar_t	g_vulnerableMissiles;	//mrd
 
 void	trap_Printf( const char *fmt );
 void	trap_Error( const char *fmt ) __attribute__((noreturn));
