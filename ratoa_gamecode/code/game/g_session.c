@@ -155,10 +155,12 @@ void G_InitSessionData( gclient_t *client, char *userinfo, qboolean firstTime,
 	clientSession_t	*sess;
 	const char		*value;
 
+
 	sess = &client->sess;
+	
 
 	if (g_gametype.integer == GT_TOURNAMENT) {
-		//sess->spectatorState = SPECTATOR_FREE;
+		sess->spectatorState = SPECTATOR_FREE;	
 		sess->spectatorGroup = SPECTATORGROUP_QUEUED;    //DUFFMAN91 - On tourney join, set spectatorGroup and spectatorState immediately. 
 
 		// \team q will set these three values:
@@ -220,7 +222,7 @@ void G_InitSessionData( gclient_t *client, char *userinfo, qboolean firstTime,
 				break;
 			case GT_TOURNAMENT:
 				// if the game is full, go into a waiting mode
-				if ( level.numNonSpectatorClients >= 2 ) {
+				if ( level.numNonSpectatorClients >= 2 ) {	
 					sess->sessionTeam = TEAM_SPECTATOR;
 				} else {
 					sess->sessionTeam = TEAM_FREE;
@@ -246,10 +248,8 @@ void G_InitSessionData( gclient_t *client, char *userinfo, qboolean firstTime,
 		}
 	}
 
-
 	sess->spectatorState = SPECTATOR_FREE;
 	AddTournamentQueue(client);
-
 	G_WriteClientSessionData( client );
 }
 

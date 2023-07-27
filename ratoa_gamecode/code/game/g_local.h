@@ -1199,8 +1199,10 @@ void LMSpoint(void);
 int TeamLeader( int team );
 team_t PickTeam( int ignoreClientNum );
 void SetClientViewAngle( gentity_t *ent, vec3_t angle );
-gentity_t *SelectSpawnPoint ( gentity_t *player, vec3_t avoidPoint, vec3_t origin, vec3_t angles );
-gentity_t *SelectSpawnPointArena ( gentity_t *player, int arenaNum,  vec3_t avoidPoint, vec3_t origin, vec3_t angles );
+//gentity_t *SelectSpawnPoint ( gentity_t *player, vec3_t avoidPoint, vec3_t origin, vec3_t angles );
+gentity_t *SelectSpawnPoint ( gentity_t *player, vec3_t avoidPoint, vec3_t origin, vec3_t angles, int routine );	//mrd
+//gentity_t *SelectSpawnPointArena ( gentity_t *player, int arenaNum,  vec3_t avoidPoint, vec3_t origin, vec3_t angles );
+gentity_t *SelectSpawnPointArena ( gentity_t *player, int arenaNum,  vec3_t avoidPoint, vec3_t origin, vec3_t angles, int routine );	//mrd
 gentity_t *SelectRandomDeathmatchSpawnPointArena( gentity_t *player, int arenaNum );
 gentity_t *SelectFarFromEnemyTeamSpawnpoint ( team_t myteam, vec3_t origin, vec3_t angles);
 gentity_t *SelectFarFromEnemyTeamSpawnpointArena ( int arenaNum, team_t myteam, vec3_t origin, vec3_t angles);
@@ -1743,7 +1745,7 @@ extern  vmCvar_t        g_delagMissileImmediateRun;
 extern  vmCvar_t        g_teleporterPrediction;
 
 //extern  vmCvar_t	g_tournamentMinSpawnDistance;
-extern  vmCvar_t	g_tournamentSpawnsystem;
+extern  vmCvar_t	g_tournamentSpawnSystem;
 extern  vmCvar_t	g_ffaSpawnsystem;
 
 extern  vmCvar_t	g_ra3compat;

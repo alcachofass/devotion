@@ -308,11 +308,13 @@ gentity_t *SelectMultiTournamentSpawnPoint ( gentity_t *player, gclient_t *clien
 	int gameId = client->sess.gameId;
 
 	if (!G_ValidGameId(gameId)) {
-		return SelectSpawnPoint ( player, client->ps.origin, origin, angles);
+		//return SelectSpawnPoint ( player, client->ps.origin, origin, angles);
+		return SelectSpawnPoint ( player, client->ps.origin, origin, angles, 0);	//mrd
 	}
 
 	if (level.multiTrnGames[gameId].numPlayers != 2) {
-		return SelectSpawnPoint ( player, client->ps.origin, origin, angles);
+		//return SelectSpawnPoint ( player, client->ps.origin, origin, angles);
+		return SelectSpawnPoint ( player, client->ps.origin, origin, angles, 0);	//mrd
 	}
 
 	opponentClientNum = level.multiTrnGames[gameId].clients[0];
@@ -324,10 +326,11 @@ gentity_t *SelectMultiTournamentSpawnPoint ( gentity_t *player, gclient_t *clien
 
 	if (opponent->pers.connected != CON_CONNECTED
 			|| g_entities[opponentClientNum].health <= 0) {
-		return SelectSpawnPoint ( player, client->ps.origin, origin, angles);
+		//return SelectSpawnPoint ( player, client->ps.origin, origin, angles);
+		return SelectSpawnPoint ( player, client->ps.origin, origin, angles, 0);	//mrd
 	}
 
-	return SelectRandomFurthestSpawnPoint(player, client->ps.origin, origin, angles);
+	return SelectRandomFurthestSpawnPoint(player, client->ps.origin, origin, angles);	//mrd - this function is crazy, may adjust this later
 
 }
 #endif // WITH_MULTITOURNAMENT
@@ -337,22 +340,27 @@ gentity_t *SelectMultiTournamentSpawnPoint ( gentity_t *player, gclient_t *clien
 SelectTournamentSpawnPoint
 
 Chooses a player start for tourney
+
+mrd - scan and count all spawn points, calculate distance from killer, sort distances (descending), correlate array elements to original scan,
+then randomly select one of top four furthest away elements to spawn at
 ============
 */
 gentity_t *SelectTournamentSpawnPoint ( gentity_t *player, gclient_t *client, vec3_t origin, vec3_t angles ) {
-	//gentity_t	*spot;
-	//gentity_t	*nearestSpot;
-	//gentity_t	*furthestSpot;
-	//vec_t		furthestSpotDistance;
-	//vec_t		dist;
-	//vec3_t		delta;
 	int		opponentClientNum;
+	int 	furthestElement, furthestElements[4] = {0,0,0,0};
 	gclient_t	*opponent;
+	int		spawnCount, topSpawnCount;
+	gentity_t	*spawnCountSpot, *spawnSpotArray[MAX_SPAWN_POINTS], *nearestSpot;
+	vec3_t spawnVectorDifferentialArray[MAX_SPAWN_POINTS];
+	float tempDistance, distanceArray[MAX_SPAWN_POINTS];
+	int i,j,r;
 
 	if (level.numPlayingClients != 2) {
-		return SelectSpawnPoint ( player, client->ps.origin, origin, angles);
+		//return SelectSpawnPoint ( player, client->ps.origin, origin, angles);
+		return SelectSpawnPoint ( player, client->ps.origin, origin, angles, 0);	//mrd
 	}
 	opponentClientNum = level.sortedClients[0];
+
 	if (&level.clients[opponentClientNum] == client) {
 		opponentClientNum = level.sortedClients[1];
 	}
@@ -361,41 +369,71 @@ gentity_t *SelectTournamentSpawnPoint ( gentity_t *player, gclient_t *client, ve
 
 	if (opponent->pers.connected != CON_CONNECTED
 			|| g_entities[opponentClientNum].health <= 0) {
-		return SelectSpawnPoint ( player, client->ps.origin, origin, angles);
+		//return SelectSpawnPoint ( player, client->ps.origin, origin, angles);
+		return SelectSpawnPoint ( player, client->ps.origin, origin, angles, 0);	//mrd
 	}
-	Com_Printf("tournament spawn system on");
-	return SelectRandomFurthestSpawnPoint(player, client->ps.origin, origin, angles);
 
-	////nearestSpot = SelectNearestDeathmatchSpawnPoint( opponent->ps.origin );
-	//
-	//int i = 3;
-	//furthestSpotDistance = -1;
-	//furthestSpot = NULL;
-	//do {
-	//	//Com_Printf("Select spawn, i = %i\n", i);
-	//	spot = SelectRandomDeathmatchSpawnPoint ( );
-	//	VectorSubtract(spot->s.origin, opponent->ps.origin, delta);
-	//	dist = VectorLength(delta);
-	//	if (dist > furthestSpotDistance) {
-	//		furthestSpotDistance = dist;
-	//		furthestSpot = spot;
-	//	}
-	//	if ( furthestSpotDistance >= g_tournamentMinSpawnDistance.value) {
-	//		//Com_Printf("taking it!\n");
-	//		break;
-	//	}
-	//} while (i--);
+	//mrd - some initialization
+	spawnCount = 0;
+	spawnCountSpot = NULL;	//mrd - setup a temp entity to facilitate the count. 
+	tempDistance = 0;
+	furthestElement = 0;
 
-	//// find a single player start spot
-	//if (!furthestSpot) {
-	//	G_Error( "Couldn't find a spawn point" );
-	//}
+	//mrd - count the total spawn entities in map then calculate their distances from our killer
+	while ((spawnCountSpot = G_Find (spawnCountSpot, FOFS(classname), "info_player_deathmatch")) != NULL) {
+		spawnSpotArray[spawnCount] = spawnCountSpot;
+		VectorSubtract(spawnSpotArray[spawnCount]->s.origin,opponent->ps.origin,spawnVectorDifferentialArray[spawnCount]);
+		distanceArray[spawnCount] = VectorLength(spawnVectorDifferentialArray[spawnCount]);
+		spawnCount++;
+	}
+	
+	//mrd - sort distances (descending) then we'll skim the top 4 most distant, then randomly pick one of them to spawn at
+	for (i = 0; i < spawnCount - 1; i++) {
+        for (j = 0; j < spawnCount - i - 1; j++) {
+            if (distanceArray[j] < distanceArray[j + 1]) {
+                tempDistance = distanceArray[j];
+                distanceArray[j] = distanceArray[j + 1];
+                distanceArray[j + 1] = tempDistance;
+            }
+        }
+    }
+	
+	topSpawnCount = 0;
+	
+	//mrd - edge case, maps with only one or two spawn points
+	if (spawnCount <= 2) {
+		if (SpotWouldTelefrag(spawnSpotArray[0])) {
+			return spawnSpotArray[1];
+		} else {
+			return spawnSpotArray[0];
+		}
+		
+	}
 
-	//VectorCopy (furthestSpot->s.origin, origin);
-	//origin[2] += 9;
-	//VectorCopy (furthestSpot->s.angles, angles);
+	//mrd - correlate top 4 furthest away distances with original spawn entity array elements so we can nab their origins, pick one, and spawn there
+	for (i = 0; i < spawnCount; i++) {
+		for (j = 0; j < spawnCount; j++) {
+			if ( (distanceArray[i] == VectorLength(spawnVectorDifferentialArray[j])) && topSpawnCount < 4) {
+				if (topSpawnCount >= 4) {
+					topSpawnCount = 3;
+					break;	//mrd - this should never happen... protecting against memory overrun
+				}
+				//mrd - we've correlated one of the top 4 furthest spawns so store it and keep going
+				furthestElements[topSpawnCount] = j;
+				topSpawnCount++;
+			}
+		}
+	}
+	//mrd - select a random element from top 4 elements and keep trying until we don't telefrag
+	//also protect against edge case of 1 of the top 4 being too near (e.g. small maps with few spawn origins)
+	nearestSpot = SelectNearestDeathmatchSpawnPoint(opponent->ps.origin);
+	furthestElement = furthestElements[rand()%4];
+	while (SpotWouldTelefrag(spawnSpotArray[furthestElement]) || nearestSpot == spawnSpotArray[furthestElement]) {
+		furthestElement = furthestElements[rand()%4];
+	}
 
-	//return furthestSpot;
+	VectorCopy (spawnSpotArray[furthestElement]->s.angles, angles);
+	return spawnSpotArray[furthestElement];
 }
 
 typedef struct {
@@ -502,9 +540,11 @@ SelectSpawnPoint
 Chooses a player start, deathmatch start, etc
 ============
 */
-gentity_t *SelectSpawnPointArena ( gentity_t *player, int arenaNum,  vec3_t avoidPoint, vec3_t origin, vec3_t angles ) {
-	//return SelectRandomFurthestSpawnPoint( avoidPoint, origin, angles );
-
+//gentity_t *SelectSpawnPointArena ( gentity_t *player, int arenaNum,  vec3_t avoidPoint, vec3_t origin, vec3_t angles ) {
+gentity_t *SelectSpawnPointArena ( gentity_t *player, int arenaNum,  vec3_t avoidPoint, vec3_t origin, vec3_t angles, int routine ) {
+	//mrd -- new argument for spawn routine
+	//0 = avoid nearest spot
+	//1 = pure random, might get unlucky	
 	
 	gentity_t	*spot;
 	gentity_t	*nearestSpot;
@@ -512,10 +552,10 @@ gentity_t *SelectSpawnPointArena ( gentity_t *player, int arenaNum,  vec3_t avoi
 	nearestSpot = SelectNearestDeathmatchSpawnPoint( avoidPoint );
 
 	spot = SelectRandomDeathmatchSpawnPointArena ( player, arenaNum );
-	if ( spot == nearestSpot ) {
+	if ( spot == nearestSpot && routine == 0) {
 		// roll again if it would be real close to point of death
 		spot = SelectRandomDeathmatchSpawnPointArena ( player, arenaNum );
-		if ( spot == nearestSpot ) {
+		if ( spot == nearestSpot && routine == 0) {
 			// last try
 			spot = SelectRandomDeathmatchSpawnPointArena (player, arenaNum );
 		}		
@@ -523,6 +563,7 @@ gentity_t *SelectSpawnPointArena ( gentity_t *player, int arenaNum,  vec3_t avoi
 
 	// find a single player start spot
 	if (!spot) {
+		//mrd - this will never happen
 		spot = CreateEmergencySpawnpoint();
 		//G_Error( "Couldn't find a spawn point" );
 	}
@@ -534,8 +575,10 @@ gentity_t *SelectSpawnPointArena ( gentity_t *player, int arenaNum,  vec3_t avoi
 	return spot;
 }
 
-gentity_t *SelectSpawnPoint ( gentity_t *player, vec3_t avoidPoint, vec3_t origin, vec3_t angles ) {
-	return SelectSpawnPointArena( player, -1, avoidPoint, origin, angles );
+//gentity_t *SelectSpawnPoint ( gentity_t *player, vec3_t avoidPoint, vec3_t origin, vec3_t angles ) {
+	gentity_t *SelectSpawnPoint ( gentity_t *player, vec3_t avoidPoint, vec3_t origin, vec3_t angles, int routine ) {	//mrd
+	//return SelectSpawnPointArena( player, -1, avoidPoint, origin, angles );
+	return SelectSpawnPointArena( player, -1, avoidPoint, origin, angles, routine);	//mrd
 }
 
 /*
@@ -586,31 +629,45 @@ SelectSpectatorSpawnPoint
 
 ============
 */
-gentity_t *SelectSpectatorSpawnPoint( vec3_t origin, vec3_t angles ) {
-	//gentity_t	*spot;
+//gentity_t *SelectSpectatorSpawnPoint( vec3_t origin, vec3_t angles ) {	//mrd - don't need to create new vectors, just use the ones inside the gentity
+gentity_t *SelectSpectatorSpawnPoint() {
+	gentity_t	*spot;	//mrd - bring this back
+	
+	int count;
 
-	FindIntermissionPoint();
+	count = 0;
+	spot = NULL;		//mrd - initialize it
 
-	VectorCopy( level.intermission_origin, origin );
-	VectorCopy( level.intermission_angle, angles );
+	while ((spot = G_Find(spot, FOFS(classname), "info_player_intermission")) != NULL && count < MAX_SPAWN_POINTS) {
+		count++;
+	}
 
+	//mrd - edge cases: mapper added more than one intermission point, or none of them
+	if (count > 1){
+		count = 1;
+	}
+	//mrd - no intermission point, just use a deathmatch spawn point
+	if (count == 0){
+		G_LogPrintf("No intermission point for SelectSpectatorSpawnPoint!\n");
+		spot = G_Find(NULL, FOFS(classname), "info_player_deathmatch");
+		return spot;
+	}
 
+	spot = G_Find(NULL, FOFS(classname), "info_player_intermission");
 
-	//for some reason we need to return an specific point in elimination (this might not be neccecary anymore but to be sure...)
-	//if(g_gametype.integer == GT_ELIMINATION)
-	//	return SelectSpawnPoint( vec3_origin, origin, angles );
+	FindIntermissionPoint();	//mrd - this sets up level.intermission_origin and angles so we can steal them for our spot
 
-	//VectorCopy (origin,spot->s.origin);
-	//spot->s.origin[2] += 9;
-	//VectorCopy (angles, spot->s.angles);
+	VectorCopy( level.intermission_origin, spot->s.origin );
+	VectorCopy( level.intermission_angle, spot->s.angles );
+	G_SetOrigin(spot,spot->s.origin);
 
-	return NULL; //spot;
+	return spot;
 }
 
 gentity_t *SelectSpectatorSpawnPointArena( int arenaNum, vec3_t origin, vec3_t angles ) {
 	FindIntermissionPointArena(arenaNum, origin, angles);
 
-	return NULL; 
+	return NULL; //mrd - this is probably wrong too but will look at Arena spawns later
 }
 
 /*
@@ -3290,7 +3347,8 @@ void ClientSpawn(gentity_t *ent) {
 					client->pers.arenaNum,
 				       	spawn_origin, spawn_angles);
 		} else {
-			spawnPoint = SelectSpectatorSpawnPoint ( spawn_origin, spawn_angles);
+			//spawnPoint = SelectSpectatorSpawnPoint ( spawn_origin, spawn_angles);	//mrd -- this was returning a NULL value...? useless
+			spawnPoint = SelectSpectatorSpawnPoint();
 		}
 	}
 	/*
@@ -3341,23 +3399,28 @@ void ClientSpawn(gentity_t *ent) {
 				}
 			} else if (g_gametype.integer == GT_TOURNAMENT) {
 				CalculateRanks();
-				if (g_tournamentSpawnsystem.integer == 1) {
+				if (g_tournamentSpawnSystem.integer == 1) {
 					// select a spawnpoint away from the opponent
 					spawnPoint = SelectTournamentSpawnPoint ( 
 							ent,
 							client,
 							spawn_origin, spawn_angles);
-				} else {
+				} else if (g_tournamentSpawnSystem.integer == 0) {
 					// random spawn
 					spawnPoint = SelectSpawnPoint ( 
 							ent,
 							client->ps.origin, 
-							spawn_origin, spawn_angles);
+							spawn_origin, spawn_angles, 1);	//mrd
+				} else {
+					spawnPoint = SelectSpawnPoint (
+							ent,
+							client->ps.origin,
+							spawn_origin, spawn_angles, 0);	//mrd
 				}
 #ifdef WITH_MULTITOURNAMENT
 			} else if (g_gametype.integer == GT_MULTITOURNAMENT) {
 				CalculateRanks();
-				if (g_tournamentSpawnsystem.integer == 1) {
+				if (g_tournamentSpawnSystem.integer == 1) {
 					// select a spawnpoint away from the opponent
 					spawnPoint = SelectMultiTournamentSpawnPoint ( 
 							ent,
@@ -3365,25 +3428,20 @@ void ClientSpawn(gentity_t *ent) {
 							spawn_origin, spawn_angles);
 				} else {
 					// random spawn
-					spawnPoint = SelectSpawnPoint ( 
-							ent,
-							client->ps.origin, 
-							spawn_origin, spawn_angles);
+					//spawnPoint = SelectSpawnPoint ( ent,client->ps.origin, spawn_origin, spawn_angles); //mrd
+					spawnPoint = SelectSpawnPoint ( ent, client->ps.origin, spawn_origin, spawn_angles, 0);	//mrd
 				}
 #endif // WITH_MULTITOURNAMENT
 			} else {
 				if (g_ffaSpawnsystem.integer == 1) {
 					// don't spawn near existing origin if possible, but otherwise random
-					spawnPoint = SelectSpawnPoint ( 
-							ent,
-							client->ps.origin, 
-							spawn_origin, spawn_angles);
+					//spawnPoint = SelectSpawnPoint ( ent,client->ps.origin, spawn_origin, spawn_angles);
+					spawnPoint = SelectSpawnPoint ( ent, client->ps.origin, spawn_origin, spawn_angles, 0);	//mrd
 				} else {
 					// old spawn system, spawn among other half of the points
-					spawnPoint = SelectRandomFurthestSpawnPoint(
-							ent,
-							client->ps.origin,
-						       	spawn_origin, spawn_angles);
+					//spawnPoint = SelectRandomFurthestSpawnPoint(ent,client->ps.origin,spawn_origin, spawn_angles); //mrd - this function is a rat's nest
+					//spawnPoint = SelectSpawnPoint (	ent, client->ps.origin, spawn_origin, spawn_angles);
+					spawnPoint = SelectSpawnPoint (	ent, client->ps.origin, spawn_origin, spawn_angles, 1);	//mrd
 				}
 			}
 
@@ -3628,8 +3686,10 @@ else
 		G_SetOrigin(ent, origin);
 		VectorCopy(origin, client->ps.origin);
 	} else {
-		G_SetOrigin( ent, spawn_origin );
-		VectorCopy( spawn_origin, client->ps.origin );
+		//G_SetOrigin( ent, spawn_origin );	//mrd - Tourney spawn problem source? spawn_origin is NULL through this entire block...
+		G_SetOrigin( ent, spawnPoint->s.origin );	//mrd
+		//VectorCopy( spawn_origin, client->ps.origin );	//mrd - Tourney spawn problem source? spawn_origin is NULL through this entire block...
+		VectorCopy( spawnPoint->s.origin, client->ps.origin );	//mrd
 	}
 
 	G_DestroyFrozenPlayer(ent);
@@ -3713,6 +3773,7 @@ else
 	// positively link the client, even if the command times are weird
 	//if ( (ent->client->sess.sessionTeam != TEAM_SPECTATOR) || ( (!client->isEliminated || client->ps.pm_type != PM_SPECTATOR)&& 
 	//	(G_IsElimGT()) ) ) {
+		
 	if (!(ent->client->sess.sessionTeam == TEAM_SPECTATOR 
 				|| (G_IsElimGT()
 				       	&& (client->isEliminated || client->ps.pm_type == PM_SPECTATOR )))) {
