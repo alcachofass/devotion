@@ -79,7 +79,11 @@ qboolean CheckGauntletAttack( gentity_t *ent ) {
 	VectorMA (muzzle, 32, forward, end);
 
 	G_DoTimeShiftFor( ent );
+	if (g_vulnerableMissiles.integer == 1) {	//mrd - allow shooter to damage their own missiles
+		trap_Trace (&tr, muzzle, NULL, NULL, end, ENTITYNUM_NONE, MASK_SHOT);
+	} else {
 		trap_Trace (&tr, muzzle, NULL, NULL, end, ent->s.number, MASK_SHOT);
+	}
 	G_UndoTimeShiftFor( ent );
 	if ( tr.surfaceFlags & SURF_NOIMPACT ) {
 		return qfalse;
@@ -245,9 +249,12 @@ void Bullet_Fire (gentity_t *ent, float spread, int damage ) {
 		// backward-reconcile the other clients
 		G_DoTimeShiftFor( ent );
 //unlagged - backward reconciliation #2
-
-		trap_Trace (&tr, muzzle, NULL, NULL, end, passent, MASK_SHOT);
-                
+		if (g_vulnerableMissiles.integer == 1) {	//mrd - allow shooter to damage their own missiles
+			trap_Trace (&tr, muzzle, NULL, NULL, end, ENTITYNUM_NONE, MASK_SHOT);
+		} else {
+			trap_Trace (&tr, muzzle, NULL, NULL, end, passent, MASK_SHOT);
+		}
+		                
 //unlagged - backward reconciliation #2
 		// put them back
 		G_UndoTimeShiftFor( ent );
@@ -417,7 +424,12 @@ qboolean ShotgunPellet( vec3_t start, vec3_t end, gentity_t *ent, struct hitShot
 	VectorCopy( start, tr_start );
 	VectorCopy( end, tr_end );
 	for (i = 0; i < 10; i++) {
-		trap_Trace (&tr, tr_start, NULL, NULL, tr_end, passent, MASK_SHOT);
+		if (g_vulnerableMissiles.integer == 1) {	//mrd - allow shooter to damage their own missiles
+			trap_Trace (&tr, tr_start, NULL, NULL, tr_end, ENTITYNUM_NONE, MASK_SHOT);
+		} else {
+			trap_Trace (&tr, tr_start, NULL, NULL, tr_end, passent, MASK_SHOT);
+		}
+		
 		traceEnt = &g_entities[ tr.entityNum ];
 
 		// send bullet impact
@@ -687,7 +699,11 @@ void weapon_railgun_fire (gentity_t *ent) {
 	hits = 0;
 	passent = ent->s.number;
 	do {
-		trap_Trace (&trace, muzzle, NULL, NULL, end, passent, MASK_SHOT );
+		if (g_vulnerableMissiles.integer == 1) {	//mrd - allow shooter to damage their own missiles
+			trap_Trace (&trace, muzzle, NULL, NULL, end, ENTITYNUM_NONE, MASK_SHOT );
+		} else {
+			trap_Trace (&trace, muzzle, NULL, NULL, end, passent, MASK_SHOT );
+		}
 		if ( trace.entityNum >= ENTITYNUM_MAX_NORMAL ) {
 			if (g_railJump.integer) {
 				G_RailJump( trace.endpos, ent );
@@ -750,22 +766,9 @@ void weapon_railgun_fire (gentity_t *ent) {
 	// the final trace endpos will be the terminal point of the rail trail
 
 	// snap the endpos to integers to save net bandwidth, but nudged towards the line
-	//mrd
-	/*
-	#if MRD_RGTRACE_DEBUG
-	trap_Printf( va( S_COLOR_GREEN "pre-snap X: %f\n", trace.endpos[0] ) );
-	trap_Printf( va( S_COLOR_GREEN "pre-snap Y: %f\n", trace.endpos[1] ) );
-	trap_Printf( va( S_COLOR_GREEN "pre-snap Z: %f\n", trace.endpos[2] ) );
-	#endif
-	*/
+	
 	//SnapVectorTowards( trace.endpos, muzzle ); //mrd - fuck this
-	/*
-	#if MRD_RGTRACE_DEBUG
-	trap_Printf( va( S_COLOR_RED "post-snap X: %f\n", trace.endpos[0] ) );
-	trap_Printf( va( S_COLOR_RED "post-snap Y: %f\n", trace.endpos[1] ) );
-	trap_Printf( va( S_COLOR_RED "post-snap Z: %f\n", trace.endpos[2] ) );
-	#endif
-	*/
+	
 		
 	// send railgun beam effect
 	tent = G_TempEntity( trace.endpos, EV_RAILTRAIL );
@@ -880,7 +883,11 @@ void Weapon_LightningFire( gentity_t *ent ) {
 	G_DoTimeShiftFor( ent );
 //unlagged - backward reconciliation #2
 
+	if (g_vulnerableMissiles.integer == 1) {	//mrd - allow shooter to damage their own missiles
+		trap_Trace( &tr, muzzle, NULL, NULL, end, ENTITYNUM_NONE, MASK_SHOT );
+	} else {
 		trap_Trace( &tr, muzzle, NULL, NULL, end, passent, MASK_SHOT );
+	}
 
 //unlagged - backward reconciliation #2
 	// put them back

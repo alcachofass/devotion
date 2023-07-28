@@ -1938,7 +1938,8 @@ gentity_t *SelectCTFSpawnPoint ( team_t team, int teamstate, vec3_t origin, vec3
 	spot = SelectRandomTeamSpawnPoint ( teamstate, team );
 
 	if (!spot) {
-		return SelectSpawnPoint( NULL, vec3_origin, origin, angles );
+		//return SelectSpawnPoint( NULL, vec3_origin, origin, angles );
+		return SelectSpawnPoint( NULL, vec3_origin, origin, angles, 0 );	//mrd
 	}
 
 	VectorCopy (spot->s.origin, origin);
@@ -1954,7 +1955,8 @@ gentity_t *SelectCTFSpawnPointArena ( team_t team, int teamstate, int arenaNum, 
 	spot = SelectRandomTeamSpawnPointArena ( teamstate, team, arenaNum );
 
 	if (!spot) {
-		return SelectSpawnPointArena( NULL, arenaNum, vec3_origin, origin, angles );
+		//return SelectSpawnPointArena( NULL, arenaNum, vec3_origin, origin, angles );
+		return SelectSpawnPointArena( NULL, arenaNum, vec3_origin, origin, angles, 0 );	//mrd
 	}
 
 	VectorCopy (spot->s.origin, origin);
@@ -1974,7 +1976,8 @@ gentity_t *SelectElimSpawnPoint ( team_t team, int teamstate, vec3_t origin, vec
 	}
 
 	if (!spot) {
-		return SelectSpawnPoint( NULL, vec3_origin, origin, angles );
+		//return SelectSpawnPoint( NULL, vec3_origin, origin, angles );
+		return SelectSpawnPoint( NULL, vec3_origin, origin, angles, 0 );	//mrd
 	}
 
 	VectorCopy (spot->s.origin, origin);
@@ -1994,7 +1997,8 @@ gentity_t *SelectElimSpawnPointArena ( team_t team, int teamstate, int arenaNum,
 	}
 
 	if (!spot) {
-		return SelectSpawnPointArena( NULL, arenaNum, vec3_origin, origin, angles );
+		//return SelectSpawnPointArena( NULL, arenaNum, vec3_origin, origin, angles );
+		return SelectSpawnPointArena( NULL, arenaNum, vec3_origin, origin, angles, 0 );	//mrd
 	}
 
 	VectorCopy (spot->s.origin, origin);
@@ -2020,7 +2024,8 @@ gentity_t *SelectDoubleDominationSpawnPoint ( team_t team, vec3_t origin, vec3_t
         }
         
 	if (!spot) {
-		return SelectSpawnPoint( NULL, vec3_origin, origin, angles );
+		//return SelectSpawnPoint( NULL, vec3_origin, origin, angles );
+		return SelectSpawnPoint( NULL, vec3_origin, origin, angles, 0 );	//mrd
 	}
 
 	VectorCopy (spot->s.origin, origin);

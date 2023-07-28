@@ -561,8 +561,9 @@ void G_SendSpawnpoints( gentity_t *ent ){
 	int stringlength = 0;
 
 	
-	if( level.warmupTime != -1 )
+	if( level.warmupTime != -1 ) {
 		return;
+	}
 
 	string[0] = '\0';
 
@@ -1572,7 +1573,7 @@ void SetTeam_Force( gentity_t *ent, char *s, gentity_t *by, qboolean tryforce ) 
 		}
 	} else {
 		// force them to spectators if there aren't any spots free
-		team = TEAM_FREE;
+		team = TEAM_FREE;	//mrd - should this be SPECTATOR_FREE?
 	}
 	if ( !force ) {
 		if ( g_maxGameClients.integer > 0 && 
@@ -1583,6 +1584,7 @@ void SetTeam_Force( gentity_t *ent, char *s, gentity_t *by, qboolean tryforce ) 
 	// override decision if limiting the players
 	if ( (g_gametype.integer == GT_TOURNAMENT)
 			&& level.numNonSpectatorClients >= 2 ) {
+			
 		if (team == TEAM_FREE) {
 			specGroup = SPECTATORGROUP_QUEUED;
 		}
@@ -1692,7 +1694,6 @@ void SetTeam_Force( gentity_t *ent, char *s, gentity_t *by, qboolean tryforce ) 
 			}
 		}
 
-
 	client->sess.sessionTeam = team;
 	client->sess.spectatorState = specState;
 	client->sess.spectatorGroup = specGroup;
@@ -1734,7 +1735,6 @@ void SetTeam_Force( gentity_t *ent, char *s, gentity_t *by, qboolean tryforce ) 
 
 	// get and distribute relevent paramters
 	ClientUserinfoChanged( clientNum );
-
 	ClientBegin( clientNum );
 }
 

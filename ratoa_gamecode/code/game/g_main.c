@@ -285,7 +285,7 @@ vmCvar_t        g_delagMissileImmediateRun;
 vmCvar_t        g_teleporterPrediction; 
 
 //vmCvar_t	g_tournamentMinSpawnDistance;
-vmCvar_t	g_tournamentSpawnsystem;
+vmCvar_t	g_tournamentSpawnSystem;
 vmCvar_t	g_ffaSpawnsystem;
 
 vmCvar_t	g_ra3compat;
@@ -432,6 +432,9 @@ vmCvar_t        g_timestamp_startgame;
 
 //Devotion
 vmCvar_t        pmove_autohop;
+
+//mrd
+vmCvar_t		g_vulnerableMissiles;
 
 // bk001129 - made static to avoid aliasing
 static cvarTable_t		gameCvarTable[] = {
@@ -625,7 +628,7 @@ static cvarTable_t		gameCvarTable[] = {
         { &g_teleporterPrediction, "g_teleporterPrediction", "1", 0, 0, qfalse },
 
         //{ &g_tournamentMinSpawnDistance, "g_tournamentMinSpawnDistance", "900", CVAR_ARCHIVE, 0, qfalse },
-        { &g_tournamentSpawnsystem, "g_tournamentSpawnsystem", "1", CVAR_ARCHIVE, 0, qfalse },
+        { &g_tournamentSpawnSystem, "g_tournamentSpawnSystem", "1", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse },
 
         { &g_ffaSpawnsystem, "g_ffaSpawnsystem", "0", CVAR_ARCHIVE, 0, qfalse },
 
@@ -887,8 +890,8 @@ static cvarTable_t		gameCvarTable[] = {
         { &g_timestamp_startgame, "g_timestamp", "0001-01-01 00:00:00", 0, 0, qfalse},
 
 	//Devotion
-	{ &pmove_autohop, "pmove_autohop", "0", CVAR_SYSTEMINFO | CVAR_ARCHIVE, 0, qfalse}
-        
+	{ &pmove_autohop, "pmove_autohop", "0", CVAR_SYSTEMINFO | CVAR_ARCHIVE, 0, qfalse},
+	{ &g_vulnerableMissiles, "g_vulnerableMissiles", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse}	//mrd
 };
 
 // bk001129 - made static to avoid aliasing
@@ -3454,7 +3457,8 @@ void FindIntermissionPoint( void ) {
 	// find the intermission spot
 	ent = G_Find (NULL, FOFS(classname), "info_player_intermission");
 	if ( !ent ) {	// the map creator forgot to put in an intermission point...
-		SelectSpawnPoint ( NULL, vec3_origin, level.intermission_origin, level.intermission_angle );
+		//SelectSpawnPoint ( NULL, vec3_origin, level.intermission_origin, level.intermission_angle );
+		SelectSpawnPoint ( NULL, vec3_origin, level.intermission_origin, level.intermission_angle, 0 );	//mrd
 	} else {
 		VectorCopy (ent->s.origin, level.intermission_origin);
 		VectorCopy (ent->s.angles, level.intermission_angle);
@@ -3485,7 +3489,8 @@ void FindIntermissionPointArena( int arenaNum, vec3_t origin, vec3_t angles ) {
 		ent = G_Find (NULL, FOFS(classname), "info_player_intermission");
 	}
 	if ( !ent ) {	// the map creator forgot to put in an intermission point...
-		SelectSpawnPointArena ( NULL, arenaNum, vec3_origin, level.intermission_origin, level.intermission_angle );
+		//SelectSpawnPointArena ( NULL, arenaNum, vec3_origin, level.intermission_origin, level.intermission_angle );
+		SelectSpawnPointArena ( NULL, arenaNum, vec3_origin, level.intermission_origin, level.intermission_angle, 1 );	//mrd
 	} else {
 		VectorCopy (ent->s.origin, origin);
 		VectorCopy (ent->s.angles, angles);

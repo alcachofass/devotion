@@ -1028,7 +1028,8 @@ void ClientEvents( gentity_t *ent, int oldEventSequence ) {
 				}
 			}
 */
-			SelectSpawnPoint( ent, ent->client->ps.origin, origin, angles );
+			//SelectSpawnPoint( ent, ent->client->ps.origin, origin, angles );
+			SelectSpawnPoint( ent, ent->client->ps.origin, origin, angles, 0 );	//mrd
 			TeleportPlayer( ent, origin, angles );
 			break;
 
