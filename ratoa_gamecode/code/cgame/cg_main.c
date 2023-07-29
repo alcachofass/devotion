@@ -1726,6 +1726,21 @@ static void CG_RegisterSounds( void ) {
         switch(cg_hitsound.integer) {
             
             case 0:
+				cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit0.wav", qfalse ); //ok
+				//Com_Printf("HIT0\n");
+				break;
+			case 1:
+				cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit.wav", qfalse ); //ok
+				//Com_Printf("HIT1\n");
+				break;
+			case 2:
+				cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit2.wav", qfalse ); //ok
+				//Com_Printf("HIT2\n");
+				break;
+			case 3:
+				cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit3.wav", qfalse ); //ok
+				//Com_Printf("HIT3\n");
+				break;
             default:
             /*
             cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit_old.wav", qfalse );
@@ -1735,7 +1750,8 @@ static void CG_RegisterSounds( void ) {
             cgs.media.hitSound3 = trap_S_RegisterSound( "sound/feedback/hit3.wav", qfalse );
             cgs.media.hitSound4 = trap_S_RegisterSound( "sound/feedback/hit4.wav", qfalse );
             */
-            cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit.wav", qfalse ); //ok
+            	cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit.wav", qfalse ); //ok
+				//Com_Printf("HIT1\n");
         };
 
 #ifdef MISSIONPACK
