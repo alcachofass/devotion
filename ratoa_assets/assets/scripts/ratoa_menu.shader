@@ -24,7 +24,7 @@ menuback_ratmod
 {
 	{
 		map textures/liquids/lavahell
-		rgbGen const ( 0.33 0 0 )
+		rgbGen const ( 0.1 0 0.8 )
 		tcMod scroll 0.05 0.05
 	}
 	{
