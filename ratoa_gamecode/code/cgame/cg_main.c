@@ -1868,6 +1868,12 @@ static void CG_RegisterSounds( void ) {
 		Com_sprintf (name, sizeof(name), "sound/player/footsteps/clank%i.wav", i+1); //ok
 		cgs.media.footsteps[FOOTSTEP_METAL][i] = trap_S_RegisterSound (name, qfalse);
 
+		Com_sprintf (name, sizeof(name), "sound/player/footsteps/wood%i.wav", i+1);	//mrd - register a wooden footstep
+		cgs.media.footsteps[FOOTSTEP_WOOD][i] = trap_S_RegisterSound (name, qfalse);
+
+		//mrd - snowsteps clash with other VQ3 surfaceparms bitflags on surface trace. leaving this out for now.
+		/*Com_sprintf (name, sizeof(name), "sound/player/footsteps/splash%i.wav", i+1);	//mrd - register a snowy footstep TODO: make this a real snow .wav file
+		cgs.media.footsteps[FOOTSTEP_SNOW][i] = trap_S_RegisterSound (name, qfalse);*/
 	}
 	for (i=0 ; i<CROUCHSLIDE_SOUNDS ; i++) {
 		Com_sprintf (name, sizeof(name), "sound/player/footsteps/slide%i.wav", i+1); //ok

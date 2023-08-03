@@ -1268,6 +1268,23 @@ static int PM_FootstepForSurface( void ) {
 	if ( pml.groundTrace.surfaceFlags & SURF_METALSTEPS ) {
 		return EV_FOOTSTEP_METAL;
 	}
+	if ( pml.groundTrace.surfaceFlags & SURF_WOODSTEPS ) {	//mrd - new event for wooden steps
+		return EV_FOOTSTEP_WOOD;
+	}
+	//mrd - this clashes with existing surfaces (flesh, some metal steps, etc.)
+	//if ( pml.groundTrace.surfaceFlags & 0x84021 ) {	//mrd - testing snowsteps
+	//if ( pml.groundTrace.surfaceFlags & SURF_SNOWSTEPS ) {	//mrd - new event for wooden steps
+	//	return EV_FOOTSTEP_SNOW;
+	//}
+	
+	/*if ( pml.groundTrace.surfaceFlags & 0x80021 ) {	//mrd - testing snowsteps
+		Com_Printf("Footstep trace bitflag 0x80021\n");
+		return EV_FOOTSTEP_SNOW;
+	}
+	if ( pml.groundTrace.surfaceFlags & 0x14020 ) {	//mrd - testing snowsteps
+		Com_Printf("Footstep trace bitflag 0x14020\n");
+		return EV_FOOTSTEP_SNOW;
+	}*/
 	return EV_FOOTSTEP;
 }
 
