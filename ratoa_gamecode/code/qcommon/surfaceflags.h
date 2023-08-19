@@ -75,6 +75,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	SURF_NOSTEPS			0x2000	// no footstep sounds
 #define	SURF_NONSOLID			0x4000	// don't collide against curves with this set
 #define	SURF_LIGHTFILTER		0x8000	// act as a light filter during q3map -light
-#define	SURF_ALPHASHADOW		0x10000	// do per-pixel light shadow casting in q3map
+#define	SURF_ALPHASHADOW		0x10000	// do per-pixel light shadow casting in q3map 
 #define	SURF_NODLIGHT			0x20000	// don't dlight even if solid (solid lava, skies)
 #define SURF_DUST				0x40000 // leave a dust trail when walking on this surface
+// mrd - new surface parameters to match QuakeLive BSP encoding.
+// new maps utilizing these surface parm should use q3map2 -custinfoparms switch on BSP stage 
+#define SURF_WOODSTEPS          0x100000
+//#define SURF_SNOWSTEPS          0x84021   //mrd - this clashes with existing surfaces in VQ3 even though it does pickup snow in QL maps properly
+//#define SURF_SNOWSTEPS2       0x80021 //mrd - found this in a couple of QL maps - might be a different depth of snow sound? 
+//#define SURF_SNOWMELTSTEPS    0x14020 //mrd - found this in a couple of QL maps - unsure what exactly it is for   
+#define SURF_SNOWSTEPS          0x200000    //mrd - new bitflag for snowsteps, doesn't match QL but will work with new maps using q3map2 custinfoparms

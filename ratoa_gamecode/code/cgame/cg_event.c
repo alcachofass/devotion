@@ -703,6 +703,20 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 				cgs.media.footsteps[ FOOTSTEP_METAL ][rand()&3] );
 		}
 		break;
+	case EV_FOOTSTEP_WOOD:	//mrd - wooden footsteps for QL maps and others
+		DEBUGNAME("EV_FOOTSTEP_WOOD");
+		if (cg_footsteps.integer) {
+			trap_S_StartSound (NULL, es->number, CHAN_BODY,
+				cgs.media.footsteps[ FOOTSTEP_WOOD ][rand()&3] );
+		}
+		break;
+	case EV_FOOTSTEP_SNOW:	//mrd - snowy footsteps. TODO: make snowsteps assets and modify PM_FootstepForSurface to generate the event
+		DEBUGNAME("EV_FOOTSTEP_SNOW");
+		if (cg_footsteps.integer) {
+			trap_S_StartSound (NULL, es->number, CHAN_BODY,
+				cgs.media.footsteps[ FOOTSTEP_SNOW ][rand()&3] );
+		}
+		break;
 	case EV_FOOTSPLASH:
 		DEBUGNAME("EV_FOOTSPLASH");
 		if (cg_footsteps.integer) {

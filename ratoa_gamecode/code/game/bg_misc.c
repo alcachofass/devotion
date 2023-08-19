@@ -1598,6 +1598,8 @@ const char *eventnames[] = {
 
 	"EV_FOOTSTEP",
 	"EV_FOOTSTEP_METAL",
+	"EV_FOOTSTEP_WOOD",	//mrd
+	"EV_FOOTSTEP_SNOW",	//mrd
 	"EV_FOOTSPLASH",
 	"EV_FOOTWADE",
 	"EV_SWIM",
