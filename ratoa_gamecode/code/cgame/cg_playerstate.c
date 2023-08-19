@@ -359,11 +359,15 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 		cg.lastHitTime = cg.time;
 		cg.lastHitDamage = ps->persistant[PERS_DAMAGE_DONE] - ops->persistant[PERS_DAMAGE_DONE];
 
+		trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
+
+/*      //duffman91 - We aren't doing per damage hit sounds. Instead, hit sounds are a selectable cvar. 
+
 		if (cg_hitsound.integer == 2) {
 			trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
 		} else {
 			damage = ps->persistant[PERS_DAMAGE_DONE] - ops->persistant[PERS_DAMAGE_DONE];
-			/*
+			
 			if (damage >= 100) {
 				trap_S_StartLocalSound( cgs.media.hitSound0, CHAN_LOCAL_SOUND );
 			} else if (damage >= 75) {
@@ -372,11 +376,12 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 				trap_S_StartLocalSound( cgs.media.hitSound2, CHAN_LOCAL_SOUND );
 			} else if (damage >= 25) {
 				trap_S_StartLocalSound( cgs.media.hitSound3, CHAN_LOCAL_SOUND );
-			} else {
-			*/
+			} else {			
 				trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
-			//}
-		}
+			}
+		} 
+*/
+		
 //#endif
 	} else if ( ps->persistant[PERS_HITS] < ops->persistant[PERS_HITS] ) {
 		trap_S_StartLocalSound( cgs.media.hitTeamSound, CHAN_LOCAL_SOUND );
