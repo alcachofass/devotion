@@ -127,6 +127,16 @@ votecommand     "portal_projectiles_off"
 displayname     "portal_projectiles_off"
 command         "g_teleMissiles 0"
 }
+{
+votecommand     "vq3_weapon_dmg"
+displayname     "vq3_weapon_dmg"
+command         "g_railGunDamage 100 ; g_lgDamage 8; g_mgDamage 7 ; g_rocketSpeed 900"
+}
+{
+votecommand     "ql_weapon_dmg"
+displayname     "ql_weapon_dmg"
+command         "g_railGunDamage 80 ; g_lgDamage 6; g_mgDamage 5 ; g_rocketSpeed 1000"
+}
 ```
 
 # Client Settings
