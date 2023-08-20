@@ -1032,7 +1032,7 @@ gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->nextthink = level.time + PLASMA_THINKTIME;
 	bolt->think = G_ExplodeMissile;
 	//mrd - added for G_MissileDie / vulnerable missiles
-	//if (g_vulnerableMissiles.integer == 1) {
+	if (g_vulnerableMissiles.integer == 1) {
 		bolt->health = 5;
 		bolt->takedamage = qtrue;
 		bolt->die = G_MissileDie;
@@ -1042,7 +1042,7 @@ gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t dir) {
 		VectorCopy(bolt->r.mins,bolt->r.absmin);
 		VectorSet(bolt->r.maxs,4,4,4);
 		VectorCopy(bolt->r.maxs,bolt->r.absmax);
-	//}
+	}
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
 	bolt->s.weapon = WP_PLASMAGUN;
@@ -1094,7 +1094,7 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->nextthink = level.time + 2500;
 	bolt->think = G_ExplodeMissile;
 	//mrd - added for G_MissileDie / vulnerable missiles 
-	//if (g_vulnerableMissiles.integer == 1) {
+	if (g_vulnerableMissiles.integer == 1) {
 		bolt->health = 5;
 		bolt->takedamage = qtrue;
 		bolt->die = G_MissileDie;
@@ -1105,7 +1105,7 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 		VectorSet(bolt->r.maxs,6,4,3);
 		VectorCopy(bolt->r.maxs,bolt->r.absmax);
 		//mrd - end G_MissileDie block
-	//}
+	}
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
 	bolt->s.weapon = WP_GRENADE_LAUNCHER;
@@ -1167,7 +1167,7 @@ gentity_t *fire_bfg (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->nextthink = level.time + 10000;
 	bolt->think = G_ExplodeMissile;
 	//mrd - added for G_MissileDie / vulnerable missiles
-	//if (g_vulnerableMissiles.integer == 1) {
+	if (g_vulnerableMissiles.integer == 1) {
 		bolt->health = 5;
 		bolt->takedamage = qtrue;
 		bolt->die = G_MissileDie;
@@ -1177,7 +1177,7 @@ gentity_t *fire_bfg (gentity_t *self, vec3_t start, vec3_t dir) {
 		VectorCopy(bolt->r.mins,bolt->r.absmin);
 		VectorSet(bolt->r.maxs,6,5,3);
 		VectorCopy(bolt->r.maxs,bolt->r.absmax);
-	//}
+	}
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
 	bolt->s.weapon = WP_BFG;
@@ -1228,7 +1228,7 @@ gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->nextthink = level.time + 15000;
 	bolt->think = G_ExplodeMissile;
 	//mrd - added for G_MissileDie / vulnerable missiles
-	//if (g_vulnerableMissiles.integer == 1) {
+	if (g_vulnerableMissiles.integer == 1) {
 		bolt->health = 5;
 		bolt->takedamage = qtrue;
 		bolt->die = G_MissileDie;
@@ -1238,7 +1238,7 @@ gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir) {
 		VectorCopy(bolt->r.mins,bolt->r.absmin);
 		VectorSet(bolt->r.maxs,8,3,3);
 		VectorCopy(bolt->r.maxs,bolt->r.absmax);
-	//}
+	}
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
 	bolt->s.weapon = WP_ROCKET_LAUNCHER;
