@@ -2365,7 +2365,7 @@ void Cmd_SpecGame_f( gentity_t *ent ) {
 }
 #endif // WITH_MULTITOURNAMENT
 
-/*
+
 void Cmd_GoodGame_f( gentity_t *ent ) {
 	if (G_Forfeit(ent, qfalse)) {
 #ifdef WITH_MULTITOURNAMENT
@@ -2376,7 +2376,7 @@ void Cmd_GoodGame_f( gentity_t *ent ) {
 		G_Say(ent, NULL, SAY_ALL, "I give up, you win. Good Game!");
 	}
 }
-*/
+
 
 // delay until the player who dropped an item can pick it up again
 // to prevent immediately picking up a dropped item again
@@ -4541,8 +4541,14 @@ commands_t cmds[ ] =
   { "pause", 0, Cmd_Timeout_f },
   { "unpause", 0, Cmd_Timein_f },
 
-//{ "gg", 0, Cmd_GoodGame_f },
-
+  // different ways to ragequit or give up
+  { "gg", 0, Cmd_GoodGame_f },
+  { "owned", 0, Cmd_GoodGame_f },
+  { "resign", 0, Cmd_GoodGame_f },
+  { "crushed", 0, Cmd_GoodGame_f },
+  { "immaheadout", 0, Cmd_GoodGame_f },
+  { "aightimmaheadout", 0, Cmd_GoodGame_f },
+  
   { "drop", CMD_LIVING, Cmd_Drop_f },
   { "dropflag", CMD_LIVING, Cmd_Drop_flag },
   { "droppowerup", CMD_LIVING, Cmd_Drop_powerup },
