@@ -146,6 +146,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define RATSB3_GA_WIDTH			(2 * SCORESMALLCHAR_WIDTH) //mrd
 #define RATSB3_SH_WIDTH			(2 * SCORESMALLCHAR_WIDTH) //mrd
 
+#define RATSB3_OFFSET 5                 // offset so counts align with rightmost character of 2 character columns
+
 #define RATSB3_NAME_X           (RATSCOREBOARD_X+10)
 #define RATSB3_NAME_WIDTH     	(RATSB3_NAME_LENGTH * SCORECHAR_WIDTH)
 #define RATSB3_MEGA_X           (RATSB3_NAME_X      + RATSB3_NAME_WIDTH      + 1 * SCORESMALLCHAR_WIDTH)
@@ -474,11 +476,11 @@ static void CG_RatDrawClientStats(int y, score_t *score, float *color, float fad
 		return;
 	}
 
- 	CG_DrawSmallScoreString(RATSB3_MEGA_X, y, va(S_COLOR_CYAN "%2i", score->mega_healths), fade);
- 	CG_DrawSmallScoreString(RATSB3_RA_X, y, va(S_COLOR_RED "%2i", score->red_armors), fade);
- 	CG_DrawSmallScoreString(RATSB3_YA_X, y, va(S_COLOR_YELLOW "%2i", score->yellow_armors), fade);
-	CG_DrawSmallScoreString(RATSB3_GA_X, y, va(S_COLOR_GREEN "%2i", score->green_armors), fade); //mrd - we'll draw GA and shards score too
-	CG_DrawSmallScoreString(RATSB3_SH_X, y, va(S_COLOR_WHITE "%2i", score->shard_armors), fade); //mrd
+ 	CG_DrawSmallScoreString(RATSB3_MEGA_X + RATSB3_OFFSET, y, va(S_COLOR_CYAN "%2i", score->mega_healths), fade);
+ 	CG_DrawSmallScoreString(RATSB3_RA_X + RATSB3_OFFSET, y, va(S_COLOR_RED "%2i", score->red_armors), fade);
+ 	CG_DrawSmallScoreString(RATSB3_YA_X + RATSB3_OFFSET, y, va(S_COLOR_YELLOW "%2i", score->yellow_armors), fade);
+	CG_DrawSmallScoreString(RATSB3_GA_X + RATSB3_OFFSET, y, va(S_COLOR_GREEN "%2i", score->green_armors), fade); //mrd - we'll draw GA and shards score too
+	CG_DrawSmallScoreString(RATSB3_SH_X + RATSB3_OFFSET, y, va(S_COLOR_WHITE "%2i", score->shard_armors), fade); //mrd
 }
 
 //mrd - add a block for weapon P/U stats
@@ -502,13 +504,13 @@ static void CG_RatDrawWeaponPUStats(int y, score_t *score, float *color, float f
 		return;
 	}
 
- 	CG_DrawSmallScoreString(RATSB4_SG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[0]), fade); //SG
-	CG_DrawSmallScoreString(RATSB4_GL_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[1]), fade); //GL
-	CG_DrawSmallScoreString(RATSB4_RL_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[2]), fade); //RL
-	CG_DrawSmallScoreString(RATSB4_LG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[3]), fade); //LG
-	CG_DrawSmallScoreString(RATSB4_RG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[4]), fade); //RG
-	CG_DrawSmallScoreString(RATSB4_PG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[5]), fade); //PG
-	CG_DrawSmallScoreString(RATSB4_BFG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[6]), fade); //BFG
+ 	CG_DrawSmallScoreString(RATSB4_SG_X + RATSB3_OFFSET, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[0]), fade); //SG
+	CG_DrawSmallScoreString(RATSB4_GL_X + RATSB3_OFFSET, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[1]), fade); //GL
+	CG_DrawSmallScoreString(RATSB4_RL_X + RATSB3_OFFSET, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[2]), fade); //RL
+	CG_DrawSmallScoreString(RATSB4_LG_X + RATSB3_OFFSET, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[3]), fade); //LG
+	CG_DrawSmallScoreString(RATSB4_RG_X + RATSB3_OFFSET, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[4]), fade); //RG
+	CG_DrawSmallScoreString(RATSB4_PG_X + RATSB3_OFFSET, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[5]), fade); //PG
+	CG_DrawSmallScoreString(RATSB4_BFG_X + RATSB3_OFFSET, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[6]), fade); //BFG
 	#ifdef MISSIONPACK
 	CG_DrawSmallScoreString(RATSB4_NG_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[7]), fade);
 	CG_DrawSmallScoreString(RATSB4_PL_X, y, va(S_COLOR_MENU "%2i", score->weaponPickupCounts[8]), fade);
@@ -1130,7 +1132,7 @@ qboolean CG_DrawRatScoreboard(void) {
 		CG_DrawTinyScoreStringColor(RATSB4_LG_CENTER, y, "LG", colorMdGrey);
 		CG_DrawTinyScoreStringColor(RATSB4_RG_CENTER, y, "RG", colorMdGrey);
 		CG_DrawTinyScoreStringColor(RATSB4_PG_CENTER, y, "PG", colorMdGrey);
-		CG_DrawTinyScoreStringColor(RATSB4_BFG_CENTER, y, "BFG", colorMdGrey);
+		CG_DrawTinyScoreStringColor(RATSB4_BFG_CENTER, y, "BG", colorMdGrey);
 		#ifdef MISSIONPACK
 		CG_DrawTinyScoreStringColor(RATSB4_NG_X - 1.5 * SCORETINYCHAR_WIDTH, y, "NG", colorMdGrey);
 		CG_DrawTinyScoreStringColor(RATSB4_PL_X - 1.5 * SCORETINYCHAR_WIDTH, y, "PL", colorMdGrey);
