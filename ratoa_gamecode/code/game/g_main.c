@@ -606,7 +606,7 @@ static cvarTable_t		gameCvarTable[] = {
         { &g_lagLightning, "g_lagLightning", "1", CVAR_ARCHIVE, 0, qtrue },
 //unlagged - server options
         { &g_ambientSound, "g_ambientSound", "0", CVAR_ARCHIVE, 0, qfalse },
-        { &g_rocketSpeed, "g_rocketSpeed", "900", CVAR_ARCHIVE, 0, qtrue },
+        { &g_rocketSpeed, "g_rocketSpeed", "900", CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qtrue },
 	// TODO: CVAR_ARCHIVE
         { &g_maxExtrapolatedFrames, "g_maxExtrapolatedFrames", "2", 0 , 0, qfalse },
 
@@ -663,7 +663,7 @@ static cvarTable_t		gameCvarTable[] = {
 
         { &g_newShotgun, "g_newShotgun", "0", CVAR_ARCHIVE, 0, qtrue },
 
-	{ &g_movement,   "g_movement", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_movement,   "g_movement", "0", CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qtrue },
 	{ &g_crouchSlide,   "g_crouchSlide", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_slideMode,   "g_slideMode", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_rampJump,     "g_rampJump", "0", CVAR_ARCHIVE, 0, qtrue },
@@ -824,7 +824,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_grapple, "g_grapple", "0", CVAR_ARCHIVE, 0, qtrue },
 
 	//nexuiz style rocket arena
-	{ &g_rockets, "g_rockets", "0", CVAR_LATCH | CVAR_NORESTART, 0, qfalse },
+	{ &g_rockets, "g_rockets", "0", CVAR_SERVERINFO | CVAR_LATCH | CVAR_NORESTART, 0, qfalse },
 
 	//Instantgib and Vampire thingies
 	{ &g_instantgib, "g_instantgib", "0", CVAR_SERVERINFO | CVAR_LATCH, 0, qfalse },
@@ -891,7 +891,7 @@ static cvarTable_t		gameCvarTable[] = {
 
 	//Devotion
 	{ &pmove_autohop, "pmove_autohop", "0", CVAR_SYSTEMINFO | CVAR_ARCHIVE, 0, qfalse},
-	{ &g_vulnerableMissiles, "g_vulnerableMissiles", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse}	//mrd
+	{ &g_vulnerableMissiles, "g_vulnerableMissiles", "0", CVAR_SERVERINFO | CVAR_NORESTART, 0, qfalse}	//mrd
 };
 
 // bk001129 - made static to avoid aliasing
