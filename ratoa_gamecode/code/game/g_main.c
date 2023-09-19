@@ -692,7 +692,7 @@ static cvarTable_t		gameCvarTable[] = {
         { &g_killSafety, "g_killSafety", "500", CVAR_ARCHIVE , 0, qfalse },
         { &g_killDisable, "g_killDisable", "0", CVAR_ARCHIVE , 0, qfalse },
 
-        { &g_startWhenReady, "g_startWhenReady", "0", CVAR_ARCHIVE, 0, qfalse },
+        { &g_startWhenReady, "g_startWhenReady", "0", CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qfalse },
         { &g_autoStartTime, "g_autoStartTime", "0", CVAR_ARCHIVE, 0, qfalse },
         { &g_autoStartMinPlayers, "g_autoStartMinPlayers", "0", CVAR_ARCHIVE, 0, qfalse },
 
@@ -833,7 +833,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_regen, "g_regen", "0", CVAR_NORESTART, 0, qtrue },
 	{ &g_vampireMaxHealth, "g_vampire_max_health", "500", CVAR_NORESTART, 0, qtrue },
 	{ &g_lms_lives, "g_lms_lives", "1", CVAR_NORESTART, 0, qtrue },
-	{ &g_lms_mode, "g_lms_mode", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue },
+	{ &g_lms_mode, "g_lms_mode", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue },
 
 	{ &g_coins, "g_coins", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_coinsDefault, "g_coinsDefault", "1", CVAR_ARCHIVE, 0, qtrue },
@@ -852,7 +852,7 @@ static cvarTable_t		gameCvarTable[] = {
         
         //KK-OAX
         { &g_sprees, "g_sprees", "sprees.dat", 0, 0, qfalse },
-        { &g_altExcellent, "g_altExcellent", "0", 0, 0, qtrue}, 
+        { &g_altExcellent, "g_altExcellent", "0", CVAR_SERVERINFO, 0, qtrue}, 
         { &g_spreeDiv, "g_spreeDiv", "5", 0, 0, qfalse},
         
         //Used for command/chat flooding
