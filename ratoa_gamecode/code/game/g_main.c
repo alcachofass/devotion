@@ -32,7 +32,7 @@ typedef struct {
 	int			cvarFlags;
 	int			modificationCount;  // for tracking changes
 	qboolean	trackChange;	    // track this variable, and announce if changed
-  qboolean teamShader;        // track and if changed, update shader state
+	qboolean	teamShader;        // track and if changed, update shader state
 } cvarTable_t;
 
 gentity_t		g_entities[MAX_GENTITIES];
@@ -47,11 +47,6 @@ qboolean g_is_team_gt;
 
 // bk001129 - made static to avoid aliasing
 static cvarTable_t		gameCvarTable[] = {
-
-	// noset vars
-	{ NULL, "gamename", GAMEVERSION , CVAR_SERVERINFO | CVAR_ROM, 0, qfalse  },
-	{ NULL, "gamedate", __DATE__ , CVAR_ROM, 0, qfalse  },
-	{ NULL, "sv_mapname", "", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse  },
 
 // LegendGuard: single-line cvar declaration, from ec-/baseq3a (by Razor)
 #define G_CVAR_LIST
