@@ -5749,7 +5749,7 @@ static void CG_DrawSpectator(void) {
 	}
 	CG_DrawTinyScoreString(320 - (CG_DrawStrlen(s)*SCORETINYCHAR_WIDTH)/2, 458, s, 1.0F);
 	s = "Help: " S_COLOR_GREEN "\\help" S_COLOR_WHITE " or " S_COLOR_GREEN "\\doc" S_COLOR_WHITE; // " or visit "
-	      // 	S_COLOR_CYAN "https://devoq3.net/";
+	      
 	CG_DrawTinyScoreString(320 - (CG_DrawStrlen(s)*SCORETINYCHAR_WIDTH)/2, 468, s, 1.0F);
 }
 
