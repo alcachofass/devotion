@@ -2015,7 +2015,8 @@ static void CG_DrawStatusBar( void ) {
 		CG_Draw3DModel( 370 + CHAR_WIDTH*3 + TEXT_ICON_SPACE, 432, ICON_SIZE, ICON_SIZE,
 					   cgs.media.armorModel, 0, origin, angles );
 	}
-        
+
+#if defined(MISSIONPACK) || defined(TREASURE_HUNTER_GAMETYPE) 
 #if defined(MISSIONPACK) && defined(TREASURE_HUNTER_GAMETYPE) 
 	if( cgs.gametype == GT_HARVESTER || cgs.gametype == GT_TREASURE_HUNTER)
 #elif defined(MISSIONPACK) 
@@ -2037,6 +2038,7 @@ static void CG_DrawStatusBar( void ) {
 #endif
 		CG_Draw3DModel( 470 + CHAR_WIDTH*3 + TEXT_ICON_SPACE, 432, ICON_SIZE, ICON_SIZE, handle, 0, origin, angles );
 	}
+#endif
         
 	//
 	// ammo
@@ -2108,6 +2110,7 @@ static void CG_DrawStatusBar( void ) {
 
 	}
         
+#if defined(MISSIONPACK) || defined(TREASURE_HUNTER_GAMETYPE)
         //Skulls!
 #if defined(MISSIONPACK) && defined(TREASURE_HUNTER_GAMETYPE)
 	if(cgs.gametype == GT_HARVESTER || cgs.gametype == GT_TREASURE_HUNTER)
@@ -2138,6 +2141,7 @@ static void CG_DrawStatusBar( void ) {
 
             }
         }
+#endif
 }
 
 #define HUD_DAMAGE_TIME 500
