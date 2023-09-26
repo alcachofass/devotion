@@ -106,17 +106,31 @@ MULTIPLAYER MENU (SERVER BROWSER)
 #define GAMES_TEAMPLAY                  3
 #define GAMES_TOURNEY                   4
 #define GAMES_CTF			5
-//#define GAMES_1FCTF                     6
-//#define GAMES_OBELISK                   7
-//#define GAMES_HARVESTER                 8
-#define GAMES_ELIMINATION		6 //9
-#define GAMES_CTF_ELIMINATION		7 //10
-#define GAMES_LMS			8 //11
-//#define GAMES_DOUBLE_D			12
-//#define GAMES_DOM                       13
-//#define GAMES_TH                        14
+
+#ifdef MISSIONPACK
+#define GAMES_1FCTF                     6
+#define GAMES_OBELISK                   7
+#define GAMES_HARVESTER                 8
+#endif
+
+#define GAMES_ELIMINATION		9
+#define GAMES_CTF_ELIMINATION	10
+#define GAMES_LMS			11
+
+#ifdef DOM_GAMETYPE
+#define GAMES_DOM                       12
+#endif
+
+#ifdef DOUBLED_GAMETYPE
+#define GAMES_DOUBLE_D			13
+#endif
+
+#ifdef TREASURE_HUNTER_GAMETYPE
+#define GAMES_TH                        14
+#endif
+
 #ifdef WITH_MULTITOURNAMENT
-#define GAMES_MULTITOURNAMENT          9 // 15
+#define GAMES_MULTITOURNAMENT          15
 #endif
 
 
@@ -138,17 +152,25 @@ static const char *servertype_items[] = {
 	"Team Deathmatch",
 	"Tournament",
 	"Capture the Flag",
-    //    "One Flag Capture",
-    //    "Overload",
-    //    "Harvester",
+#ifdef MISSIONPACK
+	"One Flag Capture",
+	"Overload",
+	"Harvester",
+#endif
 	"Elimination",
 	"CTF Elimination",
 	"Last Man Standing",
-	//"Double Domination",
-    //    "Domination",
-    //    "Treasure Hunter",
+#ifdef DOM_GAMETYPE
+	"Domination",
+#endif
+#ifdef DOUBLED_GAMETYPE
+	"Double Domination",
+#endif
+#ifdef TREASURE_HUNTER_GAMETYPE
+	"Treasure Hunter",
+#endif
 #ifdef WITH_MULTITOURNAMENT
-        "Multitournament",
+	"Multitournament",
 #endif
 	NULL
 };
@@ -676,25 +698,27 @@ static void ArenaServers_UpdateMenu( void ) {
 				continue;
 			}
 			break;
-/*
-                case GAMES_1FCTF:
+
+#ifdef MISSIONPACK
+		case GAMES_1FCTF:
 			if( servernodeptr->gametype != GT_1FCTF ) {
 				continue;
 			}
 			break;
 
-                case GAMES_OBELISK:
+		case GAMES_OBELISK:
 			if( servernodeptr->gametype != GT_OBELISK ) {
 				continue;
 			}
 			break;
 
-                case GAMES_HARVESTER:
+		case GAMES_HARVESTER:
 			if( servernodeptr->gametype != GT_HARVESTER ) {
 				continue;
 			}
 			break;
-*/
+#endif
+
 		case GAMES_ELIMINATION:
 			if( servernodeptr->gametype != GT_ELIMINATION ) {
 				continue;
@@ -712,26 +736,31 @@ static void ArenaServers_UpdateMenu( void ) {
 				continue;
 			}
 			break;
-/*
+#ifdef DOM_GAMETYPE
+		case GAMES_DOM:
+			if( servernodeptr->gametype != GT_DOMINATION ) {
+				continue;
+			}
+			break;
+#endif
+
+#ifdef DOUBLED_GAMETYPE
 		case GAMES_DOUBLE_D:
 			if( servernodeptr->gametype != GT_DOUBLE_D ) {
 				continue;
 			}
 			break;
+#endif
 
-                case GAMES_DOM:
-			if( servernodeptr->gametype != GT_DOMINATION ) {
-				continue;
-			}
-			break;
-                case GAMES_TH:
+#ifdef TREASURE_HUNTER_GAMETYPE
+		case GAMES_TH:
 			if( servernodeptr->gametype != GT_TREASURE_HUNTER ) {
 				continue;
 			}
 			break;
-*/
+#endif
 #ifdef WITH_MULTITOURNAMENT
-                case GAMES_MULTITOURNAMENT:
+		case GAMES_MULTITOURNAMENT:
 			if( servernodeptr->gametype != GT_MULTITOURNAMENT ) {
 				continue;
 			}
@@ -739,8 +768,8 @@ static void ArenaServers_UpdateMenu( void ) {
 #endif
 		}
                 
-                if(g_hideprivate && servernodeptr->needPass)
-                    continue;
+		if(g_hideprivate && servernodeptr->needPass)
+			continue;
 
 		if (!ArenaServers_Filtered(servernodeptr)) {
 			continue;
@@ -1313,23 +1342,29 @@ static void ArenaServers_StartRefresh( void )
 		case GAMES_LMS:
 			strcpy( myargs, " lms" );
 			break;
-/*		
+
+#ifdef DOUBLED_GAMETYPE
 		case GAMES_DOUBLE_D:
 			strcpy( myargs, " dd" );
 			break;
+#endif
 
-                case GAMES_DOM:
-                    strcpy( myargs, " dom" );
-                    break;
+#ifdef DOM_GAMETYPE
+		case GAMES_DOM:
+			strcpy( myargs, " dom" );
+			break;
+#endif
 
-                case GAMES_TH:
-                    strcpy( myargs, va(" %d", GT_TREASURE_HUNTER) );
-                    break;
-*/
+#ifdef TREASURE_HUNTER_GAMETYPE
+		case GAMES_TH:
+			strcpy( myargs, va(" %d", GT_TREASURE_HUNTER) );
+			break;
+#endif
+
 #ifdef WITH_MULTITOURNAMENT
-                case GAMES_MULTITOURNAMENT:
-                    strcpy( myargs, va(" %d", GT_MULTITOURNAMENT) );
-                    break;
+		case GAMES_MULTITOURNAMENT:
+			strcpy( myargs, va(" %d", GT_MULTITOURNAMENT) );
+			break;
 #endif
 		}
 

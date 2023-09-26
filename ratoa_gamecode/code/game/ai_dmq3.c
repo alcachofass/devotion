@@ -325,12 +325,12 @@ qboolean EntityHasKamikaze(aas_entityinfo_t *entinfo) {
 }
 */
 
+#ifdef MISSIONPACK
 /*
 ==================
 EntityCarriesCubes
 ==================
 */
-/*
 qboolean EntityCarriesCubes(aas_entityinfo_t *entinfo) {
 	entityState_t state;
 	if (gametype != GT_HARVESTER)
@@ -341,27 +341,24 @@ qboolean EntityCarriesCubes(aas_entityinfo_t *entinfo) {
 		return qtrue;
 	return qfalse;
 }
-*/
 
 /*
 ==================
 Bot1FCTFCarryingFlag
 ==================
 */
-/*
 int Bot1FCTFCarryingFlag(bot_state_t *bs) {
 	if (gametype != GT_1FCTF) return qfalse;
 
 	if (bs->inventory[INVENTORY_NEUTRALFLAG] > 0) return qtrue;
 	return qfalse;
 }
-*/
+
 /*
 ==================
 BotHarvesterCarryingCubes
 ==================
 */
-/*
 int BotHarvesterCarryingCubes(bot_state_t *bs) {
 	if (gametype != GT_HARVESTER) return qfalse;
 
@@ -369,8 +366,7 @@ int BotHarvesterCarryingCubes(bot_state_t *bs) {
 	if (bs->inventory[INVENTORY_BLUECUBE] > 0) return qtrue;
 	return qfalse;
 }
-//#endif
-*/
+#endif
 
 /*
 ==================
@@ -839,8 +835,8 @@ void BotCTFRetreatGoals(bot_state_t *bs) {
 BotDomSeekGoals
 ==================
  */
-
-/*void BotDomSeekGoals(bot_state_t *bs) {
+#ifdef DOM_GAMETYPE
+void BotDomSeekGoals(bot_state_t *bs) {
     int index;
     bs->ltgtype = LTG_DOMHOLD; //For debugging we are forcing roam
     
@@ -860,15 +856,16 @@ BotDomSeekGoals
 
     BotAlternateRoute(bs, &bs->teamgoal);
 
-    BotSetTeamStatus(bs);
-}*/
+    //BotSetTeamStatus(bs);
+}
+#endif
 
 /*
 ==================
 BotDDSeekGoals
 ==================
 */
-
+#ifdef DOUBLED_GAMETYPE
 void BotDDSeekGoals(bot_state_t *bs) {
 
 	/*if (bs->ltgtype == LTG_TEAMHELP ||
@@ -910,16 +907,16 @@ void BotDDSeekGoals(bot_state_t *bs) {
 			BotSetUserInfo(bs, "teamtask", va("%d", TEAMTASK_DEFENSE));
 		*/
 	}
-
-
 }
+#endif
 
+
+#ifdef MISSIONPACK
 /*
 ==================
 Bot1FCTFSeekGoals
 ==================
 */
-/*
 void Bot1FCTFSeekGoals(bot_state_t *bs) {
 	aas_entityinfo_t entinfo;
 	float rnd, l1, l2;
@@ -1137,13 +1134,12 @@ void Bot1FCTFSeekGoals(bot_state_t *bs) {
 	BotPrintTeamGoal(bs);
 #endif //DEBUG
 }
-*/
+
 /*
 ==================
 Bot1FCTFRetreatGoals
 ==================
 */
-/*
 void Bot1FCTFRetreatGoals(bot_state_t *bs) {
 	//when carrying a flag in ctf the bot should rush to the enemy base
 	if (Bot1FCTFCarryingFlag(bs)) {
@@ -1161,13 +1157,12 @@ void Bot1FCTFRetreatGoals(bot_state_t *bs) {
 		}
 	}
 }
-*/
+
 /*
 ==================
 BotObeliskSeekGoals
 ==================
 */
-/*
 void BotObeliskSeekGoals(bot_state_t *bs) {
 	float rnd, l1, l2;
 
@@ -1255,13 +1250,12 @@ void BotObeliskSeekGoals(bot_state_t *bs) {
 		//BotSetTeamStatus(bs);
 	}
 }
-*/
+
 /*
 ==================
 BotGoHarvest
 ==================
 */
-/*
 void BotGoHarvest(bot_state_t *bs) {
 	//
 	if (BotTeam(bs) == TEAM_RED) memcpy(&bs->teamgoal, &blueobelisk, sizeof(bot_goal_t));
@@ -1273,23 +1267,20 @@ void BotGoHarvest(bot_state_t *bs) {
 	bs->harvestaway_time = 0;
 	//BotSetTeamStatus(bs);
 }
-*/
+
 /*
 ==================
 BotObeliskRetreatGoals
 ==================
 */
-/*
 void BotObeliskRetreatGoals(bot_state_t *bs) {
 	//nothing special
 }
-*/
 /*
 ==================
 BotHarvesterSeekGoals
 ==================
 */
-/*
 void BotHarvesterSeekGoals(bot_state_t *bs) {
 	aas_entityinfo_t entinfo;
 	float rnd, l1, l2;
@@ -1424,13 +1415,12 @@ void BotHarvesterSeekGoals(bot_state_t *bs) {
 		//BotSetTeamStatus(bs);
 	}
 }
-*/
+
 /*
 ==================
 BotHarvesterRetreatGoals
 ==================
 */
-/*
 void BotHarvesterRetreatGoals(bot_state_t *bs) {
 	//when carrying cubes in harvester the bot should rush to the base
 	if (BotHarvesterCarryingCubes(bs)) {
@@ -1447,8 +1437,8 @@ void BotHarvesterRetreatGoals(bot_state_t *bs) {
 		return;
 	}
 }
-//#endif
-*/
+#endif
+
 /*
 ==================
 BotTeamGoals
@@ -1460,7 +1450,7 @@ void BotTeamGoals(bot_state_t *bs, int retreat) {
 		if (gametype == GT_CTF || gametype == GT_CTF_ELIMINATION ) {
 			BotCTFRetreatGoals(bs);
 		}
-		/*
+#ifdef MISSIONPACK
 		else if (gametype == GT_1FCTF) {
 			Bot1FCTFRetreatGoals(bs);
 		}
@@ -1470,14 +1460,14 @@ void BotTeamGoals(bot_state_t *bs, int retreat) {
 		else if (gametype == GT_HARVESTER) {
 			BotHarvesterRetreatGoals(bs);
 		}
-		*/
+#endif
 	}
 	else {
 		if (gametype == GT_CTF|| gametype == GT_CTF_ELIMINATION) {
 			//decide what to do in CTF mode
 			BotCTFSeekGoals(bs);
 		}
-		/*
+#ifdef MISSIONPACK
 		else if (gametype == GT_1FCTF) {
 			Bot1FCTFSeekGoals(bs);
 		}
@@ -1487,14 +1477,16 @@ void BotTeamGoals(bot_state_t *bs, int retreat) {
 		else if (gametype == GT_HARVESTER) {
 			BotHarvesterSeekGoals(bs);
 		}
-		*/
+#endif
 	}
-	/*
+#ifdef DOM_GAMETYPE
+    if(gametype == GT_DOMINATION) //Don't care about retreat
+		BotDomSeekGoals(bs);
+#endif
+#ifdef DOUBLED_GAMETYPE
 	if(gametype == GT_DOUBLE_D) //Don't care about retreat
 		BotDDSeekGoals(bs);
-        */
-        //if(gametype == GT_DOMINATION) //Don't care about retreat
-	//	BotDomSeekGoals(bs);
+#endif
 
 	// reset the order time which is used to see if
 	// we decided to refuse an order
@@ -5555,29 +5547,7 @@ void BotSetupDeathmatchAI(void) {
 		if (untrap_BotGetLevelItemGoal(-1, "Blue Flag", &ctf_blueflag) < 0)
 			BotAI_Print(PRT_WARNING, "CTF without Blue Flag\n");
 	}
-	/*
-	else if (gametype == GT_DOUBLE_D) {
-		if (untrap_BotGetLevelItemGoal(-1, "Red Flag", &ctf_redflag) < 0)
-			BotAI_Print(PRT_WARNING, "DD without Point A\n");
-		if (untrap_BotGetLevelItemGoal(-1, "Blue Flag", &ctf_blueflag) < 0)
-			BotAI_Print(PRT_WARNING, "DD without Point B\n");
-	}
-        else if (gametype == GT_DOMINATION) {
-            ent = untrap_BotGetLevelItemGoal(-1, "Domination point", &dom_points_bot[0]);
-            if(ent < 0)
-		BotAI_Print(PRT_WARNING, "Domination without a single domination point\n");
-            else
-                BotSetEntityNumForGoal(&dom_points_bot[0], va("domination_point%i",0) );
-            for(i=1;i<level.domination_points_count;i++) {
-                //Find next from the privius found entity
-                ent = untrap_BotGetLevelItemGoal(ent, "Domination point", &dom_points_bot[i]);
-                if(ent < 0)
-                    BotAI_Print(PRT_WARNING, "Domination point %i not found!\n",i);
-                else
-                    BotSetEntityNumForGoal(&dom_points_bot[0], va("domination_point%i",i) );
-            }
-            //MAX_DOMINATION_POINTS
-	}
+#ifdef MISSIONPACK
 	else if (gametype == GT_1FCTF) {
 		if (untrap_BotGetLevelItemGoal(-1, "Neutral Flag", &ctf_neutralflag) < 0)
 			BotAI_Print(PRT_WARNING, "One Flag CTF without Neutral Flag\n");
@@ -5605,7 +5575,33 @@ void BotSetupDeathmatchAI(void) {
 			BotAI_Print(PRT_WARNING, "Harvester without neutral obelisk\n");
 		BotSetEntityNumForGoal(&neutralobelisk, "team_neutralobelisk");
 	}
-	*/
+#endif
+#ifdef DOM_GAMETYPE
+	else if (gametype == GT_DOMINATION) {
+		ent = untrap_BotGetLevelItemGoal( -1, "Domination point", &dom_points_bot[0] );
+		if(ent < 0)
+			BotAI_Print(PRT_WARNING, "Domination without a single domination point\n");
+		else
+			BotSetEntityNumForGoal( &dom_points_bot[0], va("domination_point%i",0) );
+		for( i = 1; i < level.domination_points_count; i++ ) {
+			//Find next from the privius found entity
+			ent = untrap_BotGetLevelItemGoal(ent, "Domination point", &dom_points_bot[i]);
+			if(ent < 0)
+				BotAI_Print(PRT_WARNING, "Domination point %i not found!\n",i);
+			else
+				BotSetEntityNumForGoal(&dom_points_bot[0], va("domination_point%i",i) );
+		}
+		//MAX_DOMINATION_POINTS
+	}
+#endif
+#ifdef DOUBLED_GAMETYPE
+	else if (gametype == GT_DOUBLE_D) {
+		if (untrap_BotGetLevelItemGoal( -1, "Red Flag", &ctf_redflag ) < 0)
+			BotAI_Print(PRT_WARNING, "DD without Point A\n");
+		if (untrap_BotGetLevelItemGoal( -1, "Blue Flag", &ctf_blueflag ) < 0)
+			BotAI_Print(PRT_WARNING, "DD without Point B\n");
+	}
+#endif
 	max_bspmodelindex = 0;
 	for (ent = trap_AAS_NextBSPEntity(0); ent; ent = trap_AAS_NextBSPEntity(ent)) {
 		if (!trap_AAS_ValueForBSPEpairKey(ent, "model", model, sizeof(model))) continue;

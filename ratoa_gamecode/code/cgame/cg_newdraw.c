@@ -1194,20 +1194,24 @@ const char *CG_GameTypeString(void) {
 		return "Team Deathmatch";
 	} else if ( cgs.gametype == GT_CTF ) {
 		return "Capture the Flag";
+#ifdef MISSIONPACK
 	} else if ( cgs.gametype == GT_1FCTF ) {
 		return "One Flag CTF";
 	} else if ( cgs.gametype == GT_OBELISK ) {
 		return "Overload";
 	} else if ( cgs.gametype == GT_HARVESTER ) {
 		return "Harvester";
+#endif
 	} else if ( cgs.gametype == GT_ELIMINATION ) {
 		return "Elimination";
 	} else if ( cgs.gametype == GT_CTF_ELIMINATION ) {
 		return "CTF Elimination";
 	} else if ( cgs.gametype == GT_LMS ) {
 		return "Last Man Standing";
+#ifdef DOUBLED_GAMETYPE
 	} else if ( cgs.gametype == GT_DOUBLE_D ) {
 		return "Double Domination";
+#endif
 	}
 	return "";
 }

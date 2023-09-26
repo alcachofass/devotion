@@ -754,70 +754,70 @@ Only in CTF games
 	//
 	// PERSISTANT POWERUP ITEMS
 	//
+#ifdef MISSIONPACK
 /*QUAKED item_scout (.3 .3 1) (-16 -16 -16) (16 16 16) suspended redTeam blueTeam
 */
-
-	//{
-	//	"item_scout",
-	//	"sound/items/scout.wav",
-      //  { "models/powerups/scout.md3", 
-	//	NULL, NULL, NULL },
-/* icon */	//	"icons/scout",
-/* pickup *///	"Scout",
-		//30,
-		//IT_PERSISTANT_POWERUP,
-		//PW_SCOUT,
-/* precache */// "",
-/* sounds */// ""
-	//},
+	{
+		"item_scout",
+		"sound/items/scout.wav",
+      { "models/powerups/scout.md3", 
+		NULL, NULL, NULL },
+/* icon */		"icons/scout",
+/* pickup */	"Scout",
+		30,
+		IT_PERSISTANT_POWERUP,
+		PW_SCOUT,
+/* precache */ "",
+/* sounds */ ""
+	},
 
 /*QUAKED item_guard (.3 .3 1) (-16 -16 -16) (16 16 16) suspended redTeam blueTeam
 */
-//	{
-//		"item_guard",
-//		"sound/items/guard.wav",
-  //      { "models/powerups/guard.md3", 
-	//	NULL, NULL, NULL },
-/* icon *///		"icons/guard",
-/* pickup *///	"Guard",
-		//30,
-//		IT_PERSISTANT_POWERUP,
-//		PW_GUARD,
-/* precache */// "",
-/* sounds */ //""
-//	},
+	{
+		"item_guard",
+		"sound/items/guard.wav",
+        { "models/powerups/guard.md3", 
+		NULL, NULL, NULL },
+/* icon */		"icons/guard",
+/* pickup */	"Guard",
+		30,
+		IT_PERSISTANT_POWERUP,
+		PW_GUARD,
+/* precache */ "",
+/* sounds */ ""
+	},
 
 /*QUAKED item_doubler (.3 .3 1) (-16 -16 -16) (16 16 16) suspended redTeam blueTeam
 */
-//	{
-//		"item_doubler",
-//		"sound/items/doubler.wav",
-  //      { "models/powerups/doubler.md3", 
-	//	NULL, NULL, NULL },
-/* icon *///		"icons/doubler",
-/* pickup *///	"Doubler",
-		//30,
-//		IT_PERSISTANT_POWERUP,
-//		PW_DOUBLER,
-/* precache */// "",
-/* sounds */// ""
-//	},
+	{
+		"item_doubler",
+		"sound/items/doubler.wav",
+        { "models/powerups/doubler.md3", 
+		NULL, NULL, NULL },
+/* icon */		"icons/doubler",
+/* pickup */	"Doubler",
+		30,
+		IT_PERSISTANT_POWERUP,
+		PW_DOUBLER,
+/* precache */ "",
+/* sounds */ ""
+	},
 
 /*QUAKED item_doubler (.3 .3 1) (-16 -16 -16) (16 16 16) suspended redTeam blueTeam
 */
-//	{
-//		"item_ammoregen",
-//		"sound/items/ammoregen.wav",
-  //      { "models/powerups/ammo.md3",
-	//	NULL, NULL, NULL },
-/* icon *///		"icons/ammo_regen",
-/* pickup *///	"Ammo Regen",
-		//30,
-//		IT_PERSISTANT_POWERUP,
-//		PW_AMMOREGEN,
-/* precache */// "",
-/* sounds */// ""
-//	},
+	{
+		"item_ammoregen",
+		"sound/items/ammoregen.wav",
+        { "models/powerups/ammo.md3",
+		NULL, NULL, NULL },
+/* icon */		"icons/ammo_regen",
+/* pickup */	"Ammo Regen",
+		30,
+		IT_PERSISTANT_POWERUP,
+		PW_AMMOREGEN,
+/* precache */ "",
+/* sounds */ ""
+	},
 
         
 	/*QUAKED team_CTF_neutralflag (0 0 1) (-16 -16 -16) (16 16 16)
@@ -836,6 +836,7 @@ Only in One Flag CTF games
 /* precache */ "",
 /* sounds */ ""
 	},
+#endif
 
 //	{
 //		"item_redcube",
@@ -1360,9 +1361,11 @@ qboolean BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const play
 #ifdef HAVE_STAT_PERSISTANT_POWERUP
 	case IT_PERSISTANT_POWERUP:
 
+#ifdef DOUBLED_GAMETYPE
 		//In Double D we don't want persistant Powerups (or maybe, can be discussed)
 		if(gametype == GT_DOUBLE_D)
 			return qfalse;
+#endif
 
 		// can only hold one item at a time
 		if ( ps->stats[STAT_PERSISTANT_POWERUP] ) {
@@ -1381,7 +1384,7 @@ qboolean BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const play
 #endif
 
 	case IT_TEAM: // team items, such as flags
-		/*	
+#ifdef MISSIONPACK
 		if( gametype == GT_1FCTF ) {
 			// neutral flag can always be picked up
 			if( item->giTag == PW_NEUTRALFLAG ) {
@@ -1397,7 +1400,7 @@ qboolean BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const play
 				}
 			}
 		}
-		*/
+#endif
 		if( gametype == GT_CTF || gametype == GT_CTF_ELIMINATION) {
 			// ent->modelindex2 is non-zero on items if they are dropped
 			// we need to know this because we can pick up our dropped flag (and return it)
@@ -1414,13 +1417,8 @@ qboolean BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const play
 					return qtrue;
 			}
 		}
-/*
-		if( gametype == GT_DOUBLE_D) {
-			//We can touch both flags
-			if(item->giTag == PW_BLUEFLAG || item->giTag == PW_REDFLAG)
-				return qtrue;
-		}
 
+#ifdef DOM_GAMETYPE
 		if( gametype == GT_DOMINATION ) {
 			if(item->giTag == DOM_POINTWHITE)
 				return qtrue;
@@ -1432,23 +1430,34 @@ qboolean BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const play
 					return qtrue;
 			}
 		}
+#endif
+#ifdef DOUBLED_GAMETYPE
+		if( gametype == GT_DOUBLE_D) {
+			//We can touch both flags
+			if(item->giTag == PW_BLUEFLAG || item->giTag == PW_REDFLAG)
+				return qtrue;
+		}
+#endif
 
+#ifdef MISSIONPACK
 		if( gametype == GT_HARVESTER ) {
 			return qtrue;
 		}
+#endif
 
+#ifdef TREASURE_HUNTER_GAMETYPE
 		if( gametype == GT_TREASURE_HUNTER ) {
 			if (!ent->generic1) {
 				// this is set during seeking phase
 				return qfalse;
 			}
-/*			if (ps->persistant[PERS_TEAM] == TEAM_RED && item->giTag == HARVESTER_BLUECUBE) {
+			if (ps->persistant[PERS_TEAM] == TEAM_RED && item->giTag == HARVESTER_BLUECUBE) {
 					return qtrue;
 			} else if (ps->persistant[PERS_TEAM] == TEAM_BLUE && item->giTag == HARVESTER_REDCUBE) {
 					return qtrue;
 			}
 		}
-		*/
+#endif
 		return qfalse;
 
 	case IT_HOLDABLE:

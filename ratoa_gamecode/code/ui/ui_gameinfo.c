@@ -189,6 +189,7 @@ void UI_LoadArenas( void ) {
 			if( strstr( type, "ctf" ) ) {
 				uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_CTF);
 			}
+#ifdef MISSIONPACK
 			if( strstr( type, "oneflag" ) ) {
 				uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_1FCTF);
 			}
@@ -198,6 +199,7 @@ void UI_LoadArenas( void ) {
 			if( strstr( type, "harvester" ) ) {
 				uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_HARVESTER);
 			}
+#endif
 			if( strstr( type, "elimination" ) ) {
 				uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_ELIMINATION);
 			}
@@ -207,9 +209,11 @@ void UI_LoadArenas( void ) {
 			if( strstr( type, "lms" ) ) {
 				uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_LMS);
 			}
+#ifdef DOUBLED_GAMETYPE
 			if( strstr( type, "dd" ) ) {
 				uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_DOUBLE_D);
 			}
+#endif
 		} else {
 			uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_FFA);
 		}

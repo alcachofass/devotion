@@ -3141,13 +3141,13 @@ void ClientBegin( int clientNum ) {
 	G_LogPrintf( "ClientBegin: %i\n", clientNum );
 
 	//Send domination point names:
-	/*
+#ifdef DOM_GAMETYPE
 	if(g_gametype.integer == GT_DOMINATION) {
 		DominationPointNamesMessage(ent);
 		DominationPointStatusMessage(ent);
 	}
-	*/
-        TeamCvarSet();
+#endif
+    TeamCvarSet();
 
 #ifdef WITH_MULTITOURNAMENT
 	G_UpdateMultiTrnGames();
@@ -3181,7 +3181,7 @@ void ClientBegin( int clientNum ) {
 	G_EQPingClientReset(client);
 
 	G_UnnamedPlayerRename(ent);
-	/*
+#ifdef TREASURE_HUNTER_GAMETYPE
 	if (g_gametype.integer == GT_TREASURE_HUNTER) {
 		client->pers.th_tokens = 0;		
 		if (level.th_phase == TH_HIDE) {
@@ -3190,7 +3190,7 @@ void ClientBegin( int clientNum ) {
 		}
 		TreasureHuntMessage(ent);
 	}
-	*/
+#endif
 	client->pers.lastKilledByStrongMan = -1;
 
 	// allow previously rejected votes again because teams may have changed
@@ -3351,13 +3351,17 @@ void ClientSpawn(gentity_t *ent) {
 			spawnPoint = SelectSpectatorSpawnPoint();
 		}
 	}
-	/*
+#ifdef DOUBLED_GAMETYPE
 	else if (g_gametype.integer == GT_DOUBLE_D) {
 		//Double Domination uses special spawn points:
 		spawnPoint = SelectDoubleDominationSpawnPoint (client->sess.sessionTeam, spawn_origin, spawn_angles);
-	} else if (G_IsTeamGametype() && g_gametype.integer != GT_TEAM && g_gametype.integer != GT_DOMINATION) {
-	*/
+	}
+#endif
+#ifdef DOM_GAMETYPE
+	else if (G_IsTeamGametype() && g_gametype.integer != GT_TEAM && g_gametype.integer != GT_DOMINATION) {
+#else
 	else if (G_IsTeamGametype() && g_gametype.integer != GT_TEAM) {
+#endif
 		if (g_gametype.integer == GT_ELIMINATION) {
 			if (g_ra3compat.integer && client->pers.arenaNum >= 0) {
 				spawnPoint = SelectElimSpawnPointArena ( 
@@ -3541,12 +3545,12 @@ void ClientSpawn(gentity_t *ent) {
 	if (g_passThroughInvisWalls.integer) {
 		ent->clipmask &= ~CONTENTS_PLAYERCLIP;
 	}
-	/*
+#ifdef TREASURE_HUNTER_GAMETYPE
 	if (g_gametype.integer == GT_TREASURE_HUNTER) {
 		// allow players to pass through each other
 		ent->r.contents = CONTENTS_CORPSE;
 	}
-	*/
+#endif
 	ent->die = player_die;
 	ent->waterlevel = 0;
 	ent->watertype = 0;
@@ -3674,11 +3678,13 @@ else
 	if (g_grapple.integer) {
 		client->ps.stats[STAT_WEAPONS] |= ( 1 << WP_GRAPPLING_HOOK );
 	}
+	*/
+#ifdef TREASURE_HUNTER_GAMETYPE
 	if (g_gametype.integer == GT_TREASURE_HUNTER) {
 		ent->client->ps.generic1 = ent->client->pers.th_tokens 
 			+ ((ent->client->sess.sessionTeam == TEAM_RED) ? level.th_teamTokensRed : level.th_teamTokensBlue);
 	}
-	*/
+#endif
 	if (respawn_inplace) {
 		vec3_t origin;
 		VectorCopy(ent->frozenPlayer->r.currentOrigin, origin);

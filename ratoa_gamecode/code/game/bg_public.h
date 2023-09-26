@@ -130,22 +130,26 @@ typedef enum {
 	//-- team games that uses bases go after this
 
 	GT_CTF,				// capture the flag	
-	/*
+#ifdef MISSIONPACK
 	GT_1FCTF,
 	GT_OBELISK,
 	GT_HARVESTER,
-	*/
+#endif
 	
 	//-- custom game types, there will be a variable in 
 	
 	GT_ELIMINATION,			// team elimination (custom)
 	GT_CTF_ELIMINATION,		// ctf elimination
 	GT_LMS,				// Last man standing
-	/*
-	GT_DOUBLE_D,			// Double Domination
+#ifdef DOM_GAMETYPE
 	GT_DOMINATION,			// Standard domination 12
+#endif
+#ifdef DOUBLED_GAMETYPE
+	GT_DOUBLE_D,			// Double Domination
+#endif
+#ifdef TREASURE_HUNTER_GAMETYPE
 	GT_TREASURE_HUNTER,
-	*/
+#endif
 #ifdef WITH_MULTITOURNAMENT
 	GT_MULTITOURNAMENT,
 #endif
@@ -410,13 +414,13 @@ typedef enum {
 	PW_BLUEFLAG,
 	PW_NEUTRALFLAG,
 
-/*
+#ifdef MISSIONPACK
 	PW_SCOUT,
 	PW_GUARD,
 	PW_DOUBLER,
 	PW_AMMOREGEN,
 	PW_INVULNERABILITY,
-*/
+#endif
 	PW_NUM_POWERUPS
 
 } powerup_t;
@@ -474,13 +478,13 @@ typedef enum {
 	WP_NUM_WEAPONS
 } weapon_t;
 
-/*
+#if defined(MISSIONPACK) || defined(TREASURE_HUNTER_GAMETYPE)
 typedef enum {
 	HARVESTER_NONE,
 	HARVESTER_BLUECUBE,
 	HARVESTER_REDCUBE
 } harvester_t;
-*/
+#endif
 
 typedef enum {
 	LOCPING_PING,
@@ -609,14 +613,16 @@ typedef enum {
 	EV_GIB_PLAYER,			// gib a previously living player
 	EV_SCOREPLUM,			// score plum
 
-	//EV_PROXIMITY_MINE_STICK,
-	//EV_PROXIMITY_MINE_TRIGGER,
-	//EV_KAMIKAZE,			// kamikaze explodes
-	//EV_OBELISKEXPLODE,		// obelisk explodes
-	//EV_OBELISKPAIN,			// obelisk is in pain
-	//EV_INVUL_IMPACT,		// invulnerability sphere impact
-	//EV_JUICED,				// invulnerability juiced effect
-	//EV_LIGHTNINGBOLT,		// lightning bolt bounced of invulnerability sphere
+#ifdef MISSIONPACK
+	EV_PROXIMITY_MINE_STICK,
+	EV_PROXIMITY_MINE_TRIGGER,
+	EV_KAMIKAZE,			// kamikaze explodes
+	EV_OBELISKEXPLODE,		// obelisk explodes
+	EV_OBELISKPAIN,			// obelisk is in pain
+	EV_INVUL_IMPACT,		// invulnerability sphere impact
+	EV_JUICED,				// invulnerability juiced effect
+	EV_LIGHTNINGBOLT,		// lightning bolt bounced of invulnerability sphere
+#endif
 
 	EV_DEBUG_LINE,
 	EV_STOPLOOPINGSOUND,
@@ -645,14 +651,18 @@ typedef enum {
 	GTS_BLUE_RETURN,
 	GTS_RED_TAKEN,
 	GTS_BLUE_TAKEN,
-	// GTS_REDOBELISK_ATTACKED,
-	// GTS_BLUEOBELISK_ATTACKED,
+#ifdef MISSIONPACK
+	GTS_REDOBELISK_ATTACKED,
+	GTS_BLUEOBELISK_ATTACKED,
+#endif
 	GTS_REDTEAM_SCORED,
 	GTS_BLUETEAM_SCORED,
 	GTS_REDTEAM_TOOK_LEAD,
 	GTS_BLUETEAM_TOOK_LEAD,
 	GTS_TEAMS_ARE_TIED,
-	// GTS_KAMIKAZE,
+#ifdef MISSIONPACK
+	GTS_KAMIKAZE,
+#endif
 	GTS_RED_DROPPED,
 	GTS_BLUE_DROPPED,
 	GTS_NEUTRAL_DROPPED,
@@ -764,7 +774,7 @@ typedef enum {
 #define TEAM_MAXOVERLAY		32
 
 //team task
-/*
+#ifdef MISSIONPACK
 typedef enum {
 	TEAMTASK_NONE,
 	TEAMTASK_OFFENSE, 
@@ -775,7 +785,8 @@ typedef enum {
 	TEAMTASK_ESCORT,
 	TEAMTASK_CAMP
 } teamtask_t;
-*/
+#endif
+
 // means of death
 typedef enum {
 	MOD_UNKNOWN,

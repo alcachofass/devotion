@@ -1206,8 +1206,8 @@ typedef struct {
 	// special effects models
 	qhandle_t	teleportEffectModel;
 	qhandle_t	teleportEffectShader;
-/*
-//#ifdef MISSIONPACK
+
+#ifdef MISSIONPACK
 	qhandle_t	kamikazeEffectModel;
 	qhandle_t	kamikazeShockWave;
 	qhandle_t	kamikazeHeadModel;
@@ -1221,9 +1221,9 @@ typedef struct {
 	qhandle_t	medkitUsageModel;
 	qhandle_t	dustPuffShader;
 	qhandle_t	heartShader;
-//#endif
 	qhandle_t	invulnerabilityPowerupModel;
-*/
+#endif
+
 
 	// scoreboard headers
 	qhandle_t	scoreboardName;
@@ -1258,8 +1258,7 @@ typedef struct {
 	sfxHandle_t	sfx_railg;
 	sfxHandle_t	sfx_rockexp;
 	sfxHandle_t	sfx_plasmaexp;
-/*
-//#ifdef MISSIONPACK
+#ifdef MISSIONPACK
 	sfxHandle_t	sfx_proxexp;
 	sfxHandle_t	sfx_nghit;
 	sfxHandle_t	sfx_nghitflesh;
@@ -1282,8 +1281,7 @@ typedef struct {
 	sfxHandle_t	winnerSound;
 	sfxHandle_t	loserSound;
 	sfxHandle_t	youSuckSound;
-//#endif
-*/
+#endif
 	sfxHandle_t	gibSound;
 	sfxHandle_t	gibBounce1Sound;
 	sfxHandle_t	gibBounce2Sound;
@@ -1331,7 +1329,7 @@ typedef struct {
 	sfxHandle_t oneFragSound;
 
 	sfxHandle_t hitSound;
-	/*
+#ifdef MISSIONPACK
 	sfxHandle_t hitSound0;
 	sfxHandle_t hitSound1;
 	sfxHandle_t hitSound2;
@@ -1339,7 +1337,7 @@ typedef struct {
 	sfxHandle_t hitSound4;
 	sfxHandle_t hitSoundHighArmor;
 	sfxHandle_t hitSoundLowArmor;
-	*/
+#endif
 	sfxHandle_t hitTeamSound;
 	sfxHandle_t accuracySound;
 	sfxHandle_t fragsSound;
@@ -1350,11 +1348,11 @@ typedef struct {
 	sfxHandle_t assistSound;
 	sfxHandle_t defendSound;
 	sfxHandle_t perfectSound;
-	/*
+#ifdef MISSIONPACK
 	sfxHandle_t firstImpressiveSound;
 	sfxHandle_t firstExcellentSound;
 	sfxHandle_t firstHumiliationSound;
-	*/
+#endif
 	//sfxHandle_t eaward_sounds[EAWARD_NUM_AWARDS];
 
 	sfxHandle_t takenLeadSound;
@@ -1415,7 +1413,7 @@ typedef struct {
 	sfxHandle_t	count1Sound;
 	sfxHandle_t	countFightSound;
 	sfxHandle_t	countPrepareSound;
-/*
+
 #ifdef MISSIONPACK
 	// new stuff
 	qhandle_t patrolShader;
@@ -1429,14 +1427,12 @@ typedef struct {
         qhandle_t deathShader;
 	qhandle_t flagShaders[3];
 	sfxHandle_t	countPrepareTeamSound;
-#endif
-*/
-	/*
+
 	sfxHandle_t ammoregenSound;
 	sfxHandle_t doublerSound;
 	sfxHandle_t guardSound;
 	sfxHandle_t scoutSound;
-	*/
+#endif
 	qhandle_t cursor;
 	qhandle_t selectCursor;
 	qhandle_t sizeCursor;

@@ -1038,30 +1038,36 @@ qboolean CG_DrawRatScoreboard(void) {
 		s = "Team Deathmatch";
 	} else if ( cgs.gametype == GT_CTF ) {
 		s = "Capture the Flag";
-	} else if ( cgs.gametype == GT_ELIMINATION ) {
-		s = "Elimination";
-	} else if ( cgs.gametype == GT_CTF_ELIMINATION ) {
-		s = "CTF Elimination";
-	} else if ( cgs.gametype == GT_LMS ) {
-		s = "Last Man Standing";
-	/*
-	} else if ( cgs.gametype == GT_DOUBLE_D ) {
-		s = "Double Domination";
+#ifdef MISSIONPACK
 	} else if ( cgs.gametype == GT_1FCTF ) {
 		s = "One Flag CTF";
 	} else if ( cgs.gametype == GT_OBELISK ) {
 		s = "Overload";
 	} else if ( cgs.gametype == GT_HARVESTER ) {
 		s = "Harvester";
-          } else if ( cgs.gametype == GT_DOMINATION ) {
+#endif
+	} else if ( cgs.gametype == GT_ELIMINATION ) {
+		s = "Elimination";
+	} else if ( cgs.gametype == GT_CTF_ELIMINATION ) {
+		s = "CTF Elimination";
+	} else if ( cgs.gametype == GT_LMS ) {
+		s = "Last Man Standing";
+#ifdef DOM_GAMETYPE
+    } else if ( cgs.gametype == GT_DOMINATION ) {
 		s = "Domination";
-          } else if ( cgs.gametype == GT_TREASURE_HUNTER ) {
+#endif
+#ifdef DOUBLED_GAMETYPE
+	} else if ( cgs.gametype == GT_DOUBLE_D ) {
+		s = "Double Domination";
+#endif
+#ifdef TREASURE_HUNTER_GAMETYPE
+    } else if ( cgs.gametype == GT_TREASURE_HUNTER ) {
 		s = "Treasure Hunter";
+#endif
 #ifdef WITH_MULTITOURNAMENT
-          } else if ( cgs.gametype == GT_MULTITOURNAMENT ) {
+    } else if ( cgs.gametype == GT_MULTITOURNAMENT ) {
 		s = "Multitournament";
 #endif
-	*/
 	} else {
 		s = "";
 	}

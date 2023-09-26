@@ -262,21 +262,22 @@ int G_GametypeBits( char *string ) {
 			bits |= 1 << GT_CTF;
 			continue;
 		}
-               /* 
-                if( Q_stricmp( token, "oneflag" ) == 0 ) {
+#ifdef MISSIONPACK
+		if( Q_stricmp( token, "oneflag" ) == 0 ) {
 			bits |= 1 << GT_1FCTF;
 			continue;
 		}
-                if( Q_stricmp( token, "overload" ) == 0 ) {
+
+		if( Q_stricmp( token, "overload" ) == 0 ) {
 			bits |= 1 << GT_OBELISK;
 			continue;
 		}
-                
-                if( Q_stricmp( token, "harvester" ) == 0 ) {
+
+		if( Q_stricmp( token, "harvester" ) == 0 ) {
 			bits |= 1 << GT_HARVESTER;
 			continue;
 		}
-*/
+#endif
 		if( Q_stricmp( token, "elimination" ) == 0 ) {
 			bits |= 1 << GT_ELIMINATION;
 			continue;
@@ -291,17 +292,19 @@ int G_GametypeBits( char *string ) {
 			bits |= 1 << GT_LMS;
 			continue;
 		}
-		/*
+#ifdef DOM_GAMETYPE
+		if( Q_stricmp( token, "dom" ) == 0 ) {
+			bits |= 1 << GT_DOMINATION;
+			continue;
+		}
+#endif
+
+#ifdef DOUBLED_GAMETYPE
 		if( Q_stricmp( token, "dd" ) == 0 ) {
 			bits |= 1 << GT_DOUBLE_D;
 			continue;
 		}
-                
-                if( Q_stricmp( token, "dom" ) == 0 ) {
-			bits |= 1 << GT_DOMINATION;
-			continue;
-		}
-		*/
+#endif
 		// Clan Arena is elimination
 		if( Q_stricmp( token, "clanarena" ) == 0 ) {
 			bits |= 1 << GT_ELIMINATION;

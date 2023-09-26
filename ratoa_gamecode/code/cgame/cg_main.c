@@ -1340,7 +1340,8 @@ static void CG_RegisterGraphics( void ) {
 		cgs.media.redCubeIcon = trap_R_RegisterShader( "icons/skull_red" );
 		cgs.media.blueCubeIcon = trap_R_RegisterShader( "icons/skull_blue" );
 	}
-	/*
+
+#ifdef TREASURE_HUNTER_GAMETYPE
 	if (cgs.gametype == GT_TREASURE_HUNTER) {
 		//cgs.media.thEnemyToken = trap_R_RegisterModel( "models/powerups/overload_base.md3" );
 		cgs.th_oldTokenStyle = -1000;
@@ -1353,7 +1354,7 @@ static void CG_RegisterGraphics( void ) {
 		cgs.media.thTokenBlueISolidShader= trap_R_RegisterShaderNoMip("sprites/thTokenIndicatorBlueSolid.tga");
 		cgs.media.thTokenRedISolidShader= trap_R_RegisterShaderNoMip("sprites/thTokenIndicatorRedSolid.tga");
 	}
-  	*/      
+#endif
         if(CG_IsTeamGametype()) {
                 cgs.media.redOverlay = trap_R_RegisterShader( "playeroverlays/playerSuit1_Red");
                 cgs.media.blueOverlay = trap_R_RegisterShader( "playeroverlays/playerSuit1_Blue");
@@ -1373,7 +1374,7 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.brightOutlineOpaque = trap_R_RegisterShader( "playerBrightOutlineOp10");
 
 //For Double Domination:
-/*
+#ifdef DOUBLED_GAMETYPE
 	if ( cgs.gametype == GT_DOUBLE_D ) {
 		cgs.media.ddPointSkinA[TEAM_RED] = trap_R_RegisterShaderNoMip( "icons/icona_red" );
                 cgs.media.ddPointSkinA[TEAM_BLUE] = trap_R_RegisterShaderNoMip( "icons/icona_blue" );
@@ -1385,7 +1386,8 @@ static void CG_RegisterGraphics( void ) {
                 cgs.media.ddPointSkinB[TEAM_FREE] = trap_R_RegisterShaderNoMip( "icons/iconb_white" );
                 cgs.media.ddPointSkinB[TEAM_NONE] = trap_R_RegisterShaderNoMip( "icons/noammo" );
 	}
-*/
+#endif
+
 	//if ( cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION || cgs.gametype == GT_1FCTF || cgs.gametype == GT_HARVESTER || cg_buildScript.integer ) {
 	if ( cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION || cg_buildScript.integer ) {
 		cgs.media.redFlagModel = trap_R_RegisterModel( "models/flags/r_flag.md3" );
@@ -1501,13 +1503,13 @@ static void CG_RegisterGraphics( void ) {
 				cgs.media.pingLocationRedFlagFg = trap_R_RegisterShaderNoMip("gfx/2d/pings/pingFlagRedFg.tga");
 				cgs.media.pingLocationRedFlagHudMarker = trap_R_RegisterShaderNoMip("gfx/2d/pings/pingFlagRedHudMarker.tga");
 			}
-			/*
+#ifdef MISSIONPACK
 			else if (cgs.gametype == GT_1FCTF) {
 				cgs.media.pingLocationNeutralFlagBg = trap_R_RegisterShaderNoMip("gfx/2d/pings/pingFlagNeutralBg.tga");
 				cgs.media.pingLocationNeutralFlagFg = trap_R_RegisterShaderNoMip("gfx/2d/pings/pingFlagNeutralFg.tga");
 				cgs.media.pingLocationNeutralFlagHudMarker = trap_R_RegisterShaderNoMip("gfx/2d/pings/pingFlagNeutralHudMarker.tga");
 			}
-			*/
+#endif
 
 		}
 
@@ -1558,7 +1560,8 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.teleportEffectModel = trap_R_RegisterModel( "models/misc/telep.md3" );
 	cgs.media.teleportEffectShader = trap_R_RegisterShader( "teleportEffect" );
 #endif
-	/*
+
+#ifdef MISSIONPACK
 	cgs.media.kamikazeEffectModel = trap_R_RegisterModel( "models/weaphits/kamboom2.md3" );
 	cgs.media.kamikazeShockWave = trap_R_RegisterModel( "models/weaphits/kamwave.md3" );
 	cgs.media.kamikazeHeadModel = trap_R_RegisterModel( "models/powerups/kamikazi.md3" );
@@ -1574,7 +1577,7 @@ static void CG_RegisterGraphics( void ) {
 
 
 	cgs.media.invulnerabilityPowerupModel = trap_R_RegisterModel( "models/powerups/shield/shield.md3" );
-	*/
+#endif
 	cgs.media.medalImpressive = trap_R_RegisterShaderNoMip( "medal_impressive" );
 	cgs.media.medalExcellent = trap_R_RegisterShaderNoMip( "medal_excellent" );
 	cgs.media.medalGauntlet = trap_R_RegisterShaderNoMip( "medal_gauntlet" );

@@ -204,8 +204,6 @@ void CG_Text_Paint(float x, float y, float scale, vec4_t color, const char *text
 
 #endif
 
-#ifndef MISSIONPACK
-
 static void CG_DrawFieldFloat (float x, float y, int width, int value, qboolean centered, float char_width, float char_height) {
 	char	num[16], *ptr;
 	int		l;
@@ -276,7 +274,6 @@ Draws large numbers for status bar and powerups
 static void CG_DrawField (int x, int y, int width, int value, qboolean centered, int char_width, int char_height) {
 	CG_DrawFieldFloat(x, y, width, value, centered, char_width, char_height);
 }
-#endif // MISSIONPACK
 
 /*
 ================
@@ -527,8 +524,6 @@ CG_DrawStatusBarHead
 
 ================
 */
-#ifndef MISSIONPACK
-
 static void CG_DrawStatusBarHead( float x ) {
 	vec3_t		angles;
 	float		size, stretch;
@@ -579,7 +574,6 @@ static void CG_DrawStatusBarHead( float x ) {
 	CG_DrawHead( x, 480 - size, size, size, 
 				cg.snap->ps.clientNum, angles );
 }
-#endif // MISSIONPACK
 
 /*
 ================
@@ -587,11 +581,9 @@ CG_DrawStatusBarFlag
 
 ================
 */
-#ifndef MISSIONPACK
 static void CG_DrawStatusBarFlag( float x, int team ) {
 	CG_DrawFlagModel( x - ICON_SIZE, 480 - ICON_SIZE, ICON_SIZE, ICON_SIZE, team, qfalse );
 }
-#endif // MISSIONPACK
 
 /*
 ================
@@ -619,8 +611,6 @@ void CG_DrawTeamBackground( int x, int y, int w, int h, float alpha, int team )
 	CG_DrawPic( x, y, w, h, cgs.media.teamStatusBar );
 	trap_R_SetColor( NULL );
 }
-
-#ifndef MISSIONPACK
 
 #define	RAT_ICON_HEIGHT			20
 #define	RAT_CHAR_HEIGHT			24
@@ -1957,14 +1947,12 @@ static void CG_DrawRatStatusBar3( void ) {
 }
 
 
-#endif
 /*
 ================
 CG_DrawStatusBar
 
 ================
 */
-#ifndef MISSIONPACK
 static void CG_DrawStatusBar( void ) {
 	int			color;
 	centity_t	*cent;
@@ -2028,20 +2016,27 @@ static void CG_DrawStatusBar( void ) {
 					   cgs.media.armorModel, 0, origin, angles );
 	}
         
-        /*
-	if( cgs.gametype == GT_HARVESTER || cgs.gametype == GT_TREASURE_HUNTER) {
+#if defined(MISSIONPACK) && defined(TREASURE_HUNTER_GAMETYPE) 
+	if( cgs.gametype == GT_HARVESTER || cgs.gametype == GT_TREASURE_HUNTER)
+#elif defined(MISSIONPACK) 
+	if( cgs.gametype == GT_HARVESTER )
+#elif defined(TREASURE_HUNTER_GAMETYPE)
+	if( cgs.gametype == GT_TREASURE_HUNTER)
+#endif
+	{
 		origin[0] = 90;
 		origin[1] = 0;
 		origin[2] = -10;
 		angles[YAW] = ( cg.time & 2047 ) * 360 / 2048.0;
+#ifdef MISSIONPACK 
 		if( cg.snap->ps.persistant[PERS_TEAM] == TEAM_BLUE ) {
 			handle = cgs.gametype == GT_HARVESTER ? cgs.media.redCubeModel : cgs.media.blueCubeModel;
 		} else {
 			handle = cgs.gametype == GT_HARVESTER ? cgs.media.blueCubeModel : cgs.media.redCubeModel;
 		}
+#endif
 		CG_Draw3DModel( 470 + CHAR_WIDTH*3 + TEXT_ICON_SPACE, 432, ICON_SIZE, ICON_SIZE, handle, 0, origin, angles );
 	}
-        */
         
 	//
 	// ammo
@@ -2114,8 +2109,15 @@ static void CG_DrawStatusBar( void ) {
 	}
         
         //Skulls!
-        /*
+#if defined(MISSIONPACK) && defined(TREASURE_HUNTER_GAMETYPE)
 	if(cgs.gametype == GT_HARVESTER || cgs.gametype == GT_TREASURE_HUNTER)
+#endif
+#if defined(MISSIONPACK)
+	if(cgs.gametype == GT_HARVESTER)
+#endif
+#if defined(TREASURE_HUNTER_GAMETYPE)
+	if(cgs.gametype == GT_TREASURE_HUNTER)
+#endif
         {
             value = ps->generic1;
             if (value > 0 ) {
@@ -2136,9 +2138,7 @@ static void CG_DrawStatusBar( void ) {
 
             }
         }
-	*/
 }
-#endif
 
 #define HUD_DAMAGE_TIME 500
 #define HUD_DAMAGE_SIZE (48*2.25)
@@ -4006,7 +4006,6 @@ static void CG_DrawLowerRight( void ) {
 CG_DrawPickupItem
 ===================
 */
-#ifndef MISSIONPACK
 static float CG_DrawPickupItem( float y ) {
 	int		value;
 	float	*fadeColor;
@@ -4057,7 +4056,7 @@ static float CG_DrawPickupItem( float y ) {
 	
 	return	y;
 }
-#endif // MISSIONPACK
+
 
 /*
 =====================

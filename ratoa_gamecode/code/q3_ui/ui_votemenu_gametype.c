@@ -22,35 +22,49 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "ui_local.h"
 
-#define VOTEMENU_BACK0          "menu/art/back_0"
-#define VOTEMENU_BACK1          "menu/art/back_1"
-#define ART_FIGHT0		"menu/art/accept_0"
-#define ART_FIGHT1		"menu/art/accept_1"
-#define ART_BACKGROUND          "menu/art/addbotframe"
+#define VOTEMENU_BACK0  "menu/art/back_0"
+#define VOTEMENU_BACK1  "menu/art/back_1"
+#define ART_FIGHT0      "menu/art/accept_0"
+#define ART_FIGHT1      "menu/art/accept_1"
+#define ART_BACKGROUND  "menu/art/addbotframe"
 
 static char* votemenu_Gametype_artlist[] =
 {
 	VOTEMENU_BACK0,
 	VOTEMENU_BACK1,
-        ART_FIGHT0,
-        ART_FIGHT1,
+    ART_FIGHT0,
+    ART_FIGHT1,
 	NULL
 };
 
-#define ID_BACK     100
-#define ID_GO       101
-#define ID_FFA        102
-#define ID_Tourney       103
-#define ID_TDM       104
-#define ID_CTF       105
+#define ID_BACK        100
+#define ID_GO          101
+#define ID_FFA         102
+#define ID_TOURNAMENT  103
+#define ID_TDM         104
+#define ID_CTF         105
+
+#ifdef MISSIONPACK
 #define ID_1FCTF       106
-#define ID_Overload       107
-#define ID_Harvester      108
-#define ID_Elimination  109
-#define ID_CTFe         110
-#define ID_LMS          111
-#define ID_DOUBLED      112
-#define ID_DOM          113
+#define ID_OVERLOAD    107
+#define ID_HARVESTER   108
+#endif
+
+#define ID_ELIMINATION 109
+#define ID_CTFE        110
+#define ID_LMS         111
+
+#ifdef DOM_GAMETYPE
+#define ID_DOM         112
+#endif
+
+#ifdef DOUBLED_GAMETYPE
+#define ID_DOUBLED     113
+#endif
+
+#ifdef TREASURE_HUNTER_GAMETYPE
+#define ID_TREASURE_HUNTER 114
+#endif
 
 #define Gametype_MENU_VERTICAL_SPACING	19
 
@@ -63,31 +77,49 @@ typedef struct
 
     //Buttons:
     menutext_s      bFFA;
-    menutext_s      bTourney;
+    menutext_s      bTournament;
     menutext_s      bTDM;
     menutext_s      bCTF;
+#ifdef MISSIONPACK
     menutext_s      b1FCTF;
     menutext_s      bOverload;
     menutext_s      bHarvester;
+#endif
     menutext_s      bElimination;
     menutext_s      bCTFe;
     menutext_s      bLMS;
-    menutext_s      bDOUBLED;
+#ifdef DOM_GAMETYPE
     menutext_s      bDOM;
+#endif
+#ifdef DOUBLED_GAMETYPE
+    menutext_s      bDOUBLED;
+#endif
+#ifdef TREASURE_HUNTER_GAMETYPE
+    menutext_s      bTreasureHunter;
+#endif
 
     //Allowed:
     qboolean        FFA;
-    qboolean        Tourney;
+    qboolean        Tournament;
     qboolean        TDM;
     qboolean        CTF;
+#ifdef MISSIONPACK
     qboolean        _1FCTF;
     qboolean        Overload;
     qboolean        Harvester;
+#endif
     qboolean        Elimination;
     qboolean        CTFe;
     qboolean        LMS;
-    qboolean        DOUBLED;
+#ifdef DOM_GAMETYPE
     qboolean        DOM;
+#endif
+#ifdef DOUBLED_GAMETYPE
+    qboolean        DOUBLED;
+#endif
+#ifdef TREASURE_HUNTER_GAMETYPE
+    qboolean        TreasureHunter;
+#endif
     int selection;
 } votemenu_t;
 
@@ -114,67 +146,118 @@ static void VoteMenu_Gametype_Event( void* ptr, int event )
                 if( event != QM_ACTIVATED ) {
                     return;
                 }
-                switch(s_votemenu_Gametype.selection) {
+                switch( s_votemenu_Gametype.selection ) {
                     case ID_FFA:
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 0" );
                         UI_PopMenu();
                         UI_PopMenu();
                         break;
-                        case ID_Tourney:
+                    case ID_TOURNAMENT:
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 1" );
                         UI_PopMenu();
                         UI_PopMenu();
                         break;
-                        case ID_TDM:
+                    case ID_TDM:
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 3" );
                         UI_PopMenu();
                         UI_PopMenu();
                         break;
-                        case ID_CTF:
+                    case ID_CTF:
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 4" );
                         UI_PopMenu();
                         UI_PopMenu();
                         break;
-                        case ID_1FCTF:
+#ifdef MISSIONPACK
+                    case ID_1FCTF:
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 5" );
                         UI_PopMenu();
                         UI_PopMenu();
                         break;
-                        case ID_Overload:
+                    case ID_OVERLOAD:
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 6" );
                         UI_PopMenu();
                         UI_PopMenu();
                         break;
-                        case ID_Harvester:
+                    case ID_HARVESTER:
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 7" );
                         UI_PopMenu();
                         UI_PopMenu();
                         break;
-                        case ID_Elimination:
+#endif
+                    case ID_ELIMINATION:
+#ifdef MISSIONPACK
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 8" );
+#else
+                        trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 5" );
+#endif
                         UI_PopMenu();
                         UI_PopMenu();
                         break;
-                        case ID_CTFe:
+                    case ID_CTFE:
+#ifdef MISSIONPACK
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 9" );
+#else
+                        trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 6" );
+#endif
                         UI_PopMenu();
                         UI_PopMenu();
                         break;
-                        case ID_LMS:
+                    case ID_LMS:
+#ifdef MISSIONPACK
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 10" );
+#else
+                        trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 7" );
+#endif
                         UI_PopMenu();
                         UI_PopMenu();
                         break;
-                        case ID_DOUBLED:
+
+#ifdef DOM_GAMETYPE
+                    case ID_DOM:
+#ifdef MISSIONPACK
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 11" );
+#else
+                        trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 8" );
+#endif
                         UI_PopMenu();
                         UI_PopMenu();
                         break;
-                        case ID_DOM:
+#endif
+
+#ifdef DOUBLED_GAMETYPE
+                    case ID_DOUBLED:
+#if defined(MISSIONPACK) && defined(DOM_GAMETYPE)
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 12" );
+#endif
+#ifdef MISSIONPACK
+                        trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 11" );
+#elif defined (DOM_GAMETYPE)
+                        trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 9" );
+#else
+                        trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 8" );
+#endif
                         UI_PopMenu();
                         UI_PopMenu();
                         break;
+#endif
+
+#ifdef ID_TREASURE_HUNTER
+                    case ID_TREASURE_HUNTER:
+#if defined(MISSIONPACK) && defined(DOM_GAMETYPE) && defined(DOUBLED_GAMETYPE)
+                        trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 13" );
+#elif ( defined(MISSIONPACK) && defined(DOM_GAMETYPE) ) || ( defined(MISSIONPACK) && defined(DOUBLED_GAMETYPE) )
+                        trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 12" );
+#elif defined(DOM_GAMETYPE) && defined(DOUBLED_GAMETYPE)
+                        trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 10" );
+#elif defined(DOM_GAMETYPE) || defined(DOUBLED_GAMETYPE)
+                        trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 9" );
+#else
+                        trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 8" );
+#endif
+                        UI_PopMenu();
+                        UI_PopMenu();
+                        break;
+#endif
                 };
                 break;
             default:
@@ -271,29 +354,39 @@ void UI_VoteGametypeMenuInternal( void )
     s_votemenu_Gametype.banner.style	      = UI_CENTER;
 
     y = 98;
-    setGametypeMenutext(&s_votemenu_Gametype.bFFA,y,ID_FFA,s_votemenu_Gametype.FFA,"Free for all");
-    y+=Gametype_MENU_VERTICAL_SPACING;
-    setGametypeMenutext(&s_votemenu_Gametype.bTourney,y,ID_Tourney,s_votemenu_Gametype.Tourney,"Tournament");
-    y+=Gametype_MENU_VERTICAL_SPACING;
-    setGametypeMenutext(&s_votemenu_Gametype.bTDM,y,ID_TDM,s_votemenu_Gametype.TDM,"Team Deathmatch");
-    y+=Gametype_MENU_VERTICAL_SPACING;
-    setGametypeMenutext(&s_votemenu_Gametype.bCTF,y,ID_CTF,s_votemenu_Gametype.CTF,"Capture the flag");
-    y+=Gametype_MENU_VERTICAL_SPACING;
-    setGametypeMenutext(&s_votemenu_Gametype.b1FCTF,y,ID_1FCTF,s_votemenu_Gametype._1FCTF,"One flag capture");
-    y+=Gametype_MENU_VERTICAL_SPACING;
-    setGametypeMenutext(&s_votemenu_Gametype.bOverload,y,ID_Overload,s_votemenu_Gametype.Overload,"Overload");
-    y+=Gametype_MENU_VERTICAL_SPACING;
-    setGametypeMenutext(&s_votemenu_Gametype.bHarvester,y,ID_Harvester,s_votemenu_Gametype.Harvester,"Harvester");
-    y+=Gametype_MENU_VERTICAL_SPACING;
-    setGametypeMenutext(&s_votemenu_Gametype.bElimination,y,ID_Elimination,s_votemenu_Gametype.Elimination,"Elimination");
-    y+=Gametype_MENU_VERTICAL_SPACING;
-    setGametypeMenutext(&s_votemenu_Gametype.bCTFe,y,ID_CTFe,s_votemenu_Gametype.CTFe,"CTF Elimination");
-    y+=Gametype_MENU_VERTICAL_SPACING;
-    setGametypeMenutext(&s_votemenu_Gametype.bLMS,y,ID_LMS,s_votemenu_Gametype.LMS,"Last man standing");
-    y+=Gametype_MENU_VERTICAL_SPACING;
-    setGametypeMenutext(&s_votemenu_Gametype.bDOUBLED,y,ID_DOUBLED,s_votemenu_Gametype.DOUBLED,"Double Domination");
-    y+=Gametype_MENU_VERTICAL_SPACING;
-    setGametypeMenutext(&s_votemenu_Gametype.bDOM,y,ID_DOM,s_votemenu_Gametype.DOM,"Domination");
+    setGametypeMenutext( &s_votemenu_Gametype.bFFA, y, ID_FFA, s_votemenu_Gametype.FFA, "Free For All" );
+    y += Gametype_MENU_VERTICAL_SPACING;
+    setGametypeMenutext( &s_votemenu_Gametype.bTournament, y, ID_TOURNAMENT, s_votemenu_Gametype.Tournament, "Tournament" );
+    y += Gametype_MENU_VERTICAL_SPACING;
+    setGametypeMenutext( &s_votemenu_Gametype.bTDM, y, ID_TDM, s_votemenu_Gametype.TDM, "Team Deathmatch" );
+    y += Gametype_MENU_VERTICAL_SPACING;
+    setGametypeMenutext( &s_votemenu_Gametype.bCTF, y, ID_CTF, s_votemenu_Gametype.CTF, "Capture The Flag" );
+    y += Gametype_MENU_VERTICAL_SPACING;
+#ifdef MISSIONPACK
+    setGametypeMenutext( &s_votemenu_Gametype.b1FCTF, y, ID_1FCTF, s_votemenu_Gametype._1FCTF, "One Flag Capture" );
+    y += Gametype_MENU_VERTICAL_SPACING;
+    setGametypeMenutext( &s_votemenu_Gametype.bOverload, y, ID_OVERLOAD, s_votemenu_Gametype.Overload, "Overload" );
+    y += Gametype_MENU_VERTICAL_SPACING;
+    setGametypeMenutext( &s_votemenu_Gametype.bHarvester, y, ID_HARVESTER, s_votemenu_Gametype.Harvester, "Harvester" );
+    y += Gametype_MENU_VERTICAL_SPACING;
+#endif
+    setGametypeMenutext( &s_votemenu_Gametype.bElimination, y, ID_ELIMINATION, s_votemenu_Gametype.Elimination, "Elimination" );
+    y += Gametype_MENU_VERTICAL_SPACING;
+    setGametypeMenutext( &s_votemenu_Gametype.bCTFe, y, ID_CTFE, s_votemenu_Gametype.CTFe, "CTF Elimination" );
+    y += Gametype_MENU_VERTICAL_SPACING;
+    setGametypeMenutext( &s_votemenu_Gametype.bLMS, y, ID_LMS, s_votemenu_Gametype.LMS, "Last Man Standing" );
+#ifdef DOM_GAMETYPE
+    y += Gametype_MENU_VERTICAL_SPACING;
+    setGametypeMenutext( &s_votemenu_Gametype.bDOM, y, ID_DOM, s_votemenu_Gametype.DOM, "Domination" );
+#endif
+#ifdef DOUBLED_GAMETYPE
+    y += Gametype_MENU_VERTICAL_SPACING;
+    setGametypeMenutext( &s_votemenu_Gametype.bDOUBLED, y, ID_DOUBLED, s_votemenu_Gametype.DOUBLED, "Double Domination" );
+#endif
+#ifdef TREASURE_HUNTER_GAMETYPE
+    y += Gametype_MENU_VERTICAL_SPACING;
+    setGametypeMenutext( &s_votemenu_Gametype.bTreasureHunter, y, ID_TREASURE_HUNTER, s_votemenu_Gametype.TreasureHunter, "Treasure Hunter" );
+#endif
 
     s_votemenu_Gametype.back.generic.type	   = MTYPE_BITMAP;
     s_votemenu_Gametype.back.generic.name     = VOTEMENU_BACK0;
@@ -325,56 +418,92 @@ UI_VoteGametypeMenu
 =================
 */
 void UI_VoteGametypeMenu( void ) {
-        char serverinfo[MAX_INFO_STRING], *gametypeinfo;
-        // zero set all our globals
-	memset( &s_votemenu_Gametype, 0 ,sizeof(votemenu_t) );
-        trap_GetConfigString( CS_SERVERINFO, serverinfo, MAX_INFO_STRING );
-        gametypeinfo = Info_ValueForKey(serverinfo,"g_voteGametypes");
-        if(!Q_stricmp(gametypeinfo,"*")) {
-            s_votemenu_Gametype.FFA = qtrue;
-            s_votemenu_Gametype.Tourney = qtrue;
-            s_votemenu_Gametype.TDM = qtrue;
-            s_votemenu_Gametype.CTF = qtrue;
-            s_votemenu_Gametype._1FCTF = qtrue;
-            s_votemenu_Gametype.Overload = qtrue;
-            s_votemenu_Gametype.Harvester = qtrue;
-            s_votemenu_Gametype.Elimination = qtrue;
-            s_votemenu_Gametype.CTFe = qtrue;
-            s_votemenu_Gametype.LMS = qtrue;
-            s_votemenu_Gametype.DOUBLED = qtrue;
-            s_votemenu_Gametype.DOM = qtrue;
-        } else {
-            s_votemenu_Gametype.FFA = (qboolean)Q_stristr(gametypeinfo,"/0/");
-            s_votemenu_Gametype.Tourney = (qboolean)Q_stristr(gametypeinfo,"/1/");
-            s_votemenu_Gametype.TDM = (qboolean)Q_stristr(gametypeinfo,"/3/");
-            s_votemenu_Gametype.CTF = (qboolean)Q_stristr(gametypeinfo,"/4/");
-            s_votemenu_Gametype._1FCTF = (qboolean)Q_stristr(gametypeinfo,"/5/");
-            s_votemenu_Gametype.Overload = (qboolean)Q_stristr(gametypeinfo,"/6/");
-            s_votemenu_Gametype.Harvester = (qboolean)Q_stristr(gametypeinfo,"/7/");
-            s_votemenu_Gametype.Elimination = (qboolean)Q_stristr(gametypeinfo,"/8/");
-            s_votemenu_Gametype.CTFe = (qboolean)Q_stristr(gametypeinfo,"/9/");
-            s_votemenu_Gametype.LMS = (qboolean)Q_stristr(gametypeinfo,"/10/");
-            s_votemenu_Gametype.DOUBLED = (qboolean)Q_stristr(gametypeinfo,"/11/");
-            s_votemenu_Gametype.DOM = (qboolean)Q_stristr(gametypeinfo,"/12/");
-        }
+    char serverinfo[MAX_INFO_STRING], *gametypeinfo;
+    int gametypenumdef = 5;
+    // zero set all our globals
+    memset( &s_votemenu_Gametype, 0 ,sizeof(votemenu_t) );
+    trap_GetConfigString( CS_SERVERINFO, serverinfo, MAX_INFO_STRING );
+    gametypeinfo = Info_ValueForKey(serverinfo, "g_voteGametypes" );
+    if(!Q_stricmp(gametypeinfo, "*")) {
+        s_votemenu_Gametype.FFA            = qtrue;
+        s_votemenu_Gametype.Tournament     = qtrue;
+        s_votemenu_Gametype.TDM            = qtrue;
+        s_votemenu_Gametype.CTF            = qtrue;
+#ifdef MISSIONPACK
+        s_votemenu_Gametype._1FCTF         = qtrue;
+        s_votemenu_Gametype.Overload       = qtrue;
+        s_votemenu_Gametype.Harvester      = qtrue;
+#endif
+        s_votemenu_Gametype.Elimination    = qtrue;
+        s_votemenu_Gametype.CTFe           = qtrue;
+        s_votemenu_Gametype.LMS            = qtrue;
+#ifdef DOM_GAMETYPE
+        s_votemenu_Gametype.DOM            = qtrue;
+#endif
+#ifdef DOUBLED_GAMETYPE
+        s_votemenu_Gametype.DOUBLED        = qtrue;
+#endif
+#ifdef TREASURE_HUNTER_GAMETYPE
+        s_votemenu_Gametype.TreasureHunter = qtrue;
+#endif
+    } else {
+        s_votemenu_Gametype.FFA            = (qboolean) Q_stristr( gametypeinfo, "/0/" );
+        s_votemenu_Gametype.Tournament     = (qboolean) Q_stristr( gametypeinfo, "/1/" );
+        s_votemenu_Gametype.TDM            = (qboolean) Q_stristr( gametypeinfo, "/3/" );
+        s_votemenu_Gametype.CTF            = (qboolean) Q_stristr( gametypeinfo, "/4/" );
+#ifdef MISSIONPACK
+        s_votemenu_Gametype._1FCTF         = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
+        ++gametypenumdef;
+        s_votemenu_Gametype.Overload       = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
+        ++gametypenumdef;
+        s_votemenu_Gametype.Harvester      = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
+        ++gametypenumdef;
+#endif
+        s_votemenu_Gametype.Elimination    = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
+        ++gametypenumdef;
+        s_votemenu_Gametype.CTFe           = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
+        ++gametypenumdef;
+        s_votemenu_Gametype.LMS            = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
+        ++gametypenumdef;
+#ifdef DOM_GAMETYPE
+        s_votemenu_Gametype.DOM            = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
+        ++gametypenumdef;
+#endif
+#ifdef DOUBLED_GAMETYPE
+        s_votemenu_Gametype.DOUBLED        = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
+        ++gametypenumdef;
+#endif
+#ifdef TREASURE_HUNTER_GAMETYPE
+        s_votemenu_Gametype.TreasureHunter = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
+#endif
+    }
 
-        UI_VoteGametypeMenuInternal();
+    UI_VoteGametypeMenuInternal();
 
 	Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.banner );
 	Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.back );
-        Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.go );
-        Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bFFA );
-        Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bTourney );
-        Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bTDM );
-        Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bCTF );
-        Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.b1FCTF );
-        Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bOverload );
-        Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bHarvester );
-        Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bElimination );
-        Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bCTFe );
-        Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bLMS );
-        Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bDOUBLED );
-        Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bDOM );
+    Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.go );
+    Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bFFA );
+    Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bTournament );
+    Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bTDM );
+    Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bCTF );
+#ifdef MISSIONPACK
+    Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.b1FCTF );
+    Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bOverload );
+    Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bHarvester );
+#endif
+    Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bElimination );
+    Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bCTFe );
+    Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bLMS );
+#ifdef DOM_GAMETYPE
+    Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bDOM );
+#endif
+#ifdef DOUBLED_GAMETYPE
+    Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bDOUBLED );
+#endif
+#ifdef TREASURE_HUNTER_GAMETYPE
+    Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bTreasureHunter );
+#endif
 
 	UI_PushMenu( &s_votemenu_Gametype.menu );
 }

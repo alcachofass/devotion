@@ -3720,11 +3720,11 @@ void CG_Player( centity_t *cent ) {
 		renderfx |= RF_SHADOW_PLANE;
 	}
 	renderfx |= RF_LIGHTING_ORIGIN;			// use the same origin for all
-	/*
+#ifdef MISSIONPACK
 	if( cgs.gametype == GT_HARVESTER ) {
 		CG_PlayerTokens( cent, renderfx );
 	}
-	*/
+#endif
 	//
 	// add the legs
 	//

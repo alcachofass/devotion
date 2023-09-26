@@ -100,14 +100,20 @@ static const char *gametype_items[] = {
 	"Team Deathmatch",
 	"Tournament",
 	"Capture the Flag",
-    //    "One Flag Capture",          // Remove bogus game types from create start server dialog
-    //    "Overload",
-    //    "Harvester",
+#ifdef MISSIONPACK
+	"One Flag Capture",          // Remove bogus game types from create start server dialog
+	"Overload",
+	"Harvester",
+#endif
 	"Elimination",
 	"CTF Elimination",
 	"Last Man Standing",
-	//"Double Domination",
-    //    "Domination",
+#ifdef DOM_GAMETYPE
+    "Domination",
+#endif
+#ifdef DOUBLED_GAMETYPE
+	"Double Domination",
+#endif
 	NULL
 };
 
@@ -116,18 +122,21 @@ static int gametype_remap[] = {
 		GT_TEAM, 		
 		GT_TOURNAMENT, 		
 		GT_CTF,
-		/*
+#ifdef MISSIONPACK
                 GT_1FCTF,
                 GT_OBELISK,
                 GT_HARVESTER,
-		*/
+#endif
 		GT_ELIMINATION, 	
 		GT_CTF_ELIMINATION, 	
 		GT_LMS, 		
-		/*
+#ifdef DOM_GAMETYPE
+                GT_DOMINATION,
+#endif
+#ifdef DOUBLED_GAMETYPE
 		GT_DOUBLE_D,
-                GT_DOMINATION
-		*/ };		
+#endif
+};
 
 static int gametype_remap2[] = {
 		0, 
@@ -190,22 +199,23 @@ static int GametypeBits( char *string ) {
 			bits |= 1 << GT_CTF;
 			continue;
 		}
-                /*
-                if( Q_stricmp( token, "oneflag" ) == 0 ) {
+
+#ifdef MISSIONPACK
+		if( Q_stricmp( token, "oneflag" ) == 0 ) {
 			bits |= 1 << GT_1FCTF;
 			continue;
 		}
                 
-                if( Q_stricmp( token, "overload" ) == 0 ) {
+		if( Q_stricmp( token, "overload" ) == 0 ) {
 			bits |= 1 << GT_OBELISK;
 			continue;
 		}
                 
-                if( Q_stricmp( token, "harvester" ) == 0 ) {
+		if( Q_stricmp( token, "harvester" ) == 0 ) {
 			bits |= 1 << GT_HARVESTER;
 			continue;
 		}
-		*/
+#endif
 		if( Q_stricmp( token, "elimination" ) == 0 ) {
 			bits |= 1 << GT_ELIMINATION;
 			continue;
@@ -220,17 +230,20 @@ static int GametypeBits( char *string ) {
 			bits |= 1 << GT_LMS;
 			continue;
 		}
-		/*
+
+#ifdef DOM_GAMETYPE
+		if( Q_stricmp( token, "dom" ) == 0 ) {
+			bits |= 1 << GT_DOMINATION;
+			continue;
+		}
+#endif
+
+#ifdef DOUBLED_GAMETYPE
 		if( Q_stricmp( token, "dd" ) == 0 ) {
 			bits |= 1 << GT_DOUBLE_D;
 			continue;
 		}
-                
-                if( Q_stricmp( token, "dom" ) == 0 ) {
-			bits |= 1 << GT_DOMINATION;
-			continue;
-		}
-		*/
+#endif
 }
 	return bits;
 }
@@ -915,7 +928,7 @@ static void ServerOptions_Start( void ) {
 		trap_Cvar_SetValue( "ui_ctf_timelimit", timelimit );
 		trap_Cvar_SetValue( "ui_ctf_friendlt", friendlyfire );
 		break;
-        /*        
+#ifdef MISSIONPACK
         case GT_1FCTF:
 		trap_Cvar_SetValue( "ui_1fctf_capturelimit", fraglimit );
 		trap_Cvar_SetValue( "ui_1fctf_timelimit", timelimit );
@@ -933,7 +946,7 @@ static void ServerOptions_Start( void ) {
 		trap_Cvar_SetValue( "ui_harvester_timelimit", timelimit );
 		trap_Cvar_SetValue( "ui_harvester_friendlt", friendlyfire );
 		break;
-	*/
+#endif
 	case GT_ELIMINATION:
 		trap_Cvar_SetValue( "ui_elimination_capturelimit", fraglimit );
 		trap_Cvar_SetValue( "ui_elimination_timelimit", timelimit );
@@ -950,13 +963,13 @@ static void ServerOptions_Start( void ) {
 		trap_Cvar_SetValue( "ui_lms_fraglimit", fraglimit );
 		trap_Cvar_SetValue( "ui_lms_timelimit", timelimit );
 		break;
-	/*
+#ifdef DOUBLED_GAMETYPE
 	case GT_DOUBLE_D:
 		trap_Cvar_SetValue( "ui_dd_capturelimit", fraglimit );
 		trap_Cvar_SetValue( "ui_dd_timelimit", timelimit );
 		trap_Cvar_SetValue( "ui_dd_friendlt", friendlyfire );
 		break;
-		*/
+#endif
 	}
 
 	trap_Cvar_SetValue( "sv_maxclients", Com_Clamp( 0, 12, maxclients ) );
@@ -1457,7 +1470,7 @@ static void ServerOptions_SetMenuItems( void ) {
 		Com_sprintf( s_serveroptions.timelimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_ctf_timelimit" ) ) );
 		s_serveroptions.friendlyfire.curvalue = (int)Com_Clamp( 0, 1, trap_Cvar_VariableValue( "ui_ctf_friendly" ) );
 		break;
-               /* 
+#ifdef MISSIONPACK 
         case GT_1FCTF:
 		Com_sprintf( s_serveroptions.flaglimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 100, trap_Cvar_VariableValue( "ui_1fctf_capturelimit" ) ) );
 		Com_sprintf( s_serveroptions.timelimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_1fctf_timelimit" ) ) );
@@ -1475,7 +1488,7 @@ static void ServerOptions_SetMenuItems( void ) {
 		Com_sprintf( s_serveroptions.timelimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_harvester_timelimit" ) ) );
 		s_serveroptions.friendlyfire.curvalue = (int)Com_Clamp( 0, 1, trap_Cvar_VariableValue( "ui_harvester_friendly" ) );
 		break;
-		*/
+#endif
 	case GT_ELIMINATION:
 		Com_sprintf( s_serveroptions.flaglimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_elimination_capturelimit" ) ) );
 		Com_sprintf( s_serveroptions.timelimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_elimination_timelimit" ) ) );
@@ -1492,19 +1505,21 @@ static void ServerOptions_SetMenuItems( void ) {
 		Com_sprintf( s_serveroptions.fraglimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_lms_fraglimit" ) ) );
 		Com_sprintf( s_serveroptions.timelimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_lms_timelimit" ) ) );
 		break;
-		/*
+#ifdef DOM_GAMETYPE
+	case GT_DOMINATION:
+		Com_sprintf( s_serveroptions.flaglimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_dom_capturelimit" ) ) );
+		Com_sprintf( s_serveroptions.timelimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_dom_timelimit" ) ) );
+		s_serveroptions.friendlyfire.curvalue = (int)Com_Clamp( 0, 1, trap_Cvar_VariableValue( "ui_dom_friendly" ) );
+		break;
+#endif
+
+#ifdef DOUBLED_GAMETYPE
 	case GT_DOUBLE_D:
 		Com_sprintf( s_serveroptions.flaglimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 100, trap_Cvar_VariableValue( "ui_dd_capturelimit" ) ) );
 		Com_sprintf( s_serveroptions.timelimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_dd_timelimit" ) ) );
 		s_serveroptions.friendlyfire.curvalue = (int)Com_Clamp( 0, 1, trap_Cvar_VariableValue( "ui_dd_friendly" ) );
 		break;
-                
-        case GT_DOMINATION:
-		Com_sprintf( s_serveroptions.flaglimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_dom_capturelimit" ) ) );
-		Com_sprintf( s_serveroptions.timelimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_dom_timelimit" ) ) );
-		s_serveroptions.friendlyfire.curvalue = (int)Com_Clamp( 0, 1, trap_Cvar_VariableValue( "ui_dom_friendly" ) );
-		break;
-		*/
+#endif
 
 	}
 
