@@ -54,15 +54,15 @@ static char* votemenu_Gametype_artlist[] =
 #define ID_CTFE        110
 #define ID_LMS         111
 
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 #define ID_DOM         112
 #endif
 
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 #define ID_DOUBLED     113
 #endif
 
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 #define ID_TREASURE_HUNTER 114
 #endif
 
@@ -88,13 +88,13 @@ typedef struct
     menutext_s      bElimination;
     menutext_s      bCTFe;
     menutext_s      bLMS;
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
     menutext_s      bDOM;
 #endif
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
     menutext_s      bDOUBLED;
 #endif
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
     menutext_s      bTreasureHunter;
 #endif
 
@@ -111,13 +111,13 @@ typedef struct
     qboolean        Elimination;
     qboolean        CTFe;
     qboolean        LMS;
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
     qboolean        DOM;
 #endif
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
     qboolean        DOUBLED;
 #endif
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
     qboolean        TreasureHunter;
 #endif
     int selection;
@@ -212,7 +212,7 @@ static void VoteMenu_Gametype_Event( void* ptr, int event )
                         UI_PopMenu();
                         break;
 
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
                     case ID_DOM:
 #ifdef MISSIONPACK
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 11" );
@@ -224,14 +224,14 @@ static void VoteMenu_Gametype_Event( void* ptr, int event )
                         break;
 #endif
 
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
                     case ID_DOUBLED:
-#if defined(MISSIONPACK) && defined(DOM_GAMETYPE)
+#if defined(MISSIONPACK) && defined(WITH_DOM_GAMETYPE)
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 12" );
 #endif
 #ifdef MISSIONPACK
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 11" );
-#elif defined (DOM_GAMETYPE)
+#elif defined (WITH_DOM_GAMETYPE)
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 9" );
 #else
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 8" );
@@ -243,13 +243,13 @@ static void VoteMenu_Gametype_Event( void* ptr, int event )
 
 #ifdef ID_TREASURE_HUNTER
                     case ID_TREASURE_HUNTER:
-#if defined(MISSIONPACK) && defined(DOM_GAMETYPE) && defined(DOUBLED_GAMETYPE)
+#if defined(MISSIONPACK) && defined(WITH_DOM_GAMETYPE) && defined(WITH_DOUBLED_GAMETYPE)
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 13" );
-#elif ( defined(MISSIONPACK) && defined(DOM_GAMETYPE) ) || ( defined(MISSIONPACK) && defined(DOUBLED_GAMETYPE) )
+#elif ( defined(MISSIONPACK) && defined(WITH_DOM_GAMETYPE) ) || ( defined(MISSIONPACK) && defined(WITH_DOUBLED_GAMETYPE) )
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 12" );
-#elif defined(DOM_GAMETYPE) && defined(DOUBLED_GAMETYPE)
+#elif defined(WITH_DOM_GAMETYPE) && defined(WITH_DOUBLED_GAMETYPE)
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 10" );
-#elif defined(DOM_GAMETYPE) || defined(DOUBLED_GAMETYPE)
+#elif defined(WITH_DOM_GAMETYPE) || defined(WITH_DOUBLED_GAMETYPE)
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 9" );
 #else
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 8" );
@@ -375,15 +375,15 @@ void UI_VoteGametypeMenuInternal( void )
     setGametypeMenutext( &s_votemenu_Gametype.bCTFe, y, ID_CTFE, s_votemenu_Gametype.CTFe, "CTF Elimination" );
     y += Gametype_MENU_VERTICAL_SPACING;
     setGametypeMenutext( &s_votemenu_Gametype.bLMS, y, ID_LMS, s_votemenu_Gametype.LMS, "Last Man Standing" );
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
     y += Gametype_MENU_VERTICAL_SPACING;
     setGametypeMenutext( &s_votemenu_Gametype.bDOM, y, ID_DOM, s_votemenu_Gametype.DOM, "Domination" );
 #endif
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
     y += Gametype_MENU_VERTICAL_SPACING;
     setGametypeMenutext( &s_votemenu_Gametype.bDOUBLED, y, ID_DOUBLED, s_votemenu_Gametype.DOUBLED, "Double Domination" );
 #endif
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
     y += Gametype_MENU_VERTICAL_SPACING;
     setGametypeMenutext( &s_votemenu_Gametype.bTreasureHunter, y, ID_TREASURE_HUNTER, s_votemenu_Gametype.TreasureHunter, "Treasure Hunter" );
 #endif
@@ -437,13 +437,13 @@ void UI_VoteGametypeMenu( void ) {
         s_votemenu_Gametype.Elimination    = qtrue;
         s_votemenu_Gametype.CTFe           = qtrue;
         s_votemenu_Gametype.LMS            = qtrue;
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
         s_votemenu_Gametype.DOM            = qtrue;
 #endif
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
         s_votemenu_Gametype.DOUBLED        = qtrue;
 #endif
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
         s_votemenu_Gametype.TreasureHunter = qtrue;
 #endif
     } else {
@@ -465,15 +465,15 @@ void UI_VoteGametypeMenu( void ) {
         ++gametypenumdef;
         s_votemenu_Gametype.LMS            = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
         ++gametypenumdef;
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
         s_votemenu_Gametype.DOM            = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
         ++gametypenumdef;
 #endif
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
         s_votemenu_Gametype.DOUBLED        = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
         ++gametypenumdef;
 #endif
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
         s_votemenu_Gametype.TreasureHunter = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
 #endif
     }
@@ -495,13 +495,13 @@ void UI_VoteGametypeMenu( void ) {
     Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bElimination );
     Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bCTFe );
     Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bLMS );
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
     Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bDOM );
 #endif
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
     Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bDOUBLED );
 #endif
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
     Menu_AddItem( &s_votemenu_Gametype.menu, (void*) &s_votemenu_Gametype.bTreasureHunter );
 #endif
 

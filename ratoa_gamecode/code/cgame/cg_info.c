@@ -281,17 +281,17 @@ void CG_DrawInformation( void ) {
 	case GT_LMS:
 		s = "Last Man Standing";
 		break;
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
     case GT_DOMINATION:
 		s = "Domination";
 		break;
 #endif
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 	case GT_DOUBLE_D:
 		s = "Double Domination";
 		break;
 #endif
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
     case GT_TREASURE_HUNTER:
 		s = "Treasure Hunter";
 		break;

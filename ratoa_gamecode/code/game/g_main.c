@@ -1208,12 +1208,12 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	//Challenges:
 	level.teamSize = 0;
 	level.hadBots = qfalse;
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 	if(g_gametype.integer == GT_DOUBLE_D)
 		Team_SpawnDoubleDominationPoints();
 #endif
 
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 	if(g_gametype.integer == GT_DOMINATION ){
 		level.dom_scoreGiven = 0;
 		for(i=0;i<MAX_DOMINATION_POINTS;i++)
@@ -3817,7 +3817,7 @@ void CheckDoubleDomination( void ) {
             }
             return;
         }
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 	if(g_gametype.integer != GT_DOUBLE_D)
 		return;
 #endif
@@ -4202,7 +4202,7 @@ void CheckDomination(void) {
 	int i;
         int scoreFactor = 1;
 
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 	if ( (level.numPlayingClients < 1) || (g_gametype.integer != GT_DOMINATION) ) {
 #else
 	if ( (level.numPlayingClients < 1) ) {
@@ -4376,12 +4376,12 @@ int CountPlayerTokens(int team) {
 }
 
 
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 /*
 =============
 CheckTreasureHunter
 =============
 */
-#ifdef TREASURE_HUNTER_GAMETYPE
 void CheckTreasureHunter(void) {
 	int i;
 	int tokens_red;
@@ -5554,13 +5554,13 @@ void G_RunFrame( int levelTime ) {
 
 	CheckDomination();
 
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 	//Sago: I just need to think why I placed this here... they should only spawn once
 	if(g_gametype.integer == GT_DOMINATION)
 		Team_Dom_SpawnPoints();
 #endif
 
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 	CheckTreasureHunter();
 #endif
 

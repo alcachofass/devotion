@@ -764,11 +764,12 @@ static vec4_t weaponColors[WP_NUM_WEAPONS] =
 	{ 0.0, 1.0, 0.0, 1.0 }, // WP_RAILGUN,
 	{ 1.0, 0.0, 1.0, 1.0 }, // WP_PLASMAGUN,
 	{ 0.0, 0.4, 1.0, 1.0 }, // WP_BFG,
-/*	{ 0.4, 0.6, 0.0, 1.0 }, // WP_GRAPPLING_HOOK,
+//	{ 0.4, 0.6, 0.0, 1.0 }, // WP_GRAPPLING_HOOK,
+#ifdef MISSIONPACK
 	{ 1.0, 0.6, 0.6, 1.0 }, // WP_NAILGUN,
 	{ 1.0, 0.6, 0.4, 1.0 }, // WP_PROX_LAUNCHER,
 	{ 0.8, 0.8, 0.8, 1.0 }, // WP_CHAINGUN,
-*/
+#endif
 	};
 
 static float *CG_GetWeaponColor(int weapon) {
@@ -2016,12 +2017,12 @@ static void CG_DrawStatusBar( void ) {
 					   cgs.media.armorModel, 0, origin, angles );
 	}
 
-#if defined(MISSIONPACK) || defined(TREASURE_HUNTER_GAMETYPE) 
-#if defined(MISSIONPACK) && defined(TREASURE_HUNTER_GAMETYPE) 
+#if defined(MISSIONPACK) || defined(WITH_TREASURE_HUNTER_GAMETYPE) 
+#if defined(MISSIONPACK) && defined(WITH_TREASURE_HUNTER_GAMETYPE) 
 	if( cgs.gametype == GT_HARVESTER || cgs.gametype == GT_TREASURE_HUNTER)
 #elif defined(MISSIONPACK) 
 	if( cgs.gametype == GT_HARVESTER )
-#elif defined(TREASURE_HUNTER_GAMETYPE)
+#elif defined(WITH_TREASURE_HUNTER_GAMETYPE)
 	if( cgs.gametype == GT_TREASURE_HUNTER)
 #endif
 	{
@@ -2110,15 +2111,15 @@ static void CG_DrawStatusBar( void ) {
 
 	}
         
-#if defined(MISSIONPACK) || defined(TREASURE_HUNTER_GAMETYPE)
+#if defined(MISSIONPACK) || defined(WITH_TREASURE_HUNTER_GAMETYPE)
         //Skulls!
-#if defined(MISSIONPACK) && defined(TREASURE_HUNTER_GAMETYPE)
+#if defined(MISSIONPACK) && defined(WITH_TREASURE_HUNTER_GAMETYPE)
 	if(cgs.gametype == GT_HARVESTER || cgs.gametype == GT_TREASURE_HUNTER)
 #endif
-#if defined(MISSIONPACK)
+#ifdef MISSIONPACK
 	if(cgs.gametype == GT_HARVESTER)
 #endif
-#if defined(TREASURE_HUNTER_GAMETYPE)
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 	if(cgs.gametype == GT_TREASURE_HUNTER)
 #endif
         {
@@ -2130,11 +2131,17 @@ static void CG_DrawStatusBar( void ) {
                     // if we didn't draw a 3D icon, draw a 2D icon for skull
                     if ( !cg_draw3dIcons.integer && cg_drawIcons.integer ) {
                             if( cg.snap->ps.persistant[PERS_TEAM] == TEAM_BLUE ) {
-                                    //handle = cgs.gametype == GT_HARVESTER ? cgs.media.redCubeIcon : cgs.media.blueCubeIcon;
-                                    handle = cgs.media.blueCubeIcon;
+#ifdef MISSIONPACK
+								handle = cgs.gametype == GT_HARVESTER ? cgs.media.redCubeIcon : cgs.media.blueCubeIcon;
+#else
+								handle = cgs.media.blueCubeIcon;
+#endif
                             } else {
-                                    //handle = cgs.gametype == GT_HARVESTER ? cgs.media.blueCubeIcon : cgs.media.redCubeIcon;
-                                    handle = cgs.media.redCubeIcon;
+#ifdef MISSIONPACK
+								handle = cgs.gametype == GT_HARVESTER ? cgs.media.blueCubeIcon : cgs.media.redCubeIcon;
+#else
+								handle = cgs.media.redCubeIcon;
+#endif
                             }
                             CG_DrawPic( 470 + CHAR_WIDTH*3 + TEXT_ICON_SPACE, 432, ICON_SIZE, ICON_SIZE, handle );
                     }
@@ -3469,7 +3476,8 @@ void CG_DrawEliminationStatus(void) {
 	}
 
 }
-/*
+
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 void CG_DrawTreasureHunterStatus(void) {
 	const char	*s;
 	int y;
@@ -3491,7 +3499,8 @@ void CG_DrawTreasureHunterStatus(void) {
 	w = CG_DrawScoreBox(x, y, TEAM_RED, s, cg.snap->ps.persistant[PERS_TEAM] == TEAM_RED);
 	x -= w;
 }
-*/
+#endif
+
 #define PUSHNOTIFY_CHARS 7
 void CG_DrawPushNotify(void) {
 	const char	*pusherInfo;
@@ -5617,7 +5626,9 @@ static void CG_DrawReloadIndicator( void ) {
 			case WP_MACHINEGUN:
 			case WP_PLASMAGUN:
 			case WP_BFG:
-			// case WP_CHAINGUN:
+#ifdef MISSIONPACK
+			case WP_CHAINGUN:
+#endif
 				return;
 		}
 		width = MIN(1.0,(float)time/MAX_RELOADTIME) * CG_HeightToWidth(cg_reloadIndicatorWidth.value);
@@ -6649,7 +6660,9 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 	cg.scoreBoardShowing = CG_DrawScoreboard();
 	if ( !cg.scoreBoardShowing) {
 		CG_DrawEliminationStatus();
-		//CG_DrawTreasureHunterStatus();
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+		CG_DrawTreasureHunterStatus();
+#endif
 		CG_DrawPushNotify();
                 //CG_DrawCenterDDString();
                 //CG_DrawCenter1FctfString();

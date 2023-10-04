@@ -1052,15 +1052,15 @@ qboolean CG_DrawRatScoreboard(void) {
 		s = "CTF Elimination";
 	} else if ( cgs.gametype == GT_LMS ) {
 		s = "Last Man Standing";
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
     } else if ( cgs.gametype == GT_DOMINATION ) {
 		s = "Domination";
 #endif
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 	} else if ( cgs.gametype == GT_DOUBLE_D ) {
 		s = "Double Domination";
 #endif
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
     } else if ( cgs.gametype == GT_TREASURE_HUNTER ) {
 		s = "Treasure Hunter";
 #endif

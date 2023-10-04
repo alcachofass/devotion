@@ -141,13 +141,13 @@ typedef enum {
 	GT_ELIMINATION,			// team elimination (custom)
 	GT_CTF_ELIMINATION,		// ctf elimination
 	GT_LMS,				// Last man standing
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 	GT_DOMINATION,			// Standard domination 12
 #endif
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 	GT_DOUBLE_D,			// Double Domination
 #endif
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 	GT_TREASURE_HUNTER,
 #endif
 #ifdef WITH_MULTITOURNAMENT
@@ -349,7 +349,9 @@ typedef enum {
 #define	EF_AWARD_GAUNTLET	0x00000040		// draw a gauntlet sprite
 #define	EF_NODRAW			0x00000080		// may have an event, but no model (unspawned items)
 #define	EF_FIRING			0x00000100		// for lightning gun
-// #define	EF_KAMIKAZE			0x00000200
+#ifdef MISSIONPACK
+	#define	EF_KAMIKAZE			0x00000200
+#endif
 #define	EF_MOVER_STOP		0x00000400		// will push otherwise
 #define EF_AWARD_CAP		0x00000800		// draw the capture sprite
 #define	EF_TALK				0x00001000		// draw a talk balloon
@@ -430,11 +432,11 @@ typedef enum {
 
 	HI_TELEPORTER,
 	HI_MEDKIT,
-/*	
+#ifdef MISSIONPACK
 	HI_KAMIKAZE,
 	HI_PORTAL,
 	HI_INVULNERABILITY,
-*/
+#endif
 	HI_NUM_HOLDABLE
 } holdable_t;
 
@@ -471,14 +473,16 @@ typedef enum {
 	WP_PLASMAGUN,
 	WP_BFG,
 //	WP_GRAPPLING_HOOK,
-//	WP_NAILGUN,
-//	WP_PROX_LAUNCHER,
-//	WP_CHAINGUN,
+#ifdef MISSIONPACK
+	WP_NAILGUN,
+	WP_PROX_LAUNCHER,
+	WP_CHAINGUN,
+#endif
 
 	WP_NUM_WEAPONS
 } weapon_t;
 
-#if defined(MISSIONPACK) || defined(TREASURE_HUNTER_GAMETYPE)
+#if defined(MISSIONPACK) || defined(WITH_TREASURE_HUNTER_GAMETYPE)
 typedef enum {
 	HARVESTER_NONE,
 	HARVESTER_BLUECUBE,
@@ -496,6 +500,7 @@ typedef enum {
 	LOCPING_DEAD,
 } locationping_t;
 
+#if 0
 typedef enum {
 	COIN_GOLD,
 	COIN_SILVER,
@@ -503,6 +508,7 @@ typedef enum {
 	COIN_BLUE,
 	COIN_RED,
 } coin_t;
+#endif
 
 // max ammo capacity when pickiup up weapons / ammo
 #define AMMO_CAPACITY 200
@@ -812,12 +818,14 @@ typedef enum {
 	MOD_SUICIDE,
 	MOD_TARGET_LASER,
 	MOD_TRIGGER_HURT,
-	/*MOD_NAIL,
+#ifdef MISSIONPACK
+	MOD_NAIL,
 	MOD_CHAINGUN,
 	MOD_PROXIMITY_MINE,
 	MOD_KAMIKAZE,
 	MOD_JUICED,
-	MOD_GRAPPLE*/
+#endif
+//	MOD_GRAPPLE
 } meansOfDeath_t;
 
 

@@ -108,10 +108,10 @@ static const char *gametype_items[] = {
 	"Elimination",
 	"CTF Elimination",
 	"Last Man Standing",
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
     "Domination",
 #endif
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 	"Double Domination",
 #endif
 	NULL
@@ -130,10 +130,10 @@ static int gametype_remap[] = {
 		GT_ELIMINATION, 	
 		GT_CTF_ELIMINATION, 	
 		GT_LMS, 		
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
                 GT_DOMINATION,
 #endif
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 		GT_DOUBLE_D,
 #endif
 };
@@ -231,14 +231,14 @@ static int GametypeBits( char *string ) {
 			continue;
 		}
 
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 		if( Q_stricmp( token, "dom" ) == 0 ) {
 			bits |= 1 << GT_DOMINATION;
 			continue;
 		}
 #endif
 
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 		if( Q_stricmp( token, "dd" ) == 0 ) {
 			bits |= 1 << GT_DOUBLE_D;
 			continue;
@@ -963,7 +963,7 @@ static void ServerOptions_Start( void ) {
 		trap_Cvar_SetValue( "ui_lms_fraglimit", fraglimit );
 		trap_Cvar_SetValue( "ui_lms_timelimit", timelimit );
 		break;
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 	case GT_DOUBLE_D:
 		trap_Cvar_SetValue( "ui_dd_capturelimit", fraglimit );
 		trap_Cvar_SetValue( "ui_dd_timelimit", timelimit );
@@ -1505,7 +1505,7 @@ static void ServerOptions_SetMenuItems( void ) {
 		Com_sprintf( s_serveroptions.fraglimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_lms_fraglimit" ) ) );
 		Com_sprintf( s_serveroptions.timelimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_lms_timelimit" ) ) );
 		break;
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 	case GT_DOMINATION:
 		Com_sprintf( s_serveroptions.flaglimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_dom_capturelimit" ) ) );
 		Com_sprintf( s_serveroptions.timelimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_dom_timelimit" ) ) );
@@ -1513,7 +1513,7 @@ static void ServerOptions_SetMenuItems( void ) {
 		break;
 #endif
 
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 	case GT_DOUBLE_D:
 		Com_sprintf( s_serveroptions.flaglimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 100, trap_Cvar_VariableValue( "ui_dd_capturelimit" ) ) );
 		Com_sprintf( s_serveroptions.timelimit.field.buffer, 4, "%i", (int)Com_Clamp( 0, 999, trap_Cvar_VariableValue( "ui_dd_timelimit" ) ) );

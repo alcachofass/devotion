@@ -292,14 +292,14 @@ int G_GametypeBits( char *string ) {
 			bits |= 1 << GT_LMS;
 			continue;
 		}
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 		if( Q_stricmp( token, "dom" ) == 0 ) {
 			bits |= 1 << GT_DOMINATION;
 			continue;
 		}
 #endif
 
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 		if( Q_stricmp( token, "dd" ) == 0 ) {
 			bits |= 1 << GT_DOUBLE_D;
 			continue;

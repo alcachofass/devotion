@@ -384,12 +384,13 @@ static void CG_Item( centity_t *cent ) {
 		trap_R_AddRefEntityToScene(&ent);
 		return;
 	}
-	/*
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 	if (cgs.gametype == GT_TREASURE_HUNTER && item->giType == IT_TEAM) {
 		CG_TreasureHuntToken( cent );
 		return;
 	}
-	*/
+#endif
+
 	// items bob up and down continuously
 	scale = 0.005 + cent->currentState.number * 0.00001;
 	cent->lerpOrigin[2] += 4 + cos( ( cg.time + 1000 ) *  scale ) * 4;
@@ -471,14 +472,14 @@ static void CG_Item( centity_t *cent ) {
 		// remove weird weapon looping sound
 		//trap_S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin, vec3_origin, cgs.media.weaponHoverSound );
 	}
-	/*
+#ifdef MISSIONPACK
 	if ( item->giType == IT_HOLDABLE && item->giTag == HI_KAMIKAZE ) {
 		VectorScale( ent.axis[0], 2, ent.axis[0] );
 		VectorScale( ent.axis[1], 2, ent.axis[1] );
 		VectorScale( ent.axis[2], 2, ent.axis[2] );
 		ent.nonNormalizedAxes = qtrue;
 	}
-	*/
+#endif
 	// add to refresh list
 	trap_R_AddRefEntityToScene(&ent);
 
@@ -656,14 +657,13 @@ static void CG_Missile( centity_t *cent ) {
 
 	}
 
-//#ifdef MISSIONPACK
-/*	if ( cent->currentState.weapon == WP_PROX_LAUNCHER ) {
+#ifdef MISSIONPACK
+	if ( cent->currentState.weapon == WP_PROX_LAUNCHER ) {
 		if (s1->generic1 == TEAM_BLUE) {
 			ent.hModel = cgs.media.blueProxMine;
 		}
 	}
-	*/
-//#endif
+#endif
 
 	// convert direction of travel into axis
 	if ( VectorNormalize2( s1->pos.trDelta, ent.axis[0] ) == 0 ) {
@@ -674,12 +674,12 @@ static void CG_Missile( centity_t *cent ) {
 	if ( s1->pos.trType != TR_STATIONARY ) {
 		RotateAroundDirection( ent.axis, cg.time / 4 );
 	} else {
-//#ifdef MISSIONPACK
-		/* if ( s1->weapon == WP_PROX_LAUNCHER ) {
+#ifdef MISSIONPACK
+		if ( s1->weapon == WP_PROX_LAUNCHER ) {
 			AnglesToAxis( cent->lerpAngles, ent.axis );
 		}
-		else */
-//#endif
+		else
+#endif
 		{
 			RotateAroundDirection( ent.axis, s1->time );
 		}
@@ -1077,8 +1077,7 @@ static void CG_TeamBase( centity_t *cent ) {
 		}
 		trap_R_AddRefEntityToScene( &model );
 	}
-//#ifdef MISSIONPACK
-/*
+#ifdef MISSIONPACK
 	else if ( cgs.gametype == GT_OBELISK ) {
 		// show the obelisk
 		memset(&model, 0, sizeof(model));
@@ -1195,8 +1194,7 @@ static void CG_TeamBase( centity_t *cent ) {
 		}
 		trap_R_AddRefEntityToScene( &model );
 	}
-//#endif
-*/
+#endif
 }
 
 /*

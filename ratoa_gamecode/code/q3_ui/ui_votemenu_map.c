@@ -644,15 +644,15 @@ const char *UI_GetGametypeName(int gametype) {
 		return "CTF Elim";
 	case GT_LMS:
 		return "TDM";
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 	case GT_DOMINATION:
 		return "Domination";
 #endif
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 	case GT_DOUBLE_D:
 		return "DD";
 #endif
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 	case GT_TREASURE_HUNTER:
 		return "TH";
 #endif

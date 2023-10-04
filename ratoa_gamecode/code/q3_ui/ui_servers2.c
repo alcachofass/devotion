@@ -117,15 +117,15 @@ MULTIPLAYER MENU (SERVER BROWSER)
 #define GAMES_CTF_ELIMINATION	10
 #define GAMES_LMS			11
 
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 #define GAMES_DOM                       12
 #endif
 
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 #define GAMES_DOUBLE_D			13
 #endif
 
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 #define GAMES_TH                        14
 #endif
 
@@ -160,13 +160,13 @@ static const char *servertype_items[] = {
 	"Elimination",
 	"CTF Elimination",
 	"Last Man Standing",
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 	"Domination",
 #endif
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 	"Double Domination",
 #endif
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 	"Treasure Hunter",
 #endif
 #ifdef WITH_MULTITOURNAMENT
@@ -736,7 +736,7 @@ static void ArenaServers_UpdateMenu( void ) {
 				continue;
 			}
 			break;
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 		case GAMES_DOM:
 			if( servernodeptr->gametype != GT_DOMINATION ) {
 				continue;
@@ -744,7 +744,7 @@ static void ArenaServers_UpdateMenu( void ) {
 			break;
 #endif
 
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 		case GAMES_DOUBLE_D:
 			if( servernodeptr->gametype != GT_DOUBLE_D ) {
 				continue;
@@ -752,7 +752,7 @@ static void ArenaServers_UpdateMenu( void ) {
 			break;
 #endif
 
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 		case GAMES_TH:
 			if( servernodeptr->gametype != GT_TREASURE_HUNTER ) {
 				continue;
@@ -1343,19 +1343,19 @@ static void ArenaServers_StartRefresh( void )
 			strcpy( myargs, " lms" );
 			break;
 
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 		case GAMES_DOUBLE_D:
 			strcpy( myargs, " dd" );
 			break;
 #endif
 
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 		case GAMES_DOM:
 			strcpy( myargs, " dom" );
 			break;
 #endif
 
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 		case GAMES_TH:
 			strcpy( myargs, va(" %d", GT_TREASURE_HUNTER) );
 			break;

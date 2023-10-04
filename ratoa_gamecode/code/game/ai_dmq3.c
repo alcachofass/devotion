@@ -311,21 +311,19 @@ qboolean EntityHasQuad(aas_entityinfo_t *entinfo) {
 	return qfalse;
 }
 
+#ifdef MISSIONPACK
 /*
 ==================
 EntityHasKamikze
 ==================
 */
-/*
 qboolean EntityHasKamikaze(aas_entityinfo_t *entinfo) {
 	if (entinfo->flags & EF_KAMIKAZE) {
 		return qtrue;
 	}
 	return qfalse;
 }
-*/
 
-#ifdef MISSIONPACK
 /*
 ==================
 EntityCarriesCubes
@@ -835,7 +833,7 @@ void BotCTFRetreatGoals(bot_state_t *bs) {
 BotDomSeekGoals
 ==================
  */
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 void BotDomSeekGoals(bot_state_t *bs) {
     int index;
     bs->ltgtype = LTG_DOMHOLD; //For debugging we are forcing roam
@@ -865,7 +863,7 @@ void BotDomSeekGoals(bot_state_t *bs) {
 BotDDSeekGoals
 ==================
 */
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 void BotDDSeekGoals(bot_state_t *bs) {
 
 	/*if (bs->ltgtype == LTG_TEAMHELP ||
@@ -1479,11 +1477,11 @@ void BotTeamGoals(bot_state_t *bs, int retreat) {
 		}
 #endif
 	}
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
     if(gametype == GT_DOMINATION) //Don't care about retreat
 		BotDomSeekGoals(bs);
 #endif
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 	if(gametype == GT_DOUBLE_D) //Don't care about retreat
 		BotDDSeekGoals(bs);
 #endif
@@ -1871,9 +1869,11 @@ void BotUpdateInventory(bot_state_t *bs) {
 	bs->inventory[INVENTORY_PLASMAGUN] = (bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_PLASMAGUN)) != 0;
 	bs->inventory[INVENTORY_BFG10K] = (bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_BFG)) != 0;
 	// bs->inventory[INVENTORY_GRAPPLINGHOOK] = (bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_GRAPPLING_HOOK)) != 0;
-	// bs->inventory[INVENTORY_NAILGUN] = (bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_NAILGUN)) != 0;;
-	// bs->inventory[INVENTORY_PROXLAUNCHER] = (bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_PROX_LAUNCHER)) != 0;;
-	// bs->inventory[INVENTORY_CHAINGUN] = (bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_CHAINGUN)) != 0;;
+#ifdef MISSIONPACK
+	bs->inventory[INVENTORY_NAILGUN] = (bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_NAILGUN)) != 0;;
+	bs->inventory[INVENTORY_PROXLAUNCHER] = (bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_PROX_LAUNCHER)) != 0;;
+	bs->inventory[INVENTORY_CHAINGUN] = (bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_CHAINGUN)) != 0;;
+#endif
 	//ammo
 	bs->inventory[INVENTORY_SHELLS] = bs->cur_ps.ammo[WP_SHOTGUN];
 	bs->inventory[INVENTORY_BULLETS] = bs->cur_ps.ammo[WP_MACHINEGUN];
@@ -1883,9 +1883,11 @@ void BotUpdateInventory(bot_state_t *bs) {
 	bs->inventory[INVENTORY_ROCKETS] = bs->cur_ps.ammo[WP_ROCKET_LAUNCHER];
 	bs->inventory[INVENTORY_SLUGS] = bs->cur_ps.ammo[WP_RAILGUN];
 	bs->inventory[INVENTORY_BFGAMMO] = bs->cur_ps.ammo[WP_BFG];
-//	bs->inventory[INVENTORY_NAILS] = bs->cur_ps.ammo[WP_NAILGUN];
-//	bs->inventory[INVENTORY_MINES] = bs->cur_ps.ammo[WP_PROX_LAUNCHER];
-//	bs->inventory[INVENTORY_BELT] = bs->cur_ps.ammo[WP_CHAINGUN];
+#ifdef MISSIONPACK
+	bs->inventory[INVENTORY_NAILS] = bs->cur_ps.ammo[WP_NAILGUN];
+	bs->inventory[INVENTORY_MINES] = bs->cur_ps.ammo[WP_PROX_LAUNCHER];
+	bs->inventory[INVENTORY_BELT] = bs->cur_ps.ammo[WP_CHAINGUN];
+#endif
 	//powerups
 	bs->inventory[INVENTORY_HEALTH] = bs->cur_ps.stats[STAT_HEALTH];
 	bs->inventory[INVENTORY_TELEPORTER] = bs->cur_ps.stats[STAT_HOLDABLE_ITEM] == MODELINDEX_TELEPORTER;
@@ -4857,9 +4859,11 @@ BotCheckForProxMines
 ==================
 */
 void BotCheckForProxMines(bot_state_t *bs, entityState_t *state) {
+#ifdef MISSIONPACK
 	// if this is not a prox mine
-	// if (state->eType != ET_MISSILE || state->weapon != WP_PROX_LAUNCHER)
-		// return;
+	if (state->eType != ET_MISSILE || state->weapon != WP_PROX_LAUNCHER)
+		return;
+#endif
 	// if this prox mine is from someone on our own team
 	if (state->generic1 == BotTeam(bs))
 		return;
@@ -4885,10 +4889,10 @@ BotCheckForKamikazeBody
 */
 void BotCheckForKamikazeBody(bot_state_t *bs, entityState_t *state) {
 	// if this entity is not wearing the kamikaze
-	/*
+#ifdef MISSIONPACK
 	if (!(state->eFlags & EF_KAMIKAZE))
 		return;
-	*/
+#endif
 	// if this entity isn't dead
 	if (!(state->eFlags & EF_DEAD))
 		return;
@@ -5576,7 +5580,7 @@ void BotSetupDeathmatchAI(void) {
 		BotSetEntityNumForGoal(&neutralobelisk, "team_neutralobelisk");
 	}
 #endif
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 	else if (gametype == GT_DOMINATION) {
 		ent = untrap_BotGetLevelItemGoal( -1, "Domination point", &dom_points_bot[0] );
 		if(ent < 0)
@@ -5594,7 +5598,7 @@ void BotSetupDeathmatchAI(void) {
 		//MAX_DOMINATION_POINTS
 	}
 #endif
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 	else if (gametype == GT_DOUBLE_D) {
 		if (untrap_BotGetLevelItemGoal( -1, "Red Flag", &ctf_redflag ) < 0)
 			BotAI_Print(PRT_WARNING, "DD without Point A\n");

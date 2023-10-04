@@ -940,7 +940,7 @@ typedef struct {
 	qhandle_t	blueFlagBaseModel;
 	qhandle_t	neutralFlagBaseModel;
 
-	/*
+#ifdef MISSIONPACK
 	qhandle_t	overloadBaseModel;
 	qhandle_t	overloadTargetModel;
 	qhandle_t	overloadLightsModel;
@@ -950,7 +950,7 @@ typedef struct {
 	qhandle_t	harvesterRedSkin;
 	qhandle_t	harvesterBlueSkin;
 	qhandle_t	harvesterNeutralModel;
-	*/
+#endif
 
 	qhandle_t	armorModel;
 	qhandle_t	armorIcon;
@@ -1128,12 +1128,10 @@ typedef struct {
 	qhandle_t	lmarkbullet3;
 	qhandle_t	lmarkbullet4;
 
-/*
-//#ifdef MISSIONPACK
+#ifdef MISSIONPACK
 	qhandle_t	nailPuffShader;
 	qhandle_t	blueProxMine;
-//#endif
-*/
+#endif
 
 	qhandle_t	numberShaders[11];
 
@@ -1160,8 +1158,10 @@ typedef struct {
 	qhandle_t	battleSuitShader;
 	qhandle_t	battleWeaponShader;
 	qhandle_t	hastePuffShader;
-	//qhandle_t	redKamikazeShader;
-	//qhandle_t	blueKamikazeShader;
+#ifdef MISSIONPACK
+	qhandle_t	redKamikazeShader;
+	qhandle_t	blueKamikazeShader;
+#endif
 
 	qhandle_t	frozenShader;
 	qhandle_t	thawingShader;
@@ -1391,14 +1391,16 @@ typedef struct {
 
 	sfxHandle_t redFlagReturnedSound;
 	sfxHandle_t blueFlagReturnedSound;
-	//sfxHandle_t neutralFlagReturnedSound;
 	sfxHandle_t	enemyTookYourFlagSound;
-	//sfxHandle_t	enemyTookTheFlagSound;
 	sfxHandle_t yourTeamTookEnemyFlagSound;
-	//sfxHandle_t yourTeamTookTheFlagSound;
 	sfxHandle_t	youHaveFlagSound;
-	//sfxHandle_t yourBaseIsUnderAttackSound;
 	sfxHandle_t holyShitSound;
+#ifdef MISSIONPACK
+	sfxHandle_t neutralFlagReturnedSound;
+	sfxHandle_t	enemyTookTheFlagSound;
+	sfxHandle_t yourTeamTookTheFlagSound;
+	sfxHandle_t yourBaseIsUnderAttackSound;
+#endif
 
 	// Elimination / CA / Extermination
 	//sfxHandle_t oneLeftSound;

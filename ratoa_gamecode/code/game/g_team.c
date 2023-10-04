@@ -57,12 +57,12 @@ void Team_InitGame( void ) {
 	switch( g_gametype.integer ) {
 	case GT_CTF:
 	case GT_CTF_ELIMINATION:
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 	case GT_DOMINATION:
 		dominationPointsSpawned = qfalse;
         break;
 #endif
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 	case GT_DOUBLE_D:
 		teamgame.redStatus = -1; // Invalid to force update
 		Team_SetFlagStatus( TEAM_RED, FLAG_ATBASE );
@@ -184,7 +184,7 @@ void AddTeamScore(vec3_t origin, int team, int score) {
             return;
         }
 
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 	if ( g_gametype.integer != GT_DOMINATION ) {
 		//te = G_TempEntity(origin, EV_GLOBAL_TEAM_SOUND );
 		//te->r.svFlags |= SVF_BROADCAST;
@@ -308,7 +308,7 @@ void Team_SetFlagStatus( int team, flagStatus_t status ) {
 			st[1] = ctfFlagStatusRemap[teamgame.blueStatus];
 			st[2] = 0;
 		}
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 		else if (g_gametype.integer == GT_DOUBLE_D) {
 			st[0] = oneFlagStatusRemap[teamgame.redStatus];
 			st[1] = oneFlagStatusRemap[teamgame.blueStatus];
@@ -570,7 +570,7 @@ void Team_FragBonuses(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker
 
 //We place the Double Domination bonus test here! This appears to be the best place to place them.
 //
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 	if ( g_gametype.integer == GT_DOUBLE_D ) {
 		if(attacker->client->sess.sessionTeam == level.pointStatusA ) { //Attack must defend point A
 			//See how close attacker and target was to Point A:
@@ -1011,7 +1011,7 @@ void Team_DD_makeB2team( gentity_t *target, int team ) {
 	target->dropPickupTime = level.time + DD_PICKUPDELAY;
 }
 
-#if defined(MISSIONPACK) || defined(TREASURE_HUNTER_GAMETYPE)
+#if defined(MISSIONPACK) || defined(WITH_TREASURE_HUNTER_GAMETYPE)
 void Team_TH_TokenDestroyed( gentity_t *ent ) {
 	if (level.th_phase == TH_HIDE && ent->parent && G_InUse(ent->parent)) {
 		gentity_t *player = ent->parent;
@@ -1174,7 +1174,7 @@ void Team_FreeEntity( gentity_t *ent ) {
 	else if( ent->item->giTag == PW_NEUTRALFLAG ) {
 		Team_ReturnFlag( TEAM_FREE );
 	}
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 	if (g_gametype.integer == GT_TREASURE_HUNTER) {
 		Team_TH_TokenDestroyed( ent );
 	}
@@ -1610,7 +1610,7 @@ int Pickup_Team( gentity_t *ent, gentity_t *other ) {
 	}
 #endif
 
-#ifdef TREASURE_HUNTER_GAMETYPE
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 	if( g_gametype.integer == GT_TREASURE_HUNTER ) {
 		if (level.th_phase != TH_SEEK) {
 			return 0;
@@ -1628,7 +1628,7 @@ int Pickup_Team( gentity_t *ent, gentity_t *other ) {
 	}
 #endif
 
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 	if ( g_gametype.integer == GT_DOMINATION ) {
 		Team_Dom_TakePoint(ent, cl->sess.sessionTeam,cl->ps.clientNum);
 		return 0;
@@ -1660,7 +1660,7 @@ int Pickup_Team( gentity_t *ent, gentity_t *other ) {
 	}
 #endif
 
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 	if( g_gametype.integer == GT_DOUBLE_D) {
 		return Team_TouchDoubleDominationPoint( ent, other, team );
 	}
@@ -3127,7 +3127,7 @@ void Token_die(gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int d
 }
 */
 
-#if defined(MISSIONPACK) || defined(TREASURE_HUNTER_GAMETYPE)
+#if defined(MISSIONPACK) || defined(WITH_TREASURE_HUNTER_GAMETYPE)
 void SetPlayerTokens(int num, qboolean updateOnly) {
 	int i;
 	gentity_t *ent;

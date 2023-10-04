@@ -363,14 +363,14 @@ static void UI_TeamOrdersMenu_ListEvent( void *ptr, int event ) {
 			UI_TeamOrdersMenu_SetList( ID_LIST_BASE_ORDERS );
 		}
 #endif
-#ifdef DOM_GAMETYPE
+#ifdef WITH_DOM_GAMETYPE
 		if( teamOrdersMenuInfo.gametype == GT_TEAM || teamOrdersMenuInfo.gametype == GT_ELIMINATION || teamOrdersMenuInfo.gametype == GT_DOMINATION ) {
 #else
 		if( teamOrdersMenuInfo.gametype == GT_TEAM || teamOrdersMenuInfo.gametype == GT_ELIMINATION ) {
 #endif
 			UI_TeamOrdersMenu_SetList( ID_LIST_TEAM_ORDERS );
 		}
-#ifdef DOUBLED_GAMETYPE
+#ifdef WITH_DOUBLED_GAMETYPE
 		if( teamOrdersMenuInfo.gametype == GT_DOUBLE_D ) {
 			UI_TeamOrdersMenu_SetList( ID_LIST_DD_ORDERS );
 		}

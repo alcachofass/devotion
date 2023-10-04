@@ -464,7 +464,11 @@ void DuelStatsMessageForPlayers(gentity_t *p1, gentity_t *p2) {
 		cl = ent->client;
 
 		Com_sprintf (entry, sizeof(entry),
+#ifdef MISSIONPACK
+				" %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i",
+#else
 				" %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i",
+#endif
 				(int)(ent-g_entities),
 				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Light Armor"))],
 				cl->pers.items_collected[ITEM_INDEX(BG_FindItem("Armor"))],
@@ -481,10 +485,12 @@ void DuelStatsMessageForPlayers(gentity_t *p1, gentity_t *p2) {
 				cl->pers.damage[WP_RAILGUN],
 				cl->pers.damage[WP_PLASMAGUN],
 				cl->pers.damage[WP_BFG],
-/*				cl->pers.damage[WP_NAILGUN],
+#ifdef MISSIONPACK
+				cl->pers.damage[WP_NAILGUN],
 				cl->pers.damage[WP_PROX_LAUNCHER],
 				cl->pers.damage[WP_CHAINGUN],
-*/				cl->accuracy[WP_MACHINEGUN][0],
+#endif
+				cl->accuracy[WP_MACHINEGUN][0],
 				cl->accuracy[WP_MACHINEGUN][1],
 				cl->accuracy[WP_SHOTGUN][0],
 				cl->accuracy[WP_SHOTGUN][1],
@@ -499,14 +505,17 @@ void DuelStatsMessageForPlayers(gentity_t *p1, gentity_t *p2) {
 				cl->accuracy[WP_PLASMAGUN][0],
 				cl->accuracy[WP_PLASMAGUN][1],
 				cl->accuracy[WP_BFG][0],
-				cl->accuracy[WP_BFG][1]//,
-/*				cl->accuracy[WP_NAILGUN][0],
+				cl->accuracy[WP_BFG][1]
+#ifdef MISSIONPACK
+				,
+				cl->accuracy[WP_NAILGUN][0],
 				cl->accuracy[WP_NAILGUN][1],
 				cl->accuracy[WP_PROX_LAUNCHER][0],
 				cl->accuracy[WP_PROX_LAUNCHER][1],
 				cl->accuracy[WP_CHAINGUN][0],
 				cl->accuracy[WP_CHAINGUN][1]
-*/			    );
+#endif
+			    );
 
 		j = strlen(entry);
 		if (stringlength + j > 1024)
@@ -534,6 +543,9 @@ void AccMessage( gentity_t *ent ) {
 
 	Com_sprintf (entry, sizeof(entry),
 				" %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i ",
+#ifdef MISSIONPACK
+				" %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i ",
+#endif
                                    ent->client->accuracy[WP_MACHINEGUN][0], ent->client->accuracy[WP_MACHINEGUN][1],
                                   ent->client->accuracy[WP_SHOTGUN][0], ent->client->accuracy[WP_SHOTGUN][1],
                                   ent->client->accuracy[WP_GRENADE_LAUNCHER][0], ent->client->accuracy[WP_GRENADE_LAUNCHER][1],
@@ -541,11 +553,14 @@ void AccMessage( gentity_t *ent ) {
                                   ent->client->accuracy[WP_LIGHTNING][0], ent->client->accuracy[WP_LIGHTNING][1],
                                   ent->client->accuracy[WP_RAILGUN][0], ent->client->accuracy[WP_RAILGUN][1],
                                   ent->client->accuracy[WP_PLASMAGUN][0], ent->client->accuracy[WP_PLASMAGUN][1],
-                                  ent->client->accuracy[WP_BFG][0], ent->client->accuracy[WP_BFG][1]//,
+                                  ent->client->accuracy[WP_BFG][0], ent->client->accuracy[WP_BFG][1]
 //                                   0,0, //Hook
-  //                                  ent->client->accuracy[WP_NAILGUN][0], ent->client->accuracy[WP_NAILGUN][1],
-    //                                0,0,
-      //                              ent->client->accuracy[WP_CHAINGUN][0], ent->client->accuracy[WP_CHAINGUN][1]
+#ifdef MISSIONPACK
+                                    ,
+                                    ent->client->accuracy[WP_NAILGUN][0], ent->client->accuracy[WP_NAILGUN][1],
+                                    0,0,
+                                    ent->client->accuracy[WP_CHAINGUN][0], ent->client->accuracy[WP_CHAINGUN][1]
+#endif
                                  );
 
 	trap_SendServerCommand( ent-g_entities, va("accs%s", entry ));
@@ -3703,8 +3718,15 @@ static const char *gameNames[] = {
 	"Multi Tournament",   //"Elimination",
 	//"CTF Elimination",
 	//"Last Man Standing",
-	//"Double Domination",
-	//"Domination"
+#ifdef WITH_DOUBLED_GAMETYPE
+	"Double Domination",
+#endif
+#ifdef WITH_DOM_GAMETYPE
+	"Domination",
+#endif
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+	"Treaure Hunter"
+#endif
 };
 
 
