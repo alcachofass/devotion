@@ -940,7 +940,7 @@ typedef struct {
 	qhandle_t	blueFlagBaseModel;
 	qhandle_t	neutralFlagBaseModel;
 
-#ifdef MISSIONPACK
+#if defined(MISSIONPACK) || defined(WITH_TREASURE_HUNTER_GAMETYPE)
 	qhandle_t	overloadBaseModel;
 	qhandle_t	overloadTargetModel;
 	qhandle_t	overloadLightsModel;

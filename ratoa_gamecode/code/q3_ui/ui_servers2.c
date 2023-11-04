@@ -191,16 +191,26 @@ static char* gamenames[] = {
 	"SP ",	// single player
 	"Team DM",	// team deathmatch
 	"CTF",	// capture the flag
+#ifdef MISSIONPACK
 	"One Flag CTF",		// one flag ctf
 	"OverLoad",				// Overload
 	"Harvester",			// Harvester
+#endif
 	"Elimination",
 	"CTF Elimination",
 	"Last Man Standing",
+#ifdef WITH_DOM_GAMETYPE
+    "Domination",	// Dom replaces Rocket Arena 3
+#endif
+#ifdef WITH_DOUBLED_GAMETYPE
 	"Double Domination",
-        "Domination",	// Dom replaces Rocket Arena 3
+#endif
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 	"Treasure Hunter",
+#endif
+#ifdef WITH_MULTITOURNAMENT
 	"Multitournament",
+#endif
 	"???",			// unknown
 	NULL
 };

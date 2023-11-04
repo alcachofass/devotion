@@ -114,6 +114,9 @@ static const char *gametype_items[] = {
 #ifdef WITH_DOUBLED_GAMETYPE
 	"Double Domination",
 #endif
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+	"Treasure Hunter",
+#endif
 	NULL
 };
 
@@ -136,6 +139,9 @@ static int gametype_remap[] = {
 #ifdef WITH_DOUBLED_GAMETYPE
 		GT_DOUBLE_D,
 #endif
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+		GT_TREASURE_HUNTER,
+#endif
 };
 
 static int gametype_remap2[] = {
@@ -148,7 +154,28 @@ static int gametype_remap2[] = {
 		   //5,
 		5, //6,
 		6, //7, 
-		7  //,
+		7,
+#ifdef WITH_DOM_GAMETYPE
+        8,
+#endif
+
+#ifdef WITH_DOUBLED_GAMETYPE
+	#if defined(WITH_DOM_GAMETYPE)
+		9,
+	#else
+		8,
+	#endif
+#endif
+
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+	#if defined(WITH_DOM_GAMETYPE) && defined(WITH_DOUBLED_GAMETYPE)
+		10,
+	#elif defined(WITH_DOM_GAMETYPE) || defined(WITH_DOUBLED_GAMETYPE)
+		9,
+	#else
+		8,
+	#endif
+#endif
 		   //9, 
 		   //10,
            //11 
@@ -241,6 +268,20 @@ static int GametypeBits( char *string ) {
 #ifdef WITH_DOUBLED_GAMETYPE
 		if( Q_stricmp( token, "dd" ) == 0 ) {
 			bits |= 1 << GT_DOUBLE_D;
+			continue;
+		}
+#endif
+
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+		if( Q_stricmp( token, "th" ) == 0 ) {
+			bits |= 1 << GT_TREASURE_HUNTER;
+			continue;
+		}
+#endif
+
+#ifdef WITH_MULTITOURNAMENT
+		if( Q_stricmp( token, "tournament" ) == 0 ) {
+			bits |= 1 << GT_MULTITOURNAMENT;
 			continue;
 		}
 #endif

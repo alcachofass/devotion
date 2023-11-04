@@ -1208,9 +1208,21 @@ const char *CG_GameTypeString(void) {
 		return "CTF Elimination";
 	} else if ( cgs.gametype == GT_LMS ) {
 		return "Last Man Standing";
+#ifdef WITH_DOM_GAMETYPE
+	} else if ( cgs.gametype == GT_DOMINATION ) {
+		return "Domination";
+#endif
 #ifdef WITH_DOUBLED_GAMETYPE
 	} else if ( cgs.gametype == GT_DOUBLE_D ) {
 		return "Double Domination";
+#endif
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+	} else if ( cgs.gametype == GT_TREASURE_HUNTER ) {
+		return "Treasure Hunter";
+#endif
+#ifdef WITH_MULTITOURNAMENT
+	} else if ( cgs.gametype == GT_MULTITOURNAMENT ) {
+		return "Multitournament";
 #endif
 	}
 	return "";

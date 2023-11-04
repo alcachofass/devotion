@@ -214,11 +214,11 @@ static void VoteMenu_Gametype_Event( void* ptr, int event )
 
 #ifdef WITH_DOM_GAMETYPE
                     case ID_DOM:
-#ifdef MISSIONPACK
+    #ifdef MISSIONPACK
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 11" );
-#else
+    #else
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 8" );
-#endif
+    #endif
                         UI_PopMenu();
                         UI_PopMenu();
                         break;
@@ -226,34 +226,33 @@ static void VoteMenu_Gametype_Event( void* ptr, int event )
 
 #ifdef WITH_DOUBLED_GAMETYPE
                     case ID_DOUBLED:
-#if defined(MISSIONPACK) && defined(WITH_DOM_GAMETYPE)
+    #if defined(MISSIONPACK) && defined(WITH_DOM_GAMETYPE)
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 12" );
-#endif
-#ifdef MISSIONPACK
+    #elif defined(MISSIONPACK)
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 11" );
-#elif defined (WITH_DOM_GAMETYPE)
+    #elif defined (WITH_DOM_GAMETYPE)
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 9" );
-#else
+    #else
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 8" );
-#endif
+    #endif
                         UI_PopMenu();
                         UI_PopMenu();
                         break;
 #endif
 
-#ifdef ID_TREASURE_HUNTER
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
                     case ID_TREASURE_HUNTER:
-#if defined(MISSIONPACK) && defined(WITH_DOM_GAMETYPE) && defined(WITH_DOUBLED_GAMETYPE)
+    #if defined(MISSIONPACK) && defined(WITH_DOM_GAMETYPE) && defined(WITH_DOUBLED_GAMETYPE)
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 13" );
-#elif ( defined(MISSIONPACK) && defined(WITH_DOM_GAMETYPE) ) || ( defined(MISSIONPACK) && defined(WITH_DOUBLED_GAMETYPE) )
+    #elif defined(MISSIONPACK) && (defined(WITH_DOM_GAMETYPE) || defined(WITH_DOUBLED_GAMETYPE))
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 12" );
-#elif defined(WITH_DOM_GAMETYPE) && defined(WITH_DOUBLED_GAMETYPE)
+    #elif defined(MISSIONPACK) || (defined(WITH_DOM_GAMETYPE) && defined(WITH_DOUBLED_GAMETYPE))
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 10" );
-#elif defined(WITH_DOM_GAMETYPE) || defined(WITH_DOUBLED_GAMETYPE)
+    #elif defined(WITH_DOM_GAMETYPE) || defined(WITH_DOUBLED_GAMETYPE)
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 9" );
-#else
+    #else
                         trap_Cmd_ExecuteText( EXEC_APPEND, "callvote g_gametype 8" );
-#endif
+    #endif
                         UI_PopMenu();
                         UI_PopMenu();
                         break;
@@ -419,7 +418,6 @@ UI_VoteGametypeMenu
 */
 void UI_VoteGametypeMenu( void ) {
     char serverinfo[MAX_INFO_STRING], *gametypeinfo;
-    int gametypenumdef = 5;
     // zero set all our globals
     memset( &s_votemenu_Gametype, 0 ,sizeof(votemenu_t) );
     trap_GetConfigString( CS_SERVERINFO, serverinfo, MAX_INFO_STRING );
@@ -451,30 +449,55 @@ void UI_VoteGametypeMenu( void ) {
         s_votemenu_Gametype.Tournament     = (qboolean) Q_stristr( gametypeinfo, "/1/" );
         s_votemenu_Gametype.TDM            = (qboolean) Q_stristr( gametypeinfo, "/3/" );
         s_votemenu_Gametype.CTF            = (qboolean) Q_stristr( gametypeinfo, "/4/" );
+
 #ifdef MISSIONPACK
-        s_votemenu_Gametype._1FCTF         = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
-        ++gametypenumdef;
-        s_votemenu_Gametype.Overload       = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
-        ++gametypenumdef;
-        s_votemenu_Gametype.Harvester      = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
-        ++gametypenumdef;
+        s_votemenu_Gametype._1FCTF         = (qboolean) Q_stristr( gametypeinfo, "/5/" );
+        s_votemenu_Gametype.Overload       = (qboolean) Q_stristr( gametypeinfo, "/6/" );
+        s_votemenu_Gametype.Harvester      = (qboolean) Q_stristr( gametypeinfo, "/7/" );
+
+        s_votemenu_Gametype.Elimination    = (qboolean) Q_stristr( gametypeinfo, "/8/" );
+        s_votemenu_Gametype.CTFe           = (qboolean) Q_stristr( gametypeinfo, "/9/" );
+        s_votemenu_Gametype.LMS            = (qboolean) Q_stristr( gametypeinfo, "/10/" );
+#else
+        s_votemenu_Gametype.Elimination    = (qboolean) Q_stristr( gametypeinfo, "/5/" );
+        s_votemenu_Gametype.CTFe           = (qboolean) Q_stristr( gametypeinfo, "/6/" );
+        s_votemenu_Gametype.LMS            = (qboolean) Q_stristr( gametypeinfo, "/7/" );
 #endif
-        s_votemenu_Gametype.Elimination    = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
-        ++gametypenumdef;
-        s_votemenu_Gametype.CTFe           = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
-        ++gametypenumdef;
-        s_votemenu_Gametype.LMS            = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
-        ++gametypenumdef;
+
 #ifdef WITH_DOM_GAMETYPE
-        s_votemenu_Gametype.DOM            = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
-        ++gametypenumdef;
+    #ifdef MISSIONPACK
+        s_votemenu_Gametype.DOM            = (qboolean) Q_stristr( gametypeinfo, "/11/" );
+    #else
+        s_votemenu_Gametype.DOM            = (qboolean) Q_stristr( gametypeinfo, "/8/" );
+    #endif
 #endif
+
 #ifdef WITH_DOUBLED_GAMETYPE
-        s_votemenu_Gametype.DOUBLED        = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
-        ++gametypenumdef;
+    #if defined(MISSIONPACK) && defined(WITH_DOM_GAMETYPE)
+        s_votemenu_Gametype.DOUBLED        = (qboolean) Q_stristr( gametypeinfo, "/12/" );
+    #elif defined(MISSIONPACK)
+        s_votemenu_Gametype.DOUBLED        = (qboolean) Q_stristr( gametypeinfo, "/11/" );
+    #elif defined(WITH_DOM_GAMETYPE)
+        s_votemenu_Gametype.DOUBLED        = (qboolean) Q_stristr( gametypeinfo, "/9/" );
+    #else
+        s_votemenu_Gametype.DOUBLED        = (qboolean) Q_stristr( gametypeinfo, "/8/" );
+    #endif
 #endif
+
 #ifdef WITH_TREASURE_HUNTER_GAMETYPE
-        s_votemenu_Gametype.TreasureHunter = (qboolean) Q_stristr( gametypeinfo, strcat("/", strcat((char*) gametypenumdef, "/")) );
+    #if defined(MISSIONPACK) && defined(WITH_DOM_GAMETYPE) && defined(WITH_DOUBLED_GAMETYPE)
+        s_votemenu_Gametype.TreasureHunter = (qboolean) Q_stristr( gametypeinfo, "/13/" );
+    #elif defined(MISSIONPACK) && (defined(WITH_DOM_GAMETYPE) || defined(WITH_DOUBLED_GAMETYPE))
+        s_votemenu_Gametype.TreasureHunter = (qboolean) Q_stristr( gametypeinfo, "/12/" );
+    #elif defined(MISSIONPACK)
+        s_votemenu_Gametype.TreasureHunter = (qboolean) Q_stristr( gametypeinfo, "/11/" );
+    #elif defined(WITH_DOM_GAMETYPE) && defined(WITH_DOUBLED_GAMETYPE)
+        s_votemenu_Gametype.TreasureHunter = (qboolean) Q_stristr( gametypeinfo, "/10/" );
+    #elif defined(WITH_DOM_GAMETYPE) || defined(WITH_DOUBLED_GAMETYPE)
+        s_votemenu_Gametype.TreasureHunter = (qboolean) Q_stristr( gametypeinfo, "/9/" );
+    #else
+        s_votemenu_Gametype.TreasureHunter = (qboolean) Q_stristr( gametypeinfo, "/8/" );
+    #endif
 #endif
     }
 

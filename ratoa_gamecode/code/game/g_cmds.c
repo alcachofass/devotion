@@ -3712,20 +3712,25 @@ static const char *gameNames[] = {
 	"Single Player",
 	"Team Deathmatch",
 	"Capture the Flag",
-	"Elimination",        //"One Flag CTF",
-	"CTF Elimination",    //"Overload",
-	"Last Man Standing",  //"Harvester",
-	"Multi Tournament",   //"Elimination",
-	//"CTF Elimination",
-	//"Last Man Standing",
-#ifdef WITH_DOUBLED_GAMETYPE
-	"Double Domination",
+#ifdef MISSIONPACK
+	"One Flag CTF",
+	"Overload",
+	"Harvester",
 #endif
+	"Elimination",
+	"CTF Elimination",
+	"Last Man Standing",
 #ifdef WITH_DOM_GAMETYPE
 	"Domination",
 #endif
+#ifdef WITH_DOUBLED_GAMETYPE
+	"Double Domination",
+#endif
 #ifdef WITH_TREASURE_HUNTER_GAMETYPE
-	"Treaure Hunter"
+	"Treasure Hunter",
+#endif
+#ifdef WITH_MULTITOURNAMENT
+	"Multitournament"
 #endif
 };
 
