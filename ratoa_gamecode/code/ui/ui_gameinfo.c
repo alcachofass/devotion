@@ -209,9 +209,19 @@ void UI_LoadArenas( void ) {
 			if( strstr( type, "lms" ) ) {
 				uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_LMS);
 			}
+#ifdef WITH_DOM_GAMETYPE
+			if( strstr( type, "dom" ) ) {
+				uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_DOMINATION);
+			}
+#endif
 #ifdef WITH_DOUBLED_GAMETYPE
 			if( strstr( type, "dd" ) ) {
 				uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_DOUBLE_D);
+			}
+#endif
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+			if( strstr( type, "th" ) ) {
+				uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_TREASURE_HUNTER);
 			}
 #endif
 		} else {

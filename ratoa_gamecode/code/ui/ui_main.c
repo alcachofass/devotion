@@ -82,14 +82,23 @@ static const char *teamArenaGameTypes[] = {
 	"SP",
 	"TEAM DM",
 	"CTF",
+#ifdef MISSIONPACK
 	"1FCTF",
 	"OVERLOAD",
 	"HARVESTER",
+#endif
 	"ELIMINATION",
 	"CTFELIMINATION",
 	"LMS",
+#ifdef WITH_DOM_GAMETYPE
+	"DOMINATION",
+#endif
+#ifdef WITH_DOUBLED_GAMETYPE
 	"DOUBLE D",
-        "DOMINATION"
+#endif
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+	"TREASURE HUNTER"
+#endif
 };
 
 static int const numTeamArenaGameTypes = sizeof(teamArenaGameTypes) / sizeof(const char*);

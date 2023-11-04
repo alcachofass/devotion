@@ -2115,11 +2115,9 @@ static void CG_DrawStatusBar( void ) {
         //Skulls!
 #if defined(MISSIONPACK) && defined(WITH_TREASURE_HUNTER_GAMETYPE)
 	if(cgs.gametype == GT_HARVESTER || cgs.gametype == GT_TREASURE_HUNTER)
-#endif
-#ifdef MISSIONPACK
+#elif defined(MISSIONPACK)
 	if(cgs.gametype == GT_HARVESTER)
-#endif
-#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+#elif defined(WITH_TREASURE_HUNTER_GAMETYPE)
 	if(cgs.gametype == GT_TREASURE_HUNTER)
 #endif
         {

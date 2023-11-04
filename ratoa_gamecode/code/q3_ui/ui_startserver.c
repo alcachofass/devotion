@@ -155,12 +155,26 @@ static int gametype_remap2[] = {
 		5, //6,
 		6, //7, 
 		7,
+#ifdef MISSIONPACK
+		8, //6,
+		9, //7, 
+		10,
+#endif
+
 #ifdef WITH_DOM_GAMETYPE
+	#ifdef MISSIONPACK
+		11,
+	#else
         8,
+	#endif
 #endif
 
 #ifdef WITH_DOUBLED_GAMETYPE
-	#if defined(WITH_DOM_GAMETYPE)
+	#if defined(MISSIONPACK) && defined(WITH_DOM_GAMETYPE)
+		12,
+	#elif defined(MISSIONPACK)
+		11,
+	#elif defined(WITH_DOM_GAMETYPE)
 		9,
 	#else
 		8,
@@ -168,7 +182,13 @@ static int gametype_remap2[] = {
 #endif
 
 #ifdef WITH_TREASURE_HUNTER_GAMETYPE
-	#if defined(WITH_DOM_GAMETYPE) && defined(WITH_DOUBLED_GAMETYPE)
+	#if defined(MISSIONPACK) && defined(WITH_DOM_GAMETYPE) && defined(WITH_DOUBLED_GAMETYPE)
+		13,
+	#elif defined(MISSIONPACK) && (defined(WITH_DOM_GAMETYPE) || defined(WITH_DOUBLED_GAMETYPE))
+		12,
+	#elif defined(MISSIONPACK)
+		11,
+	#elif defined(WITH_DOM_GAMETYPE) && defined(WITH_DOUBLED_GAMETYPE)
 		10,
 	#elif defined(WITH_DOM_GAMETYPE) || defined(WITH_DOUBLED_GAMETYPE)
 		9,
