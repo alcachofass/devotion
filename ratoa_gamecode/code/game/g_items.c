@@ -242,11 +242,11 @@ int Pickup_PersistantPowerup( gentity_t *ent, gentity_t *other ) {
 int Pickup_Holdable( gentity_t *ent, gentity_t *other ) {
 
 	other->client->ps.stats[STAT_HOLDABLE_ITEM] = ent->item - bg_itemlist;
-	/*
+#ifdef MISSIONPACK
 	if( ent->item->giTag == HI_KAMIKAZE ) {
 		other->client->ps.eFlags |= EF_KAMIKAZE;
 	}
-	*/
+#endif
 	return RESPAWN_HOLDABLE;
 }
 
@@ -446,7 +446,7 @@ void RespawnItem( gentity_t *ent ) {
 		te->s.eventParm = G_SoundIndex( "sound/items/poweruprespawn.wav" );
 		te->r.svFlags |= SVF_BROADCAST;
 	}
-	/*
+#ifdef MISSIONPACK
 	if ( ent->item->giType == IT_HOLDABLE && ent->item->giTag == HI_KAMIKAZE ) {
 		// play powerup spawn sound to all clients
 		gentity_t	*te;
@@ -461,7 +461,7 @@ void RespawnItem( gentity_t *ent ) {
 		te->s.eventParm = G_SoundIndex( "sound/items/kamikazerespawn.wav" );
 		te->r.svFlags |= SVF_BROADCAST;
 	}
-	*/
+#endif
 	// play the normal respawn sound only to nearby clients
 	G_AddEvent( ent, EV_ITEM_RESPAWN, 0 );
 
@@ -509,15 +509,22 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 	if ( !BG_CanItemBeGrabbed( g_gametype.integer, &ent->s, &other->client->ps ) ) {
 		return;
 	}
-	/*
-	if ((g_gametype.integer == GT_DOMINATION || g_gametype.integer == GT_DOUBLE_D) && ent->item->giType == IT_TEAM) {
+#ifdef WITH_DOM_GAMETYPE
+	if ((g_gametype.integer == GT_DOMINATION) && ent->item->giType == IT_TEAM) {
 		if (level.time < ent->dropPickupTime) {
 			return;
 		}
 	}
-	*/
+#endif
+
+#ifdef WITH_DOUBLED_GAMETYPE
+	if ((g_gametype.integer == GT_DOUBLE_D) && ent->item->giType == IT_TEAM) {
+		if (level.time < ent->dropPickupTime) {
+			return;
+		}
+	}
+
 	//In double DD we cannot "pick up" a flag we already got
-	/*
 	if(g_gametype.integer == GT_DOUBLE_D) {
 		if( strcmp(ent->classname, "team_CTF_redflag") == 0 )
 			if(other->client->sess.sessionTeam == level.pointStatusA)
@@ -526,7 +533,7 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 			if(other->client->sess.sessionTeam == level.pointStatusB)
 				return;
 	}
-	*/
+#endif
 	if (ent->dropPickupTime && ent->dropClientNum == other->client->ps.clientNum && ent->dropPickupTime > level.time) {
 		return;
 	}
@@ -869,8 +876,11 @@ void G_CheckTeamItems( void ) {
 	// Set up team stuff
 	Team_InitGame();
 
-	// if( g_gametype.integer == GT_CTF || g_gametype.integer == GT_CTF_ELIMINATION || g_gametype.integer == GT_DOUBLE_D) {
-	if( g_gametype.integer == GT_CTF || g_gametype.integer == GT_CTF_ELIMINATION) {
+#ifdef WITH_DOUBLED_GAMETYPE
+	if( g_gametype.integer == GT_CTF || g_gametype.integer == GT_CTF_ELIMINATION || g_gametype.integer == GT_DOUBLE_D ) {
+#else
+	if( g_gametype.integer == GT_CTF || g_gametype.integer == GT_CTF_ELIMINATION ) {
+#endif
 		gitem_t	*item;
 
 		// check for the two flags
@@ -883,7 +893,7 @@ void G_CheckTeamItems( void ) {
 			G_Printf( S_COLOR_YELLOW "WARNING: No team_CTF_blueflag in map\n" );
 		}
 	}
-	/*
+#ifdef MISSIONPACK
 	if( g_gametype.integer == GT_1FCTF ) {
 		gitem_t	*item;
 
@@ -940,7 +950,7 @@ void G_CheckTeamItems( void ) {
 			G_Printf( S_COLOR_YELLOW "WARNING: No team_neutralobelisk in map\n" );
 		}
 	}
-	*/
+#endif
 }
 
 /*
@@ -977,19 +987,29 @@ void ClearRegisteredItems( void ) {
 			RegisterItem( BG_FindItemForWeapon( WP_RAILGUN ) );
 			RegisterItem( BG_FindItemForWeapon( WP_PLASMAGUN ) );
 			RegisterItem( BG_FindItemForWeapon( WP_BFG ) );
-/*			RegisterItem( BG_FindItemForWeapon( WP_NAILGUN ) );
+#ifdef MISSIONPACK
+			RegisterItem( BG_FindItemForWeapon( WP_NAILGUN ) );
 			RegisterItem( BG_FindItemForWeapon( WP_PROX_LAUNCHER ) );
 			RegisterItem( BG_FindItemForWeapon( WP_CHAINGUN ) );
-*/
+#endif
 		}
 	}
-	/*
-	if( g_gametype.integer == GT_HARVESTER || g_gametype.integer == GT_TREASURE_HUNTER ) {
+#ifdef MISSIONPACK
+	if( g_gametype.integer == GT_HARVESTER ) {
 		RegisterItem( BG_FindItem( "Red Cube" ) );
 		RegisterItem( BG_FindItem( "Blue Cube" ) );
 	}
-        
-	if(g_gametype.integer == GT_DOUBLE_D ) {
+#endif
+
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+	if( g_gametype.integer == GT_TREASURE_HUNTER ) {
+		RegisterItem( BG_FindItem( "Red Cube" ) );
+		RegisterItem( BG_FindItem( "Blue Cube" ) );
+	}
+#endif
+
+#ifdef WITH_DOUBLED_GAMETYPE
+	if( g_gametype.integer == GT_DOUBLE_D ) {
 		RegisterItem( BG_FindItem( "Point A (Blue)" ) );
 		RegisterItem( BG_FindItem( "Point A (Red)" ) );
 		RegisterItem( BG_FindItem( "Point A (White)" ) );
@@ -997,13 +1017,19 @@ void ClearRegisteredItems( void ) {
 		RegisterItem( BG_FindItem( "Point B (Red)" ) );
 		RegisterItem( BG_FindItem( "Point B (White)" ) );
 	}
+#endif
 
-	if(g_gametype.integer == GT_DOMINATION ) {
+#ifdef WITH_DOM_GAMETYPE
+	if( g_gametype.integer == GT_DOMINATION ) {
 		RegisterItem( BG_FindItem( "Neutral domination point" ) );
 		RegisterItem( BG_FindItem( "Red domination point" ) );
 		RegisterItem( BG_FindItem( "Blue domination point" ) );
 	}
+#endif
 
+	
+/* For Coin{FFA,..} */
+#if 0
 	if (g_coins.integer > 0) {
 		if (G_IsTeamGametype()) {
 			RegisterItem( BG_FindItem( "Red Coin" ) );
@@ -1012,7 +1038,7 @@ void ClearRegisteredItems( void ) {
 			RegisterItem( BG_FindItem( "Gold Coin" ) );
 		}
 	}
-	*/
+#endif
 }
 
 /*
@@ -1121,20 +1147,23 @@ void G_SpawnItem (gentity_t *ent, gitem_t *item) {
 		ent->s.eFlags |= EF_NODRAW; //Invisible in elimination
                 ent->r.svFlags |= SVF_NOCLIENT;  //Don't broadcast
         }
-	/*
-	if(g_gametype.integer == GT_DOUBLE_D && (strcmp(ent->classname, "team_CTF_redflag")==0 || strcmp(ent->classname, "team_CTF_blueflag")==0 || strcmp(ent->classname, "team_CTF_neutralflag") == 0 || item->giType == IT_PERSISTANT_POWERUP  ))
+#ifdef WITH_DOUBLED_GAMETYPE
+	if( g_gametype.integer == GT_DOUBLE_D && (strcmp(ent->classname, "team_CTF_redflag") == 0 || strcmp(ent->classname, "team_CTF_blueflag") == 0 || strcmp(ent->classname, "team_CTF_neutralflag") == 0 || item->giType == IT_PERSISTANT_POWERUP ))
 		ent->s.eFlags |= EF_NODRAW; //Don't draw the flag models/persistant powerups
+#endif
 
-	if( g_gametype.integer != GT_1FCTF && strcmp(ent->classname, "team_CTF_neutralflag") == 0)
+#ifdef MISSIONPACK
+	if( g_gametype.integer != GT_1FCTF && strcmp(ent->classname, "team_CTF_neutralflag") == 0 )
 		ent->s.eFlags |= EF_NODRAW; // Don't draw the flag in CTF_elimination
+#endif
 
-        if(strcmp(ent->classname, "domination_point") == 0)
-                ent->s.eFlags |= EF_NODRAW; // Don't draw domination_point. It is just a pointer to where the Domination points should be placed
+    if( strcmp(ent->classname, "domination_point") == 0 )
+        ent->s.eFlags |= EF_NODRAW; // Don't draw domination_point. It is just a pointer to where the Domination points should be placed
 	if ( item->giType == IT_POWERUP ) {
 		G_SoundIndex( "sound/items/poweruprespawn.wav" );
 		G_SpawnFloat( "noglobalsound", "0", &ent->speed);
 	}
-	*/
+
 	if ( item->giType == IT_PERSISTANT_POWERUP ) {
 		ent->s.generic1 = ent->spawnflags;
 	}

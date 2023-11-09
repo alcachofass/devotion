@@ -630,28 +630,32 @@ const char *UI_GetGametypeName(int gametype) {
 		return "TDM";
 	case GT_CTF:
 		return "CTF";
-	/*
+#ifdef MISSIONPACK
 	case GT_1FCTF:
 		return "1FCTF";
 	case GT_OBELISK:
 		return "Overload";
 	case GT_HARVESTER:
 		return "Harvester";
-	*/
+#endif
 	case GT_ELIMINATION:
 		return "Elimination";
 	case GT_CTF_ELIMINATION:
 		return "CTF Elim";
 	case GT_LMS:
 		return "TDM";
-	/*
+#ifdef WITH_DOM_GAMETYPE
+	case GT_DOMINATION:
+		return "Domination";
+#endif
+#ifdef WITH_DOUBLED_GAMETYPE
 	case GT_DOUBLE_D:
 		return "DD";
-        case GT_DOMINATION:
-		return "Domination";
-        case GT_TREASURE_HUNTER:
+#endif
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+	case GT_TREASURE_HUNTER:
 		return "TH";
-	*/
+#endif
 	default:
 		break;
 	}

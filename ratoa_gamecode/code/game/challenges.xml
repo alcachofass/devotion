@@ -97,15 +97,15 @@
 		</Challenge>
 		<Challenge>
 			<Id>11</Id>
-			<DefineName>DD_WINS</DefineName>
-			<Name>Double Domination</Name>
-			<Description>Number of victories in double domination games</Description>
-		</Challenge>
-		<Challenge>
-			<Id>12</Id>
 			<DefineName>DOM_WINS</DefineName>
 			<Name>Domination</Name>
 			<Description>Number of victories in domination games</Description>
+		</Challenge>
+		<Challenge>
+			<Id>12</Id>
+			<DefineName>DD_WINS</DefineName>
+			<Name>Double Domination</Name>
+			<Description>Number of victories in double domination games</Description>
 		</Challenge>
 	</Group>
 	<Group>

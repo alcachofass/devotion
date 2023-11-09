@@ -352,7 +352,9 @@ void G_ExplodeMissile( gentity_t *ent ) {
 
 	trap_LinkEntity( ent );
 
-	//G_CheckKamikazeAward(ent->parent, ownerKills, ownerDeaths);
+#ifdef MISSIONPACK
+	G_CheckKamikazeAward(ent->parent, ownerKills, ownerDeaths);
+#endif
 }
 
 /*
@@ -373,12 +375,12 @@ void G_MissileDie( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, i
 	self->nextthink = level.time + 10;
 }
 
+#ifdef MISSIONPACK
 /*
 ================
 ProximityMine_Explode
 ================
 */
-/*
 static void ProximityMine_Explode( gentity_t *mine ) {
 	G_ExplodeMissile( mine );
 	// if the prox mine has a trigger free it
@@ -387,24 +389,22 @@ static void ProximityMine_Explode( gentity_t *mine ) {
 		mine->activator = NULL;
 	}
 }
-*/
+
 /*
 ================
 ProximityMine_Die
 ================
 */
-/*
 static void ProximityMine_Die( gentity_t *ent, gentity_t *inflictor, gentity_t *attacker, int damage, int mod ) {
 	ent->think = ProximityMine_Explode;
 	ent->nextthink = level.time + 1;
 }
-*/
+
 /*
 ================
 ProximityMine_Trigger
 ================
 */
-/*
 void ProximityMine_Trigger( gentity_t *trigger, gentity_t *other, trace_t *trace ) {
 	vec3_t		v;
 	gentity_t	*mine;
@@ -440,14 +440,12 @@ void ProximityMine_Trigger( gentity_t *trigger, gentity_t *other, trace_t *trace
 
 	G_FreeEntity( trigger );
 }
-*/
 
 /*
 ================
 ProximityMine_Activate
 ================
 */
-/*
 static void ProximityMine_Activate( gentity_t *ent ) {
 	gentity_t	*trigger;
 	float		r;
@@ -514,13 +512,12 @@ static void ProximityMine_Activate( gentity_t *ent ) {
 	// set pointer to trigger so the entity can be freed when the mine explodes
 	ent->activator = trigger;
 }
-*/
+
 /*
 ================
 ProximityMine_ExplodeOnPlayer
 ================
 */
-/*
 static void ProximityMine_ExplodeOnPlayer( gentity_t *mine ) {
 	gentity_t	*player;
 
@@ -540,13 +537,12 @@ static void ProximityMine_ExplodeOnPlayer( gentity_t *mine ) {
 		G_ExplodeMissile( mine );
 	}
 }
-*/
+
 /*
 ================
 ProximityMine_Player
 ================
 */
-/*
 static void ProximityMine_Player( gentity_t *mine, gentity_t *player ) {
 	if( mine->s.eFlags & EF_NODRAW || !player->client) {
 		return;
@@ -579,13 +575,12 @@ static void ProximityMine_Player( gentity_t *mine, gentity_t *player ) {
 		mine->nextthink = level.time + 10 * 1000;
 	}
 }
-*/
+
 /*
  *=================
  *ProximityMine_RemoveAll
  *=================
  */
-/*
 void ProximityMine_RemoveAll() {
     gentity_t	*mine;
     
@@ -596,7 +591,8 @@ void ProximityMine_RemoveAll() {
 	mine->nextthink = level.time + 1;
     }
 }
-*/
+#endif
+
 /*
 ================
 G_MissileImpact
@@ -680,13 +676,15 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 	}
 
 	if ( other->takedamage ) {
-		 //if ( ent->s.weapon != WP_PROX_LAUNCHER ) {
+#ifdef MISSIONPACK
+		if ( ent->s.weapon != WP_PROX_LAUNCHER ) {
+#endif
 			if ( other->client && other->client->invulnerabilityTime > level.time ) {
               
 				//
 				VectorCopy( ent->s.pos.trDelta, forward );
 				VectorNormalize( forward );
-				/*
+#ifdef MISSIONPACK
 				if (G_InvulnerabilityEffect( other, forward, ent->s.pos.trBase, impactpoint, bouncedir )) {
 					VectorCopy( bouncedir, trace->plane.normal );
 					eFlags = ent->s.eFlags & EF_BOUNCE_HALF;
@@ -694,11 +692,13 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 					G_BounceMissile( ent, trace );
 					ent->s.eFlags |= eFlags;
 				}
-				*/
+#endif
 				ent->target_ent = other;
 				return;
 			}
-		//}
+#ifdef MISSIONPACK
+		}
+#endif
 	}
 	// impact damage
 	if (other->takedamage) {
@@ -721,7 +721,8 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 		}
 	}
 
-	/* if( ent->s.weapon == WP_PROX_LAUNCHER ) {
+#ifdef MISSIONPACK
+	if( ent->s.weapon == WP_PROX_LAUNCHER ) {
 		if( ent->s.pos.trType != TR_GRAVITY ) {
 			return;
 		}
@@ -754,7 +755,8 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 		trap_LinkEntity(ent);
 
 		return;
-	}*/
+	}
+#endif
 	/*
 	if (!strcmp(ent->classname, "hook")) {
 		gentity_t *nent;
@@ -862,7 +864,9 @@ void G_RunMissile( gentity_t *ent ) {
 	int		unlinked = 0;
 	int		i;
 	int		telepushed = 0;
-	//int ownerKills = 0, ownerDeaths = 0;	//mrd - don't seem to need this, seems to be related to TA Kamikaze powerup
+#ifdef MISSIONPACK
+	int ownerKills = 0, ownerDeaths = 0;	//mrd - don't seem to need this, seems to be related to TA Kamikaze powerup
+#endif
 	gentity_t *owner = ent->parent;
 
 	ent->missileRan = 1;
@@ -878,21 +882,25 @@ void G_RunMissile( gentity_t *ent ) {
 	if ( ent->target_ent ) {
 		passent = ent->target_ent->s.number;
 	}
+#ifdef MISSIONPACK
 	// prox mines that left the owner bbox will attach to anything, even the owner
-	/* else if (ent->s.weapon == WP_PROX_LAUNCHER && ent->count) {
+	else if (ent->s.weapon == WP_PROX_LAUNCHER && ent->count) {
 		passent = ENTITYNUM_NONE;
-	} */
+	}
+#endif
 	else {
 		// ignore interactions with the missile owner
 		passent = ent->r.ownerNum;
 		//passent = ENTITYNUM_NONE;	//mrd - uncomment this to self explode... could be a fun new game mode. g_rocketPropel?
 	}
 
+#ifdef MISSIONPACK
 	//mrd - don't seem to need this, seems to be related to TA Kamikaze powerup
-	/*if (ent->parent && ent->parent->client) {
+	if (ent->parent && ent->parent->client) {
 		ownerKills = ent->parent->client->pers.kills;
 		ownerDeaths = ent->parent->client->pers.deaths;
-	}*/
+	}
+#endif
 
 	if (g_teleMissiles.integer == 1 || g_pushGrenades.integer == 1) {
 		do {
@@ -969,22 +977,26 @@ void G_RunMissile( gentity_t *ent ) {
 			return;
 		}
 		G_MissileImpact( ent, &tr );
-		/*
+
+#ifdef MISSIONPACK
 		if ( ent->s.eType != ET_MISSILE || ent->missileExploded) {
 			G_CheckKamikazeAward(owner, ownerKills, ownerDeaths);
 			return;		// exploded
 		}
-		*/
+#endif
 	}
 
+
+#ifdef MISSIONPACK
 	// if the prox mine wasn't yet outside the player body
-	/* if (ent->s.weapon == WP_PROX_LAUNCHER && !ent->count) {
+	if (ent->s.weapon == WP_PROX_LAUNCHER && !ent->count) {
 		// check if the prox mine is outside the owner bbox
 		trap_Trace( &tr, ent->r.currentOrigin, ent->r.mins, ent->r.maxs, ent->r.currentOrigin, ENTITYNUM_NONE, ent->clipmask );
 		if (!tr.startsolid || tr.entityNum != ent->r.ownerNum) {
 			ent->count = 1;
 		}
-	}*/
+	}
+#endif
 	// check think function after bouncing
 	G_RunThink( ent );
 }
@@ -1320,12 +1332,13 @@ gentity_t *fire_grapple (gentity_t *self, vec3_t start, vec3_t dir) {
 	return hook;
 }
 */
+
+#ifdef MISSIONPACK
 /*
 =================
 fire_nail
 =================
 */
-/*
 gentity_t *fire_nail( gentity_t *self, vec3_t start, vec3_t forward, vec3_t right, vec3_t up, int *seed ) {
 	gentity_t	*bolt;
 	vec3_t		dir;
@@ -1338,7 +1351,7 @@ gentity_t *fire_nail( gentity_t *self, vec3_t start, vec3_t forward, vec3_t righ
 	bolt->think = G_ExplodeMissile;
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
-	// bolt->s.weapon = WP_NAILGUN;
+	bolt->s.weapon = WP_NAILGUN;
 	bolt->r.ownerNum = self->s.number;
 //unlagged - projectile nudge
 	// we'll need this for nudging projectiles later
@@ -1378,15 +1391,13 @@ gentity_t *fire_nail( gentity_t *self, vec3_t start, vec3_t forward, vec3_t righ
 	VectorCopy( start, bolt->r.currentOrigin );
 
 	return bolt;
-}	
-*/
+}
 
 /*
 =================
 fire_prox
 =================
 */
-/*
 gentity_t *fire_prox( gentity_t *self, vec3_t start, vec3_t dir ) {
 	gentity_t	*bolt;
 
@@ -1422,7 +1433,6 @@ gentity_t *fire_prox( gentity_t *self, vec3_t start, vec3_t dir ) {
 
 	bolt->s.pos.trType = TR_GRAVITY;
 	bolt->s.pos.trTime = level.time;
-	//bolt->s.pos.trTime = level.time;
 	G_ApplyMissileNudge(self, bolt);
 	VectorCopy( start, bolt->s.pos.trBase );
 	VectorScale( dir, PROXMINE_VELOCITY, bolt->s.pos.trDelta );
@@ -1432,4 +1442,4 @@ gentity_t *fire_prox( gentity_t *self, vec3_t start, vec3_t dir ) {
 
 	return bolt;
 }
-*/
+#endif

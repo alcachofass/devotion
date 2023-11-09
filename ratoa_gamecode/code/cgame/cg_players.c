@@ -2996,7 +2996,7 @@ void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int te
 		trap_R_AddRefEntityToScene( ent );
             }
 	} else {
-		/*
+#ifdef MISSIONPACK
 		if ( state->eFlags & EF_KAMIKAZE ) {
 			if (team == TEAM_BLUE)
 				ent->customShader = cgs.media.blueKamikazeShader;
@@ -3004,9 +3004,9 @@ void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int te
 				ent->customShader = cgs.media.redKamikazeShader;
 			trap_R_AddRefEntityToScene( ent );
 		}
-		else {*/
+		else
+#endif
 			trap_R_AddRefEntityToScene( ent );
-		//}
 		
 		if(!isMissile && ( ci && !ci->forcedBrightModel )) {
 			byte alpha_save = ent->shaderRGBA[3];
@@ -3720,11 +3720,11 @@ void CG_Player( centity_t *cent ) {
 		renderfx |= RF_SHADOW_PLANE;
 	}
 	renderfx |= RF_LIGHTING_ORIGIN;			// use the same origin for all
-	/*
+#ifdef MISSIONPACK
 	if( cgs.gametype == GT_HARVESTER ) {
 		CG_PlayerTokens( cent, renderfx );
 	}
-	*/
+#endif
 	//
 	// add the legs
 	//
@@ -3787,7 +3787,7 @@ void CG_Player( centity_t *cent ) {
 	torso.shaderRGBA[3] = 255;
 
 	CG_AddRefEntityWithPowerups( &torso, &cent->currentState, ci->team, qfalse, ci, 2, qfalse );
-	/*
+#ifdef MISSIONPACK
 	if ( cent->currentState.eFlags & EF_KAMIKAZE ) {
 
 		memset( &skull, 0, sizeof(skull) );
@@ -3992,7 +3992,7 @@ void CG_Player( centity_t *cent ) {
 		}
 		trap_R_AddRefEntityToScene( &powerup );
 	}
-	*/
+#endif
 	//
 	// add the head
 	//

@@ -1208,17 +1208,19 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	//Challenges:
 	level.teamSize = 0;
 	level.hadBots = qfalse;
-	/*
+#ifdef WITH_DOUBLED_GAMETYPE
 	if(g_gametype.integer == GT_DOUBLE_D)
 		Team_SpawnDoubleDominationPoints();
+#endif
 
+#ifdef WITH_DOM_GAMETYPE
 	if(g_gametype.integer == GT_DOMINATION ){
 		level.dom_scoreGiven = 0;
 		for(i=0;i<MAX_DOMINATION_POINTS;i++)
 			level.pointStatusDom[i] = TEAM_NONE;
 		level.domination_points_count = 0; //make sure its not too big
 	}
-	*/
+#endif
         PlayerStoreInit();
 
         //Set vote flags
@@ -3815,10 +3817,10 @@ void CheckDoubleDomination( void ) {
             }
             return;
         }
-	/*
+#ifdef WITH_DOUBLED_GAMETYPE
 	if(g_gametype.integer != GT_DOUBLE_D)
 		return;
-	*/
+#endif
 	//Don't score if we are in intermission. Both points might have been taken when we went into intermission
 	if(level.intermissiontime)
 		return;
@@ -4200,8 +4202,11 @@ void CheckDomination(void) {
 	int i;
         int scoreFactor = 1;
 
-	//if ( (level.numPlayingClients < 1) || (g_gametype.integer != GT_DOMINATION) ) {
+#ifdef WITH_DOM_GAMETYPE
+	if ( (level.numPlayingClients < 1) || (g_gametype.integer != GT_DOMINATION) ) {
+#else
 	if ( (level.numPlayingClients < 1) ) {
+#endif
 		return;
 	}
 
@@ -4371,12 +4376,12 @@ int CountPlayerTokens(int team) {
 }
 
 
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 /*
 =============
 CheckTreasureHunter
 =============
 */
-/*
 void CheckTreasureHunter(void) {
 	int i;
 	int tokens_red;
@@ -4620,7 +4625,8 @@ void CheckTreasureHunter(void) {
 		SendTreasureHuntMessageToAllClients();
 	}
 }
-*/
+#endif
+
 /*
 =============
 CheckTournament
@@ -5548,13 +5554,15 @@ void G_RunFrame( int levelTime ) {
 
 	CheckDomination();
 
-	/*
+#ifdef WITH_DOM_GAMETYPE
 	//Sago: I just need to think why I placed this here... they should only spawn once
 	if(g_gametype.integer == GT_DOMINATION)
 		Team_Dom_SpawnPoints();
-	*/
+#endif
 
-	//CheckTreasureHunter();
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+	CheckTreasureHunter();
+#endif
 
 	CheckTeamBalance();
 

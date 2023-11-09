@@ -636,11 +636,11 @@ static void CG_PrintDuelStats(duelstats_t st1, duelstats_t st2) {
 	CG_PrintDuelStatsWeapon("RG", WP_RAILGUN, &st1, &st2);
 	CG_PrintDuelStatsWeapon("PG", WP_PLASMAGUN, &st1, &st2);
 	CG_PrintDuelStatsWeapon("BFG", WP_BFG, &st1, &st2);
-	/*
+#ifdef MISSIONPACK
 	CG_PrintDuelStatsWeapon("NG", WP_NAILGUN, &st1, &st2);
 	CG_PrintDuelStatsWeapon("PL", WP_PROX_LAUNCHER, &st1, &st2);
 	CG_PrintDuelStatsWeapon("CG", WP_CHAINGUN, &st1, &st2);
-	*/
+#endif
 	CG_Printf(
 		"Items:  "
 		S_COLOR_GREEN    " %3iGA"
@@ -797,13 +797,13 @@ static void CG_ParseNextMapVote( void ) {
     trap_SendConsoleCommand("ui_nextmapvote\n");
 }
 
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 /*
 =================
 CG_ParseTreasureHunt
 
 =================
 */
-/*
 static void CG_ParseTreasureHunt( void ) {
 	if(cgs.gametype != GT_TREASURE_HUNTER) {
 		return;
@@ -818,7 +818,8 @@ static void CG_ParseTreasureHunt( void ) {
 	cgs.th_blueTokens = atoi( CG_Argv( 5 ) );
 	cgs.th_tokenStyle = atoi( CG_Argv( 6 ) );
 }
-*/
+#endif
+
 /*
 =================
 CG_ParseMappage
@@ -2577,12 +2578,12 @@ static void CG_ServerCommand( void ) {
 		CG_ParseTaunt();
 		return;
 	}
-	/*
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 	if ( !strcmp( cmd, "treasureHunt" ) ) {
 		CG_ParseTreasureHunt();
 		return;
 	}
-	*/
+#endif
         if ( !strcmp( cmd, "vresult" ) ) {
 		CG_ParseVoteResult();
 		return;

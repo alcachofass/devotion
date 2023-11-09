@@ -1248,7 +1248,9 @@ gclient_t	*ClientForString( const char *s );
 // g_weapon.c
 //
 void FireWeapon( gentity_t *ent );
-//void G_StartKamikaze( gentity_t *ent );
+#ifdef MISSIONPACK
+void G_StartKamikaze( gentity_t *ent );
+#endif
 
 //
 // p_hud.c
