@@ -340,6 +340,37 @@ static void CG_HUD_f( void ) {
 
 }
 
+static void CG_PRO_f( void ) {
+	int		num;
+
+	if (trap_Argc() != 2) {
+		CG_Printf("Usage: \\pro <n>\n"
+				"  Clear Pro Mode Settings:\n"
+				"    \\pro 0\n"
+				"  Set Pro Mode Defaults::\n"
+				"    \\pro 1\n"
+			 );
+		return;
+	}
+	num = atoi( CG_Argv( 1 ) );
+	switch (num) {
+		// Futuristic
+		case 1:
+			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
+			CG_Cvar_SetAndUpdate("cg_enemyColors", "22222");
+			CG_Cvar_SetAndUpdate("cg_teamModel", "doom/pm");
+			CG_Cvar_SetAndUpdate("cg_teamColors", "77777");
+			break;
+		default:
+			CG_Cvar_SetAndUpdate("cg_enemyModel", "");
+			CG_Cvar_SetAndUpdate("cg_enemyColors", "");
+			CG_Cvar_SetAndUpdate("cg_teamModel", "");
+			CG_Cvar_SetAndUpdate("cg_teamColors", "");
+			break;
+	}
+
+}
+
 static char *CG_OnOffStr(qboolean val) {
 	return val ? S_COLOR_GREEN "ON" : S_COLOR_RED "OFF";
 }
@@ -817,6 +848,7 @@ static consoleCommand_t	commands[] = {
         { "resetcfg", CG_ResetCfg_f },
         { "hud", CG_HUD_f },
         { "rules", CG_Rules_f },
+		{ "pro", CG_PRO_f},
 //        { "ratversion", CG_RatVersion_f }
 };
 

@@ -149,6 +149,12 @@ command         "g_railGunDamage 80 ; g_lgDamage 6; g_mgDamage 5 ; g_rocketSpeed
 
 # Client Settings
 
+## Quick Start
+```
+pro 0                            // Unsets team/enemy model/color cvars
+pro 1                            // Sets enemy model to green keel/pm, teamModel to white doom/pm
+```
+
 ## Configuring Player Models
 
 ```
