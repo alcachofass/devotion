@@ -5,7 +5,7 @@
 #
 
 # Define a version for the mod
-COMPILE_VERSION='v0.2.1 - NEFASTO'
+COMPILE_VERSION='v0.2.2 - ORDEM'
 
 COMPILE_PLATFORM=$(shell uname|sed -e s/_.*//|tr '[:upper:]' '[:lower:]')
 
