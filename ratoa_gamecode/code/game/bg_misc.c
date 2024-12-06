@@ -655,169 +655,169 @@ Only in CTF games
 /* sounds */ ""
 	},
 
+#ifdef MISSIONPACK
 /*QUAKED holdable_kamikaze (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
 */
-//	{
-//		"holdable_kamikaze", 
-//		"sound/items/holdable.wav",
-//        { "models/powerups/kamikazi.md3", 
-//		NULL, NULL, NULL},
-/* icon *///		"icons/kamikaze",
-/* pickup *///	"Kamikaze",
-//		60,
-//		IT_HOLDABLE,
-//		HI_KAMIKAZE,
-/* precache */// "",
-/* sounds */// "sound/items/kamikazerespawn.wav"
-//	},
+	{
+		"holdable_kamikaze", 
+		"sound/items/holdable.wav",
+        { "models/powerups/kamikazi.md3", 
+		NULL, NULL, NULL},
+/* icon */		"icons/kamikaze",
+/* pickup */	"Kamikaze",
+		60,
+		IT_HOLDABLE,
+		HI_KAMIKAZE,
+/* precache */ "",
+/* sounds */ "sound/items/kamikazerespawn.wav"
+	},
 
 /*QUAKED holdable_portal (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
 */
-//	{
-//		"holdable_portal", 
-//		"sound/items/holdable.wav",
-  //      { "models/powerups/holdable/porter.md3",
-	//	NULL, NULL, NULL},
-/* icon *///		"icons/portal",
-/* pickup *///	"Portal",
-		//60,
-//		IT_HOLDABLE,
-//		HI_PORTAL,
-/* precache */// "",
-/* sounds */// ""
-//	},
+	{
+		"holdable_portal", 
+		"sound/items/holdable.wav",
+		{ "models/powerups/holdable/porter.md3",
+		NULL, NULL, NULL},
+/* icon */		"icons/portal",
+/* pickup */	"Portal",
+		60,
+		IT_HOLDABLE,
+		HI_PORTAL,
+/* precache */ "",
+/* sounds */ ""
+	},
 
 /*QUAKED holdable_invulnerability (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
 */
-//	{
-//		"holdable_invulnerability", 
-//		"sound/items/holdable.wav",
-  //      { "models/powerups/holdable/invulnerability.md3", 
-	//	NULL, NULL, NULL},
-/* icon *///		"icons/invulnerability",
-/* pickup *///	"Invulnerability",
-		//60,
-//		IT_HOLDABLE,
-//		HI_INVULNERABILITY,
-/* precache */// "",
-/* sounds */// ""
-//	},
+	{
+		"holdable_invulnerability", 
+		"sound/items/holdable.wav",
+		{ "models/powerups/holdable/invulnerability.md3", 
+		NULL, NULL, NULL},
+/* icon */		"icons/invulnerability",
+/* pickup */	"Invulnerability",
+		60,
+		IT_HOLDABLE,
+		HI_INVULNERABILITY,
+/* precache */ "",
+/* sounds */ ""
+	},
 
 /*QUAKED ammo_nails (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
 */
-//	{
-//		"ammo_nails",
-//		"sound/misc/am_pkup.wav",
-//        { "models/powerups/ammo/nailgunam.md3", 
-//		NULL, NULL, NULL},
-/* icon *///		"icons/icona_nailgun",
-/* pickup */	// "Nails",
-//		20,
-//		IT_AMMO,
-//		WP_NAILGUN,
-/* precache */ //"",
-/* sounds */ //""
-//	},
+	{
+		"ammo_nails",
+		"sound/misc/am_pkup.wav",
+		{ "models/powerups/ammo/nailgunam.md3", 
+		NULL, NULL, NULL},
+/* icon */		"icons/icona_nailgun",
+/* pickup */	"Nails",
+		20,
+		IT_AMMO,
+		WP_NAILGUN,
+/* precache */ "",
+/* sounds */ ""
+	},
 
 /*QUAKED ammo_mines (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
 */
-//	{
-//		"ammo_mines",
-//		"sound/misc/am_pkup.wav",
-//        { "models/powerups/ammo/proxmineam.md3", 
-//		NULL, NULL, NULL},
-/* icon *///		"icons/icona_proxlauncher",
-/* pickup *///	"Proximity Mines",
-//		10,
-//		IT_AMMO,
-//		WP_PROX_LAUNCHER,
-/* precache */ //"",
-/* sounds */ //""
-	//},
+	{
+		"ammo_mines",
+		"sound/misc/am_pkup.wav",
+		{ "models/powerups/ammo/proxmineam.md3", 
+		NULL, NULL, NULL},
+/* icon */		"icons/icona_proxlauncher",
+/* pickup */	"Proximity Mines",
+		10,
+		IT_AMMO,
+		WP_PROX_LAUNCHER,
+/* precache */ "",
+/* sounds */ ""
+	},
 
 /*QUAKED ammo_belt (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
 */
-//	{
-//		"ammo_belt",
-//		"sound/misc/am_pkup.wav",
-//        { "models/powerups/ammo/chaingunam.md3", 
-//		NULL, NULL, NULL},
-/* icon *///		"icons/icona_chaingun",
-/* pickup *///	"Chaingun Belt",
-//		100,
-//		IT_AMMO,
-//		WP_CHAINGUN,
-/* precache */// "",
-/* sounds */// ""
-//	},
+	{
+		"ammo_belt",
+		"sound/misc/am_pkup.wav",
+		{ "models/powerups/ammo/chaingunam.md3", 
+		NULL, NULL, NULL},
+/* icon */		"icons/icona_chaingun",
+/* pickup */	"Chaingun Belt",
+		100,
+		IT_AMMO,
+		WP_CHAINGUN,
+/* precache */ "",
+/* sounds */ ""
+	},
 
 	//
 	// PERSISTANT POWERUP ITEMS
 	//
 /*QUAKED item_scout (.3 .3 1) (-16 -16 -16) (16 16 16) suspended redTeam blueTeam
 */
-
-	//{
-	//	"item_scout",
-	//	"sound/items/scout.wav",
-      //  { "models/powerups/scout.md3", 
-	//	NULL, NULL, NULL },
-/* icon */	//	"icons/scout",
-/* pickup *///	"Scout",
-		//30,
-		//IT_PERSISTANT_POWERUP,
-		//PW_SCOUT,
-/* precache */// "",
-/* sounds */// ""
-	//},
+	{
+		"item_scout",
+		"sound/items/scout.wav",
+      { "models/powerups/scout.md3", 
+		NULL, NULL, NULL },
+/* icon */		"icons/scout",
+/* pickup */	"Scout",
+		30,
+		IT_PERSISTANT_POWERUP,
+		PW_SCOUT,
+/* precache */ "",
+/* sounds */ ""
+	},
 
 /*QUAKED item_guard (.3 .3 1) (-16 -16 -16) (16 16 16) suspended redTeam blueTeam
 */
-//	{
-//		"item_guard",
-//		"sound/items/guard.wav",
-  //      { "models/powerups/guard.md3", 
-	//	NULL, NULL, NULL },
-/* icon *///		"icons/guard",
-/* pickup *///	"Guard",
-		//30,
-//		IT_PERSISTANT_POWERUP,
-//		PW_GUARD,
-/* precache */// "",
-/* sounds */ //""
-//	},
+	{
+		"item_guard",
+		"sound/items/guard.wav",
+        { "models/powerups/guard.md3", 
+		NULL, NULL, NULL },
+/* icon */		"icons/guard",
+/* pickup */	"Guard",
+		30,
+		IT_PERSISTANT_POWERUP,
+		PW_GUARD,
+/* precache */ "",
+/* sounds */ ""
+	},
 
 /*QUAKED item_doubler (.3 .3 1) (-16 -16 -16) (16 16 16) suspended redTeam blueTeam
 */
-//	{
-//		"item_doubler",
-//		"sound/items/doubler.wav",
-  //      { "models/powerups/doubler.md3", 
-	//	NULL, NULL, NULL },
-/* icon *///		"icons/doubler",
-/* pickup *///	"Doubler",
-		//30,
-//		IT_PERSISTANT_POWERUP,
-//		PW_DOUBLER,
-/* precache */// "",
-/* sounds */// ""
-//	},
+	{
+		"item_doubler",
+		"sound/items/doubler.wav",
+        { "models/powerups/doubler.md3", 
+		NULL, NULL, NULL },
+/* icon */		"icons/doubler",
+/* pickup */	"Doubler",
+		30,
+		IT_PERSISTANT_POWERUP,
+		PW_DOUBLER,
+/* precache */ "",
+/* sounds */ ""
+	},
 
 /*QUAKED item_doubler (.3 .3 1) (-16 -16 -16) (16 16 16) suspended redTeam blueTeam
 */
-//	{
-//		"item_ammoregen",
-//		"sound/items/ammoregen.wav",
-  //      { "models/powerups/ammo.md3",
-	//	NULL, NULL, NULL },
-/* icon *///		"icons/ammo_regen",
-/* pickup *///	"Ammo Regen",
-		//30,
-//		IT_PERSISTANT_POWERUP,
-//		PW_AMMOREGEN,
-/* precache */// "",
-/* sounds */// ""
-//	},
+	{
+		"item_ammoregen",
+		"sound/items/ammoregen.wav",
+        { "models/powerups/ammo.md3",
+		NULL, NULL, NULL },
+/* icon */		"icons/ammo_regen",
+/* pickup */	"Ammo Regen",
+		30,
+		IT_PERSISTANT_POWERUP,
+		PW_AMMOREGEN,
+/* precache */ "",
+/* sounds */ ""
+	},
 
         
 	/*QUAKED team_CTF_neutralflag (0 0 1) (-16 -16 -16) (16 16 16)
@@ -837,86 +837,86 @@ Only in One Flag CTF games
 /* sounds */ ""
 	},
 
-//	{
-//		"item_redcube",
-//		"sound/misc/am_pkup.wav",
-  //      { "models/powerups/orb/r_orb.md3",
-	//	NULL, NULL, NULL },
-/* icon *///		"icons/iconh_rorb",
-/* pickup *///	"Red Cube",
-		//0,
-//		IT_TEAM,
-//		HARVESTER_REDCUBE,
-/* precache */// "",
-/* sounds */// ""
-//	},
+	{
+		"item_redcube",
+		"sound/misc/am_pkup.wav",
+        { "models/powerups/orb/r_orb.md3",
+        NULL, NULL, NULL },
+/* icon */		"icons/iconh_rorb",
+/* pickup */	"Red Cube",
+		0,
+		IT_TEAM,
+		HARVESTER_REDCUBE,
+/* precache */ "",
+/* sounds */ ""
+	},
 
-//	{
-//		"item_bluecube",
-//		"sound/misc/am_pkup.wav",
-  //      { "models/powerups/orb/b_orb.md3",
-	//	NULL, NULL, NULL },
-/* icon *///		"icons/iconh_borb",
-/* pickup *///	"Blue Cube",
-		//0,
-//		IT_TEAM,
-//		HARVESTER_BLUECUBE,
-/* precache */// "",
-/* sounds */// ""
-//	},
+	{
+		"item_bluecube",
+		"sound/misc/am_pkup.wav",
+        { "models/powerups/orb/b_orb.md3",
+        NULL, NULL, NULL },
+/* icon */		"icons/iconh_borb",
+/* pickup */	"Blue Cube",
+		0,
+		IT_TEAM,
+		HARVESTER_BLUECUBE,
+/* precache */ "",
+/* sounds */ ""
+	},
 /*QUAKED weapon_nailgun (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
 */
-//	{
-//		"weapon_nailgun", 
-//		"sound/misc/w_pkup.wav",
-//        { "models/weapons/nailgun/nailgun.md3", 
-//		NULL, NULL, NULL},
-/* icon *///		"icons/iconw_nailgun",
-/* pickup *///	"Nailgun",
-//		10,
-//		IT_WEAPON,
-//		WP_NAILGUN,
-/* precache */// "",
-/* sounds */// ""
-//	},
+	{
+		"weapon_nailgun", 
+		"sound/misc/w_pkup.wav",
+        { "models/weapons/nailgun/nailgun.md3", 
+		NULL, NULL, NULL},
+/* icon */		"icons/iconw_nailgun",
+/* pickup */	"Nailgun",
+		10,
+		IT_WEAPON,
+		WP_NAILGUN,
+/* precache */ "",
+/* sounds */ ""
+	},
 
 /*QUAKED weapon_prox_launcher (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
 */
-//	{
-//		"weapon_prox_launcher", 
-//		"sound/misc/w_pkup.wav",
-  //      { "models/weapons/proxmine/proxmine.md3", 
-	//	NULL, NULL, NULL},
-/* icon *///		"icons/iconw_proxlauncher",
-/* pickup *///	"Prox Launcher",
-		//5,
-//		IT_WEAPON,
-//		WP_PROX_LAUNCHER,
-/* precache */// "",
-/* sounds */// "sound/weapons/proxmine/wstbtick.wav "
-//			"sound/weapons/proxmine/wstbactv.wav "
-//			"sound/weapons/proxmine/wstbimpl.wav "
-//			"sound/weapons/proxmine/wstbimpm.wav "
-//			"sound/weapons/proxmine/wstbimpd.wav "
-//			"sound/weapons/proxmine/wstbactv.wav"
-//	},
+	{
+		"weapon_prox_launcher", 
+		"sound/misc/w_pkup.wav",
+        { "models/weapons/proxmine/proxmine.md3", 
+        NULL, NULL, NULL},
+/* icon */		"icons/iconw_proxlauncher",
+/* pickup */	"Prox Launcher",
+		5,
+		IT_WEAPON,
+		WP_PROX_LAUNCHER,
+/* precache */ "",
+/* sounds */ "sound/weapons/proxmine/wstbtick.wav "
+			"sound/weapons/proxmine/wstbactv.wav "
+			"sound/weapons/proxmine/wstbimpl.wav "
+			"sound/weapons/proxmine/wstbimpm.wav "
+			"sound/weapons/proxmine/wstbimpd.wav "
+			"sound/weapons/proxmine/wstbactv.wav"
+	},
 
 /*QUAKED weapon_chaingun (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
 */
-//	{
-//		"weapon_chaingun", 
-//		"sound/misc/w_pkup.wav",
-  //      { "models/weapons/vulcan/vulcan.md3", 
-	//	NULL, NULL, NULL},
-/* icon *///		"icons/iconw_chaingun",
-/* pickup *///	"Chaingun",
-		//80,
-//		IT_WEAPON,
-//		WP_CHAINGUN,
-/* precache */// "",
-/* sounds */// "sound/weapons/vulcan/wvulwind.wav"
-//	},
-//#endif
+	{
+		"weapon_chaingun", 
+		"sound/misc/w_pkup.wav",
+        { "models/weapons/vulcan/vulcan.md3", 
+        NULL, NULL, NULL},
+/* icon */		"icons/iconw_chaingun",
+/* pickup */	"Chaingun",
+		80,
+		IT_WEAPON,
+		WP_CHAINGUN,
+/* precache */ "",
+/* sounds */ "sound/weapons/vulcan/wvulwind.wav"
+	},
+#endif
 
 /*QUAKED team_DD_point
 Only in DD games
@@ -1090,73 +1090,75 @@ Only in Domination games
 /* sounds */ ""
 	},
 
+#if 0
 /* For Coin{FFA,..} */
-	//{
-	//	"item_coingold", 
-	//	"sound/ratoa/coin/coin-collect-b.ogg",
-        //{ "models/rat/ratcoin.md3",
-	//	NULL, NULL, NULL},
-/* icon */ //		"icons/iconc_coingold",
-/* pickup */	//"Gold Coin",
-		//0,
-		//IT_COIN,
-		//COIN_GOLD,
-/* precache */ //"",
-/* sounds */ //"sound/ratoa/coin/coin-hit-b.ogg"
-	//},
-	//{
-	//	"item_coinsilver", 
-	//	"sound/ratoa/coin/coin-collect-b.ogg",
-        //{ "models/rat/ratcoin.md3",
-	//	NULL, NULL, NULL},
-/* icon */	//	"icons/iconc_coinsilver",
-/* pickup */	//"Silver Coin",
-	//	0,
-	//	IT_COIN,
-	//	COIN_SILVER,
-/* precache */ //"",
-/* sounds */ //"sound/ratoa/coin/coin-hit-b.ogg"
-	//},
-	//{
-	//	"item_coinbronze", 
-	//	"sound/ratoa/coin/coin-collect-b.ogg",
-        //{ "models/rat/ratcoin.md3",
-	//	NULL, NULL, NULL},
-/* icon */	//	"icons/iconc_coinbronze",
-/* pickup */	//"Bronze Coin",
-	//	0,
-	//	IT_COIN,
-	//	COIN_BRONZE,
-/* precache */ //"",
-/* sounds */ //"sound/ratoa/coin/coin-hit-b.ogg"
-	//},
-	//{
-	//	"item_coinb", 
-	//	"sound/ratoa/coin/coin-collect-b.ogg",
-        //{ "models/rat/ratcoin.md3",
-	//	NULL, NULL, NULL},
-/* icon */	//	"icons/iconc_coinb",
-/* pickup */	//"Blue Coin",
-	//	0,
-	//	IT_COIN,
-	//	COIN_BLUE,
-/* precache */ //"",
-/* sounds */ // "sound/ratoa/coin/coin-hit-b.ogg"
-	//},
-	//{
-	//	"item_coinr", 
-	//	"sound/ratoa/coin/coin-collect-b.ogg",
-        //{ "models/rat/ratcoin.md3",
-	//	NULL, NULL, NULL},
-/* icon */	//	"icons/iconc_coinr",
-/* pickup */	//"Red Coin",
-		//0,
-	//	IT_COIN,
-	//	COIN_RED,
-/* precache */ //"",
-/* sounds */ //"sound/ratoa/coin/coin-hit-b.ogg"
-	//},
-	
+	{
+		"item_coingold", 
+		"sound/ratoa/coin/coin-collect-b.ogg",
+        { "models/rat/ratcoin.md3",
+		NULL, NULL, NULL},
+/* icon */		"icons/iconc_coingold",
+/* pickup */	"Gold Coin",
+		0,
+		IT_COIN,
+		COIN_GOLD,
+/* precache */ "",
+/* sounds */ "sound/ratoa/coin/coin-hit-b.ogg"
+	},
+	{
+		"item_coinsilver", 
+		"sound/ratoa/coin/coin-collect-b.ogg",
+        { "models/rat/ratcoin.md3",
+		NULL, NULL, NULL},
+/* icon */		"icons/iconc_coinsilver",
+/* pickup */	"Silver Coin",
+		0,
+		IT_COIN,
+		COIN_SILVER,
+/* precache */ "",
+/* sounds */ "sound/ratoa/coin/coin-hit-b.ogg"
+	},
+	{
+		"item_coinbronze", 
+		"sound/ratoa/coin/coin-collect-b.ogg",
+        { "models/rat/ratcoin.md3",
+		NULL, NULL, NULL},
+/* icon */		"icons/iconc_coinbronze",
+/* pickup */	"Bronze Coin",
+		0,
+		IT_COIN,
+		COIN_BRONZE,
+/* precache */ "",
+/* sounds */ "sound/ratoa/coin/coin-hit-b.ogg"
+	},
+	{
+		"item_coinb", 
+		"sound/ratoa/coin/coin-collect-b.ogg",
+        { "models/rat/ratcoin.md3",
+		NULL, NULL, NULL},
+/* icon */		"icons/iconc_coinb",
+/* pickup */	"Blue Coin",
+		0,
+		IT_COIN,
+		COIN_BLUE,
+/* precache */ "",
+/* sounds */ "sound/ratoa/coin/coin-hit-b.ogg"
+	},
+	{
+		"item_coinr", 
+		"sound/ratoa/coin/coin-collect-b.ogg",
+        { "models/rat/ratcoin.md3",
+		NULL, NULL, NULL},
+/* icon */		"icons/iconc_coinr",
+/* pickup */	"Red Coin",
+		0,
+		IT_COIN,
+		COIN_RED,
+/* precache */ "",
+/* sounds */ "sound/ratoa/coin/coin-hit-b.ogg"
+	},
+#endif
+
 	// end of list marker
 	{NULL}
 };
@@ -1360,9 +1362,11 @@ qboolean BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const play
 #ifdef HAVE_STAT_PERSISTANT_POWERUP
 	case IT_PERSISTANT_POWERUP:
 
+#ifdef WITH_DOUBLED_GAMETYPE
 		//In Double D we don't want persistant Powerups (or maybe, can be discussed)
 		if(gametype == GT_DOUBLE_D)
 			return qfalse;
+#endif
 
 		// can only hold one item at a time
 		if ( ps->stats[STAT_PERSISTANT_POWERUP] ) {
@@ -1381,7 +1385,7 @@ qboolean BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const play
 #endif
 
 	case IT_TEAM: // team items, such as flags
-		/*	
+#ifdef MISSIONPACK
 		if( gametype == GT_1FCTF ) {
 			// neutral flag can always be picked up
 			if( item->giTag == PW_NEUTRALFLAG ) {
@@ -1397,7 +1401,7 @@ qboolean BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const play
 				}
 			}
 		}
-		*/
+#endif
 		if( gametype == GT_CTF || gametype == GT_CTF_ELIMINATION) {
 			// ent->modelindex2 is non-zero on items if they are dropped
 			// we need to know this because we can pick up our dropped flag (and return it)
@@ -1414,13 +1418,8 @@ qboolean BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const play
 					return qtrue;
 			}
 		}
-/*
-		if( gametype == GT_DOUBLE_D) {
-			//We can touch both flags
-			if(item->giTag == PW_BLUEFLAG || item->giTag == PW_REDFLAG)
-				return qtrue;
-		}
 
+#ifdef WITH_DOM_GAMETYPE
 		if( gametype == GT_DOMINATION ) {
 			if(item->giTag == DOM_POINTWHITE)
 				return qtrue;
@@ -1432,23 +1431,34 @@ qboolean BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const play
 					return qtrue;
 			}
 		}
+#endif
+#ifdef WITH_DOUBLED_GAMETYPE
+		if( gametype == GT_DOUBLE_D) {
+			//We can touch both flags
+			if(item->giTag == PW_BLUEFLAG || item->giTag == PW_REDFLAG)
+				return qtrue;
+		}
+#endif
 
+#ifdef MISSIONPACK
 		if( gametype == GT_HARVESTER ) {
 			return qtrue;
 		}
+#endif
 
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 		if( gametype == GT_TREASURE_HUNTER ) {
 			if (!ent->generic1) {
 				// this is set during seeking phase
 				return qfalse;
 			}
-/*			if (ps->persistant[PERS_TEAM] == TEAM_RED && item->giTag == HARVESTER_BLUECUBE) {
+			if (ps->persistant[PERS_TEAM] == TEAM_RED && item->giTag == HARVESTER_BLUECUBE) {
 					return qtrue;
 			} else if (ps->persistant[PERS_TEAM] == TEAM_BLUE && item->giTag == HARVESTER_REDCUBE) {
 					return qtrue;
 			}
 		}
-		*/
+#endif
 		return qfalse;
 
 	case IT_HOLDABLE:
@@ -1458,6 +1468,8 @@ qboolean BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const play
 		}
 		return qtrue;
 
+/* For Coin{FFA,..} */
+#if 0
 	case IT_COIN:
 		if (item->giTag == COIN_BLUE) {
 			if (ps->persistant[PERS_TEAM] == TEAM_RED) {
@@ -1471,6 +1483,7 @@ qboolean BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const play
 			return qfalse;
 		} 
 		return qtrue;
+#endif
 
 
         case IT_BAD:

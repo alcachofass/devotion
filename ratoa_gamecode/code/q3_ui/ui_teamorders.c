@@ -355,23 +355,26 @@ static void UI_TeamOrdersMenu_ListEvent( void *ptr, int event ) {
 		if( teamOrdersMenuInfo.gametype == GT_CTF || teamOrdersMenuInfo.gametype == GT_CTF_ELIMINATION ) {
 			UI_TeamOrdersMenu_SetList( ID_LIST_CTF_ORDERS );
 		}
-		/*
-                if( teamOrdersMenuInfo.gametype == GT_1FCTF ) {
+#ifdef MISSIONPACK
+		if( teamOrdersMenuInfo.gametype == GT_1FCTF ) {
 			UI_TeamOrdersMenu_SetList( ID_LIST_CTF1F_ORDERS );
 		}
-                if( teamOrdersMenuInfo.gametype == GT_OBELISK || teamOrdersMenuInfo.gametype == GT_HARVESTER ) {
+		if( teamOrdersMenuInfo.gametype == GT_OBELISK || teamOrdersMenuInfo.gametype == GT_HARVESTER ) {
 			UI_TeamOrdersMenu_SetList( ID_LIST_BASE_ORDERS );
 		}
-		*/
-		//if( teamOrdersMenuInfo.gametype == GT_TEAM || teamOrdersMenuInfo.gametype == GT_ELIMINATION || teamOrdersMenuInfo.gametype == GT_DOMINATION ) {
+#endif
+#ifdef WITH_DOM_GAMETYPE
+		if( teamOrdersMenuInfo.gametype == GT_TEAM || teamOrdersMenuInfo.gametype == GT_ELIMINATION || teamOrdersMenuInfo.gametype == GT_DOMINATION ) {
+#else
 		if( teamOrdersMenuInfo.gametype == GT_TEAM || teamOrdersMenuInfo.gametype == GT_ELIMINATION ) {
+#endif
 			UI_TeamOrdersMenu_SetList( ID_LIST_TEAM_ORDERS );
 		}
-		/*
+#ifdef WITH_DOUBLED_GAMETYPE
 		if( teamOrdersMenuInfo.gametype == GT_DOUBLE_D ) {
 			UI_TeamOrdersMenu_SetList( ID_LIST_DD_ORDERS );
 		}
-		*/
+#endif
 		return;
 	}
 

@@ -429,7 +429,7 @@ void GibEntity( gentity_t *self, int killer ) {
 	int i;
 
 	//if this entity still has kamikaze
-	/*
+#ifdef MISSIONPACK
 	if (self->s.eFlags & EF_KAMIKAZE) {
 		// check if there is a kamikaze timer around for this owner
 		for (i = 0; i < MAX_GENTITIES; i++) {
@@ -444,7 +444,7 @@ void GibEntity( gentity_t *self, int killer ) {
 			break;
 		}
 	}
-	*/
+#endif
 	G_AddEvent( self, EV_GIB_PLAYER, killer );
 	self->takedamage = qfalse;
 	self->s.eType = ET_INVISIBLE;
@@ -502,34 +502,33 @@ char	*modNames[] = {
 	"MOD_FALLING",
 	"MOD_SUICIDE",
 	"MOD_TARGET_LASER",
-	"MOD_TRIGGER_HURT"
-	/*
+	"MOD_TRIGGER_HURT",
+#ifdef MISSIONPACK
 	"MOD_NAIL",
 	"MOD_CHAINGUN",
 	"MOD_PROXIMITY_MINE",
 	"MOD_KAMIKAZE",
 	"MOD_JUICED",
-	"MOD_GRAPPLE"
-	*/
+#endif
+//	"MOD_GRAPPLE"
 };
 
+#ifdef MISSIONPACK
 /*
 ==================
 Kamikaze_DeathActivate
 ==================
 */
-/*
 void Kamikaze_DeathActivate( gentity_t *ent ) {
 	G_StartKamikaze(ent);
 	G_FreeEntity(ent);
 }
-*/
+
 /*
 ==================
 Kamikaze_DeathTimer
 ==================
 */
-/*
 void Kamikaze_DeathTimer( gentity_t *self ) {
 	gentity_t *ent;
 
@@ -542,7 +541,7 @@ void Kamikaze_DeathTimer( gentity_t *self ) {
 
 	ent->activator = self;
 }
-*/
+#endif
 
 /*
 ==================
@@ -650,7 +649,8 @@ void rampage_notify(gentity_t *attacker) {
 
 	// AwardMessage(attacker, EAWARD_FRAGS, attacker->client->pers.awardCounts[EAWARD_FRAGS]);
 }
-/*
+
+#ifdef MISSIONPACK
 void G_CheckKamikazeAward(gentity_t *attacker, int killsBefore, int deathsBefore) {
 	if (!attacker || !attacker->client) {
 		return;
@@ -658,7 +658,7 @@ void G_CheckKamikazeAward(gentity_t *attacker, int killsBefore, int deathsBefore
 	if (attacker->client->pers.kills <= killsBefore || attacker->client->pers.deaths <= deathsBefore) {
 		return;
 	}
-	AwardMessage(attacker, EAWARD_KAMIKAZE, ++(attacker->client->pers.awardCounts[EAWARD_KAMIKAZE]));
+	// AwardMessage(attacker, EAWARD_KAMIKAZE, ++(attacker->client->pers.awardCounts[EAWARD_KAMIKAZE]));
 }
 
 void G_CheckStrongmanAward(gentity_t *attacker, gentity_t *victim) {
@@ -730,7 +730,7 @@ void G_CheckStrongmanAward(gentity_t *attacker, gentity_t *victim) {
 			break;
 		}
 		if (numKilled == numEnemies && numEnemies >= 3) {
-			AwardMessage(attacker, EAWARD_STRONGMAN, ++(attacker->client->pers.awardCounts[EAWARD_STRONGMAN]));
+			// AwardMessage(attacker, EAWARD_STRONGMAN, ++(attacker->client->pers.awardCounts[EAWARD_STRONGMAN]));
 			reset = qtrue;
 		}  else {
 			break;
@@ -759,7 +759,9 @@ static int G_AmbushCalculateTimeshiftTime(int meansOfDeath, gentity_t *attacker,
 			|| meansOfDeath == MOD_SHOTGUN
 			|| meansOfDeath == MOD_LIGHTNING
 			|| meansOfDeath == MOD_RAILGUN
-			//|| meansOfDeath == MOD_CHAINGUN
+#ifdef MISSIONPACK
+			|| meansOfDeath == MOD_CHAINGUN
+#endif
 			) {
 		int timeshiftTime;
 		G_DoTimeShiftFor(attacker);
@@ -785,7 +787,7 @@ void G_CheckAmbushAward(gentity_t *victim, gentity_t *inflictor, gentity_t *atta
 			)
 		       	&& (!inflictor || !inflictor->missileTeleported)
 			&& meansOfDeath != MOD_TELEFRAG) {
-		AwardMessage(attacker, EAWARD_AMBUSH, ++(attacker->client->pers.awardCounts[EAWARD_AMBUSH]));
+		// AwardMessage(attacker, EAWARD_AMBUSH, ++(attacker->client->pers.awardCounts[EAWARD_AMBUSH]));
 	}
 }
 
@@ -824,14 +826,13 @@ void G_CheckVaporizedAward(gentity_t *attacker, gentity_t *victim) {
 		if (totalPlasmaDamage > awardDamage) {
 			// did more than 100 plasma damage to the target within the last 800ms
 			// (this was more effective than two perfect consecutive hits with RL)
-			AwardMessage(attacker, EAWARD_VAPORIZED, ++(attacker->client->pers.awardCounts[EAWARD_VAPORIZED]));
+			// AwardMessage(attacker, EAWARD_VAPORIZED, ++(attacker->client->pers.awardCounts[EAWARD_VAPORIZED]));
 			break;
 		} 
 		i = (i + DAMAGE_HISTORY - 1 ) % DAMAGE_HISTORY;
 	} while (i != client->damage_history_head);
 }
-*/
-/*
+
 void G_CheckDeathEAwards(gentity_t *victim, gentity_t *inflictor, gentity_t *attacker, int meansOfDeath) {
 	if (!attacker || !attacker->client || attacker == victim || OnSameTeam(attacker, victim)) {
 		return;
@@ -898,14 +899,15 @@ void G_CheckDeathEAwards(gentity_t *victim, gentity_t *inflictor, gentity_t *att
 	if (attacker->client->ps.stats[STAT_HEALTH] <= 30) {
 		if (++attacker->client->ratFragCounter >= 3) {
 			attacker->client->ratFragCounter = 0;
-			AwardMessage(attacker, EAWARD_RAT, ++(attacker->client->pers.awardCounts[EAWARD_RAT]));
+			// AwardMessage(attacker, EAWARD_RAT, ++(attacker->client->pers.awardCounts[EAWARD_RAT]));
 		}
 	} else {
 		attacker->client->ratFragCounter = 0;
 	}
 
 }
-*/
+#endif
+
 void G_CheckOnePlayerLeft( gentity_t *justdied ) {
 	int teamCount = 0;
 	if (level.roundNumber != level.roundNumberStarted) {
@@ -1083,9 +1085,11 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	self->client->pers.lastDeathTime = level.time;
 	self->client->pers.lastKilledBy = killer;
 	self->client->pers.gotRevenge = qfalse;
-    
-	//G_CheckStrongmanAward(attacker, self);
-    	//G_CheckDeathEAwards(self, inflictor, attacker, meansOfDeath);
+
+#ifdef MISSIONPACK
+	G_CheckStrongmanAward(attacker, self);
+    G_CheckDeathEAwards(self, inflictor, attacker, meansOfDeath);
+#endif
 
 	if (attacker && attacker->client) {
 		attacker->client->lastkilled_client = self->s.number;
@@ -1169,7 +1173,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
                                 case MOD_BFG_SPLASH:
                                     ChallengeMessage(attacker,WEAPON_BFG_KILLS);
                                     break;
-				/*
+#ifdef MISSIONPACK
                                 case MOD_NAIL:
                                     ChallengeMessage(attacker,WEAPON_NAILGUN_KILLS);
                                     break;
@@ -1179,6 +1183,8 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
                                 case MOD_PROXIMITY_MINE:
                                     ChallengeMessage(attacker,WEAPON_MINE_KILLS);
                                     break;
+#endif
+				/*
                                 case MOD_GRAPPLE:
                                     ChallengeMessage(attacker,WEAPON_GRAPPLE_KILLS);
                                     break;
@@ -1307,14 +1313,13 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		}
 	}
         TossClientPersistantPowerups( self );
-	/*
+#ifdef MISSIONPACK
         if( g_gametype.integer == GT_HARVESTER ) {
                 TossClientCubes( self );
         }
-	*/
+#endif
 	// if client is in a nodrop area, don't drop anything (but return CTF flags!)
 	TossClientItems( self );
-//#endif
 
 	Cmd_Score_f( self );		// show scores
 	// send updated scores to any clients that are following this one,
@@ -1348,7 +1353,9 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 				&& meansOfDeath != MOD_WATER
 				&& meansOfDeath != MOD_TARGET_LASER
 				&& meansOfDeath != MOD_TELEFRAG
-				//&& meansOfDeath != MOD_JUICED
+#ifdef MISSIONPACK
+				&& meansOfDeath != MOD_JUICED
+#endif
 		   ) {
 			self->client->frozen = FROZEN_ONMAP;
 			G_CreateFrozenPlayer(self);
@@ -1438,11 +1445,11 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 
 			// globally cycle through the different death animations
 			i = ( i + 1 ) % 3;
-			/*
+#ifdef MISSIONPACK
 			if (self->s.eFlags & EF_KAMIKAZE) {
 				Kamikaze_DeathTimer( self );
 			}
-			*/
+#endif
 		}
 		trap_LinkEntity (self);
 	} else {
@@ -1558,12 +1565,12 @@ int RaySphereIntersections( vec3_t origin, float radius, vec3_t point, vec3_t di
 	return 0;
 }
 
+#ifdef MISSIONPACK
 /*
 ================
 G_InvulnerabilityEffect
 ================
 */
-/*
 int G_InvulnerabilityEffect( gentity_t *targ, vec3_t dir, vec3_t point, vec3_t impactpoint, vec3_t bouncedir ) {
 	gentity_t	*impact;
 	vec3_t		intersections[2], vec;
@@ -1596,7 +1603,7 @@ int G_InvulnerabilityEffect( gentity_t *targ, vec3_t dir, vec3_t point, vec3_t i
 		return qfalse;
 	}
 }
-*/
+#endif
 
 /*
 catchup_damage
@@ -1615,6 +1622,7 @@ static int catchup_damage(int damage, int attacker_points, int target_points) {
     return newdamage;
 }
 
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 qboolean G_TreasureHuntDamage( gentity_t *targ, gentity_t *attacker, int mod ) {
 	if (!attacker || !attacker->client) {
 		return qtrue;
@@ -1645,6 +1653,8 @@ qboolean G_TreasureHuntDamage( gentity_t *targ, gentity_t *attacker, int mod ) {
 	}
 	return qtrue;
 }
+#endif
+
 /*
 void G_CheckRocketSniper(gentity_t *victim, gentity_t *inflictor, gentity_t *attacker, int meansOfDeath) {
 	if (meansOfDeath != MOD_ROCKET 
@@ -1860,13 +1870,15 @@ static int G_WeaponForMOD(int mod) {
 		/*
 		case MOD_GRAPPLE:
 			return WP_GRAPPLING_HOOK;
+		*/
+#ifdef MISSIONPACK
 		case MOD_NAIL:
 			return WP_NAILGUN;
 		case MOD_PROXIMITY_MINE:
 			return WP_PROX_LAUNCHER;
 		case MOD_CHAINGUN:
 			return WP_CHAINGUN;
-		*/
+#endif
 	}
 	return WP_NONE;
 }
@@ -1976,12 +1988,14 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 			return;
 		}
 	}
-	/*
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 	else if (g_gametype.integer == GT_TREASURE_HUNTER) {
 		if (!G_TreasureHuntDamage(targ, attacker, mod)) {
 			return;
 		}
 	}
+#endif
+#ifdef MISSIONPACK
 	if ( targ->client && mod != MOD_JUICED) {
 		if ( targ->client->invulnerabilityTime > level.time) {
 			if ( dir && point ) {
@@ -1990,7 +2004,7 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 			return;
 		}
 	}
-	*/
+#endif
         //Sago: This was moved up
         client = targ->client;
 
@@ -2027,20 +2041,20 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		}
 		return;
 	}
-	/*
+#ifdef MISSIONPACK
 	if( g_gametype.integer == GT_OBELISK && CheckObeliskAttack( targ, attacker ) ) {
 		return;
 	}
-	*/
+#endif
 	// reduce damage by the attacker's handicap value
 	// unless they are rocket jumping
 	if ( attacker->client && attacker != targ ) {
 		max = attacker->client->ps.stats[STAT_MAX_HEALTH];
-		/*
+#ifdef MISSIONPACK
 		if( bg_itemlist[attacker->client->ps.stats[STAT_PERSISTANT_POWERUP]].giTag == PW_GUARD ) {
 			max /= 2;
 		}
-		*/
+#endif
 		damage = damage * max / 100;
 	}
 
@@ -2135,7 +2149,7 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 				return;
 			}
 		}
-		/*
+#ifdef MISSIONPACK
 		if (mod == MOD_PROXIMITY_MINE) {
 			if (inflictor && inflictor->parent && OnSameTeam(targ, inflictor->parent)) {
 				return;
@@ -2144,7 +2158,7 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 				return;
 			}
 		}
-		*/
+#endif
 		// check for godmode
 		if ( targ->flags & FL_GODMODE ) {
 			return;

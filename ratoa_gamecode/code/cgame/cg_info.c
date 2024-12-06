@@ -181,7 +181,7 @@ void CG_DrawInformation( void ) {
 	CG_DrawScoreString(10, 465-SCORECHAR_HEIGHT/2, S_COLOR_YELLOW "DEVOTION" S_COLOR_BLACK "mod", 1.0, 0);
 	s = S_COLOR_YELLOW "A pristine, unlagged experience for Quake III Arena.";
 	CG_DrawTinyScoreString(635-CG_DrawStrlen(s)*SCORETINYCHAR_WIDTH, 465-1-SCORETINYCHAR_HEIGHT, s, 1.0);
-	s = S_COLOR_CYAN "https://devoq3.net/";
+	s = S_COLOR_CYAN "https://github.com/alcachofass/devotion";
 	CG_DrawTinyScoreString(635-CG_DrawStrlen(s)*SCORETINYCHAR_WIDTH, 465+1, s, 1.0);
 
 	// the first 150 rows are reserved for the client connection
@@ -261,8 +261,7 @@ void CG_DrawInformation( void ) {
 	case GT_CTF:
 		s = "Capture The Flag";
 		break;
-//#ifdef MISSIONPACK
-/*
+#ifdef MISSIONPACK
 	case GT_1FCTF:
 		s = "One Flag CTF";
 		break;
@@ -272,8 +271,7 @@ void CG_DrawInformation( void ) {
 	case GT_HARVESTER:
 		s = "Harvester";
 		break;
-*/
-//#endif
+#endif
 	case GT_ELIMINATION:
 		s = "Elimination";
 		break;
@@ -283,19 +281,23 @@ void CG_DrawInformation( void ) {
 	case GT_LMS:
 		s = "Last Man Standing";
 		break;
-/*
+#ifdef WITH_DOM_GAMETYPE
+    case GT_DOMINATION:
+		s = "Domination";
+		break;
+#endif
+#ifdef WITH_DOUBLED_GAMETYPE
 	case GT_DOUBLE_D:
 		s = "Double Domination";
 		break;
-        case GT_DOMINATION:
-		s = "Domination";
-		break;
-        case GT_TREASURE_HUNTER:
+#endif
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+    case GT_TREASURE_HUNTER:
 		s = "Treasure Hunter";
 		break;
-*/
+#endif
 #ifdef WITH_MULTITOURNAMENT
-        case GT_MULTITOURNAMENT:
+    case GT_MULTITOURNAMENT:
 		s = "Multitournament";
 		break;
 #endif

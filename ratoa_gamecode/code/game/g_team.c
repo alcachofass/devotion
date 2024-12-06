@@ -57,7 +57,12 @@ void Team_InitGame( void ) {
 	switch( g_gametype.integer ) {
 	case GT_CTF:
 	case GT_CTF_ELIMINATION:
-	/*
+#ifdef WITH_DOM_GAMETYPE
+	case GT_DOMINATION:
+		dominationPointsSpawned = qfalse;
+        break;
+#endif
+#ifdef WITH_DOUBLED_GAMETYPE
 	case GT_DOUBLE_D:
 		teamgame.redStatus = -1; // Invalid to force update
 		Team_SetFlagStatus( TEAM_RED, FLAG_ATBASE );
@@ -66,14 +71,13 @@ void Team_InitGame( void ) {
 		ddA = NULL;
 		ddB = NULL;
 		break;
-	case GT_DOMINATION:
-		dominationPointsSpawned = qfalse;
-                break;
+#endif
+#ifdef MISSIONPACK
 	case GT_1FCTF:
 		teamgame.flagStatus = -1; // Invalid to force update
 		Team_SetFlagStatus( TEAM_FREE, FLAG_ATBASE );
 		break;
-	*/
+#endif
 	default:
 		break;
 	}
@@ -180,7 +184,7 @@ void AddTeamScore(vec3_t origin, int team, int score) {
             return;
         }
 
-/*
+#ifdef WITH_DOM_GAMETYPE
 	if ( g_gametype.integer != GT_DOMINATION ) {
 		//te = G_TempEntity(origin, EV_GLOBAL_TEAM_SOUND );
 		//te->r.svFlags |= SVF_BROADCAST;
@@ -237,7 +241,7 @@ void AddTeamScore(vec3_t origin, int team, int score) {
 			}
 		}
 	}
-	*/
+#endif
 	if (te) {
 		te->r.svFlags |= SVF_BROADCAST;
 	}
@@ -304,17 +308,19 @@ void Team_SetFlagStatus( int team, flagStatus_t status ) {
 			st[1] = ctfFlagStatusRemap[teamgame.blueStatus];
 			st[2] = 0;
 		}
-		/*
+#ifdef WITH_DOUBLED_GAMETYPE
 		else if (g_gametype.integer == GT_DOUBLE_D) {
 			st[0] = oneFlagStatusRemap[teamgame.redStatus];
 			st[1] = oneFlagStatusRemap[teamgame.blueStatus];
 			st[2] = 0;
 		}
+#endif
+#ifdef MISSIONPACK
 		else {		// GT_1FCTF
 			st[0] = oneFlagStatusRemap[teamgame.flagStatus];
 			st[1] = 0;
 		}
-		*/
+#endif
 
 		trap_SetConfigstring( CS_FLAGSTATUS, st );
 	}
@@ -457,18 +463,18 @@ void Team_FragBonuses(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker
 		flag_pw = PW_BLUEFLAG;
 		enemy_flag_pw = PW_REDFLAG;
 	}
-	/*
+#ifdef MISSIONPACK
 	if (g_gametype.integer == GT_1FCTF) {
 		enemy_flag_pw = PW_NEUTRALFLAG;
 	} 
-	*/
+#endif
 	// did the attacker frag the flag carrier?
 	tokens = 0;
-	/*
+#ifdef MISSIONPACK
 	if( g_gametype.integer == GT_HARVESTER ) {
 		tokens = targ->client->ps.generic1;
 	}
-	*/
+#endif
 	if (targ->client->ps.powerups[enemy_flag_pw]) {
 		attacker->client->pers.teamState.lastfraggedcarrier = level.time;
 		AddScore(attacker, targ->r.currentOrigin, CTF_FRAG_CARRIER_BONUS);
@@ -480,11 +486,11 @@ void Team_FragBonuses(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker
                 } else if(g_gametype.integer == GT_CTF_ELIMINATION) {
                     G_LogPrintf( "CTF_ELIMINATION: %i %i %i %i: %s fragged %s's flag carrier!\n", level.roundNumber, attacker->client->ps.clientNum, team, 3, attacker->client->pers.netname, TeamName(team) );
                 }
-		/*
+#ifdef MISSIONPACK
 		else if(g_gametype.integer == GT_1FCTF) {
                     G_LogPrintf( "1fCTF: %i %i %i: %s fragged %s's flag carrier!\n", attacker->client->ps.clientNum, team, 3, attacker->client->pers.netname, TeamName(team) );
                 }
-                */
+#endif
 
 		// the target had the flag, clear the hurt carrier
 		// field on the other team
@@ -564,7 +570,7 @@ void Team_FragBonuses(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker
 
 //We place the Double Domination bonus test here! This appears to be the best place to place them.
 //
-	/*
+#ifdef WITH_DOUBLED_GAMETYPE
 	if ( g_gametype.integer == GT_DOUBLE_D ) {
 		if(attacker->client->sess.sessionTeam == level.pointStatusA ) { //Attack must defend point A
 			//See how close attacker and target was to Point A:
@@ -639,11 +645,11 @@ void Team_FragBonuses(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker
 		} //Defend point B
 	return; //In double Domination we shall not go on, or we would test for team bases that we don't use
 	}
-	*/
+#endif
 	// flag and flag carrier area defense bonuses
 
 	// we have to find the flag and carrier entities
-	/*
+#ifdef MISSIONPACK
 	if( g_gametype.integer == GT_OBELISK ) {
 		// find the team obelisk
 		switch (attacker->client->sess.sessionTeam) {
@@ -661,7 +667,7 @@ void Team_FragBonuses(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker
 		// find the center obelisk
 		c = "team_neutralobelisk";
 	} else
-	*/
+#endif
 	{
 	// find the flag
 		switch (attacker->client->sess.sessionTeam) {
@@ -1004,7 +1010,8 @@ void Team_DD_makeB2team( gentity_t *target, int team ) {
 	FinishSpawningItem(ddB );
 	target->dropPickupTime = level.time + DD_PICKUPDELAY;
 }
-/*
+
+#if defined(MISSIONPACK) || defined(WITH_TREASURE_HUNTER_GAMETYPE)
 void Team_TH_TokenDestroyed( gentity_t *ent ) {
 	if (level.th_phase == TH_HIDE && ent->parent && G_InUse(ent->parent)) {
 		gentity_t *player = ent->parent;
@@ -1037,17 +1044,18 @@ void Team_TH_TokenDestroyed( gentity_t *ent ) {
 	}
 	G_FreeEntity( ent );
 }
-*/
+#endif
+
 void Team_ResetFlags( void ) {
 	if( g_gametype.integer == GT_CTF || g_gametype.integer == GT_CTF_ELIMINATION) {
 		Team_ResetFlag( TEAM_RED );
 		Team_ResetFlag( TEAM_BLUE );
 	}
-	/*
+#ifdef MISSIONPACK
 	else if( g_gametype.integer == GT_1FCTF ) {
 		Team_ResetFlag( TEAM_FREE );
 	}
-	*/
+#endif
 }
 
 void Team_ReturnFlagSound( gentity_t *ent, int team ) {
@@ -1139,11 +1147,11 @@ void Team_ReturnFlag( int team ) {
 	Team_ReturnFlagSound(Team_ResetFlag(team), team);
 	if( team == TEAM_FREE ) {
 		PrintMsg(NULL, "The flag has returned!\n" );
-		/*
+#ifdef MISSIONPACK
                 if(g_gametype.integer == GT_1FCTF) {
                     G_LogPrintf( "1FCTF: %i %i %i: The flag was returned!\n", -1, -1, 2 );
                 }
-		*/
+#endif
 	}
 	else {
 		PrintMsg(NULL, "The %s flag has returned!\n", TeamName(team));
@@ -1166,11 +1174,11 @@ void Team_FreeEntity( gentity_t *ent ) {
 	else if( ent->item->giTag == PW_NEUTRALFLAG ) {
 		Team_ReturnFlag( TEAM_FREE );
 	}
-	/*
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 	if (g_gametype.integer == GT_TREASURE_HUNTER) {
 		Team_TH_TokenDestroyed( ent );
 	}
-	*/
+#endif
 }
 
 /*
@@ -1397,54 +1405,54 @@ int Team_TouchOurFlag( gentity_t *ent, gentity_t *other, int team ) {
 	gclient_t	*cl = other->client;
 	int			enemy_flag;
 
-	/*
+#ifdef MISSIONPACK
 	if( g_gametype.integer == GT_1FCTF ) {
 		enemy_flag = PW_NEUTRALFLAG;
 	}
 	else
-	*/
+#endif
 	{
-	if (cl->sess.sessionTeam == TEAM_RED) {
-		enemy_flag = PW_BLUEFLAG;
-	} else {
-		enemy_flag = PW_REDFLAG;
-	}
+		if (cl->sess.sessionTeam == TEAM_RED) {
+			enemy_flag = PW_BLUEFLAG;
+		} else {
+			enemy_flag = PW_REDFLAG;
+		}
 
-	if ( ent->flags & FL_DROPPED_ITEM ) {
-		// hey, its not home.  return it by teleporting it back
-		PrintMsg( NULL, "%s" S_COLOR_WHITE " returned the %s flag!\n", 
-			cl->pers.netname, TeamName(team));
-		AddScore(other, ent->r.currentOrigin, CTF_RECOVERY_BONUS);
-                if(g_gametype.integer == GT_CTF) {
-                    G_LogPrintf( "CTF: %i %i %i: %s returned the %s flag!\n", cl->ps.clientNum, team, 2, cl->pers.netname, TeamName(team) );
-                } else if(g_gametype.integer == GT_CTF_ELIMINATION) {
-                    G_LogPrintf( "CTF_ELIMINATION: %i %i %i %i: %s returned the %s flag!\n", level.roundNumber, cl->ps.clientNum, team, 2, cl->pers.netname, TeamName(team) );
-                }
-		other->client->pers.teamState.flagrecovery++;
-		other->client->pers.teamState.lastreturnedflag = level.time;
-		//ResetFlag will remove this entity!  We must return zero
-		Team_ReturnFlagSound(Team_ResetFlag(team), team);
-		return 0;
-	}
+		if ( ent->flags & FL_DROPPED_ITEM ) {
+			// hey, its not home.  return it by teleporting it back
+			PrintMsg( NULL, "%s" S_COLOR_WHITE " returned the %s flag!\n", 
+				cl->pers.netname, TeamName(team));
+			AddScore(other, ent->r.currentOrigin, CTF_RECOVERY_BONUS);
+					if(g_gametype.integer == GT_CTF) {
+						G_LogPrintf( "CTF: %i %i %i: %s returned the %s flag!\n", cl->ps.clientNum, team, 2, cl->pers.netname, TeamName(team) );
+					} else if(g_gametype.integer == GT_CTF_ELIMINATION) {
+						G_LogPrintf( "CTF_ELIMINATION: %i %i %i %i: %s returned the %s flag!\n", level.roundNumber, cl->ps.clientNum, team, 2, cl->pers.netname, TeamName(team) );
+					}
+			other->client->pers.teamState.flagrecovery++;
+			other->client->pers.teamState.lastreturnedflag = level.time;
+			//ResetFlag will remove this entity!  We must return zero
+			Team_ReturnFlagSound(Team_ResetFlag(team), team);
+			return 0;
+		}
 	}
 
 	// the flag is at home base.  if the player has the enemy
 	// flag, he's just won!
 	if (!cl->ps.powerups[enemy_flag])
 		return 0; // We don't have the flag
-	/*
+#ifdef MISSIONPACK
 	if( g_gametype.integer == GT_1FCTF ) {
 		PrintMsg( NULL, "%s" S_COLOR_WHITE " captured the flag!\n", cl->pers.netname );
-                G_LogPrintf( "1FCTF: %i %i %i: %s captured the flag!\n", cl->ps.clientNum, -1, 1, cl->pers.netname );
+		G_LogPrintf( "1FCTF: %i %i %i: %s captured the flag!\n", cl->ps.clientNum, -1, 1, cl->pers.netname );
 	}
 	else
-	*/
+#endif
 	{
-            PrintMsg( NULL, "%s" S_COLOR_WHITE " captured the %s flag!\n", cl->pers.netname, TeamName(OtherTeam(team)));
-            if(g_gametype.integer == GT_CTF)
-                G_LogPrintf( "CTF: %i %i %i: %s captured the %s flag!\n", cl->ps.clientNum, OtherTeam(team), 1, cl->pers.netname, TeamName(OtherTeam(team)) );
-            if(g_gametype.integer == GT_CTF_ELIMINATION)
-                G_LogPrintf( "CTF_ELIMINATION: %i %i %i %i: %s captured the %s flag!\n", level.roundNumber, cl->ps.clientNum, OtherTeam(team), 1, cl->pers.netname, TeamName(OtherTeam(team)) );
+		PrintMsg( NULL, "%s" S_COLOR_WHITE " captured the %s flag!\n", cl->pers.netname, TeamName(OtherTeam(team)));
+		if(g_gametype.integer == GT_CTF)
+			G_LogPrintf( "CTF: %i %i %i: %s captured the %s flag!\n", cl->ps.clientNum, OtherTeam(team), 1, cl->pers.netname, TeamName(OtherTeam(team)) );
+		if(g_gametype.integer == GT_CTF_ELIMINATION)
+			G_LogPrintf( "CTF_ELIMINATION: %i %i %i %i: %s captured the %s flag!\n", level.roundNumber, cl->ps.clientNum, OtherTeam(team), 1, cl->pers.netname, TeamName(OtherTeam(team)) );
 	}
 
 	Team_CheckHeroAward(other);
@@ -1529,7 +1537,7 @@ int Team_TouchOurFlag( gentity_t *ent, gentity_t *other, int team ) {
 
 int Team_TouchEnemyFlag( gentity_t *ent, gentity_t *other, int team ) {
 	gclient_t *cl = other->client;
-	/*
+#ifdef MISSIONPACK
 	if( g_gametype.integer == GT_1FCTF ) {
 		PrintMsg (NULL, "%s" S_COLOR_WHITE " got the flag!\n", other->client->pers.netname );
 
@@ -1545,7 +1553,7 @@ int Team_TouchEnemyFlag( gentity_t *ent, gentity_t *other, int team ) {
 		}
 	}
 	else
-	*/
+#endif
 	{
 		PrintMsg (NULL, "%s" S_COLOR_WHITE " got the %s flag!\n",
 			other->client->pers.netname, TeamName(team));
@@ -1577,7 +1585,8 @@ int Team_TouchEnemyFlag( gentity_t *ent, gentity_t *other, int team ) {
 int Pickup_Team( gentity_t *ent, gentity_t *other ) {
 	int team;
 	gclient_t *cl = other->client;
-	/*
+
+#ifdef MISSIONPACK
 	if( g_gametype.integer == GT_OBELISK ) {
 		// there are no team items that can be picked up in obelisk
 		G_FreeEntity( ent );
@@ -1599,7 +1608,9 @@ int Pickup_Team( gentity_t *ent, gentity_t *other ) {
 		G_FreeEntity( ent ); //Destory skull
 		return 0;
 	}
+#endif
 
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
 	if( g_gametype.integer == GT_TREASURE_HUNTER ) {
 		if (level.th_phase != TH_SEEK) {
 			return 0;
@@ -1615,12 +1626,14 @@ int Pickup_Team( gentity_t *ent, gentity_t *other ) {
 			return 0;
 		} 
 	}
+#endif
 
+#ifdef WITH_DOM_GAMETYPE
 	if ( g_gametype.integer == GT_DOMINATION ) {
 		Team_Dom_TakePoint(ent, cl->sess.sessionTeam,cl->ps.clientNum);
 		return 0;
 	}
-	*/
+#endif
 	// figure out what team this flag is
 	if( strcmp(ent->item->classname, "team_CTF_redflag") == 0 ) {
 		team = TEAM_RED;
@@ -1635,7 +1648,7 @@ int Pickup_Team( gentity_t *ent, gentity_t *other ) {
 		PrintMsg ( other, "Don't know what team the flag is on.\n");
 		return 0;
 	}
-	/*
+#ifdef MISSIONPACK
 	if( g_gametype.integer == GT_1FCTF ) {
 		if( team == TEAM_FREE ) {
 			return Team_TouchEnemyFlag( ent, other, cl->sess.sessionTeam );
@@ -1645,10 +1658,13 @@ int Pickup_Team( gentity_t *ent, gentity_t *other ) {
 		}
 		return 0;
 	}
+#endif
+
+#ifdef WITH_DOUBLED_GAMETYPE
 	if( g_gametype.integer == GT_DOUBLE_D) {
 		return Team_TouchDoubleDominationPoint( ent, other, team );
 	}
-	*/
+#endif
 	// GT_CTF
 	if( team == cl->sess.sessionTeam) {
 		return Team_TouchOurFlag( ent, other, team );
@@ -2317,7 +2333,7 @@ void SP_team_CTF_bluespawn(gentity_t *ent) {
 Obelisks
 ================
 */
-
+#ifdef MISSIONPACK
 static void ObeliskHealthChange( int team, int health ) {
     int currentPercentage;
     int percentage = (health*100)/g_obeliskHealth.integer;
@@ -2366,7 +2382,6 @@ static void ObeliskRespawn( gentity_t *self ) {
 	self->activator->s.frame = 0;
 }
 
-/*
 static void ObeliskDie( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod ) {
 	int			otherTeam;
 
@@ -2529,11 +2544,9 @@ gentity_t *SpawnObelisk( vec3_t origin, int team, int spawnflags) {
 
 	return ent;
 }
-*/
 
 /*QUAKED team_redobelisk (1 0 0) (-16 -16 0) (16 16 8)
 */
-/*
 void SP_team_redobelisk( gentity_t *ent ) {
 	gentity_t *obelisk;
 
@@ -2556,11 +2569,9 @@ void SP_team_redobelisk( gentity_t *ent ) {
 	ent->s.modelindex = TEAM_RED;
 	trap_LinkEntity(ent);
 }
-*/
 
 /*QUAKED team_blueobelisk (0 0 1) (-16 -16 0) (16 16 88)
 */
-/*
 void SP_team_blueobelisk( gentity_t *ent ) {
 	gentity_t *obelisk;
 
@@ -2583,10 +2594,9 @@ void SP_team_blueobelisk( gentity_t *ent ) {
 	ent->s.modelindex = TEAM_BLUE;
 	trap_LinkEntity(ent);
 }
-*/
+
 /*QUAKED team_neutralobelisk (0 0 1) (-16 -16 0) (16 16 88)
 */
-/*
 void SP_team_neutralobelisk( gentity_t *ent ) {
 	if ( g_gametype.integer != GT_1FCTF && g_gametype.integer != GT_HARVESTER ) {
 		G_FreeEntity(ent);
@@ -2600,14 +2610,12 @@ void SP_team_neutralobelisk( gentity_t *ent ) {
 	ent->s.modelindex = TEAM_FREE;
 	trap_LinkEntity(ent);
 }
-*/
 
 /*
 ================
 CheckObeliskAttack
 ================
 */
-/*
 qboolean CheckObeliskAttack( gentity_t *obelisk, gentity_t *attacker ) {
 	gentity_t	*te;
 
@@ -2649,7 +2657,8 @@ qboolean CheckObeliskAttack( gentity_t *obelisk, gentity_t *attacker ) {
 
 	return qfalse;
 }
-*/
+#endif
+
 /*
 ================
 ShuffleTeams
@@ -3116,7 +3125,9 @@ void Token_die(gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int d
 	}
 	G_FreeEntity(self);
 }
+*/
 
+#if defined(MISSIONPACK) || defined(WITH_TREASURE_HUNTER_GAMETYPE)
 void SetPlayerTokens(int num, qboolean updateOnly) {
 	int i;
 	gentity_t *ent;
@@ -3135,7 +3146,8 @@ void SetPlayerTokens(int num, qboolean updateOnly) {
 			+ ((ent->client->sess.sessionTeam == TEAM_RED) ? level.th_teamTokensRed : level.th_teamTokensBlue);
 	}
 }
-*/
+#endif
+
 int G_TeamClientMask(int team) {
 	int mask = 0;
 	int i;

@@ -295,7 +295,7 @@ void Bullet_Fire (gentity_t *ent, float spread, int damage ) {
 
 		if ( traceEnt->takedamage) {
 			if ( traceEnt->client && traceEnt->client->invulnerabilityTime > level.time ) {
-				/*
+#ifdef MISSIONPACK
 				if (G_InvulnerabilityEffect( traceEnt, forward, tr.endpos, impactpoint, bouncedir )) {
 					G_BounceProjectile( muzzle, impactpoint, bouncedir, end );
 					VectorCopy( impactpoint, muzzle );
@@ -303,7 +303,7 @@ void Bullet_Fire (gentity_t *ent, float spread, int damage ) {
 					passent = ENTITYNUM_NONE;
 				}
 				else
-				*/
+#endif
 				{
 					VectorCopy( tr.endpos, muzzle );
 					passent = traceEnt->s.number;
@@ -311,16 +311,17 @@ void Bullet_Fire (gentity_t *ent, float spread, int damage ) {
 				continue;
 			}
 			else {
-			/*
-                            if(spread == CHAINGUN_SPREAD)
-                            {
-                                G_Damage( traceEnt, ent, ent, forward, tr.endpos,
+#ifdef MISSIONPACK
+				if(spread == CHAINGUN_SPREAD)
+				{
+					G_Damage( traceEnt, ent, ent, forward, tr.endpos,
 					damage, 0, MOD_CHAINGUN);
-				if (logaccuracyhit) {
-					ent->client->accuracy[WP_CHAINGUN][1]++;
+					if (logaccuracyhit) {
+						ent->client->accuracy[WP_CHAINGUN][1]++;
+					}
 				}
-                            }
-                            else*/
+				else
+#endif
                             {
 				G_Damage( traceEnt, ent, ent, forward, tr.endpos,
 					damage, 0, MOD_MACHINEGUN);
@@ -440,7 +441,7 @@ qboolean ShotgunPellet( vec3_t start, vec3_t end, gentity_t *ent, struct hitShot
 		if ( traceEnt->takedamage) {
 			damage = (g_newShotgun.integer ? NEW_SHOTGUN_DAMAGE : DEFAULT_SHOTGUN_DAMAGE) * s_quadFactor;
 			if ( traceEnt->client && traceEnt->client->invulnerabilityTime > level.time ) {
-				/*
+#ifdef MISSIONPACK
 				if (G_InvulnerabilityEffect( traceEnt, forward, tr.endpos, impactpoint, bouncedir )) {
 					G_BounceProjectile( tr_start, impactpoint, bouncedir, tr_end );
 					VectorCopy( impactpoint, tr_start );
@@ -448,7 +449,7 @@ qboolean ShotgunPellet( vec3_t start, vec3_t end, gentity_t *ent, struct hitShot
 					passent = ENTITYNUM_NONE;
 				}
 				else
-				*/
+#endif
 				{
 					VectorCopy( tr.endpos, tr_start );
 					passent = traceEnt->s.number;
@@ -713,7 +714,7 @@ void weapon_railgun_fire (gentity_t *ent) {
 		traceEnt = &g_entities[ trace.entityNum ];
 		if ( traceEnt->takedamage ) {
 			if ( traceEnt->client && traceEnt->client->invulnerabilityTime > level.time ) {
-				/*
+#ifdef MISSIONPACK
 				if ( G_InvulnerabilityEffect( traceEnt, forward, trace.endpos, impactpoint, bouncedir ) ) {
 					G_BounceProjectile( muzzle, impactpoint, bouncedir, end );
 					// snap the endpos to integers to save net bandwidth, but nudged towards the line
@@ -732,7 +733,7 @@ void weapon_railgun_fire (gentity_t *ent) {
 					// the player can hit him/herself with the bounced rail
 					passent = ENTITYNUM_NONE;
 				}
-				*/
+#endif
 			}
 			else {
 				if( LogAccuracyHit( traceEnt, ent ) ) {
@@ -914,7 +915,7 @@ void Weapon_LightningFire( gentity_t *ent ) {
 
 		if ( traceEnt->takedamage) {
 			if ( traceEnt->client && traceEnt->client->invulnerabilityTime > level.time ) {
-				/*
+#ifdef MISSIONPACK
 				if (G_InvulnerabilityEffect( traceEnt, forward, tr.endpos, impactpoint, bouncedir )) {
 					G_BounceProjectile( muzzle, impactpoint, bouncedir, end );
 					VectorCopy( impactpoint, muzzle );
@@ -924,7 +925,7 @@ void Weapon_LightningFire( gentity_t *ent ) {
 					passent = ENTITYNUM_NONE;
 				}
 				else
-				*/
+#endif
 				{
 					VectorCopy( tr.endpos, muzzle );
 					passent = traceEnt->s.number;
@@ -958,6 +959,7 @@ void Weapon_LightningFire( gentity_t *ent ) {
 	}
 }
 
+#ifdef MISSIONPACK
 /*
 ======================================================================
 
@@ -965,7 +967,6 @@ NAILGUN
 
 ======================================================================
 */
-/*
 void Weapon_Nailgun_Fire (gentity_t *ent) {
 	gentity_t	*m;
 	int			count;
@@ -988,7 +989,6 @@ void Weapon_Nailgun_Fire (gentity_t *ent) {
 
 //	VectorAdd( m->s.pos.trDelta, ent->client->ps.velocity, m->s.pos.trDelta );	// "real" physics
 }
-*/
 
 /*
 ======================================================================
@@ -997,7 +997,6 @@ PROXIMITY MINE LAUNCHER
 
 ======================================================================
 */
-/*
 void weapon_proxlauncher_fire (gentity_t *ent) {
 	gentity_t	*m;
 
@@ -1013,7 +1012,7 @@ void weapon_proxlauncher_fire (gentity_t *ent) {
 
 //	VectorAdd( m->s.pos.trDelta, ent->client->ps.velocity, m->s.pos.trDelta );	// "real" physics
 }
-*/
+#endif
 
 //======================================================================
 
@@ -1053,10 +1052,12 @@ void G_CheckAccuracyAward( gentity_t *ent, int old_accuracy_hits) {
 			requiredhits = 10;
 			ent->client->consecutive_hits++;
 			break;
-/*		case WP_CHAINGUN:
+#ifdef MISSIONPACK
+		case WP_CHAINGUN:
 			requiredhits = 20;
 			ent->client->consecutive_hits++;
-			break;*/
+			break;
+#endif
 		case WP_SHOTGUN:
 			// shotcun hits are already counted in ShotgunPattern()
 			break;
@@ -1144,12 +1145,14 @@ void FireWeapon( gentity_t *ent ) {
 	// track shots taken for accuracy tracking.  Grapple is not a weapon and gauntet is just not tracked
 	// if( ent->s.weapon != WP_GRAPPLING_HOOK && ent->s.weapon != WP_GAUNTLET ) {
 	if( ent->s.weapon != WP_GAUNTLET ) {
-		/*
+#ifdef MISSIONPACK
 		if( ent->s.weapon == WP_NAILGUN ) {
 			ent->client->accuracy_shots += NUM_NAILSHOTS;
                         //ent->client->accuracy[WP_NAILGUN][0]++;
                         ent->client->accuracy[WP_NAILGUN][0] += NUM_NAILSHOTS;
-		} else */ {
+		} else
+#endif
+		{
 			ent->client->accuracy_shots++;
                         ent->client->accuracy[ent->s.weapon][0]++;
 		}
@@ -1198,6 +1201,8 @@ void FireWeapon( gentity_t *ent ) {
 	case WP_GRAPPLING_HOOK:
 		Weapon_GrapplingHook_Fire( ent );
 		break;
+		*/
+#ifdef MISSIONPACK
 	case WP_NAILGUN:
 		Weapon_Nailgun_Fire( ent );
 		break;
@@ -1207,7 +1212,7 @@ void FireWeapon( gentity_t *ent ) {
 	case WP_CHAINGUN:
 		Bullet_Fire( ent, CHAINGUN_SPREAD, MACHINEGUN_DAMAGE );
 		break;
-		*/
+#endif
 	default:
 // FIXME		G_Error( "Bad ent->s.weapon" );
 		break;
@@ -1216,13 +1221,12 @@ void FireWeapon( gentity_t *ent ) {
 	G_CheckAccuracyAward(ent, old_accuracy_hits);
 }
 
-
+#ifdef MISSIONPACK
 /*
 ===============
 KamikazeRadiusDamage
 ===============
 */
-/*
 static void KamikazeRadiusDamage( vec3_t origin, gentity_t *attacker, float damage, float radius ) {
 	float		dist;
 	gentity_t	*ent;
@@ -1282,13 +1286,12 @@ static void KamikazeRadiusDamage( vec3_t origin, gentity_t *attacker, float dama
 //		}
 	}
 }
-*/
+
 /*
 ===============
 KamikazeShockWave
 ===============
 */
-/*
 static void KamikazeShockWave( vec3_t origin, gentity_t *attacker, float damage, float push, float radius ) {
 	float		dist;
 	gentity_t	*ent;
@@ -1349,13 +1352,12 @@ static void KamikazeShockWave( vec3_t origin, gentity_t *attacker, float damage,
 //		}
 	}
 }
-*/
+
 /*
 ===============
 KamikazeDamage
 ===============
 */
-/*
 static void KamikazeDamage( gentity_t *self ) {
 	int i;
 	float t;
@@ -1407,13 +1409,12 @@ static void KamikazeDamage( gentity_t *self ) {
 	}
 	VectorCopy(newangles, self->movedir);
 }
-*/
+
 /*
 ===============
 G_StartKamikaze
 ===============
 */
-/*
 void G_StartKamikaze( gentity_t *ent ) {
 	gentity_t	*explosion;
 	gentity_t	*te;
@@ -1468,7 +1469,8 @@ void G_StartKamikaze( gentity_t *ent ) {
 	te->r.svFlags |= SVF_BROADCAST;
 	te->s.eventParm = GTS_KAMIKAZE;
 }
-*/
+#endif
+
 /*
  * Similar to CanDamage(), but more accurately checks visibility
  */

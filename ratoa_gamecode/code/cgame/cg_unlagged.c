@@ -259,9 +259,11 @@ void CG_PredictedExplosion(trace_t *tr, int weapon, predictedMissile_t *predMiss
 	switch (weapon) {
 		// TODO: predict grenade bounce
 		case WP_GRENADE_LAUNCHER:
-		// case WP_PROX_LAUNCHER:
+#ifdef MISSIONPACK
+		case WP_PROX_LAUNCHER:
 		// TODO: PREDICT NAILGUN HITS
-		// case WP_NAILGUN:
+		case WP_NAILGUN:
+#endif
 		// case WP_GRAPPLING_HOOK:
 			return;
 	}
@@ -633,7 +635,7 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 		}
 	}
         // was it a chaingun attack?
-        /*
+#ifdef MISSIONPACK
 	else if ( ent->weapon == WP_CHAINGUN ) {
 		// do we have it on for the machinegun?
 		if ( cg_delag.integer & 1 || cg_delag.integer & 2 ) {
@@ -676,15 +678,17 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			CG_Bullet( tr.endpos, cg.predictedPlayerState.clientNum, tr.plane.normal, flesh, fleshEntityNum );
 			//Com_Printf( "Predicted bullet\n" );
 		}
-	}*/ else if ((cg_altPredictMissiles.integer > 0 && (cgs.ratFlags & RAT_PREDICTMISSILES))
+	}
+#endif
+	else if ((cg_altPredictMissiles.integer > 0 && (cgs.ratFlags & RAT_PREDICTMISSILES))
 		       	&& (ent->weapon == WP_PLASMAGUN
 			    || ent->weapon == WP_ROCKET_LAUNCHER 
 			    || ent->weapon == WP_GRENADE_LAUNCHER
 			    || ent->weapon == WP_BFG
-			    /*
+#ifdef MISSIONPACK
 			    || ent->weapon == WP_PROX_LAUNCHER
 			    || ent->weapon == WP_NAILGUN
-			    */
+#endif
 			   )
 		   ) {
 		predictedMissile_t	*pm;
@@ -707,12 +711,12 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 		VectorMA( muzzlePoint, 14, forward, muzzlePoint );
 		// snap again
 		//SnapVector(muzzlePoint);
-		/*
+#ifdef MISSIONPACK
 		if (ent->weapon == WP_NAILGUN) {
 			CG_PredictNailgunMissile(ent, muzzlePoint, forward, right, up);
 			return;
 		}
-		*/
+#endif
 
 		pm = CG_BasePredictMissile(ent, muzzlePoint);
 
@@ -759,21 +763,21 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 				SnapVector(pm->pos.trDelta);
 				pm->pos.trType = TR_LINEAR;
 				break;
-				/*
+#ifdef MISSIONPACK
 			case WP_PROX_LAUNCHER:
 				forward[2] += 0.2f;
 				VectorScale(forward, PROXMINE_VELOCITY, pm->pos.trDelta);
 				SnapVector(pm->pos.trDelta);
 				pm->pos.trType = TR_GRAVITY;
 				break;
-				*/
+#endif
 		}
 		CG_FinishPredictMissileModel(ent, pm);
-		/*
+#ifdef MISSIONPACK
 		if (ent->weapon == WP_PROX_LAUNCHER && cg.predictedPlayerState.persistant[PERS_TEAM] == TEAM_BLUE) {
 			bolt->hModel = cgs.media.blueProxMine;
 		}
-		*/
+#endif
 	}
 }
 

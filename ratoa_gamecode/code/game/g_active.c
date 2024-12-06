@@ -292,7 +292,9 @@ void G_FrozenPlayerDamage(gentity_t *targPlayer, gentity_t *targ, gentity_t *att
 			|| mod == MOD_WATER
 			|| mod == MOD_TARGET_LASER
 			|| mod == MOD_TELEFRAG
-			// || mod == MOD_JUICED
+#ifdef MISSIONPACK
+			 || mod == MOD_JUICED
+#endif
 	   ) {
 		// we were killed by the environment, destroy the remnant
 		if (targPlayer->frozenPlayer && targPlayer->frozenPlayer->frozenPlayer
@@ -855,13 +857,12 @@ void ClientTimerActions( gentity_t *ent, int msec ) {
 			client->ps.stats[STAT_ARMOR]--;
 		}
 	}
-	/*
+#ifdef MISSIONPACK
 	if( bg_itemlist[client->ps.stats[STAT_PERSISTANT_POWERUP]].giTag == PW_AMMOREGEN ) {
 		int w, max, inc, t, i;
-//		int weapList[]={WP_MACHINEGUN,WP_SHOTGUN,WP_GRENADE_LAUNCHER,WP_ROCKET_LAUNCHER,WP_LIGHTNING,WP_RAILGUN,WP_PLASMAGUN,WP_BFG,WP_NAILGUN,WP_PROX_LAUNCHER,WP_CHAINGUN};
-		int weapList[]={WP_MACHINEGUN,WP_SHOTGUN,WP_GRENADE_LAUNCHER,WP_ROCKET_LAUNCHER,WP_LIGHTNING,WP_RAILGUN,WP_PLASMAGUN,WP_BFG};
+		int weapList[]={WP_MACHINEGUN,WP_SHOTGUN,WP_GRENADE_LAUNCHER,WP_ROCKET_LAUNCHER,WP_LIGHTNING,WP_RAILGUN,WP_PLASMAGUN,WP_BFG,WP_NAILGUN,WP_PROX_LAUNCHER,WP_CHAINGUN};
 		int weapCount = sizeof(weapList) / sizeof(int);
-		//
+
 		for (i = 0; i < weapCount; i++) {
 			w = weapList[i];
 
@@ -893,7 +894,7 @@ void ClientTimerActions( gentity_t *ent, int msec ) {
 			}
 		}
 	}
-	*/
+#endif
 }
 
 /*
@@ -1006,7 +1007,7 @@ void ClientEvents( gentity_t *ent, int oldEventSequence ) {
 
 				ent->client->ps.powerups[ j ] = 0;
 			}
-/*
+#ifdef MISSIONPACK
 			if ( g_gametype.integer == GT_HARVESTER ) {
 				if ( ent->client->ps.generic1 > 0 ) {
 					if ( ent->client->sess.sessionTeam == TEAM_RED ) {
@@ -1027,7 +1028,7 @@ void ClientEvents( gentity_t *ent, int oldEventSequence ) {
 					ent->client->ps.generic1 = 0;
 				}
 			}
-*/
+#endif
 			//SelectSpawnPoint( ent, ent->client->ps.origin, origin, angles );
 			SelectSpawnPoint( ent, ent->client->ps.origin, origin, angles, 0 );	//mrd
 			TeleportPlayer( ent, origin, angles );
@@ -1041,8 +1042,10 @@ void ClientEvents( gentity_t *ent, int oldEventSequence ) {
 		case EV_USE_ITEM3:		// kamikaze
 			// make sure the invulnerability is off
 			ent->client->invulnerabilityTime = 0;
+#ifdef MISSIONPACK
 			// start the kamikze
-			//G_StartKamikaze( ent );
+			G_StartKamikaze( ent );
+#endif
 			break;
 
 		case EV_USE_ITEM4:		// portal
