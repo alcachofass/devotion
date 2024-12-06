@@ -2441,11 +2441,11 @@ void PmoveSingle (pmove_t *pmove) {
 
 	/* if ( pm->ps->powerups[PW_INVULNERABILITY] ) {
 		PM_InvulnerabilityMove();
-	} else
+	} else */
 	if ( pm->ps->powerups[PW_FLIGHT] ) {
 		// flight powerup doesn't allow jump and has different friction
 		PM_FlyMove();
-	} else if (pm->ps->pm_flags & PMF_GRAPPLE_PULL) {
+	} /* else if (pm->ps->pm_flags & PMF_GRAPPLE_PULL) {
 		if (pm->pmove_ratflags & RAT_SWINGGRAPPLE) {
 			PM_SwingGrappleMove();
 		} else {
