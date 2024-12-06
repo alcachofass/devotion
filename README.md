@@ -145,6 +145,16 @@ votecommand     "ql_weapon_dmg"
 displayname     "ql_weapon_dmg"
 command         "g_railGunDamage 80 ; g_lgDamage 6; g_mgDamage 5 ; g_rocketSpeed 1000"
 }
+{
+votecommand     "ramp_jump_on"
+displayname     "ramp_jump_on"
+command         "g_rampJump 1"
+}
+{
+votecommand     "ramp_jump_off"
+displayname     "ramp_jump_off"
+command         "g_rampJump 0"
+}
 ```
 
 # Client Settings
