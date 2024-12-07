@@ -781,7 +781,7 @@ void CG_PredictPlayerState( void ) {
 //unlagged - optimized prediction
 	int stateIndex = 0, predictCmd = 0; //Sago: added initializing
 	int numPredicted = 0, numPlayedBack = 0; // debug code
-	int prevMsec;
+//	int prevMsec;
 //unlagged - optimized prediction
 
 	cg.hyperspace = qfalse;	// will be set if touching a trigger_teleport
@@ -963,7 +963,7 @@ void CG_PredictPlayerState( void ) {
 
 	// run cmds
 	moved = qfalse;
-	prevMsec = -1;
+//	prevMsec = -1;
 	for ( cmdNum = current - CMD_BACKUP + 1 ; cmdNum <= current ; cmdNum++ ) {
 		// get the command
 		trap_GetUserCmd( cmdNum, &cg_pmove.cmd );
@@ -972,10 +972,10 @@ void CG_PredictPlayerState( void ) {
 			PM_UpdateViewAngles( cg_pmove.ps, &cg_pmove.cmd );
 		}
 
-		// save previous time
-		if (cmdNum < current) {
-			prevMsec = cg_pmove.cmd.serverTime;
-		}
+//		// save previous time
+//		if (cmdNum < current) {
+//			prevMsec = cg_pmove.cmd.serverTime;
+//		}
 
 		// don't do anything if the time is before the snapshot player time
 		if ( cg_pmove.cmd.serverTime <= cg.predictedPlayerState.commandTime ) {
@@ -1042,11 +1042,11 @@ void CG_PredictPlayerState( void ) {
 		}
 
 		// store time delta between commands (used for projectile delag)
-		if (prevMsec != -1 && latestCmd.serverTime - prevMsec > 0) {
-			cg.cmdMsecDelta = latestCmd.serverTime - prevMsec;
-		} else {
-			cg.cmdMsecDelta = 0;
-		}
+//		if (prevMsec != -1 && latestCmd.serverTime - prevMsec > 0) {
+//			cg.cmdMsecDelta = latestCmd.serverTime - prevMsec;
+//		} else {
+//			cg.cmdMsecDelta = 0;
+//		}
 
 		// don't predict gauntlet firing, which is only supposed to happen
 		// when it actually inflicts damage

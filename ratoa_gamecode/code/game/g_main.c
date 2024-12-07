@@ -1293,6 +1293,7 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	G_UpdateMultiTrnGames();
 #endif
 	CalculateRanks();
+	G_PrintDelagMaxTimeshift();
 }
 
 

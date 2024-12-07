@@ -1504,6 +1504,7 @@ typedef struct {
 	qboolean		localServer;		// detected on startup by checking sv_running
 
 	// parsed from serverinfo
+	int				sv_fps;
 	gametype_t		gametype;
 	int				dmflags;
         int                             videoflags;

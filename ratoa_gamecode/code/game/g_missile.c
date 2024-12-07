@@ -24,47 +24,70 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define MISSILE_PRESTEP_TIME	50
 
-int G_DelagLatency(gclient_t *client) {
-	int ping = 0;
-	switch (g_delagMissileLatencyMode.integer) {
-		case 2:
-			ping = client->ps.ping;
-			break;
-		case 3:
-			ping = client->pers.realPing;
-			break;
-		case 1:
-		default:
-			ping = level.previousTime + client->frameOffset - client->attackTime;
-			if (ping < 0) {
-				ping = 0;
-			}
-			break;
+void G_SetMissileLaunchTime (gentity_t *self, gentity_t *bolt) {
+	if (!self->client) {
+		bolt->s.pos.trTime = level.time;
+		return;
 	}
-	if (g_delagMissileLimitVariance.integer && g_delagMissileLimitVarianceMs.integer > 0 && g_truePing.integer) {
-		int maxping = client->pers.realPing + g_delagMissileLimitVarianceMs.integer;
-		int minping = client->pers.realPing - g_delagMissileLimitVarianceMs.integer;
-		qboolean limited = qfalse;
-		int oldping = ping;
+	if (!g_delagMissiles.integer) {
+		bolt->s.pos.trTime = level.time - MISSILE_PRESTEP_TIME;
+		return;
+	}
 
-		if (minping < 0) {
-			minping = 0;
+	bolt->s.pos.trTime = self->client->attackTime - g_delagMissileBaseNudge.integer;
+
+	if (bolt->s.pos.trTime < level.time - g_delagMissileMaxLatency.integer) {
+		bolt->s.pos.trTime = level.time - g_delagMissileMaxLatency.integer;
+		if (g_delagMissileDebug.integer) {
+			Com_Printf("Limited projectile delag ping (c %i): launchtime %i -> %i, realPing: %i\n",
+				       	self->client->ps.clientNum,
+					bolt->s.pos.trTime + g_delagMissileMaxLatency.integer,
+					bolt->s.pos.trTime,
+				       	self->client->pers.realPing);
+
 		}
-		if (ping > maxping) {
-			ping = maxping;
-			limited = qtrue;
-		} else if (ping < minping) {
-			ping = minping;
-			limited = qtrue;
-		}
-		if (limited && g_delagMissileDebug.integer) {
-			Com_Printf("Limited projectile delag ping (c %i): %i -> %i, realPing: %i\n", client->ps.clientNum, oldping, ping, client->pers.realPing);
+	} else if (bolt->s.pos.trTime > level.time) {
+		int orig_time = bolt->s.pos.trTime;
+
+		// perhaps we could allow level.time + client->frameOffset,
+		// but this is such a rare case and I'd rather not deal
+		// with missiles from the future. If we're not careful
+		// we might evaluate the trajectory at level.time and
+		// then the missile would move backwards relative to
+		// its launch position.
+		bolt->s.pos.trTime = level.time;
+
+		if (g_delagMissileDebug.integer) {
+			Com_Printf("Limited future projectile from (c %i) to level.time (orig launchtime was level.time + %i)\n",
+					self->client->ps.clientNum,
+					orig_time - level.time
+					);
 		}
 	}
-	return MIN(g_delagMissileMaxLatency.integer, ping);
+
+	// need to remember the true launch time for delag in case the missile gets bounced/teleported
+	bolt->launchTime = bolt->s.pos.trTime;
+	bolt->needsDelag = qtrue;
+	
+	if (G_IsElimGT() && level.time > level.roundStartTime - 1000*g_elimination_activewarmup.integer) {
+		if (bolt->launchTime < level.roundStartTime) {
+			int prestep = 0;
+			if (g_delagMissiles.integer) {
+				prestep = g_delagMissileBaseNudge.integer;
+			} else {
+				prestep = MISSILE_PRESTEP_TIME;
+			}
+			if (bolt->launchTime < level.roundStartTime-prestep) {
+				bolt->s.pos.trTime = level.roundStartTime-prestep;
+				bolt->launchTime = level.roundStartTime-prestep;
+			}
+
+		}
+	}
 }
 
-int G_MissileLagTime(gclient_t *client) {
+
+/*int G_MissileLagTime(gclient_t *client) {
 	int offset = 0;
 
 	if (!g_delagMissiles.integer) {
@@ -81,7 +104,10 @@ int G_MissileLagTime(gclient_t *client) {
 		}
 	}
 	return offset + G_DelagLatency(client) + g_delagMissileBaseNudge.integer;
-}
+}*/
+
+
+
 
 void G_MissileRunDelag(gentity_t *ent, int stepmsec) {
 	int prevTimeSaved;
@@ -864,9 +890,7 @@ void G_RunMissile( gentity_t *ent ) {
 	int		unlinked = 0;
 	int		i;
 	int		telepushed = 0;
-#ifdef MISSIONPACK
-	int ownerKills = 0, ownerDeaths = 0;	//mrd - don't seem to need this, seems to be related to TA Kamikaze powerup
-#endif
+	int ownerKills = 0, ownerDeaths = 0;
 	gentity_t *owner = ent->parent;
 
 	ent->missileRan = 1;
@@ -882,25 +906,19 @@ void G_RunMissile( gentity_t *ent ) {
 	if ( ent->target_ent ) {
 		passent = ent->target_ent->s.number;
 	}
-#ifdef MISSIONPACK
 	// prox mines that left the owner bbox will attach to anything, even the owner
-	else if (ent->s.weapon == WP_PROX_LAUNCHER && ent->count) {
+	/*else if (ent->s.weapon == WP_PROX_LAUNCHER && ent->count) {
 		passent = ENTITYNUM_NONE;
-	}
-#endif
+	}*/
 	else {
 		// ignore interactions with the missile owner
 		passent = ent->r.ownerNum;
-		//passent = ENTITYNUM_NONE;	//mrd - uncomment this to self explode... could be a fun new game mode. g_rocketPropel?
 	}
 
-#ifdef MISSIONPACK
-	//mrd - don't seem to need this, seems to be related to TA Kamikaze powerup
 	if (ent->parent && ent->parent->client) {
 		ownerKills = ent->parent->client->pers.kills;
 		ownerDeaths = ent->parent->client->pers.deaths;
 	}
-#endif
 
 	if (g_teleMissiles.integer == 1 || g_pushGrenades.integer == 1) {
 		do {
@@ -977,31 +995,26 @@ void G_RunMissile( gentity_t *ent ) {
 			return;
 		}
 		G_MissileImpact( ent, &tr );
-
-#ifdef MISSIONPACK
 		if ( ent->s.eType != ET_MISSILE || ent->missileExploded) {
-			G_CheckKamikazeAward(owner, ownerKills, ownerDeaths);
+			//G_CheckKamikazeAward(owner, ownerKills, ownerDeaths);
 			return;		// exploded
 		}
-#endif
 	}
-
-
-#ifdef MISSIONPACK
 	// if the prox mine wasn't yet outside the player body
-	if (ent->s.weapon == WP_PROX_LAUNCHER && !ent->count) {
+	/*if (ent->s.weapon == WP_PROX_LAUNCHER && !ent->count) {
 		// check if the prox mine is outside the owner bbox
 		trap_Trace( &tr, ent->r.currentOrigin, ent->r.mins, ent->r.maxs, ent->r.currentOrigin, ENTITYNUM_NONE, ent->clipmask );
 		if (!tr.startsolid || tr.entityNum != ent->r.ownerNum) {
 			ent->count = 1;
 		}
 	}
-#endif
+	*/
 	// check think function after bouncing
 	G_RunThink( ent );
 }
 
-void G_ApplyMissileNudge (gentity_t *self, gentity_t *bolt) {
+
+/*void G_ApplyMissileNudge (gentity_t *self, gentity_t *bolt) {
 	if (!self->client) {
 		return;
 	}
@@ -1024,7 +1037,7 @@ void G_ApplyMissileNudge (gentity_t *self, gentity_t *bolt) {
 
 		}
 	}
-}
+}*/
 
 //=============================================================================
 
@@ -1076,9 +1089,10 @@ gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->target_ent = NULL;
 
 	bolt->s.pos.trType = TR_LINEAR;
-	bolt->s.pos.trTime = level.time;
+//	bolt->s.pos.trTime = level.time;
 	//bolt->s.pos.trTime = level.time;
-	G_ApplyMissileNudge(self, bolt);
+//	G_ApplyMissileNudge(self, bolt);
+	G_SetMissileLaunchTime(self, bolt);
 	VectorCopy( start, bolt->s.pos.trBase );
 	VectorScale( dir, PLASMA_VELOCITY, bolt->s.pos.trDelta );
 	//SnapVector( bolt->s.pos.trDelta );			// save net bandwidth	//mrd - nah
@@ -1149,9 +1163,10 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->target_ent = NULL;
 
 	bolt->s.pos.trType = TR_GRAVITY;
-	bolt->s.pos.trTime = level.time;
+//	bolt->s.pos.trTime = level.time;
 	//bolt->s.pos.trTime = level.time;
-	G_ApplyMissileNudge(self, bolt);
+//	G_ApplyMissileNudge(self, bolt);
+	G_SetMissileLaunchTime(self, bolt);
 	VectorCopy( start, bolt->s.pos.trBase );
 	VectorScale( dir, GRENADE_VELOCITY, bolt->s.pos.trDelta );
 	//SnapVector( bolt->s.pos.trDelta );			// save net bandwidth	//mrd - nah
@@ -1211,9 +1226,10 @@ gentity_t *fire_bfg (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->target_ent = NULL;
 
 	bolt->s.pos.trType = TR_LINEAR;
-	bolt->s.pos.trTime = level.time;
 	//bolt->s.pos.trTime = level.time;
-	G_ApplyMissileNudge(self, bolt);
+	//bolt->s.pos.trTime = level.time;
+	//G_ApplyMissileNudge(self, bolt);
+	G_SetMissileLaunchTime(self, bolt);
 	VectorCopy( start, bolt->s.pos.trBase );
 	VectorScale( dir, BFG_VELOCITY, bolt->s.pos.trDelta );
 	//SnapVector( bolt->s.pos.trDelta );			// save net bandwidth	//mrd - nah
@@ -1272,9 +1288,10 @@ gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->target_ent = NULL;
 
 	bolt->s.pos.trType = TR_LINEAR;
-	bolt->s.pos.trTime = level.time;
 	//bolt->s.pos.trTime = level.time;
-	G_ApplyMissileNudge(self, bolt);
+	//bolt->s.pos.trTime = level.time;
+	//G_ApplyMissileNudge(self, bolt);
+	G_SetMissileLaunchTime(self, bolt);
 	VectorCopy( start, bolt->s.pos.trBase );
 	//VectorScale( dir, 900, bolt->s.pos.trDelta );
 	//VectorScale( dir, 1000, bolt->s.pos.trDelta );

@@ -544,7 +544,7 @@ typedef struct {
 
 //unlagged - backward reconciliation #1
 // the size of history we'll keep
-#define NUM_CLIENT_HISTORY 17
+#define NUM_CLIENT_HISTORY 22   // was 17
 
 // everything we need to know to backward reconcile
 typedef struct {
@@ -1178,6 +1178,7 @@ void G_UndoTimeShiftFor( gentity_t *ent );
 void G_UnTimeShiftClient( gentity_t *client );
 void G_TimeShiftClient( gentity_t *ent, int time, qboolean debug, gentity_t *debugger );
 void G_PredictPlayerMove( gentity_t *ent, float frametime );
+void G_PrintDelagMaxTimeshift(void);
 //unlagged - g_unlagged.c
 
 //
@@ -1479,7 +1480,7 @@ extern t_customvote getCustomVote(char* votecommand);
 //bot settings
 typedef struct bot_settings_s
 {
-	char characterfile[MAX_FILEPATH];
+	char characterfile[MAX_FILEPATH];//void G_PrintDelagMaxTimeshift(void);
 	float skill;
 	char team[MAX_FILEPATH];
 } bot_settings_t;

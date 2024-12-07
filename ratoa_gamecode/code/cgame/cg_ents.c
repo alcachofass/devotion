@@ -924,10 +924,19 @@ int CG_ProjectileNudgeTimeshift(centity_t *cent) {
 		else if (cg.snap && cg.snap->ps.pm_flags & PMF_FOLLOW) {
 			// while spectating, don't nudge since we're getting the
 			// same delayed view for player and missile
-			return 1000 / sv_fps.integer;
+			return 1000 / cgs.sv_fps;
+		}
+		else if (cent->currentState.weapon == WP_GRENADE_LAUNCHER) {
+			// don't nudge GL because we can't locally predict the way it bounces (for now)
+			// we still shift it by 1 frame, to avoid moving it
+			// backwards when it bounces (or is fired by a bot).
+			// This would happen in that
+			// case because trTime > cg.time as the missiles are
+			// added from nextSnap (see early transitioning in CG_AddPacketEntities()).
+			return 1000 / cgs.sv_fps;
 		}
 		// if it's not, and it's not a grenade launcher
-		else if ( cent->currentState.weapon != WP_GRENADE_LAUNCHER ) {
+		else {
 			// extrapolate based on cg_projectileNudge
 			switch (cg_projectileNudgeAuto.integer) {
 				case 1:
@@ -939,7 +948,7 @@ int CG_ProjectileNudgeTimeshift(centity_t *cent) {
 					
 			}
 		}
-		return 0;
+		return cgs.sv_fps;
 }
 
 /*
@@ -1021,7 +1030,13 @@ static void CG_CalcEntityLerpPositions( centity_t *cent ) {
 			cent->missileStatus.missileFlags |= MF_DISAPPEARED;
 		}
 
-		CG_Trace( &tr, lastOrigin, vec3_origin, vec3_origin, cent->lerpOrigin, cent->currentState.number, MASK_SHOT );
+		//CG_Trace( &tr, lastOrigin, vec3_origin, vec3_origin, cent->lerpOrigin, cent->currentState.number, MASK_SHOT );
+		CG_Trace( &tr, lastOrigin, vec3_origin, vec3_origin, cent->lerpOrigin,
+				// missiles fly through their owners
+				// they cannot hit themselves because they are not solid
+				cent->currentState.eType == ET_MISSILE ?
+					CG_MissileOwner(cent) : cent->currentState.number,
+				MASK_SHOT );
 
 		// don't let the projectile go through the floor
 		if ( tr.fraction < 1.0f ) {
