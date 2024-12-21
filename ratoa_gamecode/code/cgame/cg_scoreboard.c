@@ -613,14 +613,14 @@ static void CG_RatDrawClientScore(int y, score_t *score, float *color, float fad
 		tcolor[0] = tcolor[1] = tcolor[2] = 1.0;
 		switch (score->spectatorGroup) {
 			case SPECTATORGROUP_QUEUED:
-				team_s = "SPEC";
+				team_s = "QUEUED";
 				break;
 			case SPECTATORGROUP_QUEUED_BLUE:
-				team_s = "SPEC";
+				team_s = "QUEUED";
 				tcolor[0] = tcolor[1] = 0.0;
 				break;
 			case SPECTATORGROUP_QUEUED_RED:
-				team_s = "SPEC";
+				team_s = "QUEUED";
 				tcolor[1] = tcolor[2] = 0.0;
 				break;
 			case SPECTATORGROUP_AFK:
