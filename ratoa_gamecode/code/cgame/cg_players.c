@@ -1100,8 +1100,8 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 		clientInfo_t *curInfo,
 		const char *infomodel,
 		qboolean allowNativeModel,
-		int clientNum, int myClientNum,
-		qboolean setColor,
+		int clientNum, int myClientNum,  
+		qboolean setColor,				 
 		char *modelName, int modelNameSize,
 		char *skinName, int skinNameSize ) 
 {
@@ -1109,11 +1109,11 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 	char newSkin[ MAX_QPATH ];
 	char *skin, *slash;
 	qboolean	pm_model, pm_model_e, pm_model_t;
-	team_t		team, myTeam;
+	team_t		myTeam, currentTeam;
 	const char	*colors, *colors_t, *colors_e;
 	
-	team = newInfo->team;
-	myTeam = cgs.clientinfo[ myClientNum ].team;
+	currentTeam = curInfo->team;       // this is the current team of what is being processed.
+	myTeam = cgs.clientinfo[ 0 ].team; // the player's team at a given moment. 
 	
 	pm_model = pm_model_e = ( Q_stricmp( cg_enemyModel.string, PM_SKIN ) == 0 ) ? qtrue : qfalse;
 	pm_model_t = ( Q_stricmp( cg_teamModel.string, PM_SKIN ) == 0 ) ? qtrue : qfalse;
@@ -1124,7 +1124,7 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 		{
 			// enemy model
 			if( myTeam != TEAM_SPECTATOR ) {
-				if ( cg_enemyModel.string[0] && team != myTeam && clientNum != myClientNum) {
+				if ( cg_enemyModel.string[0] && currentTeam != myTeam && clientNum != 0) {
 					colors = CG_GetTeamColorsOSP( cg_enemyColors.string, newInfo->team );
 					CG_SetColorInfo( colors, newInfo );
 					newInfo->coloredSkin = qtrue;
@@ -1148,7 +1148,7 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 
 				} 
 				
-				if ( cg_teamModel.string[0] && team == myTeam && clientNum != myClientNum ) {
+				if ( cg_teamModel.string[0] && currentTeam == myTeam && clientNum != 0) {
 					colors = CG_GetTeamColorsOSP( cg_teamColors.string, newInfo->team );
 					CG_SetColorInfo( colors, newInfo );
 					newInfo->coloredSkin = qtrue;
@@ -1174,7 +1174,7 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 				
 			} else if ( myTeam == TEAM_SPECTATOR ) {				
 
-				if (team == TEAM_BLUE){
+				if (currentTeam == TEAM_BLUE){
 					if ( pm_model_t )
 						Q_strncpyz( modelName, infomodel, modelNameSize );
 					else
@@ -1202,7 +1202,7 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 
 				}
 
-				if (team == TEAM_RED){
+				if (currentTeam == TEAM_RED){
 					if ( pm_model_t )
 						Q_strncpyz( modelName, infomodel, modelNameSize );
 					else
@@ -1248,7 +1248,7 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 
 		} else { // not team game
 		
-			if ( pm_model && myClientNum != clientNum  ) { // && cgs.gametype != GT_SINGLE_PLAYER
+			if ( pm_model  &&  clientNum != 0 ) { // && cgs.gametype != GT_SINGLE_PLAYER
 				Q_strncpyz( modelName, infomodel, modelNameSize );
 
 				// strip skin name from model name
@@ -1269,7 +1269,7 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 					newInfo->coloredSkin = qtrue;
 				}
 
-			} else if ( cg_enemyModel.string[0] && myClientNum != clientNum && !allowNativeModel  ) { // && cgs.gametype != GT_SINGLE_PLAYER
+			} else if ( cg_enemyModel.string[0]  && clientNum != 0 && !allowNativeModel  ) { // && cgs.gametype != GT_SINGLE_PLAYER
 
 				Q_strncpyz( modelName, cg_enemyModel.string, modelNameSize );
 
