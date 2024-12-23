@@ -1247,72 +1247,36 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 				} 
 
 		} else { // not team game
-		
-			if ( pm_model  &&  clientNum != 0 ) { // && cgs.gametype != GT_SINGLE_PLAYER
-				Q_strncpyz( modelName, infomodel, modelNameSize );
 
-				// strip skin name from model name
-				slash = strchr( modelName, '/' );
-				if ( !slash ) {
-					Q_strncpyz( skinName, PM_SKIN, skinNameSize );
+			colors = CG_GetTeamColorsOSP( cg_enemyColors.string, newInfo->team );
+			CG_SetColorInfo( colors, newInfo );
+			newInfo->coloredSkin = qtrue;
+
+			if ( cg_forceModel.integer ) {
+
+				trap_Cvar_VariableStringBuffer( "model", modelStr, sizeof( modelStr ) );
+				if ( ( skin = strchr( modelStr, '/' ) ) == NULL ) {
+					skin = "default";
 				} else {
-					Q_strncpyz( skinName, PM_SKIN, skinNameSize );
-					*slash = '\0';
+					*skin++ = '\0';
 				}
 
-				if ( !CG_IsKnownModel( modelName ) )
-					Q_strncpyz( modelName, "sarge", modelNameSize );
-
-				if ( setColor ) {
-					colors = CG_GetTeamColorsOSP( cg_enemyColors.string, newInfo->team );
-					CG_SetColorInfo( colors, newInfo );
-					newInfo->coloredSkin = qtrue;
-				}
-
-			} else if ( cg_enemyModel.string[0]  && clientNum != 0 && !allowNativeModel  ) { // && cgs.gametype != GT_SINGLE_PLAYER
-
-				Q_strncpyz( modelName, cg_enemyModel.string, modelNameSize );
-
-				slash = strchr( modelName, '/' );
+				Q_strncpyz( skinName, skin, skinNameSize );
+				Q_strncpyz( modelName, modelStr, modelNameSize );
+			} else {
+				Q_strncpyz( modelName, infomodel, modelNameSize );
+					slash = strchr( modelName, '/' );
 				if ( !slash ) {
-					Q_strncpyz( skinName, PM_SKIN, skinNameSize );
+					// modelName didn not include a skin name
+					Q_strncpyz( skinName, "default", skinNameSize );
 				} else {
 					Q_strncpyz( skinName, slash + 1, skinNameSize );
+					// truncate modelName
 					*slash = '\0';
-				}
-
-				if ( setColor ) {
-					colors = CG_GetTeamColorsOSP( cg_enemyColors.string, newInfo->team );
-					CG_SetColorInfo( colors, newInfo );
-					newInfo->coloredSkin = qtrue;
-				}
-			} else { // forcemodel, etc.
-				if ( cg_forceModel.integer ) {
-
-					trap_Cvar_VariableStringBuffer( "model", modelStr, sizeof( modelStr ) );
-					if ( ( skin = strchr( modelStr, '/' ) ) == NULL ) {
-						skin = "default";
-					} else {
-						*skin++ = '\0';
-					}
-
-					Q_strncpyz( skinName, skin, skinNameSize );
-					Q_strncpyz( modelName, modelStr, modelNameSize );
-				} else {
-					Q_strncpyz( modelName, infomodel, modelNameSize );
-						slash = strchr( modelName, '/' );
-					if ( !slash ) {
-						// modelName didn not include a skin name
-						Q_strncpyz( skinName, "default", skinNameSize );
-					} else {
-						Q_strncpyz( skinName, slash + 1, skinNameSize );
-						// truncate modelName
-						*slash = '\0';
-					}
 				}
 			}
 		}
-	}
+	}	
 	else // !cg_forcemodel && !cg_enemyModel && !cg_teamModel
 	{
 		Q_strncpyz( modelName, infomodel, modelNameSize );
