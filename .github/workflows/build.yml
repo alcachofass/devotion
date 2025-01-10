@@ -25,6 +25,15 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Get latest tag from a branch using gh CLI
+      id: get_branch_tag
+      run: |
+        BRANCH_TAG=$(gh api repos/${{ github.repository }}/git/matching-refs/tags/${{ github.ref_name }} \
+          --jq '.[-1].ref' | sed 's/refs\/tags\///')
+        echo "LATEST_TAG=$BRANCH_TAG"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Build QVM
       run: |
         make
