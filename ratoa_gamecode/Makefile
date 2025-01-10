@@ -5,7 +5,7 @@
 #
 
 # Define a version for the mod
-COMPILE_VERSION= $(shell git tag -l | tail -n1)-$(shell git log --date=short  --pretty=format:"%h" -n 1)
+COMPILE_VERSION='v0.2.2 - ORDEM'
 
 COMPILE_PLATFORM=$(shell uname|sed -e s/_.*//|tr '[:upper:]' '[:lower:]')
 

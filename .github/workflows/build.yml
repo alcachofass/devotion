@@ -21,8 +21,9 @@ jobs:
     - name: Set artifact name
       run: |
         git fetch --tags
-        GIT_TAG=$(git tag -l | tail -n1)
-        ARTIFACT_NAME="devotion-${GIT_TAG}"
+        FILENAME_HERE=$(ls build/)
+        GIT_DESCRIBECOMMIT=$(git describe --tags --always)
+        ARTIFACT_NAME="${FILENAME_HERE%.*}-${GIT_DESCRIBECOMMIT##*-}"
         echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $GITHUB_ENV
 
     - name: Store pk3 artifact
