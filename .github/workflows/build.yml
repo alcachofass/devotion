@@ -8,31 +8,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
     - name: Update
       run: |
         sudo apt-get update
-
-    - name: Get latest tag using git
-      id: get_latest_tag
-      run: echo "LATEST_TAG=$(git describe --tags --abbrev=0)"
-
-    - name: Use tag from event trigger
-      run: echo "The latest tag is ${{ github.ref_name }}"
-
-    - name: Get latest tag using gh CLI
-      id: get_latest_tag_2
-      run: echo "LATEST_TAG=$(gh release view --json tagName -q '.tagName')"
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Get latest tag from a branch using gh CLI
-      id: get_branch_tag
-      run: |
-        BRANCH_TAG=$(gh api repos/${{ github.repository }}/git/matching-refs/tags/${{ github.ref_name }} \
-          --jq '.[-1].ref' | sed 's/refs\/tags\///')
-        echo "LATEST_TAG=$BRANCH_TAG"
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build QVM
       run: |
