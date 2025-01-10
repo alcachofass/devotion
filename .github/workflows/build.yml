@@ -22,8 +22,7 @@ jobs:
       run: |
         git fetch --tags
         FILENAME_HERE=$(ls build/)
-        GIT_DESCRIBECOMMIT=$(git describe --tags --always)
-        ARTIFACT_NAME="${FILENAME_HERE%.*}-${GIT_DESCRIBECOMMIT##*-}"
+        ARTIFACT_NAME="${FILENAME_HERE%.*}"
         echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $GITHUB_ENV
 
     - name: Store pk3 artifact
