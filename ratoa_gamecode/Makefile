@@ -5,7 +5,7 @@
 #
 
 # Define a version for the mod
-COMPILE_VERSION=$(shell date +%Y%m%d)-$(shell git describe --tags --always)
+COMPILE_VERSION=$(shell date +%Y%m%d)-$(shell git describe --tags --always | tail -c 9)
 
 COMPILE_PLATFORM=$(shell uname|sed -e s/_.*//|tr '[:upper:]' '[:lower:]')
 
