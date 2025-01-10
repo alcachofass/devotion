@@ -19,6 +19,12 @@ jobs:
     - name: Use tag from event trigger
       run: echo "The latest tag is ${{ github.ref_name }}"
 
+    - name: Get latest tag using gh CLI
+      id: get_latest_tag_2
+      run: echo "LATEST_TAG=$(gh release view --json tagName -q '.tagName')"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Build QVM
       run: |
         make
