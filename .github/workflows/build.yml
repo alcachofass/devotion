@@ -7,14 +7,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Update
       run: |
         sudo apt-get update
 
+    - name: Get latest tag using git
+      id: get_latest_tag
+      run: echo "LATEST_TAG=$(git describe --tags --abbrev=0)"
+
+    - name: Use tag from event trigger
+      run: echo "The latest tag is ${{ github.ref_name }}"
+
     - name: Build QVM
       run: |
-        make -j12
+        make
       env:
         ARCHIVE: 1
 
