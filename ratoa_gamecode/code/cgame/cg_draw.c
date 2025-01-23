@@ -5409,7 +5409,7 @@ static void CG_ScanForCrosshairEntity( void ) {
 		if (throughwall) {
 			CG_Trace( &trace, start, vec3_origin, vec3_origin, end, 
 					cg.snap->ps.clientNum, 
-					CONTENTS_SOLID |CONTENTS_BODY );   // We don't see through walls in VQ3
+					CONTENTS_BODY );  
 			if ( trace.entityNum >= MAX_CLIENTS 
 					&& !CG_IsFrozenPlayer(&cg_entities[trace.entityNum])) {
 				return;
