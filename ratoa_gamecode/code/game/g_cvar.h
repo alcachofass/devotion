@@ -283,7 +283,7 @@ G_CVAR( g_allowForcedModels, "g_allowForcedModels", "1", CVAR_ARCHIVE, 0, qfalse
 G_CVAR( g_brightModels, "g_brightModels", "1", CVAR_ARCHIVE, 0, qfalse, qfalse )
 G_CVAR( g_brightPlayerShells, "g_brightPlayerShells", "1", CVAR_ARCHIVE, 0, qfalse, qfalse )
 G_CVAR( g_brightPlayerOutlines, "g_brightPlayerOutlines", "1", CVAR_ARCHIVE, 0, qfalse, qfalse )
-G_CVAR( g_friendsWallHack, "g_friendsWallHack", "1", CVAR_ARCHIVE, 0, qfalse, qfalse )
+G_CVAR( g_friendsWallHack, "g_friendsWallHack", "0", CVAR_ARCHIVE, 0, qfalse, qfalse )
 G_CVAR( g_friendsFlagIndicator, "g_friendsFlagIndicator", "1", CVAR_ARCHIVE, 0, qfalse, qfalse )
 G_CVAR( g_specShowZoom, "g_specShowZoom", "0", CVAR_ARCHIVE, 0, qfalse, qfalse )
 
