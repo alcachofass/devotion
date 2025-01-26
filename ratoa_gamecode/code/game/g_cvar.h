@@ -180,7 +180,7 @@ G_CVAR( g_truePing, "g_truePing", "1", CVAR_ARCHIVE, 0, qtrue, qfalse )
 // it's CVAR_SYSTEMINFO so the client's sv_fps will be automagically set to its value
 // this is for convenience - using "sv_fps.integer" is nice :)
 G_CVAR( sv_fps, "sv_fps", "20", CVAR_SYSTEMINFO | CVAR_ARCHIVE, 0, qfalse, qfalse )
-G_CVAR( g_lagLightning, "g_lagLightning", "1", CVAR_ARCHIVE, 0, qtrue, qfalse )
+//G_CVAR( g_lagLightning, "g_lagLightning", "1", CVAR_ARCHIVE, 0, qtrue, qfalse )	//mrd
 //unlagged - server options
 G_CVAR( g_ambientSound, "g_ambientSound", "0", CVAR_ARCHIVE, 0, qfalse, qfalse )
 G_CVAR( g_rocketSpeed, "g_rocketSpeed", "900", CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qtrue, qfalse )
