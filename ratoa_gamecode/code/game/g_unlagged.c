@@ -297,8 +297,9 @@ void G_DoTimeShiftFor( gentity_t *ent ) {
 		// don't allow the client to nudge anything
 		time = ent->client->attackTime;
                 //Give the lightning gun some handicap (lag was part of weapon balance in VQ3)
-                if(ent->client->ps.weapon == WP_LIGHTNING && g_lagLightning.integer)
-                    time+=50;
+				//mrd -- removing this, why create a delag routine then manually add lag? better off to simply lower LG damage output
+                //if(ent->client->ps.weapon == WP_LIGHTNING && g_lagLightning.integer)
+                //    time+=50;
 	}
 	else {
 		// do just 50ms
