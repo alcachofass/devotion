@@ -114,6 +114,7 @@ void TeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles ) {
 	switch (g_movement.integer) {
 	case MOVEMENT_CPM_CPMA:
 	case MOVEMENT_CPM_DEFRAG:
+	case MOVEMENT_QL:
 		break;
 	default:
 		// reset rampjump

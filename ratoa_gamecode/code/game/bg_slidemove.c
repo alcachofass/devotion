@@ -226,6 +226,7 @@ qboolean	PM_SlideMove( qboolean gravity ) {
 
 static float PM_GetUpStepVelocityCap(pmove_t *pm) {
 	switch (pm->pmove_movement) {
+	case MOVEMENT_QL:
 	case MOVEMENT_CPM_CPMA:
 	case MOVEMENT_CPM_DEFRAG:
 	case MOVEMENT_RM:
