@@ -894,7 +894,9 @@ static void PM_AirMove( void ) {
 	}
 	// end Xonotic Darkplaces Air Control
 	
-	if (pm->pmove_movement) {
+	if ((pm->pmove_movement == MOVEMENT_CPM_DEFRAG)
+	    || (pm->pmove_movement == MOVEMENT_CPM_CPMA)
+	    || (pm->pmove_movement == MOVEMENT_RM)) {
 		if (fmove == 0 && smove != 0) {
 			wishspeed = PM_GetAirStrafeWishspeed(pm);
 			accel = PM_GetAirStrafeAccelerate(pm);

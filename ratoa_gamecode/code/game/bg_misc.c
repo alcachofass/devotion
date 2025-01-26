@@ -1991,6 +1991,8 @@ char *BG_TeamName( team_t team )
 char *BG_MovementToString( movement_t movement )
 {
 	switch (movement) {
+	case MOVEMENT_QL:
+		return "QL";
 	case MOVEMENT_CPM_CPMA:
 		return "CPMA";
 	case MOVEMENT_CPM_DEFRAG:
@@ -2004,15 +2006,13 @@ char *BG_MovementToString( movement_t movement )
 
 movement_t BG_MovementFromString( const char *s )
 {
-	if (Q_stricmp(BG_MovementToString(MOVEMENT_CPM_CPMA), s) == 0) {
-		return MOVEMENT_CPM_CPMA;
-	}else if (Q_stricmp(BG_MovementToString(MOVEMENT_CPM_DEFRAG), s) == 0) {
-		return MOVEMENT_CPM_DEFRAG;
-	} else if (Q_stricmp(BG_MovementToString(MOVEMENT_RM), s) == 0) {
-		return MOVEMENT_RM;
-	} else {
-		return MOVEMENT_VQ3;
+	movement_t i;
+	for (i = 0; i < MOVEMENT_NUM_MOVEMENTS; i++) {
+		if (Q_stricmp(BG_MovementToString(i), s) == 0) {
+			return i;
+		}
 	}
+	return MOVEMENT_VQ3;
 }
 
 qboolean BG_IsTeamGametype(gametype_t gametype) {

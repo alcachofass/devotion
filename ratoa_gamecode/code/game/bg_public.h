@@ -216,10 +216,17 @@ typedef enum {
 
 typedef enum {
 	MOVEMENT_VQ3 = 0,
+	// Defrag differs from CPMA in that slick has great acceleration. This also
+	// results in some fast acceleration after teleporting and getting hit with
+	// a weapon.
 	MOVEMENT_CPM_DEFRAG,
+	// RATMODE
 	MOVEMENT_RM,
 	MOVEMENT_CPM_CPMA,
 	//MOVEMENT_QL,
+	// Quake Live movement. From what I've been told, this is just VQ3 with
+	// CPMA's stepping, so that's what is implemented.
+	MOVEMENT_QL,
 
 	MOVEMENT_NUM_MOVEMENTS,
 } movement_t;

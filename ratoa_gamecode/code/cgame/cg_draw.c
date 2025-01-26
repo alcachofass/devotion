@@ -6017,7 +6017,7 @@ void CG_DrawMessagePromptBackground(void) {
 		float color[4];
 		color[0] = color[1] = color[2] = 0.0;
 		color[3] = 0.8;
-		CG_FillRect(0, 0, 640, 18, color);          //duffman91 - This is more pleasing to the eye if the background for chat covers the full X 
+		CG_FillRect(0, 0, 640, 18, color);          //duffman91 - This is more pleasing to the eye if the background for chat covers the full X range
 	}
 }
 
@@ -6506,7 +6506,7 @@ CG_Draw2D
 =================
 */
 static void CG_Draw2D(stereoFrame_t stereoFrame)
-{
+{ 
 #ifdef MISSIONPACK
 	if (cgs.orderPending && cg.time > cgs.orderTime) {
 		CG_CheckOrderPending();
