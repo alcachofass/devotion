@@ -1073,6 +1073,23 @@ void Cmd_Give_f (gentity_t *ent)
 			return;
 	}
 
+	if (Q_strequal(name, "battlesuit"))
+	{
+		ent->client->ps.powerups[PW_BATTLESUIT] = level.time + 60000;
+
+		if (!give_all)
+			return;
+	}
+
+	if (Q_strequal(name, "quad"))
+	{
+		ent->client->ps.powerups[PW_QUAD] = level.time + 60000;
+
+		if (!give_all)
+			return;
+	}
+
+
 	if (Q_strequal(name, "excellent")) {
 		ent->client->ps.persistant[PERS_EXCELLENT_COUNT]++;
 		return;
