@@ -47,8 +47,10 @@ static void CG_RegisterMovementKeysShaders(void);
 static void CG_RegisterNumbers(void);
 void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum );
 void CG_Shutdown( void );
+void CG_CheckBotClientInfoRefresh( void );
 
 static float CG_Cvar_Get(const char *cvar);
+static int lastNumClients = 0;
 
 /*
 ================
@@ -71,7 +73,8 @@ intptr_t vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, 
 		return CG_ConsoleCommand();
 	case CG_DRAW_ACTIVE_FRAME:
 		CG_DrawActiveFrame( arg0, arg1, arg2 );
-                CG_FairCvars();
+        CG_FairCvars();
+		CG_CheckBotClientInfoRefresh();
 		return 0;
 	case CG_CROSSHAIR_PLAYER:
 		return CG_CrosshairPlayer();
@@ -2572,6 +2575,8 @@ Will perform callbacks to make the loading info screen update.
 */
 void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	const char	*s;
+	static int lastGametype = -1;
+	int i;
 
 	// clear everything
 	memset( &cgs, 0, sizeof( cgs ) );
@@ -2692,6 +2697,21 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	CG_RatRemapShaders();
 
 	CG_CheckTrackConsent();
+
+	//if (cgs.gametype != lastGametype) {
+    //	int i;
+    // Re-parse forced colors
+    //CG_ParseForcedColors();
+    // Always rebuild all client info
+	for (i = 0; i < cgs.maxclients; i++) {
+		if (cgs.clientinfo[i].infoValid) {
+			CG_NewClientInfo(i);
+		}
+	}
+
+    //lastGametype = cgs.gametype;
+	//}
+
 }
 
 /*
@@ -3004,4 +3024,26 @@ void CG_AutoRecordStop(void) {
 
 qboolean CG_IsTeamGametype(void) {
 	return cgs.team_gt;
+}
+
+void CG_CheckBotClientInfoRefresh(void) {
+    int i, numClients = 0;
+
+    // Count valid clients
+    for (i = 0; i < cgs.maxclients; i++) {
+        if (cgs.clientinfo[i].infoValid) {
+            numClients++;
+        }
+    }
+
+    // If a new client (bot) was added, refresh all client info
+    if (numClients > lastNumClients) {
+        for (i = 0; i < cgs.maxclients; i++) {
+            if (cgs.clientinfo[i].infoValid) {
+                CG_NewClientInfo(i); // This will apply forced colors if set
+            }
+        }
+    }
+
+    lastNumClients = numClients;
 }
