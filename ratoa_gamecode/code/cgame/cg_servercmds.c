@@ -1522,6 +1522,7 @@ static void CG_ConfigStringModified( void ) {
 			CG_ParseForcedColors();
 		}
 		CG_BuildSpectatorString();
+		CG_ForceModelChange();
 	} else if ( num == CS_FLAGSTATUS ) {
 		// if( cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION || cgs.gametype == GT_DOUBLE_D) {
 		if( cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION ) {
@@ -1540,7 +1541,6 @@ static void CG_ConfigStringModified( void ) {
 	else if ( num == CS_SHADERSTATE ) {
 		CG_ShaderStateChanged();
 	}
-		
 }
 
 
