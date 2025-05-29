@@ -31,26 +31,25 @@ displayContextDef_t cgDC;
 
 int forceModelModificationCount = -1;
 int enemyModelModificationCount  = -1;
-int	enemyColorsModificationCount = -1;
+int	enemyColorModificationCount = -1;
 int enemyTeamModelModificationCounts = -1;
 int teamModelModificationCount  = -1;
-int	teamColorsModificationCount = -1;
+int	teamColorModificationCount = -1;
 int mySoundModificationCount = -1;
 int teamSoundModificationCount = -1;
 int enemySoundModificationCount = -1;
 int forceColorModificationCounts = -1;
 int ratStatusbarModificationCount = -1;
 int hudMovementKeysModificationCount = -1;
+int brightShellsModificationCount = -1;
 qboolean hudMovementKeysRegistered = qfalse;
 
 static void CG_RegisterMovementKeysShaders(void);
 static void CG_RegisterNumbers(void);
 void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum );
 void CG_Shutdown( void );
-void CG_CheckBotClientInfoRefresh( void );
 
 static float CG_Cvar_Get(const char *cvar);
-static int lastNumClients = 0;
 
 /*
 ================
@@ -74,7 +73,6 @@ intptr_t vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, 
 	case CG_DRAW_ACTIVE_FRAME:
 		CG_DrawActiveFrame( arg0, arg1, arg2 );
         CG_FairCvars();
-		CG_CheckBotClientInfoRefresh();
 		return 0;
 	case CG_CROSSHAIR_PLAYER:
 		return CG_CrosshairPlayer();
@@ -155,8 +153,7 @@ void CG_RegisterCvars( void ) {
 	enemyTeamModelModificationCounts = cg_enemyModel.modificationCount + cg_teamModel.modificationCount;
 
 	enemyModelModificationCount = cg_enemyModel.modificationCount;
-	enemyColorsModificationCount = cg_enemyColors.modificationCount;
-	teamColorsModificationCount = cg_teamColors.modificationCount;
+	brightShellsModificationCount = cg_brightShells.modificationCount;
 
 	trap_Cvar_Register(NULL, "model", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
 	trap_Cvar_Register(NULL, "headmodel", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
@@ -499,6 +496,7 @@ void CG_UpdateCvars( void ) {
 		+ cg_teamHueRed.modificationCount
 		+ cg_enemyColor.modificationCount
 		+ cg_teamColor.modificationCount
+		+ cg_brightShells.modificationCount 
 		+ cg_enemyHeadColor.modificationCount
 		+  cg_teamHeadColor.modificationCount
 		+ cg_enemyTorsoColor.modificationCount
@@ -510,6 +508,7 @@ void CG_UpdateCvars( void ) {
 		+ cg_teamCorpseSaturation.modificationCount
 		+ cg_teamCorpseValue.modificationCount;
 	if ( forceColorModificationCounts != i) {
+		CG_ForceModelChange();      //duffman91 for bugs w/ quake 3 pm models
 		CG_ParseForcedColors();
 		forceColorModificationCounts = i;
 	}
@@ -523,22 +522,6 @@ void CG_UpdateCvars( void ) {
 		CG_RegisterMovementKeysShaders();
 		hudMovementKeysRegistered = qtrue;
 		hudMovementKeysModificationCount = cg_hudMovementKeys.modificationCount;
-	}
-
-	// if model changed (catch-all)
-	if ( forceModelModificationCount != cg_forceModel.modificationCount 
-		|| enemyModelModificationCount != cg_enemyModel.modificationCount
-		|| enemyColorsModificationCount != cg_enemyColors.modificationCount
-		|| teamModelModificationCount != cg_teamModel.modificationCount
-		|| teamColorsModificationCount != cg_teamColors.modificationCount ) {
-
-		forceModelModificationCount = cg_forceModel.modificationCount;
-		enemyModelModificationCount = cg_enemyModel.modificationCount;
-		enemyColorsModificationCount = cg_enemyColors.modificationCount;
-		teamModelModificationCount = cg_teamModel.modificationCount;
-		teamColorsModificationCount = cg_teamColors.modificationCount;
-
-		CG_ForceModelChange();
 	}
 
 }
@@ -2575,8 +2558,6 @@ Will perform callbacks to make the loading info screen update.
 */
 void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	const char	*s;
-	static int lastGametype = -1;
-	int i;
 
 	// clear everything
 	memset( &cgs, 0, sizeof( cgs ) );
@@ -2698,19 +2679,7 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 
 	CG_CheckTrackConsent();
 
-	//if (cgs.gametype != lastGametype) {
-    //	int i;
-    // Re-parse forced colors
-    //CG_ParseForcedColors();
-    // Always rebuild all client info
-	for (i = 0; i < cgs.maxclients; i++) {
-		if (cgs.clientinfo[i].infoValid) {
-			CG_NewClientInfo(i);
-		}
-	}
-
-    //lastGametype = cgs.gametype;
-	//}
+	CG_ForceModelChange(); // duffman91 - for bugs w/ quake 3 pm models on fresh join, but spectating.
 
 }
 
@@ -3024,26 +2993,4 @@ void CG_AutoRecordStop(void) {
 
 qboolean CG_IsTeamGametype(void) {
 	return cgs.team_gt;
-}
-
-void CG_CheckBotClientInfoRefresh(void) {
-    int i, numClients = 0;
-
-    // Count valid clients
-    for (i = 0; i < cgs.maxclients; i++) {
-        if (cgs.clientinfo[i].infoValid) {
-            numClients++;
-        }
-    }
-
-    // If a new client (bot) was added, refresh all client info
-    if (numClients > lastNumClients) {
-        for (i = 0; i < cgs.maxclients; i++) {
-            if (cgs.clientinfo[i].infoValid) {
-                CG_NewClientInfo(i); // This will apply forced colors if set
-            }
-        }
-    }
-
-    lastNumClients = numClients;
 }

@@ -284,10 +284,8 @@ CG_CVAR( cg_teamHueRed ,      "cg_teamHueRed", "0", CVAR_ARCHIVE )
 
 // either color name ("green", "white"), color index, or 
 // HSV color in the format 'H125 1.0 1.0" (H<H> <S> <V>)
-CG_CVAR( cg_enemyColor ,     "cg_enemyColor", "green", CVAR_ARCHIVE )
-CG_CVAR( cg_enemyColors, "cg_enemyColors", "22222", CVAR_ARCHIVE )
+CG_CVAR( cg_enemyColor ,     "cg_enemyColor", "", CVAR_ARCHIVE )
 CG_CVAR( cg_teamColor ,      "cg_teamColor", "", CVAR_ARCHIVE )
-CG_CVAR( cg_teamColors ,      "cg_teamColors", "", CVAR_ARCHIVE )
 CG_CVAR( cg_enemyHeadColor ,     "cg_enemyHeadColor", "", CVAR_ARCHIVE )
 CG_CVAR( cg_teamHeadColor ,      "cg_teamHeadColor", "", CVAR_ARCHIVE )
 CG_CVAR( cg_enemyTorsoColor ,     "cg_enemyTorsoColor", "", CVAR_ARCHIVE )

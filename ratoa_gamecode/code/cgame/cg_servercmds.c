@@ -1522,7 +1522,8 @@ static void CG_ConfigStringModified( void ) {
 			CG_ParseForcedColors();
 		}
 		CG_BuildSpectatorString();
-		CG_ForceModelChange();
+		CG_ForceModelChange();        //duffman91 - for bugs w/ quake 3 pm models.
+		CG_ParseForcedColors();
 	} else if ( num == CS_FLAGSTATUS ) {
 		// if( cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION || cgs.gametype == GT_DOUBLE_D) {
 		if( cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION ) {

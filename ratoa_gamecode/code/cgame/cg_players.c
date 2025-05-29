@@ -748,17 +748,26 @@ void CG_LoadForcedSounds(void) {
 
 }
 
-static const char *CG_GetTeamColorsOSP( const char *color, team_t team ) {
+static const char *CG_GetTeamColorsFromHue( char * str ) {
+	static char colorString[6];
+	
+	switch (toupper(str[0])){
+		case 'R': Q_strncpyz ( colorString, "111", sizeof(colorString)  ); break;
+		case 'G': Q_strncpyz ( colorString, "222", sizeof(colorString)  ); break; 
+		case 'Y': Q_strncpyz ( colorString, "333", sizeof(colorString)  ); break; 
+		case 'B': Q_strncpyz ( colorString, "444", sizeof(colorString)  ); break;
+		case 'P': Q_strncpyz ( colorString, "555", sizeof(colorString)  ); break;
+		case 'C': Q_strncpyz ( colorString, "666", sizeof(colorString)  ); break;
+		case 'W': Q_strncpyz ( colorString, "777", sizeof(colorString)  ); break;
+		default:  Q_strncpyz ( colorString, "222", sizeof(colorString)  ); break;
+	}
+
+	return colorString;
+}
+
+static const char *CG_GetTeamColorsOSP( const char *color ) {
 	static char str[6];
-
 	Q_strncpyz( str, color, sizeof( str ) );
-
-	switch ( team ) {
-		case TEAM_RED:  replace1( '?', '1', str ); break;
-		case TEAM_BLUE: replace1( '?', '4', str ); break;
-		case TEAM_FREE: replace1( '?', '7', str ); break;          // duffman91 - This is back to white/7
-		default: break;
-    }
 
 	return str;
 }
@@ -1127,8 +1136,8 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 			// enemy model
 			if( myTeam != TEAM_SPECTATOR ) {
 				if ( cg_enemyModel.string[0] && currentTeam != myTeam ) {
-					if ( setColor ){
-						colors = CG_GetTeamColorsOSP( cg_enemyColors.string, newInfo->team );
+					if ( cg_enemyColor.string[0] ){
+						colors = CG_GetTeamColorsFromHue( cg_enemyColor.string );
 						CG_SetColorInfo( colors, newInfo );
 						newInfo->coloredSkin = qtrue;
 					}
@@ -1153,8 +1162,8 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 				} 
 				
 				if ( cg_teamModel.string[0] && currentTeam == myTeam ) {
-					if ( setColor ){
-						colors = CG_GetTeamColorsOSP( cg_teamColors.string, newInfo->team );
+					if ( cg_teamColor.string[0] ){
+						colors = CG_GetTeamColorsFromHue( cg_teamColor.string );
 						CG_SetColorInfo( colors, newInfo );
 						newInfo->coloredSkin = qtrue;
 					}
@@ -1200,7 +1209,7 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 
 					if ( setColor ) {
 						// make blue team blue if player is spectator
-							colors = CG_GetTeamColorsOSP( "444", newInfo->team );
+							colors = CG_GetTeamColorsFromHue( "blue" );
 							CG_SetColorInfo( colors, newInfo );
 							newInfo->coloredSkin = qtrue;						
 					} 
@@ -1227,7 +1236,7 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 
 					if ( setColor ) {
 						// make red team red if player is spectator
-							colors = CG_GetTeamColorsOSP( "111", newInfo->team );
+							colors = CG_GetTeamColorsFromHue( "red" );
 							CG_SetColorInfo( colors, newInfo );
 							newInfo->coloredSkin = qtrue;						
 					} 
@@ -1251,8 +1260,8 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 				} 
 
 		} else { // not team game
-			if ( setColor ){
-				colors = CG_GetTeamColorsOSP( cg_enemyColors.string, newInfo->team );
+			if ( cg_enemyColor.string[0] ){
+				colors = CG_GetTeamColorsFromHue( cg_enemyColor.string );
 				CG_SetColorInfo( colors, newInfo );
 				newInfo->coloredSkin = qtrue;
 			}
@@ -1304,7 +1313,7 @@ CG_NewClientInfo
 ======================
 */
 void CG_NewClientInfo( int clientNum ) {
-	clientInfo_t *ci;
+clientInfo_t *ci;
 	clientInfo_t newInfo;
 	const char	*configstring;
 	const char	*v;
@@ -1332,10 +1341,7 @@ void CG_NewClientInfo( int clientNum ) {
 
 	if ( cg.snap ) {                             //duffman91 - There is something up with this.
 		myClientNum = cg.snap->ps.clientNum;
-		//Com_Printf( "CG_NewClientInfo: myClientNum %d\n", myClientNum );
-		team = ci->team;
-		//Com_Printf( "CG_NewClientInfo: team %d\n", team );
-	
+		team = ci->team;	
 	} else {
 		myClientNum = cg.clientNum;
 		team = TEAM_SPECTATOR;
@@ -1406,17 +1412,6 @@ void CG_NewClientInfo( int clientNum ) {
 	v = Info_ValueForKey( configstring, "l" );
 	newInfo.losses = atoi( v );
 
-	// always apply team colors [4] and [5] if specified, this will work in non-team games too
-	if ( cg_teamColors.string[0] && team != TEAM_SPECTATOR ) {
-		if ( allowNativeModel || ( ( team == TEAM_RED || team == TEAM_BLUE ) && ( clientNum != myClientNum || cg.demoPlayback ) ) ) {
-			v = CG_GetTeamColorsOSP( cg_teamColors.string, team );
-			len = strlen( v );
-			if ( len >= 4 )
-				CG_ColorFromChar( v[3], newInfo.color1 );
-			if ( len >= 5 )
-				CG_ColorFromChar( v[4], newInfo.color2 );
-		}
-	}
 
 	// team
 	v = Info_ValueForKey( configstring, "t" );
@@ -1483,12 +1478,12 @@ void CG_NewClientInfo( int clientNum ) {
 			Q_strncpyz( newInfo.skinName, "bright", sizeof( newInfo.skinName ) );
 		}
 		*/
-		if (!(cgs.ratFlags & RAT_BRIGHTMODEL) && Q_stristr(newInfo.skinName, "pm") != NULL) {
+		if (!(cgs.ratFlags & RAT_BRIGHTMODEL) && Q_stristr(newInfo.skinName, "bright") != NULL) {
 			// use default skin (or red/blue) if bright skin is not available
 			Q_strncpyz( newInfo.skinName, "default", sizeof( newInfo.skinName ) );
 		}
 
-		newInfo.forcedBrightModel = (strcmp(newInfo.skinName, "pm") == 0);
+		newInfo.forcedBrightModel = (strcmp(newInfo.skinName, "bright") == 0);
 		newInfo.forcedModel = qtrue;
 	} else if ( cg_forceModel.integer ) {
 		// forcemodel makes everyone use a single model
@@ -1501,7 +1496,7 @@ void CG_NewClientInfo( int clientNum ) {
 			Q_strncpyz( newInfo.skinName, "default", sizeof( newInfo.skinName ) );
 		} else {
 			trap_Cvar_VariableStringBuffer( "model", modelStr, sizeof( modelStr ) );
-			if (!(cgs.ratFlags & RAT_BRIGHTMODEL && cgs.ratFlags & RAT_ALLOWFORCEDMODELS) && Q_stristr(modelStr, "pm") != NULL) {
+			if (!(cgs.ratFlags & RAT_BRIGHTMODEL && cgs.ratFlags & RAT_ALLOWFORCEDMODELS) && Q_stristr(modelStr, "bright") != NULL) {
 				Q_strncpyz(modelStr, "keel/default", sizeof(modelStr));
 			}
 			if ( ( skin = strchr( modelStr, '/' ) ) == NULL) {
@@ -1570,12 +1565,12 @@ void CG_NewClientInfo( int clientNum ) {
 			Q_strncpyz( newInfo.headSkinName, "bright", sizeof( newInfo.headSkinName ) );
 		}
 		*/
-		if (!(cgs.ratFlags & RAT_BRIGHTMODEL) && Q_stristr(newInfo.headSkinName, "pm") != NULL) {
+		if (!(cgs.ratFlags & RAT_BRIGHTMODEL) && Q_stristr(newInfo.headSkinName, "bright") != NULL) {
 			// use default skin (or red/blue) if bright skin is not available
 			Q_strncpyz( newInfo.headSkinName, "default", sizeof( newInfo.headSkinName ) );
 		}
 
-		newInfo.forcedBrightModel = (strcmp(newInfo.skinName, "pm") == 0);
+		newInfo.forcedBrightModel = (strcmp(newInfo.skinName, "bright") == 0);
 		newInfo.forcedModel = qtrue;
 	} else if ( cg_forceModel.integer ) {
 		// forcemodel makes everyone use a single model
@@ -1588,7 +1583,7 @@ void CG_NewClientInfo( int clientNum ) {
 			Q_strncpyz( newInfo.headSkinName, "default", sizeof( newInfo.headSkinName ) );
 		} else {
 			trap_Cvar_VariableStringBuffer( "headmodel", modelStr, sizeof( modelStr ) );
-			if (!(cgs.ratFlags & RAT_BRIGHTMODEL && cgs.ratFlags & RAT_ALLOWFORCEDMODELS) && Q_stristr(modelStr, "pm") != NULL) {
+			if (!(cgs.ratFlags & RAT_BRIGHTMODEL && cgs.ratFlags & RAT_ALLOWFORCEDMODELS) && Q_stristr(modelStr, "bright") != NULL) {
 				Q_strncpyz(modelStr, "keel/default", sizeof(modelStr));
 			}
 			if ( ( skin = strchr( modelStr, '/' ) ) == NULL) {
