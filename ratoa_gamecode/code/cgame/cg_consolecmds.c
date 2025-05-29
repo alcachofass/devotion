@@ -347,25 +347,105 @@ static void CG_PRO_f( void ) {
 		CG_Printf("Usage: \\pro <n>\n"
 				"  Clear Pro Mode Settings:\n"
 				"    \\pro 0\n"
-				"  Set Pro Mode Defaults::\n"
+				"  Set Pro Mode Settings [1-9]:\n"
 				"    \\pro 1\n"
+				"  Additional options available:\n"
+				"    \\pro 2\n"
+				"    \\pro 3\n"
+				"    ...etc"
 			 );
 		return;
 	}
 	num = atoi( CG_Argv( 1 ) );
 	switch (num) {
 		// Futuristic
+		case 0:
+			CG_Cvar_SetAndUpdate("cg_enemyModel", "");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "");
+			CG_Cvar_SetAndUpdate("cg_teamModel", "");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "");
+			CG_Cvar_SetAndUpdate("cg_brightShells", "");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "");
+			break;
 		case 1:
 			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
-			CG_Cvar_SetAndUpdate("cg_enemyColors", "22222");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
 			CG_Cvar_SetAndUpdate("cg_teamModel", "doom/pm");
-			CG_Cvar_SetAndUpdate("cg_teamColors", "77777");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "white");
+			CG_Cvar_SetAndUpdate("cg_brightShells", "0");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "");
+			break;
+		case 2:
+			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_teamModel", "doom/pm");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "white");
+			CG_Cvar_SetAndUpdate("cg_brightShells", "1");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.5");
+			break;
+		case 3:
+			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_teamModel", "doom/pm");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "white");
+			CG_Cvar_SetAndUpdate("cg_brightShells", "2");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.5");
+			break;
+		case 4:
+			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_teamModel", "");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "");
+			CG_Cvar_SetAndUpdate("cg_brightShells", "0");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "");
+			break;
+		case 5:
+			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_teamModel", "");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "");
+			CG_Cvar_SetAndUpdate("cg_brightShells", "1");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.5");
+			break;
+		case 6:
+			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_teamModel", "");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "");
+			CG_Cvar_SetAndUpdate("cg_brightShells", "2");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.5");
+			break;
+		case 7:
+			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_teamModel", "doom/pm");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "purple");
+			CG_Cvar_SetAndUpdate("cg_brightShells", "0");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "");
+			break;
+		case 8:
+			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_teamModel", "doom/pm");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "purple");
+			CG_Cvar_SetAndUpdate("cg_brightShells", "1");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.5");
+			break;
+		case 9:
+			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_teamModel", "doom/pm");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "purple");
+			CG_Cvar_SetAndUpdate("cg_brightShells", "2");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.5");
 			break;
 		default:
 			CG_Cvar_SetAndUpdate("cg_enemyModel", "");
-			CG_Cvar_SetAndUpdate("cg_enemyColors", "");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "");
 			CG_Cvar_SetAndUpdate("cg_teamModel", "");
-			CG_Cvar_SetAndUpdate("cg_teamColors", "");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "");
+			CG_Cvar_SetAndUpdate("cg_brightShells", "");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "");
 			break;
 	}
 
