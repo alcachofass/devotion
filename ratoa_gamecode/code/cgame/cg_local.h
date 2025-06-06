@@ -1878,6 +1878,7 @@ int CG_GetTotalHitPoints(int health, int armor);
 qboolean CG_AllowColoredProjectiles(void);
 void CG_ProjectileColor(team_t team, byte *outColor);
 void CG_PlayerAutoHeadColor(clientInfo_t *ci, byte *outColor);
+void CG_IntColorToRGBA(int color, byte *out);
 void CG_FloatColorToRGBA(float *color, byte *out);
 void CG_ParseForcedColors( void );
 byte CG_GetBrightShellAlpha(void);

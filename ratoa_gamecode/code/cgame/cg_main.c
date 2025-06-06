@@ -497,12 +497,12 @@ void CG_UpdateCvars( void ) {
 		+ cg_enemyColor.modificationCount
 		+ cg_teamColor.modificationCount
 		+ cg_brightShells.modificationCount 
-		+ cg_enemyHeadColor.modificationCount
-		+  cg_teamHeadColor.modificationCount
-		+ cg_enemyTorsoColor.modificationCount
-		+  cg_teamTorsoColor.modificationCount
-		+ cg_enemyLegsColor.modificationCount
-		+  cg_teamLegsColor.modificationCount
+		//+ cg_enemyHeadColor.modificationCount
+		//+  cg_teamHeadColor.modificationCount
+		//+ cg_enemyTorsoColor.modificationCount
+		//+  cg_teamTorsoColor.modificationCount
+		//+ cg_enemyLegsColor.modificationCount
+		//+  cg_teamLegsColor.modificationCount
 		+ cg_enemyCorpseSaturation.modificationCount
 		+ cg_enemyCorpseValue.modificationCount
 		+ cg_teamCorpseSaturation.modificationCount

@@ -344,7 +344,7 @@ void CG_Draw3DHead( float x, float y, float w, float h, qhandle_t model, qhandle
 	ent.hModel = model;
 	ent.customSkin = skin;
 	ent.renderfx = RF_NOSHADOW;		// no stencil shadows
-
+	/*
 	if ((ci->forcedBrightModel || (cgs.ratFlags & (RAT_BRIGHTSHELL | RAT_BRIGHTOUTLINE) 
 					&& (cg_brightShells.integer || cg_brightOutline.integer) 
 					&& (cgs.gametype != GT_FFA || cgs.ratFlags & RAT_ALLOWFORCEDMODELS)))
@@ -357,6 +357,51 @@ void CG_Draw3DHead( float x, float y, float w, float h, qhandle_t model, qhandle
 	} else {
 		CG_PlayerGetColors(ci, qfalse, MCIDX_HEAD, ent.shaderRGBA);
 	}
+	*/
+
+	//////////////////////////////////////////////////////////////////////////////////////////
+	//duffman91 - make this a function to catch the headmodel cases....?	
+	// Team Game
+	if ( cgs.gametype >= GT_TEAM ){
+		//set starting colors
+		if ( ci->team == TEAM_BLUE ){
+			CG_IntColorToRGBA( 4, ent.shaderRGBA );
+		}
+		else if ( ci->team == TEAM_RED ){
+			CG_IntColorToRGBA( 1, ent.shaderRGBA );
+		}
+		else {             // spectators are set to white
+			CG_IntColorToRGBA( 7, ent.shaderRGBA );
+		}
+		
+		// set enemy & team colors if available
+		if ( cg_enemyColor.string[0] ){
+			char colorNumEnemy = cg_enemyColor.string[0];
+
+			if ( ci-> team != cg.snap->ps.persistant[PERS_TEAM] && cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR){
+				CG_IntColorToRGBA( atoi(&colorNumEnemy), ent.shaderRGBA ); 
+			}	
+		}
+		
+		if ( cg_teamColor.string[0] ){
+			char colorNumTeam = cg_teamColor.string[0];
+
+			if ( ci-> team == cg.snap->ps.persistant[PERS_TEAM] && cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR){
+				CG_IntColorToRGBA( atoi(&colorNumTeam), ent.shaderRGBA ); 
+			}	
+		}
+	}
+	// Not Team Game
+	else{
+		if ( cg_enemyColor.string[0] ){
+			char colorNum = cg_enemyColor.string[0];
+			CG_IntColorToRGBA ( atoi(&colorNum), ent.shaderRGBA );
+		}
+		else{
+			CG_IntColorToRGBA ( 7, ent.shaderRGBA );
+		}
+	}	
+	/////////////////////////////////////////////////////////////////////////////////////////
 
 	refdef.rdflags = RDF_NOWORLDMODEL;
 

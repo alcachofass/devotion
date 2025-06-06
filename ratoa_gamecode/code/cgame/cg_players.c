@@ -1137,7 +1137,7 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 			if( myTeam != TEAM_SPECTATOR ) {
 				if ( cg_enemyModel.string[0] && currentTeam != myTeam ) {
 					if ( cg_enemyColor.string[0] ){
-						colors = CG_GetTeamColorsFromHue( cg_enemyColor.string );
+						colors = CG_GetTeamColorsOSP( cg_enemyColor.string );
 						CG_SetColorInfo( colors, newInfo );
 						newInfo->coloredSkin = qtrue;
 					}
@@ -1163,7 +1163,7 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 				
 				if ( cg_teamModel.string[0] && currentTeam == myTeam ) {
 					if ( cg_teamColor.string[0] ){
-						colors = CG_GetTeamColorsFromHue( cg_teamColor.string );
+						colors = CG_GetTeamColorsOSP( cg_teamColor.string );
 						CG_SetColorInfo( colors, newInfo );
 						newInfo->coloredSkin = qtrue;
 					}
@@ -1209,7 +1209,7 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 
 					if ( setColor ) {
 						// make blue team blue if player is spectator
-							colors = CG_GetTeamColorsFromHue( "blue" );
+							colors = CG_GetTeamColorsOSP( "444" );
 							CG_SetColorInfo( colors, newInfo );
 							newInfo->coloredSkin = qtrue;						
 					} 
@@ -1236,7 +1236,7 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 
 					if ( setColor ) {
 						// make red team red if player is spectator
-							colors = CG_GetTeamColorsFromHue( "red" );
+							colors = CG_GetTeamColorsOSP( "111" );
 							CG_SetColorInfo( colors, newInfo );
 							newInfo->coloredSkin = qtrue;						
 					} 
@@ -1261,7 +1261,7 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 
 		} else { // not team game
 			if ( cg_enemyColor.string[0] ){
-				colors = CG_GetTeamColorsFromHue( cg_enemyColor.string );
+				colors = CG_GetTeamColorsOSP( cg_enemyColor.string );
 				CG_SetColorInfo( colors, newInfo );
 				newInfo->coloredSkin = qtrue;
 			}
@@ -1391,11 +1391,6 @@ clientInfo_t *ci;
 	v = Info_ValueForKey( configstring, "pc" );
 	newInfo.playerColorIndex = abs(atoi( v )) % MAX_AUTOHEADCOLORS;
 
-	// default is all white, start with that.
-	//VectorSet( newInfo.headColor, 1.0, 1.0, 1.0 );
-	//VectorSet( newInfo.bodyColor, 1.0, 1.0, 1.0 );
-	//VectorSet( newInfo.legsColor, 1.0, 1.0, 1.0 );	
-
 	// bot skill
 	v = Info_ValueForKey( configstring, "skill" );
 	newInfo.botSkill = atoi( v );
@@ -1411,7 +1406,6 @@ clientInfo_t *ci;
 	// losses
 	v = Info_ValueForKey( configstring, "l" );
 	newInfo.losses = atoi( v );
-
 
 	// team
 	v = Info_ValueForKey( configstring, "t" );
@@ -1436,6 +1430,15 @@ clientInfo_t *ci;
 	
 	CG_SetSkinAndModel( &newInfo, ci, v, allowNativeModel, clientNum, myClientNum, qtrue, 
 		newInfo.modelName, sizeof( newInfo.modelName ),	newInfo.skinName, sizeof( newInfo.skinName ) );	
+
+	if ( cg_teamColor.string[0] && team != TEAM_SPECTATOR ) {
+		v = CG_GetTeamColorsOSP( cg_teamColor.string );
+		len = strlen( v );
+		if ( len >= 4 )
+			CG_ColorFromChar( v[3], newInfo.color1 );
+		if ( len >= 5 )
+			CG_ColorFromChar( v[4], newInfo.color2 );
+	}
 
 	if (CG_IsTeamGametype()) {
 		if (local_team != newInfo.team)
@@ -3264,6 +3267,65 @@ int CG_LightVerts( vec3_t normal, int numVerts, polyVert_t *verts )
 	return qtrue;
 }
 
+void CG_IntColorToRGBA(int color, byte *out) {
+	switch ( color ){
+		case 0:
+			out[0] = 0x00;
+			out[1] = 0x00;
+			out[2] = 0x00;
+			out[3] = 0xff;
+			break;
+		case 1:
+			out[0] = 0xff;
+			out[1] = 0x00;
+			out[2] = 0x00;
+			out[3] = 0xff;
+			break;
+		case 2:
+			out[0] = 0x00;
+			out[1] = 0xff;
+			out[2] = 0x00;
+			out[3] = 0xff;
+			break;
+		case 3:
+			out[0] = 0xff;
+			out[1] = 0xff;
+			out[2] = 0x00;
+			out[3] = 0xff;
+			break;
+		case 4:
+			out[0] = 0x00;
+			out[1] = 0x00;
+			out[2] = 0xff;
+			out[3] = 0xff;
+			break;
+		case 5:
+			out[0] = 0x80;
+			out[1] = 0x00;
+			out[2] = 0x80;
+			out[3] = 0xff;
+			break;
+		case 6:
+			out[0] = 0x00;
+			out[1] = 0xff;
+			out[2] = 0xff;
+			out[3] = 0xff;
+			break;
+		case 7:
+			out[0] = 0xff;
+			out[1] = 0xff;
+			out[2] = 0xff;
+			out[3] = 0xff;
+			break;
+		default:
+			out[0] = 0xff;
+			out[1] = 0xff;
+			out[2] = 0xff;
+			out[3] = 0xff;
+			break;
+	}
+}
+
 void CG_FloatColorToRGBA(float *color, byte *out) {
 	out[0] = color[0]*0xff;
 	out[1] = color[1]*0xff;
@@ -3528,14 +3590,14 @@ void CG_ParseForcedColors( void ) {
 	for (bodyPart = MCIDX_HEAD; bodyPart < MCIDX_NUM; ++bodyPart) {
 		s = v = 1.0;
 		// team color:
-		if (bodyPart == MCIDX_HEAD && cg_teamHeadColor.string[0]) {
-			CG_PlayerColorFromString(cg_teamHeadColor.string, &h, &s, &v);
-		} else if (bodyPart == MCIDX_TORSO && cg_teamTorsoColor.string[0]) {
-			CG_PlayerColorFromString(cg_teamTorsoColor.string, &h, &s, &v);
-		} else if (bodyPart == MCIDX_LEGS && cg_teamLegsColor.string[0]) {
-			CG_PlayerColorFromString(cg_teamLegsColor.string, &h, &s, &v);
-		} else if (cg_teamColor.string[0]) {
-			CG_PlayerColorFromString(cg_teamColor.string, &h, &s, &v);
+		//if (bodyPart == MCIDX_HEAD && cg_teamHeadColor.string[0]) {
+		//	CG_PlayerColorFromString(cg_teamHeadColor.string, &h, &s, &v);
+		//} else if (bodyPart == MCIDX_TORSO && cg_teamTorsoColor.string[0]) {
+		//	CG_PlayerColorFromString(cg_teamTorsoColor.string, &h, &s, &v);
+		//} else if (bodyPart == MCIDX_LEGS && cg_teamLegsColor.string[0]) {
+		//	CG_PlayerColorFromString(cg_teamLegsColor.string, &h, &s, &v);
+		if (cg_teamColor.string[0]) {
+			//CG_PlayerColorFromString(cg_teamColor.string, &h, &s, &v);
 		} else if (myteam == TEAM_BLUE) {
 			h = cg_teamHueBlue.value;
 		} else if (myteam == TEAM_RED) {
@@ -3556,14 +3618,14 @@ void CG_ParseForcedColors( void ) {
 
 		s = v = 1.0;
 		// enemy color:
-		if (bodyPart == MCIDX_HEAD && cg_enemyHeadColor.string[0]) {
-			CG_PlayerColorFromString(cg_enemyHeadColor.string, &h, &s, &v);
-		} else if (bodyPart == MCIDX_TORSO && cg_enemyTorsoColor.string[0]) {
-			CG_PlayerColorFromString(cg_enemyTorsoColor.string, &h, &s, &v);
-		} else if (bodyPart == MCIDX_LEGS && cg_enemyLegsColor.string[0]) {
-			CG_PlayerColorFromString(cg_enemyLegsColor.string, &h, &s, &v);
-		} else if (cg_enemyColor.string[0]) {
-			CG_PlayerColorFromString(cg_enemyColor.string, &h, &s, &v);
+		//if (bodyPart == MCIDX_HEAD && cg_enemyHeadColor.string[0]) {
+		//	CG_PlayerColorFromString(cg_enemyHeadColor.string, &h, &s, &v);
+		//} else if (bodyPart == MCIDX_TORSO && cg_enemyTorsoColor.string[0]) {
+		//	CG_PlayerColorFromString(cg_enemyTorsoColor.string, &h, &s, &v);
+		//} else if (bodyPart == MCIDX_LEGS && cg_enemyLegsColor.string[0]) {
+		//	CG_PlayerColorFromString(cg_enemyLegsColor.string, &h, &s, &v);
+		if (cg_enemyColor.string[0]) {
+			//CG_PlayerColorFromString(cg_enemyColor.string, &h, &s, &v);
 		} else if (myteam == TEAM_BLUE) {
 			h = cg_teamHueRed.value;
 		} else if (myteam == TEAM_RED) {
@@ -3694,10 +3756,10 @@ void CG_Player( centity_t *cent ) {
 	if ((ci->forcedBrightModel || (cgs.ratFlags & (RAT_BRIGHTSHELL | RAT_BRIGHTOUTLINE) 
 					&& (cg_brightShells.integer || cg_brightOutline.integer) 
 					&& (cgs.gametype != GT_FFA || cgs.ratFlags & RAT_ALLOWFORCEDMODELS)))
-			&& ci->team != TEAM_SPECTATOR &&
-			( (cg_teamHeadColorAuto.integer && ci->team == cg.snap->ps.persistant[PERS_TEAM])
-			  || (cg_enemyHeadColorAuto.integer && ci->team != cg.snap->ps.persistant[PERS_TEAM])
-			)) {
+			&& ci->team != TEAM_SPECTATOR //&&
+			//( (cg_teamHeadColorAuto.integer && ci->team == cg.snap->ps.persistant[PERS_TEAM])
+			//  || (cg_enemyHeadColorAuto.integer && ci->team != cg.snap->ps.persistant[PERS_TEAM])
+			) {
 		CG_PlayerAutoHeadColor(ci, head.shaderRGBA);
 		autoHeadColors = qtrue;
 	} else {

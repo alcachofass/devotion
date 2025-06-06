@@ -282,19 +282,19 @@ CG_CVAR( cg_teamHueBlue ,     "cg_teamHueBlue", "210", CVAR_ARCHIVE )
 CG_CVAR( cg_teamHueDefault ,  "cg_teamHueDefault", "125", CVAR_ARCHIVE )
 CG_CVAR( cg_teamHueRed ,      "cg_teamHueRed", "0", CVAR_ARCHIVE )
 
-// either color name ("green", "white"), color index, or 
-// HSV color in the format 'H125 1.0 1.0" (H<H> <S> <V>)
-CG_CVAR( cg_enemyColor ,     "cg_enemyColor", "", CVAR_ARCHIVE )
-CG_CVAR( cg_teamColor ,      "cg_teamColor", "", CVAR_ARCHIVE )
-CG_CVAR( cg_enemyHeadColor ,     "cg_enemyHeadColor", "", CVAR_ARCHIVE )
-CG_CVAR( cg_teamHeadColor ,      "cg_teamHeadColor", "", CVAR_ARCHIVE )
-CG_CVAR( cg_enemyTorsoColor ,     "cg_enemyTorsoColor", "", CVAR_ARCHIVE )
-CG_CVAR( cg_teamTorsoColor ,      "cg_teamTorsoColor", "", CVAR_ARCHIVE )
-CG_CVAR( cg_enemyLegsColor ,     "cg_enemyLegsColor", "", CVAR_ARCHIVE )
-CG_CVAR( cg_teamLegsColor ,      "cg_teamLegsColor", "", CVAR_ARCHIVE )
+// Honors the OSP rules for "11111", "22222", etc. Deprecate Ratmod CVARs
+CG_CVAR( cg_enemyColor ,     "cg_enemyColor", "22222", CVAR_ARCHIVE )
+CG_CVAR( cg_teamColor ,      "cg_teamColor", "77777", CVAR_ARCHIVE )
 
-CG_CVAR( cg_teamHeadColorAuto ,      "cg_teamHeadColorAuto", "0", CVAR_ARCHIVE )
-CG_CVAR( cg_enemyHeadColorAuto ,      "cg_enemyHeadColorAuto", "0", CVAR_ARCHIVE )
+//CG_CVAR( cg_enemyHeadColor ,     "cg_enemyHeadColor", "", CVAR_ARCHIVE )
+//CG_CVAR( cg_teamHeadColor ,      "cg_teamHeadColor", "", CVAR_ARCHIVE )
+//CG_CVAR( cg_enemyTorsoColor ,     "cg_enemyTorsoColor", "", CVAR_ARCHIVE )
+//CG_CVAR( cg_teamTorsoColor ,      "cg_teamTorsoColor", "", CVAR_ARCHIVE )
+//CG_CVAR( cg_enemyLegsColor ,     "cg_enemyLegsColor", "", CVAR_ARCHIVE )
+//CG_CVAR( cg_teamLegsColor ,      "cg_teamLegsColor", "", CVAR_ARCHIVE )
+
+//CG_CVAR( cg_teamHeadColorAuto ,      "cg_teamHeadColorAuto", "0", CVAR_ARCHIVE )
+//CG_CVAR( cg_enemyHeadColorAuto ,      "cg_enemyHeadColorAuto", "0", CVAR_ARCHIVE )
 
 CG_CVAR( cg_enemyCorpseSaturation ,     "cg_enemyCorpseSaturation", "0.50", CVAR_ARCHIVE )
 CG_CVAR( cg_enemyCorpseValue ,          "cg_enemyCorpseValue", "0.2", CVAR_ARCHIVE )
