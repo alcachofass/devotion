@@ -298,18 +298,27 @@ static void CG_HUD_f( void ) {
 
 	if (trap_Argc() != 2) {
 		CG_Printf("Usage: \\hud <n>\n"
-				"  Legacy RatMod HUD:\n"
+				"  Quake 3 Default HUD:\n"
 				"    \\hud 0\n"
 				"  Futuristic HUD:\n"
 				"    \\hud 1\n"
-				"  Quake 3 Default HUD:\n"
+				"  Legacy RatMod HUD:\n"
 				"    \\hud 2\n"
 			 );
 		return;
 	}
 	num = atoi( CG_Argv( 1 ) );
 	switch (num) {
-		// Futuristic
+		// Default Quake 3 HUD
+		case 0:
+			CG_Cvar_SetAndUpdate("cg_altStatusbar", "0");
+			CG_Cvar_SetAndUpdate("cg_hudDamageIndicator", "3");
+			CG_Cvar_SetAndUpdate("cg_emptyIndicator", "1");
+			CG_Cvar_SetAndUpdate("cg_weaponbarStyle", "13");
+			CG_Cvar_SetAndUpdate("cg_drawFPS", "3");
+			trap_SendConsoleCommand("vid_restart\n");
+			break;		
+		// Futuristic HUD
 		case 1:
 			CG_Cvar_SetAndUpdate("cg_altStatusbar", "4");
 			CG_Cvar_SetAndUpdate("cg_hudDamageIndicator", "1");
@@ -318,17 +327,8 @@ static void CG_HUD_f( void ) {
 			CG_Cvar_SetAndUpdate("cg_drawFPS", "3");
 			trap_SendConsoleCommand("vid_restart\n");
 			break;
-		// Quake 3
+		// Legacy RatMod HUD
 		case 2:
-			CG_Cvar_SetAndUpdate("cg_altStatusbar", "0");
-			CG_Cvar_SetAndUpdate("cg_hudDamageIndicator", "3");
-			CG_Cvar_SetAndUpdate("cg_emptyIndicator", "1");
-			CG_Cvar_SetAndUpdate("cg_weaponbarStyle", "13");
-			CG_Cvar_SetAndUpdate("cg_drawFPS", "3");
-			trap_SendConsoleCommand("vid_restart\n");
-			break;
-		// Legacy RatMod
-		default:
 			CG_Cvar_SetAndUpdate("cg_altStatusbar", "1");
 			CG_Cvar_SetAndUpdate("cg_hudDamageIndicator", "0");
 			CG_Cvar_SetAndUpdate("cg_emptyIndicator", "0");
@@ -336,6 +336,15 @@ static void CG_HUD_f( void ) {
 			CG_Cvar_SetAndUpdate("cg_drawFPS", "1");
 			trap_SendConsoleCommand("vid_restart\n");
 			break;
+		// Q3 HUD as default case
+		default:
+			CG_Cvar_SetAndUpdate("cg_altStatusbar", "0");
+			CG_Cvar_SetAndUpdate("cg_hudDamageIndicator", "3");
+			CG_Cvar_SetAndUpdate("cg_emptyIndicator", "1");
+			CG_Cvar_SetAndUpdate("cg_weaponbarStyle", "13");
+			CG_Cvar_SetAndUpdate("cg_drawFPS", "3");
+			trap_SendConsoleCommand("vid_restart\n");
+			break;		
 	}
 
 }
@@ -369,31 +378,31 @@ static void CG_PRO_f( void ) {
 			break;
 		case 1:
 			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
-			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "22222");
 			CG_Cvar_SetAndUpdate("cg_teamModel", "doom/pm");
-			CG_Cvar_SetAndUpdate("cg_teamColor", "white");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "77777");
 			CG_Cvar_SetAndUpdate("cg_brightShells", "0");
 			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "");
 			break;
 		case 2:
 			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
-			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "22222");
 			CG_Cvar_SetAndUpdate("cg_teamModel", "doom/pm");
-			CG_Cvar_SetAndUpdate("cg_teamColor", "white");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "77777");
 			CG_Cvar_SetAndUpdate("cg_brightShells", "1");
-			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.5");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.2");
 			break;
 		case 3:
 			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
-			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "22222");
 			CG_Cvar_SetAndUpdate("cg_teamModel", "doom/pm");
-			CG_Cvar_SetAndUpdate("cg_teamColor", "white");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "77777");
 			CG_Cvar_SetAndUpdate("cg_brightShells", "2");
-			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.5");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.2");
 			break;
 		case 4:
 			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
-			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "22222");
 			CG_Cvar_SetAndUpdate("cg_teamModel", "");
 			CG_Cvar_SetAndUpdate("cg_teamColor", "");
 			CG_Cvar_SetAndUpdate("cg_brightShells", "0");
@@ -401,43 +410,43 @@ static void CG_PRO_f( void ) {
 			break;
 		case 5:
 			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
-			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "22222");
 			CG_Cvar_SetAndUpdate("cg_teamModel", "");
 			CG_Cvar_SetAndUpdate("cg_teamColor", "");
 			CG_Cvar_SetAndUpdate("cg_brightShells", "1");
-			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.5");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.2");
 			break;
 		case 6:
 			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
-			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "22222");
 			CG_Cvar_SetAndUpdate("cg_teamModel", "");
 			CG_Cvar_SetAndUpdate("cg_teamColor", "");
 			CG_Cvar_SetAndUpdate("cg_brightShells", "2");
-			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.5");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.2");
 			break;
 		case 7:
 			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
-			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "22222");
 			CG_Cvar_SetAndUpdate("cg_teamModel", "doom/pm");
-			CG_Cvar_SetAndUpdate("cg_teamColor", "purple");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "55555");
 			CG_Cvar_SetAndUpdate("cg_brightShells", "0");
 			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "");
 			break;
 		case 8:
 			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
-			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "22222");
 			CG_Cvar_SetAndUpdate("cg_teamModel", "doom/pm");
-			CG_Cvar_SetAndUpdate("cg_teamColor", "purple");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "55555");
 			CG_Cvar_SetAndUpdate("cg_brightShells", "1");
-			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.5");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.2");
 			break;
 		case 9:
 			CG_Cvar_SetAndUpdate("cg_enemyModel", "keel/pm");
-			CG_Cvar_SetAndUpdate("cg_enemyColor", "green");
+			CG_Cvar_SetAndUpdate("cg_enemyColor", "22222");
 			CG_Cvar_SetAndUpdate("cg_teamModel", "doom/pm");
-			CG_Cvar_SetAndUpdate("cg_teamColor", "purple");
+			CG_Cvar_SetAndUpdate("cg_teamColor", "55555");
 			CG_Cvar_SetAndUpdate("cg_brightShells", "2");
-			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.5");
+			CG_Cvar_SetAndUpdate("cg_brightShellAlpha", "0.2");
 			break;
 		default:
 			CG_Cvar_SetAndUpdate("cg_enemyModel", "");
