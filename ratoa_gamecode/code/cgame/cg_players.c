@@ -1459,8 +1459,6 @@ clientInfo_t *ci;
 			)) {
 		if (enemy) {
 			Q_strncpyz( newInfo.modelName, cg_enemyModel.string, sizeof( newInfo.modelName ) );
-		} else if (cg.clientNum == clientNum) {
-			Q_strncpyz( newInfo.modelName, v, sizeof( newInfo.modelName ) );
 		} else {
 			Q_strncpyz( newInfo.modelName, cg_teamModel.string, sizeof( newInfo.modelName ) );
 		}
@@ -1546,8 +1544,6 @@ clientInfo_t *ci;
 			)) {
 		if (enemy) {
 			Q_strncpyz( newInfo.headModelName, cg_enemyModel.string, sizeof( newInfo.headModelName ) );
-		} else if (cg.clientNum == clientNum) {
-			Q_strncpyz( newInfo.headModelName, v, sizeof( newInfo.headModelName ) );
 		} else {
 			Q_strncpyz( newInfo.headModelName, cg_teamModel.string, sizeof( newInfo.headModelName ) );
 		}
