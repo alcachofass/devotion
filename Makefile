@@ -13,10 +13,14 @@ ifeq ($(COMPILE_PLATFORM),darwin)
   COMPILE_ARCH=$(shell uname -p | sed -e s/i.86/i386/)
 endif
 
+# MSYS2 MINGW64 shell reports mingw64; ioquake3 only defines mingw32
+ifeq ($(COMPILE_PLATFORM),mingw64)
+  COMPILE_PLATFORM := mingw32
+endif
+
+# Inner ioquake3 makefile forces ARCH=x86 for mingw32; host cpu may still report x86_64
 ifeq ($(COMPILE_PLATFORM),mingw32)
-  ifeq ($(COMPILE_ARCH),i386)
-    COMPILE_ARCH=x86
-  endif
+  COMPILE_ARCH := x86
 endif
 
 GAMECODE_DIR := ratoa_gamecode
@@ -30,7 +34,7 @@ PK3_DIR := $(OUTPUT_DIR)/pk3
 
 RATMOD_PK3 = devotion-v0.2.3-RELEASE.pk3
 
-TIMESTAMP = @$(shell cd $(GAMECODE_DIR) && git show -s --format=%ct)
+TIMESTAMP := $(shell cd $(GAMECODE_DIR) && git show -s --format=%ct)
 
 release: qvm $(OUTPUT_DIR) 
 	rm -rf $(PK3_DIR)

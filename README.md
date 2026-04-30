@@ -37,6 +37,8 @@ Since this is a partial conversion, not everything previously found in RatArena 
 make
 ```
 
+**Windows (without WSL):** use [MSYS2](https://www.msys2.org/) and the steps in [BUILD_WINDOWS.md](BUILD_WINDOWS.md).
+
 # Dedicated Server Example
 
 ```sh
