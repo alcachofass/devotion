@@ -4,9 +4,6 @@
 # GNU Make required
 #
 
-# Define a version for the mod
-COMPILE_VERSION='v0.2.3 - RELEASE - ATALHOS'
-
 COMPILE_PLATFORM=$(shell uname|sed -e s/_.*//|tr '[:upper:]' '[:lower:]')
 
 COMPILE_ARCH=$(shell uname -m | sed -e s/i.86/i386/)
@@ -20,19 +17,24 @@ ifeq ($(COMPILE_PLATFORM),darwin)
   COMPILE_ARCH=$(shell uname -p | sed -e s/i.86/i386/)
 endif
 
-ifeq ($(COMPILE_PLATFORM),mingw32)
-  ifeq ($(COMPILE_ARCH),i386)
-    COMPILE_ARCH=x86
-  endif
+# MSYS2 MINGW64 shell reports mingw64; ioquake3 only defines mingw32
+ifeq ($(COMPILE_PLATFORM),mingw64)
+  COMPILE_PLATFORM := mingw32
 endif
 
-  BUILD_STANDALONE = 1
-  BUILD_CLIENT     = 0
-  BUILD_CLIENT_SMP = 0
-  BUILD_SERVER     = 0
-  BUILD_GAME_SO    = 1
-  BUILD_GAME_QVM   = 1
-  BUILD_MISSIONPACK= 0
+# MinGW makefile forces ARCH=x86 while uname -m may be x86_64; that mismatch sets
+# CROSS_COMPILING=1 and skips QVM targets unless COMPILE_ARCH matches ARCH here.
+ifeq ($(COMPILE_PLATFORM),mingw32)
+  COMPILE_ARCH := x86
+endif
+
+BUILD_STANDALONE = 1
+BUILD_CLIENT     = 0
+BUILD_CLIENT_SMP = 0
+BUILD_SERVER     = 0
+BUILD_GAME_SO    = 1
+BUILD_GAME_QVM   = 1
+BUILD_MISSIONPACK= 0
 
 ifneq ($(PLATFORM),darwin)
   BUILD_CLIENT_SMP = 0
@@ -896,9 +898,6 @@ BASE_CFLAGS += -DPRODUCT_VERSION=\\\"$(VERSION)\\\"
 
 BASE_CFLAGS += -DRATMOD_VERSION=\\\"$(RATMOD_VERSION)\\\"
 QVM_CFLAGS += -DRATMOD_VERSION=\"$(RATMOD_VERSION)\"
-
-BASE_CFLAGS += -DCOMPILE_VERSION=\\\"$(COMPILE_VERSION)\\\"
-QVM_CFLAGS += -DCOMPILE_VERSION=\"$(COMPILE_VERSION)\"
 
 ifeq ($(V),1)
 echo_cmd=@:
