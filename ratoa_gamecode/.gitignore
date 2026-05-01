@@ -1,4 +1,5 @@
 build/
+code/q3_ui/compile_version.h
 TAGS
 tags
 *.swp

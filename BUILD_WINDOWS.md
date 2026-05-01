@@ -53,7 +53,7 @@ The `.qvm` files are **built**, not checked in. If that copy fails, the VM step 
 
 **Menu missing / full-screen console, but swapping in a Linux-built `ui.qvm` fixes it**
 
-The UI footer version string is defined in C as **`UI_MAINMENU_VERSION_STRING`** in [`code/q3_ui/ui_local.h`](ratoa_gamecode/code/q3_ui/ui_local.h) so MinGW **Q3LCC** does not rely on fragile **`-DCOMPILE_VERSION=...`** quoting (which can produce different bytecode than a Linux build). Rebuild **`ui.qvm`** after pulling that change.
+The UI footer version string is **`COMPILE_VERSION`**, set in the gamecode [`Makefile`](ratoa_gamecode/Makefile) (or overridden on the **`make`** command line). The build writes [`code/q3_ui/compile_version.h`](ratoa_gamecode/code/q3_ui/compile_version.h) from that variable so MinGW **Q3LCC** never receives a shell-quoted **`-D`** for the string (spaces stay safe). Rebuild **`ui.qvm`** after changing the version.
 
 ## 6. Reference
 

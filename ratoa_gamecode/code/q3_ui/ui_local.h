@@ -25,9 +25,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define BASEOA
 
-/* Main menu footer; keep in sync with release tags. In-source avoids MinGW Q3LCC -DCOMPILE_VERSION
- * shell/quoting issues that can yield wrong bytecode vs Linux-built ui.qvm. */
-#define UI_MAINMENU_VERSION_STRING	"v0.2.3-RELEASE-ATALHOS"
+/* Main menu footer string: COMPILE_VERSION from Makefile-generated compile_version.h */
+#include "compile_version.h"
 
 #include "../qcommon/q_shared.h"
 #include "../renderer/tr_types.h"
