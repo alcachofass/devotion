@@ -1461,6 +1461,10 @@ static void CG_ConfigStringModified( void ) {
 		CG_StartMusic();	
 	} else if ( num == CS_SERVERINFO ) {
 		CG_ParseServerinfo();
+		/* Gametype (and thus team-vs-enemy rules) may change without every CS_PLAYERS slot updating;
+		 * rebuild client info so cg_enemyColor / models stay consistent. */
+		CG_ForceModelChange();
+		CG_ParseForcedColors();
 	} else if ( num == CS_WARMUP ) {
 		CG_ParseWarmup();
 	} else if ( num == CS_SCORES1 ) {
