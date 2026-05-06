@@ -1106,10 +1106,10 @@ static void CG_SetColorInfo( const char *color, clientInfo_t *info )
 }
 
 static void CG_SetSkinAndModel( clientInfo_t *newInfo,
-		clientInfo_t *curInfo,
 		const char *infomodel,
 		qboolean allowNativeModel,
-		int clientNum, int myClientNum,  
+		team_t viewerTeam,
+		int clientNum,
 		qboolean setColor,				 
 		char *modelName, int modelNameSize,
 		char *skinName, int skinNameSize ) 
@@ -1121,10 +1121,14 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 	team_t		myTeam, currentTeam;
 	const char	*colors;
 	
-	currentTeam = curInfo->team;       // this is the current team of what is being processed.
-	myTeam = cgs.clientinfo[ myClientNum ].team; // the player's team at a given moment. 
+	/* Use newInfo.team from this player's config string, not stale ci->team (gametype swaps). */
+	currentTeam = newInfo->team;
+	/* Viewer team must match Info_ValueForKey(local_players_CS, "t"), with the same spectator
+	 * tweak as cg_players elsewhere. Snapshot PERS_TEAM can lag CS_PLAYERS on team swaps; using
+	 * it here misclassified enemies as teammates → cg_teamModel without cg_teamColor → black. */
+	myTeam = viewerTeam;
 
-	//Com_Printf( "CG_SetSkinAndModel: clientNum %d, myClientNum %d, currentTeam %d, myTeam %d\n", clientNum, myClientNum, currentTeam, myTeam );
+	//Com_Printf( "CG_SetSkinAndModel: clientNum %d, currentTeam %d, myTeam %d\n", clientNum, currentTeam, myTeam );
 	
 	pm_model_e = ( Q_stricmp( cg_enemyModel.string, PM_SKIN ) == 0 ) ? qtrue : qfalse;
 	pm_model_t = ( Q_stricmp( cg_teamModel.string, PM_SKIN ) == 0 ) ? qtrue : qfalse;
@@ -1320,6 +1324,7 @@ clientInfo_t *ci;
 	char		*slash;
 	const char	*local_config;
 	int 	local_team;
+	team_t	viewerTeam;
 	qboolean enemy = qfalse;
 
 	qboolean allowNativeModel;
@@ -1338,6 +1343,11 @@ clientInfo_t *ci;
 	local_config = CG_ConfigString(cg.clientNum + CS_PLAYERS);
 	v = Info_ValueForKey(local_config, "t");
 	local_team = atoi(v);
+
+	viewerTeam = (team_t)local_team;
+	if ( viewerTeam == TEAM_SPECTATOR && cg.snap ) {
+		viewerTeam = cg.snap->ps.persistant[PERS_TEAM];
+	}
 
 	if ( cg.snap ) {                             //duffman91 - There is something up with this.
 		myClientNum = cg.snap->ps.clientNum;
@@ -1428,7 +1438,7 @@ clientInfo_t *ci;
 	// model
 	v = Info_ValueForKey( configstring, "model" );
 	
-	CG_SetSkinAndModel( &newInfo, ci, v, allowNativeModel, clientNum, myClientNum, qtrue, 
+	CG_SetSkinAndModel( &newInfo, v, allowNativeModel, viewerTeam, clientNum, qtrue, 
 		newInfo.modelName, sizeof( newInfo.modelName ),	newInfo.skinName, sizeof( newInfo.skinName ) );	
 
 	if ( cg_teamColor.string[0] && team != TEAM_SPECTATOR ) {
@@ -1535,7 +1545,7 @@ clientInfo_t *ci;
 	// head model
 	v = Info_ValueForKey( configstring, "hmodel" );
 
-	CG_SetSkinAndModel( &newInfo, ci, v, allowNativeModel, clientNum, myClientNum, qtrue, 
+	CG_SetSkinAndModel( &newInfo, v, allowNativeModel, viewerTeam, clientNum, qtrue, 
 		newInfo.headModelName, sizeof( newInfo.headModelName ),	newInfo.headSkinName, sizeof( newInfo.headSkinName ) );
 
 	if (cgs.ratFlags & RAT_ALLOWFORCEDMODELS && 
