@@ -8,7 +8,7 @@ Only populated while cg.demoPlayback is true.
 #ifndef CG_DEMO_HISTORY_H
 #define CG_DEMO_HISTORY_H
 
-#include "cg_public.h"
+/* snapshot_t is defined in cg_public.h — include cg_local.h (or cg_public.h) before this header */
 
 void CG_DemoHistory_Init( void );
 void CG_DemoHistory_Clear( void );
