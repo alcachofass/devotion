@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../renderer/tr_types.h"
 #include "../game/bg_public.h"
 #include "cg_public.h"
+#include "cg_demo_history.h"
 
 #include "../game/challenges.h"
 
@@ -2033,6 +2034,10 @@ void CG_SpurtBlood( vec3_t origin, vec3_t velocity, int hard );
 void CG_PingLocation( centity_t *cent );
 void CG_PingHudMarker ( vec3_t pingOrigin, float alpha, qhandle_t shader );
 void CG_HudBorderMarker ( vec3_t origin, float alpha, float radius, qhandle_t shader, int baseAngle );
+
+//
+// cg_demo_history.c (declarations in cg_demo_history.h)
+//
 
 //
 // cg_snapshot.c

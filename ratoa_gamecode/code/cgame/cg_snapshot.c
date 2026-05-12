@@ -145,6 +145,8 @@ void CG_SetInitialSnapshot( snapshot_t *snap ) {
 		// check for events
 		CG_CheckEvents( cent );
 	}
+
+	CG_DemoHistory_OnSnapshot( cg.snap );
 }
 
 
@@ -216,6 +218,8 @@ static void CG_TransitionSnapshot( void ) {
 			CG_TransitionPlayerState( ps, ops );
 		}
 	}
+
+	CG_DemoHistory_OnSnapshot( cg.snap );
 
 }
 
