@@ -248,8 +248,12 @@ static int report (const char *fmt, ...)
 
 static void hashtable_init (hashtable_t *H, int buckets)
 {
+  if (buckets <= 0 || (size_t)buckets > (SIZE_MAX / sizeof(*(H->table))))
+    Error("hashtable_init: invalid bucket count %d\n", buckets);
   H->buckets = buckets;
   H->table = calloc(H->buckets, sizeof(*(H->table)));
+  if (!H->table)
+    Error("hashtable_init: calloc failed\n");
   return;
 }
 
