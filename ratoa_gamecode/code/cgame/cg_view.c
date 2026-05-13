@@ -999,8 +999,6 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	cg.time = serverTime;
 	cg.demoPlayback = demoPlayback;
 
-	CG_DemoHistory_Frame();
-
 	// update cvars
 	CG_UpdateCvars();
 
@@ -1028,6 +1026,8 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		return;
 	}
 
+	CG_DemoHistory_Frame();
+
 	// let the client system know what our weapon and zoom settings are
 	trap_SetUserCmdValue( cg.weaponSelect, cg.zoomSensitivity );
 
@@ -1036,6 +1036,8 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	// update cg.predictedPlayerState
 	CG_PredictPlayerState();
+
+	CG_ProcessDelayedWeaponFires();
 
 	// decide on third person view
 	cg.renderingThirdPerson = cg_thirdPerson.integer || (cg.snap->ps.stats[STAT_HEALTH] <= 0);

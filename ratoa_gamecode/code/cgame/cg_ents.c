@@ -972,6 +972,7 @@ static void CG_CalcEntityLerpPositions( centity_t *cent ) {
 
 	if ( cent->interpolate && cent->currentState.pos.trType == TR_INTERPOLATE ) {
 		CG_InterpolateEntityPosition( cent );
+		CG_DemoHistory_AdjustPlayerLerpForDemoDelag( cent );
 		return;
 	}
 
@@ -980,6 +981,7 @@ static void CG_CalcEntityLerpPositions( centity_t *cent ) {
 	if ( cent->interpolate && cent->currentState.pos.trType == TR_LINEAR_STOP &&
 											cent->currentState.number < MAX_CLIENTS) {
 		CG_InterpolateEntityPosition( cent );
+		CG_DemoHistory_AdjustPlayerLerpForDemoDelag( cent );
 		return;
 	}
 
@@ -999,6 +1001,9 @@ static void CG_CalcEntityLerpPositions( centity_t *cent ) {
 	// if it's a missile but not a grappling hook
 	// if ( cent->currentState.eType == ET_MISSILE && cent->currentState.weapon != WP_GRAPPLING_HOOK ) {
 	if ( cent->currentState.eType == ET_MISSILE ) {
+		if ( CG_DemoHistory_AdjustMissileLerpForDemoDelag( cent ) ) {
+			return;
+		}
 		timeshift = CG_ProjectileNudgeTimeshift(cent);
 	}
 
@@ -1042,6 +1047,8 @@ static void CG_CalcEntityLerpPositions( centity_t *cent ) {
 		CG_AdjustPositionForMover( cent->lerpOrigin, cent->currentState.groundEntityNum, 
 		cg.snap->serverTime, cg.time, cent->lerpOrigin );
 	}
+
+	CG_DemoHistory_AdjustPlayerLerpForDemoDelag( cent );
 }
 
 /*

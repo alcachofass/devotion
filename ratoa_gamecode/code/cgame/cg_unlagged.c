@@ -37,6 +37,15 @@ void CG_PredictNailgunMissile( entityState_t *ent, vec3_t muzzlePoint, vec3_t fo
 #define MACHINEGUN_SPREAD	200
 #define CHAINGUN_SPREAD		600
 
+static int CG_DemoAttackTime( void ) {
+	int attackTime;
+
+	attackTime = ( cg.snap ? cg.snap->ps.commandTime : cg.predictedPlayerState.commandTime );
+	if ( attackTime <= 0 && cg.snap ) {
+		attackTime = cg.snap->serverTime;
+	}
+	return attackTime;
+}
 
 // similar to localentites
 predictedMissile_t	cg_predictedMissiles[MAX_PREDICTED_MISSILES];
@@ -448,12 +457,37 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 	AngleVectors( cg.predictedPlayerState.viewangles, forward, right, up );
 	VectorMA( muzzlePoint, 14, forward, muzzlePoint );
 
+	// was it a gauntlet attack?
+	if ( ent->weapon == WP_GAUNTLET ) {
+		if ( cg_delag.integer & 1 ) {
+			trace_t trace;
+			vec3_t endPoint;
+			qboolean demoRewind;
+			int attackTime;
+
+			VectorMA( muzzlePoint, 32, forward, endPoint );
+			demoRewind = CG_DemoHistory_DemoDelagActive();
+			attackTime = CG_DemoAttackTime();
+			if ( demoRewind ) {
+				CG_DemoHistory_BeginHitscanRewind( attackTime, cg.predictedPlayerState.clientNum );
+			}
+			CG_Trace( &trace, muzzlePoint, NULL, NULL, endPoint, cg.predictedPlayerState.clientNum, MASK_SHOT );
+			if ( demoRewind ) {
+				CG_DemoHistory_EndHitscanRewind();
+			}
+			if ( trace.fraction < 1.0f && trace.entityNum < MAX_CLIENTS && !( trace.surfaceFlags & SURF_NOIMPACT ) ) {
+				CG_MissileHitPlayer( WP_GAUNTLET, trace.endpos, trace.plane.normal, trace.entityNum, NULL );
+			}
+		}
+	}
 	// was it a rail attack?
-	if ( ent->weapon == WP_RAILGUN ) {
+	else if ( ent->weapon == WP_RAILGUN ) {
 		// do we have it on for the rail gun?
 		if ( cg_delag.integer & 1 || cg_delag.integer & 16 ) {
 			trace_t trace;
 			vec3_t endPoint;
+			qboolean demoRewind;
+			int attackTime;
 
 			// trace forward
 			VectorMA( muzzlePoint, 8192, forward, endPoint );
@@ -514,7 +548,15 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			}*/
 
 			// find the rail's end point
-			CG_Trace( &trace, muzzlePoint, vec3_origin, vec3_origin, endPoint, cg.predictedPlayerState.clientNum, CONTENTS_SOLID );
+			demoRewind = CG_DemoHistory_DemoDelagActive();
+			attackTime = CG_DemoAttackTime();
+			if ( demoRewind ) {
+				CG_DemoHistory_BeginHitscanRewind( attackTime, cg.predictedPlayerState.clientNum );
+			}
+			CG_Trace( &trace, muzzlePoint, vec3_origin, vec3_origin, endPoint, cg.predictedPlayerState.clientNum, demoRewind ? MASK_SHOT : CONTENTS_SOLID );
+			if ( demoRewind ) {
+				CG_DemoHistory_EndHitscanRewind();
+			}
 
 			// do the magic-number adjustment
 			VectorMA( muzzlePoint, 4, right, muzzlePoint );
@@ -543,9 +585,19 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			// This only predicts the impact sounds. The actual beam is drawn by CG_LightningBolt()
 			trace_t trace;
 			vec3_t endPoint;
+			qboolean demoRewind;
+			int attackTime;
 
 			VectorMA( muzzlePoint, LIGHTNING_RANGE, forward, endPoint );
+			demoRewind = CG_DemoHistory_DemoDelagActive();
+			attackTime = CG_DemoAttackTime();
+			if ( demoRewind ) {
+				CG_DemoHistory_BeginHitscanRewind( attackTime, cg.predictedPlayerState.clientNum );
+			}
 			CG_Trace( &trace, muzzlePoint, vec3_origin, vec3_origin, endPoint, cg.predictedPlayerState.clientNum, MASK_SHOT );
+			if ( demoRewind ) {
+				CG_DemoHistory_EndHitscanRewind();
+			}
 			if (trace.fraction < 1.0) {
 				if (trace.entityNum < MAX_CLIENTS) {
 					CG_MissileHitPlayer(WP_LIGHTNING, trace.endpos, trace.plane.normal, trace.entityNum, NULL);
@@ -560,7 +612,10 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 		// do we have it on for the shotgun?
 		if ( cg_delag.integer & 1 || cg_delag.integer & 4 ) {
 			int contents;
+			int seed;
+			int attackTime;
 			vec3_t endPoint, v;
+			qboolean demoRewind;
 
 			// do everything like the server does
 
@@ -586,7 +641,16 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			}
 
 			// do the shotgun pellets
-			CG_ShotgunPattern( muzzlePoint, endPoint, cg.oldTime % 256, cg.predictedPlayerState.clientNum );
+			demoRewind = CG_DemoHistory_DemoDelagActive();
+			attackTime = CG_DemoAttackTime();
+			seed = demoRewind ? ( attackTime % 256 ) : ( cg.oldTime % 256 );
+			if ( demoRewind ) {
+				CG_DemoHistory_BeginHitscanRewind( attackTime, cg.predictedPlayerState.clientNum );
+			}
+			CG_ShotgunPattern( muzzlePoint, endPoint, seed, cg.predictedPlayerState.clientNum );
+			if ( demoRewind ) {
+				CG_DemoHistory_EndHitscanRewind();
+			}
 			//Com_Printf( "Predicted shotgun pattern\n" );
 		}
 	}
@@ -595,15 +659,20 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 		// do we have it on for the machinegun?
 		if ( cg_delag.integer & 1 || cg_delag.integer & 2 ) {
 			// the server will use this exact time (it'll be serverTime on that end)
-			int seed = cg.oldTime % 256;
+			int seed;
+			int attackTime;
 			float r, u;
 			trace_t tr;
 			qboolean flesh;
 			int fleshEntityNum = 0;
 			vec3_t endPoint;
+			qboolean demoRewind;
 
 			// do everything exactly like the server does
 
+			demoRewind = CG_DemoHistory_DemoDelagActive();
+			attackTime = CG_DemoAttackTime();
+			seed = demoRewind ? ( attackTime % 256 ) : ( cg.oldTime % 256 );
 			r = Q_random(&seed) * M_PI * 2.0f;
 			u = sin(r) * Q_crandom(&seed) * MACHINEGUN_SPREAD * 16;
 			r = cos(r) * Q_crandom(&seed) * MACHINEGUN_SPREAD * 16;
@@ -612,7 +681,13 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			VectorMA( endPoint, r, right, endPoint );
 			VectorMA( endPoint, u, up, endPoint );
 
+			if ( demoRewind ) {
+				CG_DemoHistory_BeginHitscanRewind( attackTime, cg.predictedPlayerState.clientNum );
+			}
 			CG_Trace(&tr, muzzlePoint, NULL, NULL, endPoint, cg.predictedPlayerState.clientNum, MASK_SHOT );
+			if ( demoRewind ) {
+				CG_DemoHistory_EndHitscanRewind();
+			}
 
 			if ( tr.surfaceFlags & SURF_NOIMPACT ) {
 				return;
@@ -640,15 +715,20 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 		// do we have it on for the machinegun?
 		if ( cg_delag.integer & 1 || cg_delag.integer & 2 ) {
 			// the server will use this exact time (it'll be serverTime on that end)
-			int seed = cg.oldTime % 256;
+			int seed;
+			int attackTime;
 			float r, u;
 			trace_t tr;
 			qboolean flesh;
 			int fleshEntityNum = 0;
 			vec3_t endPoint;
+			qboolean demoRewind;
 
 			// do everything exactly like the server does
 
+			demoRewind = CG_DemoHistory_DemoDelagActive();
+			attackTime = CG_DemoAttackTime();
+			seed = demoRewind ? ( attackTime % 256 ) : ( cg.oldTime % 256 );
 			r = Q_random(&seed) * M_PI * 2.0f;
 			u = sin(r) * Q_crandom(&seed) * CHAINGUN_SPREAD * 16;
 			r = cos(r) * Q_crandom(&seed) * CHAINGUN_SPREAD * 16;
@@ -657,7 +737,13 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			VectorMA( endPoint, r, right, endPoint );
 			VectorMA( endPoint, u, up, endPoint );
 
+			if ( demoRewind ) {
+				CG_DemoHistory_BeginHitscanRewind( attackTime, cg.predictedPlayerState.clientNum );
+			}
 			CG_Trace(&tr, muzzlePoint, NULL, NULL, endPoint, cg.predictedPlayerState.clientNum, MASK_SHOT );
+			if ( demoRewind ) {
+				CG_DemoHistory_EndHitscanRewind();
+			}
 
 			if ( tr.surfaceFlags & SURF_NOIMPACT ) {
 				return;
