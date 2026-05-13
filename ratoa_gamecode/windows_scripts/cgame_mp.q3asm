@@ -18,6 +18,7 @@ cg_predict
 cg_scoreboard
 cg_servercmds
 cg_snapshot
+cg_demo_history
 cg_unlagged
 cg_view
 cg_weapons

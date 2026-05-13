@@ -240,18 +240,27 @@ static void CG_ScoresDown_f( void ) {
 		// so request new ones
 		cg.scoresRequestTime = cg.time;
 
-		trap_SendClientCommand( "score" );
+		if ( cg.demoPlayback ) {
+			CG_BuildDemoScores();
+		} else {
+			trap_SendClientCommand( "score" );
+		}
 
 		// leave the current scores up if they were already
 		// displayed, but if this is the first hit, clear them out
 		if ( !cg.showScores ) {
 			cg.showScores = qtrue;
-			cg.numScores = 0;
+			if ( !cg.demoPlayback ) {
+				cg.numScores = 0;
+			}
 		}
 	} else {
 		// show the cached contents even if they just pressed if it
 		// is within two seconds
 		cg.showScores = qtrue;
+		if ( cg.demoPlayback ) {
+			CG_BuildDemoScores();
+		}
 	}
 
 	if (cg.predictedPlayerState.pm_type == PM_INTERMISSION) {

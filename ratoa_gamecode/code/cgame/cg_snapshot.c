@@ -117,6 +117,14 @@ void CG_SetInitialSnapshot( snapshot_t *snap ) {
 
 	cg.snap = snap;
 
+	cg.demoScoreboardRatscores = qfalse;
+	CG_DemoResetScorePingCache();
+
+	if ( cg.demoPlayback ) {
+		cg.demoScoreboardPingValid = qfalse;
+		cg.demoScoreboardPing = 0;
+	}
+
 	BG_PlayerStateToEntityState( &snap->ps, &cg_entities[ snap->ps.clientNum ].currentState, qfalse );
 	cg_entities[ cg.snap->ps.clientNum ].quiet = qfalse;
 
@@ -145,6 +153,8 @@ void CG_SetInitialSnapshot( snapshot_t *snap ) {
 		// check for events
 		CG_CheckEvents( cent );
 	}
+
+	CG_DemoHistory_OnSnapshot( cg.snap );
 }
 
 
@@ -182,6 +192,30 @@ static void CG_TransitionSnapshot( void ) {
 
 	// move nextSnap to snap and do the transitions
 	oldFrame = cg.snap;
+
+	if ( cg.demoPlayback && oldFrame && cg.nextSnap ) {
+		int	op, np, d, p;
+
+		op = oldFrame->ping;
+		np = cg.nextSnap->ping;
+		d = np - op;
+		/* During demo playback some clients store a running sum in snapshot ping; use per-step delta. */
+		if ( d > 0 && d <= 400 ) {
+			if ( !cg.demoScoreboardPingValid ) {
+				cg.demoScoreboardPing = d;
+			} else {
+				cg.demoScoreboardPing = ( cg.demoScoreboardPing * 7 + d ) / 8;
+			}
+			cg.demoScoreboardPingValid = qtrue;
+		} else {
+			p = cg.nextSnap->ps.ping;
+			if ( p >= 0 && p <= 400 ) {
+				cg.demoScoreboardPing = p;
+				cg.demoScoreboardPingValid = qtrue;
+			}
+		}
+	}
+
 	cg.snap = cg.nextSnap;
 
 	BG_PlayerStateToEntityState( &cg.snap->ps, &cg_entities[ cg.snap->ps.clientNum ].currentState, qfalse );
@@ -216,6 +250,8 @@ static void CG_TransitionSnapshot( void ) {
 			CG_TransitionPlayerState( ps, ops );
 		}
 	}
+
+	CG_DemoHistory_OnSnapshot( cg.snap );
 
 }
 

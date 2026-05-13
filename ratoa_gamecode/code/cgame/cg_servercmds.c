@@ -149,6 +149,12 @@ static void CG_ParseRatScores( void ) {
 
 		cg.scores[i].team = cgs.clientinfo[cg.scores[i].client].team;
 	}
+
+	CG_DemoCachePingsFromScores( cg.scores, cg.numScores );
+
+	if ( cg.demoPlayback ) {
+		cg.demoScoreboardRatscores = qtrue;
+	}
 }
 
 
@@ -168,6 +174,12 @@ static void CG_CheckScoreUpdate(void) {
 	cg.numScores = cg.numScores_buf;
 	cg.medals_available = (cg.received_ratscores >= 4);
 	cg.stats_available = cg.weaponPU_available = (cg.received_ratscores == 5); //mrd
+
+	if ( cg.demoPlayback ) {
+		cg.demoScoreboardRatscores = qtrue;
+	}
+
+	CG_DemoCachePingsFromScores( cg.scores, cg.numScores );
 
 	CG_PurgeScoreBuf();
 }
@@ -246,6 +258,8 @@ static void CG_ParseRatScores1( void ) {
 
 		cg.scores_buf[i].team = cgs.clientinfo[cg.scores_buf[i].client].team;
 	}
+
+	CG_DemoCachePingsFromScores( cg.scores_buf, numScores );
 
 	CG_CheckScoreUpdate();
 }
@@ -519,9 +533,16 @@ static void CG_ParseScores( void ) {
 
 		cg.scores[i].team = cgs.clientinfo[cg.scores[i].client].team;
 	}
+
+	CG_DemoCachePingsFromScores( cg.scores, cg.numScores );
+
 #ifdef MISSIONPACK
 	CG_SetScoreSelection(NULL);
 #endif
+
+	if ( cg.demoPlayback ) {
+		cg.demoScoreboardRatscores = qtrue;
+	}
 
 }
 
