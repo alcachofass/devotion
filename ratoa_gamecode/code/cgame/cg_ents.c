@@ -972,6 +972,7 @@ static void CG_CalcEntityLerpPositions( centity_t *cent ) {
 
 	if ( cent->interpolate && cent->currentState.pos.trType == TR_INTERPOLATE ) {
 		CG_InterpolateEntityPosition( cent );
+		CG_DemoHistory_AdjustPlayerLerpForDemoDelag( cent );
 		return;
 	}
 
@@ -980,6 +981,7 @@ static void CG_CalcEntityLerpPositions( centity_t *cent ) {
 	if ( cent->interpolate && cent->currentState.pos.trType == TR_LINEAR_STOP &&
 											cent->currentState.number < MAX_CLIENTS) {
 		CG_InterpolateEntityPosition( cent );
+		CG_DemoHistory_AdjustPlayerLerpForDemoDelag( cent );
 		return;
 	}
 
@@ -1042,6 +1044,8 @@ static void CG_CalcEntityLerpPositions( centity_t *cent ) {
 		CG_AdjustPositionForMover( cent->lerpOrigin, cent->currentState.groundEntityNum, 
 		cg.snap->serverTime, cg.time, cent->lerpOrigin );
 	}
+
+	CG_DemoHistory_AdjustPlayerLerpForDemoDelag( cent );
 }
 
 /*

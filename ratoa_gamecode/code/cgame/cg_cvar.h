@@ -348,6 +348,7 @@ CG_CVAR( cg_leiSuperGoreyAwesome, "cg_leiSuperGoreyAwesome", "0", CVAR_ARCHIVE )
 CG_CVAR( cg_oldPlasma, "cg_oldPlasma", "1", CVAR_ARCHIVE )
 //unlagged - client options
 CG_CVAR( cg_delag, "cg_delag", "1", CVAR_ARCHIVE | CVAR_USERINFO )
+CG_CVAR( cg_demoDelag, "cg_demoDelag", "1", CVAR_ARCHIVE )
 //CG_CVAR( cg_debugDelag, "cg_debugDelag", "0", CVAR_USERINFO | CVAR_CHEAT )
 //CG_CVAR( cg_drawBBox, "cg_drawBBox", "0", CVAR_CHEAT )
 CG_CVAR( cg_cmdTimeNudge, "cg_cmdTimeNudge", "0", CVAR_ARCHIVE | CVAR_USERINFO )

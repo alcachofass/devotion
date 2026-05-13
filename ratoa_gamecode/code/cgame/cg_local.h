@@ -277,6 +277,10 @@ typedef struct centity_s {
 	vec3_t			lerpOrigin;
 	vec3_t			lerpAngles;
 
+	qboolean		demoDelagVisualCached;
+	vec3_t			demoDelagVisualOrigin;
+	vec3_t			demoDelagVisualAngles;
+
 	// for cg_projectileNudgeAuto
 	int			projectileNudge;
 
