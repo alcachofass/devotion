@@ -1138,6 +1138,16 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		} else if (es->weapon == WP_LIGHTNING && es->clientNum == cg.predictedPlayerState.clientNum &&
 				cgs.delagHitscan && (cg_delag.integer & 1 || cg_delag.integer & 8)) {
 			break;
+		} else if (es->weapon == WP_GAUNTLET && CG_DemoHistory_DemoDelagActive() &&
+				cgs.delagHitscan && (cg_delag.integer & 1)) {
+			vec3_t localToImpact;
+
+			VectorSubtract( position, cg.predictedPlayerState.origin, localToImpact );
+			if ( cg.predictedPlayerState.weapon == WP_GAUNTLET &&
+					cg.predictedPlayerState.weaponstate == WEAPON_FIRING &&
+					DotProduct( localToImpact, localToImpact ) < 96.0f * 96.0f ) {
+				break;
+			}
 		}
 		ByteToDir( es->eventParm, dir );
 		CG_MissileHitPlayer( es->weapon, position, dir, es->otherEntityNum,

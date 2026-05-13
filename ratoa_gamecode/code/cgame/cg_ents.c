@@ -1001,6 +1001,9 @@ static void CG_CalcEntityLerpPositions( centity_t *cent ) {
 	// if it's a missile but not a grappling hook
 	// if ( cent->currentState.eType == ET_MISSILE && cent->currentState.weapon != WP_GRAPPLING_HOOK ) {
 	if ( cent->currentState.eType == ET_MISSILE ) {
+		if ( CG_DemoHistory_AdjustMissileLerpForDemoDelag( cent ) ) {
+			return;
+		}
 		timeshift = CG_ProjectileNudgeTimeshift(cent);
 	}
 

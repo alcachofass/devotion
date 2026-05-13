@@ -1950,6 +1950,7 @@ void CG_RegisterWeapon( int weaponNum );
 void CG_RegisterItemVisuals( int itemNum );
 
 void CG_FireWeapon( centity_t *cent );
+void CG_ProcessDelayedWeaponFires( void );
 void CG_MissileHitWall( int weapon, int clientNum, vec3_t origin, vec3_t dir, impactSound_t soundType, predictedMissileStatus_t *missileStatus );
 void CG_MissileHitPlayer( int weapon, vec3_t origin, vec3_t dir, int entityNum, predictedMissileStatus_t *missileStatus );
 void CG_ShotgunFire( entityState_t *es );
