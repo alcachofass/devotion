@@ -2566,6 +2566,8 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	memset( cg_weapons, 0, sizeof(cg_weapons) );
 	memset( cg_items, 0, sizeof(cg_items) );
 
+	CG_DemoResetScorePingCache();
+
 	CG_DemoHistory_Init();
 
 	cg.clientNum = clientNum;

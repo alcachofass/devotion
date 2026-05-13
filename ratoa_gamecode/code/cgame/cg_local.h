@@ -447,6 +447,9 @@ typedef struct {
 
 } score_t;
 
+/* Demo scoreboard: slot not yet filled from ratscores/scores ping fields */
+#define	CG_DEMO_PING_UNSET	(-2)
+
 // each client has an associated clientInfo_t
 // that contains media references necessary to present the
 // client model and other color coded effects
@@ -715,6 +718,10 @@ typedef struct {
 
 	// scoreboard
 	int			scoresRequestTime;
+	int			demoScoreboardPing;		/* smoothed POV ping during demo playback */
+	qboolean	demoScoreboardPingValid;
+	qboolean	demoScoreboardRatscores;	/* demo has applied ratscores/scores from stream */
+	int			demoClientPing[MAX_CLIENTS];	/* last ping from score cmds; CG_DEMO_PING_UNSET if unknown */
 	int			numScores;
 	qboolean		medals_available;
 	qboolean		stats_available;
@@ -2059,6 +2066,9 @@ void CG_DrawInformation( void );
 // cg_scoreboard.c
 //
 qboolean CG_DrawOldScoreboard( void );
+void CG_DemoResetScorePingCache( void );
+void CG_DemoCachePingsFromScores( const score_t *rows, int count );
+void CG_BuildDemoScores( void );
 qboolean CG_DrawRatScoreboard( void );
 void CG_DrawOldTourneyScoreboard( void );
 

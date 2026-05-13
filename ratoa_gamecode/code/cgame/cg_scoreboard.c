@@ -24,6 +24,48 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "cg_local.h"
 
 
+/*
+=================
+CG_DemoResetScorePingCache
+=================
+ */
+void CG_DemoResetScorePingCache( void ) {
+	int	i;
+
+	for ( i = 0 ; i < MAX_CLIENTS ; i++ ) {
+		cg.demoClientPing[i] = CG_DEMO_PING_UNSET;
+	}
+}
+
+/*
+=================
+CG_DemoCachePingsFromScores
+
+Called when ratscores/scores servercmds are parsed so demo synthetic rows can
+show other clients' pings before (or without) a full multipart merge.
+=================
+ */
+void CG_DemoCachePingsFromScores( const score_t *rows, int count ) {
+	int	i, c, p;
+
+	if ( !cg.demoPlayback || !rows || count <= 0 ) {
+		return;
+	}
+
+	for ( i = 0 ; i < count && i < MAX_CLIENTS ; i++ ) {
+		c = rows[i].client;
+		if ( c < 0 || c >= MAX_CLIENTS ) {
+			continue;
+		}
+		p = rows[i].ping;
+		if ( p < -1 || p > 999 ) {
+			continue;
+		}
+		cg.demoClientPing[c] = p;
+	}
+}
+
+
 #define	SCOREBOARD_X		(0)
 
 #define SB_HEADER			86
@@ -805,6 +847,134 @@ static int ShowScoreboardNum(void) {
 
 /*
 =================
+CG_BuildDemoScores
+
+During demo playback the server does not answer the "score" client command, and
+the first scoreboard key press clears cg.numScores. Rebuild cg.scores from
+snapshot and configstrings so the scoreboard can list clients. Only the
+followed / POV client has full playerState stats; other rows show names and
+teams with neutral placeholder stats where the demo stream does not carry them.
+=================
+ */
+void CG_BuildDemoScores( void ) {
+	int				i, j, n;
+	int				matchSeconds;
+	int				powerups;
+	const playerState_t	*ps;
+	score_t			*s;
+	centity_t		*cent;
+
+	if ( !cg.demoPlayback || !cg.snap ) {
+		return;
+	}
+
+	/* After match end the demo replays full ratscores; do not clobber with synthetic rows. */
+	if ( cg.snap->ps.pm_type == PM_INTERMISSION
+			|| cg.predictedPlayerState.pm_type == PM_INTERMISSION ) {
+		return;
+	}
+
+	/* Server score strings in the demo provide all clients; keep that data until map/snap reset. */
+	if ( cg.demoScoreboardRatscores ) {
+		return;
+	}
+
+	memset( cg.scores, 0, sizeof( cg.scores ) );
+	ps = &cg.snap->ps;
+
+	matchSeconds = 0;
+	if ( cgs.levelStartTime > 0 && cg.snap->serverTime > cgs.levelStartTime ) {
+		matchSeconds = ( cg.snap->serverTime - cgs.levelStartTime ) / 1000;
+		if ( matchSeconds < 0 ) {
+			matchSeconds = 0;
+		}
+		if ( matchSeconds > 999 * 60 ) {
+			matchSeconds = 999 * 60;
+		}
+	}
+
+	if ( CG_IsTeamGametype() && cgs.scores1 != SCORE_NOT_PRESENT && cgs.scores2 != SCORE_NOT_PRESENT ) {
+		cg.teamScores[0] = cgs.scores1;
+		cg.teamScores[1] = cgs.scores2;
+	}
+
+	n = 0;
+	for ( i = 0 ; i < cgs.maxclients ; i++ ) {
+		if ( !cgs.clientinfo[i].infoValid ) {
+			continue;
+		}
+
+		s = &cg.scores[n];
+		memset( s, 0, sizeof( *s ) );
+		s->client = i;
+		s->team = cgs.clientinfo[i].team;
+#ifdef WITH_MULTITOURNAMENT
+		s->gameId = cgs.clientinfo[i].gameId;
+#endif
+
+		if ( i == ps->clientNum ) {
+			s->score = ps->persistant[PERS_SCORE];
+			if ( cg.demoPlayback && cg.demoScoreboardPingValid ) {
+				s->ping = cg.demoScoreboardPing;
+			} else if ( cg.demoPlayback ) {
+				s->ping = ps->ping;
+			} else {
+				s->ping = cg.snap->ping;
+			}
+			if ( s->ping < 0 ) {
+				s->ping = 0;
+			} else if ( s->ping > 999 ) {
+				s->ping = 999;
+			}
+			s->time = matchSeconds;
+			s->captures = ps->persistant[PERS_CAPTURES];
+			s->impressiveCount = ps->persistant[PERS_IMPRESSIVE_COUNT];
+			s->excellentCount = ps->persistant[PERS_EXCELLENT_COUNT];
+			s->defendCount = ps->persistant[PERS_DEFEND_COUNT];
+			s->assistCount = ps->persistant[PERS_ASSIST_COUNT];
+			s->guantletCount = ps->persistant[PERS_GAUNTLET_FRAG_COUNT];
+			s->deaths = ps->persistant[PERS_KILLED];
+			s->dmgGiven = ps->persistant[PERS_DAMAGE_DONE];
+			s->isDead = ( ps->stats[STAT_HEALTH] <= 0 ) ? 1 : 0;
+
+			powerups = 0;
+			for ( j = 0 ; j < MAX_POWERUPS ; j++ ) {
+				if ( ps->powerups[j] ) {
+					powerups |= 1 << j;
+				}
+			}
+			cgs.clientinfo[i].powerups = powerups;
+			cgs.clientinfo[i].score = s->score;
+			cgs.clientinfo[i].isDead = s->isDead;
+		} else {
+			cent = &cg_entities[i];
+			if ( cent->currentValid && cent->currentState.eType == ET_PLAYER ) {
+				s->isDead = ( cent->currentState.eFlags & EF_DEAD ) ? 1 : 0;
+			} else {
+				s->isDead = 0;
+			}
+			if ( cg.demoClientPing[i] != CG_DEMO_PING_UNSET ) {
+				s->ping = cg.demoClientPing[i];
+				if ( s->ping > 999 ) {
+					s->ping = 999;
+				}
+			} else {
+				s->ping = 0;
+			}
+			s->time = matchSeconds;
+		}
+
+		n++;
+		if ( n >= MAX_CLIENTS ) {
+			break;
+		}
+	}
+
+	cg.numScores = n;
+}
+
+/*
+=================
 CG_RatTeamScoreboard
 =================
  */
@@ -923,11 +1093,28 @@ qboolean CG_DrawRatScoreboard(void) {
 		fade = *fadeColor;
 	}
 
+	if ( cg.demoPlayback && cg.snap && cg.numScores == 0
+			&& !cg.demoScoreboardRatscores
+			&& cg.snap->ps.pm_type != PM_INTERMISSION
+			&& cg.predictedPlayerState.pm_type != PM_INTERMISSION
+			&& ( cg.showScores || cg.predictedPlayerState.pm_type == PM_DEAD ) ) {
+		CG_BuildDemoScores();
+	}
+
 	if ( cg.scoresRequestTime + 1000 < cg.time ) {
 		// the scores are more than 1s out of data,
 		// so request new ones
 		cg.scoresRequestTime = cg.time;
-		trap_SendClientCommand( "score" );
+		if ( cg.demoPlayback ) {
+			if ( !cg.demoScoreboardRatscores
+					&& cg.snap
+					&& cg.snap->ps.pm_type != PM_INTERMISSION
+					&& cg.predictedPlayerState.pm_type != PM_INTERMISSION ) {
+				CG_BuildDemoScores();
+			}
+		} else {
+			trap_SendClientCommand( "score" );
+		}
 	}
 
 
@@ -1557,6 +1744,28 @@ qboolean CG_DrawOldScoreboard( void ) {
 		fade = *fadeColor;
 	}
 
+	if ( cg.demoPlayback && cg.snap && cg.numScores == 0
+			&& !cg.demoScoreboardRatscores
+			&& cg.snap->ps.pm_type != PM_INTERMISSION
+			&& cg.predictedPlayerState.pm_type != PM_INTERMISSION
+			&& ( cg.showScores || cg.predictedPlayerState.pm_type == PM_DEAD ) ) {
+		CG_BuildDemoScores();
+	}
+
+	if ( cg.scoresRequestTime + 1000 < cg.time ) {
+		cg.scoresRequestTime = cg.time;
+		if ( cg.demoPlayback ) {
+			if ( !cg.demoScoreboardRatscores
+					&& cg.snap
+					&& cg.snap->ps.pm_type != PM_INTERMISSION
+					&& cg.predictedPlayerState.pm_type != PM_INTERMISSION ) {
+				CG_BuildDemoScores();
+			}
+		} else {
+			trap_SendClientCommand( "score" );
+		}
+	}
+
 
 	// fragged by ... line
 	if ( cg.killerName[0] ) {
@@ -1713,7 +1922,15 @@ void CG_DrawOldTourneyScoreboard( void ) {
 	// request more scores regularly
 	if ( cg.scoresRequestTime + 2000 < cg.time ) {
 		cg.scoresRequestTime = cg.time;
-		trap_SendClientCommand( "score" );
+		if ( cg.demoPlayback ) {
+			if ( !cg.demoScoreboardRatscores
+					&& cg.snap && cg.snap->ps.pm_type != PM_INTERMISSION
+					&& cg.predictedPlayerState.pm_type != PM_INTERMISSION ) {
+				CG_BuildDemoScores();
+			}
+		} else {
+			trap_SendClientCommand( "score" );
+		}
 	}
 
 	// draw the dialog background
