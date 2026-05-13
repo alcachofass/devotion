@@ -15,6 +15,7 @@ Development Credit:
 - alcachofass
 - emarrdee
 - LegendaryGuard
+- br33zy59
 
 HD Assets:
 - ZerTerO (High Quality Quake v3.7 assets)  
