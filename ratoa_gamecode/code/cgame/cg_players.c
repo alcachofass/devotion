@@ -4122,6 +4122,7 @@ A player just came into view or teleported, so reset all animation info
 ===============
 */
 void CG_ResetPlayerEntity( centity_t *cent ) {
+	cent->demoDelagVisualCached = qfalse;
 	cent->errorTime = -99999;		// guarantee no error decay added
 	cent->extrapolated = qfalse;	
 
@@ -4130,6 +4131,8 @@ void CG_ResetPlayerEntity( centity_t *cent ) {
 
 	BG_EvaluateTrajectory( &cent->currentState.pos, cg.time, cent->lerpOrigin );
 	BG_EvaluateTrajectory( &cent->currentState.apos, cg.time, cent->lerpAngles );
+
+	CG_DemoHistory_AdjustPlayerLerpForDemoDelag( cent );
 
 	VectorCopy( cent->lerpOrigin, cent->rawOrigin );
 	VectorCopy( cent->lerpAngles, cent->rawAngles );

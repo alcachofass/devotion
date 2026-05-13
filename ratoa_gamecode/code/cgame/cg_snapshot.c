@@ -35,6 +35,7 @@ CG_ResetEntity
 static void CG_ResetEntity( centity_t *cent ) {
 	// if the previous snapshot this entity was updated in is at least
 	// an event window back in time then we can reset the previous event
+	cent->demoDelagVisualCached = qfalse;
 	if ( cent->snapShotTime < cg.time - EVENT_VALID_MSEC ) {
 		cent->previousEvent = 0;
 	}
