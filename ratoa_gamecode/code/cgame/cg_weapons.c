@@ -1592,6 +1592,8 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 	refEntity_t  beam;
 	vec3_t   forward;
 	vec3_t   muzzlePoint, endPoint;
+	qboolean demoRewind;
+	int attackTime;
 
 	if (cent->currentState.weapon != WP_LIGHTNING) {
 		return;
@@ -1671,8 +1673,24 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 	VectorMA( muzzlePoint, LIGHTNING_RANGE, forward, endPoint );
 
 	// see if it hit a wall
+	demoRewind = ( cent->currentState.number == cg.predictedPlayerState.clientNum )
+		&& CG_DemoHistory_DemoDelagActive()
+		&& ( cg_delag.integer & 1 || cg_delag.integer & 8 );
+	attackTime = cg.predictedPlayerState.commandTime;
+	if ( attackTime <= 0 && cg.snap ) {
+		attackTime = cg.snap->ps.commandTime;
+	}
+	if ( attackTime <= 0 && cg.snap ) {
+		attackTime = cg.snap->serverTime;
+	}
+	if ( demoRewind ) {
+		CG_DemoHistory_BeginHitscanRewind( attackTime, cg.predictedPlayerState.clientNum );
+	}
 	CG_Trace( &trace, muzzlePoint, vec3_origin, vec3_origin, endPoint, 
 		cent->currentState.number, MASK_SHOT );
+	if ( demoRewind ) {
+		CG_DemoHistory_EndHitscanRewind();
+	}
 
 	// this is the endpoint
 	VectorCopy( trace.endpos, beam.oldorigin );
@@ -4135,6 +4153,108 @@ WEAPON EVENTS
 ===================================================================================================
 */
 
+#define MAX_DELAYED_WEAPON_FIRES 32
+
+typedef struct {
+	qboolean active;
+	int fireTime;
+	int centNum;
+	entityState_t state;
+} delayedWeaponFire_t;
+
+static delayedWeaponFire_t cg_delayedWeaponFires[MAX_DELAYED_WEAPON_FIRES];
+static qboolean cg_processingDelayedWeaponFire;
+
+static qboolean CG_IsDemoDelayedProjectileWeapon( int weapon ) {
+	switch ( weapon ) {
+	case WP_PLASMAGUN:
+	case WP_ROCKET_LAUNCHER:
+	case WP_GRENADE_LAUNCHER:
+	case WP_BFG:
+#ifdef MISSIONPACK
+	case WP_PROX_LAUNCHER:
+	case WP_NAILGUN:
+#endif
+		return qtrue;
+	default:
+		return qfalse;
+	}
+}
+
+static qboolean CG_QueueDelayedWeaponFire( centity_t *cent, int delay ) {
+	int i;
+	int best;
+	int bestTime;
+
+	if ( delay <= 0 ) {
+		return qfalse;
+	}
+	if ( !cent ) {
+		return qfalse;
+	}
+	if ( cent->currentState.number < 0 || cent->currentState.number >= MAX_GENTITIES ) {
+		return qfalse;
+	}
+
+	best = -1;
+	bestTime = 2147483647;
+	for ( i = 0; i < MAX_DELAYED_WEAPON_FIRES; i++ ) {
+		if ( !cg_delayedWeaponFires[i].active ) {
+			best = i;
+			break;
+		}
+		if ( cg_delayedWeaponFires[i].fireTime < bestTime ) {
+			bestTime = cg_delayedWeaponFires[i].fireTime;
+			best = i;
+		}
+	}
+	if ( best < 0 ) {
+		return qfalse;
+	}
+
+	cg_delayedWeaponFires[best].active = qtrue;
+	cg_delayedWeaponFires[best].fireTime = cg.time + delay;
+	cg_delayedWeaponFires[best].centNum = cent->currentState.number;
+	cg_delayedWeaponFires[best].state = cent->currentState;
+	return qtrue;
+}
+
+static void CG_FireWeaponNow( centity_t *cent );
+
+void CG_ProcessDelayedWeaponFires( void ) {
+	int i;
+
+	if ( !CG_DemoHistory_DemoDelagActive() ) {
+		Com_Memset( cg_delayedWeaponFires, 0, sizeof( cg_delayedWeaponFires ) );
+		return;
+	}
+
+	cg_processingDelayedWeaponFire = qtrue;
+	for ( i = 0; i < MAX_DELAYED_WEAPON_FIRES; i++ ) {
+		centity_t *cent;
+		entityState_t savedState;
+
+		if ( !cg_delayedWeaponFires[i].active ) {
+			continue;
+		}
+		if ( cg.time < cg_delayedWeaponFires[i].fireTime ) {
+			continue;
+		}
+		if ( cg_delayedWeaponFires[i].centNum < 0 || cg_delayedWeaponFires[i].centNum >= MAX_GENTITIES ) {
+			cg_delayedWeaponFires[i].active = qfalse;
+			continue;
+		}
+
+		cent = &cg_entities[cg_delayedWeaponFires[i].centNum];
+		savedState = cent->currentState;
+		cent->currentState = cg_delayedWeaponFires[i].state;
+		cg_delayedWeaponFires[i].active = qfalse;
+		CG_FireWeaponNow( cent );
+		cent->currentState = savedState;
+	}
+	cg_processingDelayedWeaponFire = qfalse;
+}
+
 /*
 ================
 CG_FireWeapon
@@ -4142,7 +4262,7 @@ CG_FireWeapon
 Caused by an EV_FIRE_WEAPON event
 ================
 */
-void CG_FireWeapon( centity_t *cent ) {
+static void CG_FireWeaponNow( centity_t *cent ) {
 	entityState_t *ent;
 	int				c;
 	weaponInfo_t	*weap;
@@ -4207,8 +4327,30 @@ void CG_FireWeapon( centity_t *cent ) {
 	}
 
 //unlagged - attack prediction #1
-	CG_PredictWeaponEffects( cent );
+	if ( !( cg_processingDelayedWeaponFire && CG_IsDemoDelayedProjectileWeapon( ent->weapon ) ) ) {
+		CG_PredictWeaponEffects( cent );
+	}
 //unlagged - attack prediction #1
+}
+
+void CG_FireWeapon( centity_t *cent ) {
+	entityState_t *ent;
+	int delay;
+
+	if ( !cent ) {
+		return;
+	}
+	ent = &cent->currentState;
+	delay = CG_DemoHistory_LocalFireDelay();
+	if ( !cg_processingDelayedWeaponFire
+			&& delay > 0
+			&& ent->number == cg.predictedPlayerState.clientNum
+			&& CG_IsDemoDelayedProjectileWeapon( ent->weapon )
+			&& CG_QueueDelayedWeaponFire( cent, delay ) ) {
+		return;
+	}
+
+	CG_FireWeaponNow( cent );
 }
 
 

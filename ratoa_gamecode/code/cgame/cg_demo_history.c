@@ -19,6 +19,15 @@ static int cg_demoHistoryLastServerTime;
 static qboolean cg_demoHistoryPrevPlayback;
 static int cg_demoDelagPingSmoothed = -1;
 
+typedef struct {
+	centity_t *cent;
+	vec3_t savedLerp;
+	int savedSolid;
+} demoRewindSave_t;
+
+static demoRewindSave_t cg_demoRewindSaves[MAX_CLIENTS];
+static int cg_demoRewindSaveCount;
+
 static int demoDelagPingRawAlongInterpolation( void );
 static qboolean demoDelagResolvePingMs( int *outPing );
 
@@ -28,6 +37,7 @@ void CG_DemoHistory_Clear( void ) {
 	cg_demoHistoryHead = 0;
 	cg_demoHistoryCount = 0;
 	cg_demoHistoryLastServerTime = -1;
+	cg_demoRewindSaveCount = 0;
 	cg_demoDelagPingSmoothed = -1;
 	for ( i = 0; i < MAX_GENTITIES; i++ ) {
 		cg_entities[i].demoDelagVisualCached = qfalse;
@@ -266,8 +276,46 @@ static qboolean demoDelagResolvePingMs( int *outPing ) {
 	return qtrue;
 }
 
-static void playerPoseFromBracket( int entityNum, int evalTime, const snapshot_t *sOld, const snapshot_t *sNew, float frac,
-		vec3_t outOrigin, vec3_t outAngles, qboolean *outOk ) {
+static int demoDelagAttackerSampleTime( int attackServerTime ) {
+	int ping;
+
+	if ( !demoDelagResolvePingMs( &ping ) ) {
+		return clampServerTimeToHistory( attackServerTime );
+	}
+	return clampServerTimeToHistory( attackServerTime - ping );
+}
+
+int CG_DemoHistory_LocalFireDelay( void ) {
+	int ping;
+	int frameMsec;
+
+	if ( !CG_DemoHistory_DemoDelagActive() ) {
+		return 0;
+	}
+	if ( !demoDelagResolvePingMs( &ping ) ) {
+		return 0;
+	}
+	if ( sv_fps.integer > 0 ) {
+		frameMsec = 1000 / sv_fps.integer;
+		if ( ping > frameMsec ) {
+			ping = frameMsec;
+		}
+	}
+	return ping;
+}
+
+static int demoDelagDisplayServerTime( void ) {
+	if ( cg.nextSnap ) {
+		int delta = cg.nextSnap->serverTime - cg.snap->serverTime;
+		if ( delta > 0 ) {
+			return cg.snap->serverTime + (int)( cg.frameInterpolation * (float)delta + 0.5f );
+		}
+	}
+	return cg.snap->serverTime;
+}
+
+static void entityPoseFromBracket( int entityNum, int evalTime, const snapshot_t *sOld, const snapshot_t *sNew, float frac,
+		vec3_t outOrigin, vec_t *outAnglesOpt, int *outSolidOpt, qboolean *outOk ) {
 	entityState_t esLo, esHi;
 	qboolean hasLo, hasHi;
 	vec3_t oLo, oHi;
@@ -283,10 +331,20 @@ static void playerPoseFromBracket( int entityNum, int evalTime, const snapshot_t
 	if ( hasLo && hasHi && sOld != sNew && sOld->serverTime < sNew->serverTime ) {
 		if ( frac <= 0.0f ) {
 			BG_EvaluateTrajectory( &esLo.pos, evalTime, outOrigin );
-			BG_EvaluateTrajectory( &esLo.apos, evalTime, outAngles );
+			if ( outAnglesOpt ) {
+				BG_EvaluateTrajectory( &esLo.apos, evalTime, outAnglesOpt );
+			}
+			if ( outSolidOpt ) {
+				*outSolidOpt = esLo.solid;
+			}
 		} else if ( frac >= 1.0f ) {
 			BG_EvaluateTrajectory( &esHi.pos, evalTime, outOrigin );
-			BG_EvaluateTrajectory( &esHi.apos, evalTime, outAngles );
+			if ( outAnglesOpt ) {
+				BG_EvaluateTrajectory( &esHi.apos, evalTime, outAnglesOpt );
+			}
+			if ( outSolidOpt ) {
+				*outSolidOpt = esHi.solid;
+			}
 		} else {
 			BG_EvaluateTrajectory( &esLo.pos, sOld->serverTime, oLo );
 			BG_EvaluateTrajectory( &esHi.pos, sNew->serverTime, oHi );
@@ -294,35 +352,54 @@ static void playerPoseFromBracket( int entityNum, int evalTime, const snapshot_t
 			outOrigin[1] = oLo[1] + frac * ( oHi[1] - oLo[1] );
 			outOrigin[2] = oLo[2] + frac * ( oHi[2] - oLo[2] );
 
-			BG_EvaluateTrajectory( &esLo.apos, sOld->serverTime, aLo );
-			BG_EvaluateTrajectory( &esHi.apos, sNew->serverTime, aHi );
-			outAngles[0] = LerpAngle( aLo[0], aHi[0], frac );
-			outAngles[1] = LerpAngle( aLo[1], aHi[1], frac );
-			outAngles[2] = LerpAngle( aLo[2], aHi[2], frac );
+			if ( outAnglesOpt ) {
+				BG_EvaluateTrajectory( &esLo.apos, sOld->serverTime, aLo );
+				BG_EvaluateTrajectory( &esHi.apos, sNew->serverTime, aHi );
+				outAnglesOpt[0] = LerpAngle( aLo[0], aHi[0], frac );
+				outAnglesOpt[1] = LerpAngle( aLo[1], aHi[1], frac );
+				outAnglesOpt[2] = LerpAngle( aLo[2], aHi[2], frac );
+			}
+			if ( outSolidOpt ) {
+				*outSolidOpt = esHi.solid;
+			}
 		}
 		*outOk = qtrue;
 		return;
 	}
-
 	if ( hasLo ) {
 		BG_EvaluateTrajectory( &esLo.pos, evalTime, outOrigin );
-		BG_EvaluateTrajectory( &esLo.apos, evalTime, outAngles );
+		if ( outAnglesOpt ) {
+			BG_EvaluateTrajectory( &esLo.apos, evalTime, outAnglesOpt );
+		}
+		if ( outSolidOpt ) {
+			*outSolidOpt = esLo.solid;
+		}
 		*outOk = qtrue;
 	} else if ( hasHi ) {
 		BG_EvaluateTrajectory( &esHi.pos, evalTime, outOrigin );
-		BG_EvaluateTrajectory( &esHi.apos, evalTime, outAngles );
+		if ( outAnglesOpt ) {
+			BG_EvaluateTrajectory( &esHi.apos, evalTime, outAnglesOpt );
+		}
+		if ( outSolidOpt ) {
+			*outSolidOpt = esHi.solid;
+		}
 		*outOk = qtrue;
 	}
 }
 
-static qboolean getPlayerPoseAtHistoryTime( int entityNum, int serverTime, vec3_t outOrigin, vec3_t outAngles ) {
+static qboolean getEntityPoseAtHistoryTime( int entityNum, int serverTime, vec3_t outOrigin, vec3_t outAngles ) {
 	const snapshot_t *sOld, *sNew;
 	float frac;
 	qboolean ok;
 
 	bracketServerTime( serverTime, &sOld, &sNew, &frac );
-	playerPoseFromBracket( entityNum, serverTime, sOld, sNew, frac, outOrigin, outAngles, &ok );
+	entityPoseFromBracket( entityNum, serverTime, sOld, sNew, frac, outOrigin, outAngles, NULL, &ok );
 	return ok;
+}
+
+static void computeRewoundPlayerState( int entityNum, int evalTime, const snapshot_t *sOld, const snapshot_t *sNew, float frac,
+		vec3_t outOrigin, int *outSolid, qboolean *outOk ) {
+	entityPoseFromBracket( entityNum, evalTime, sOld, sNew, frac, outOrigin, NULL, outSolid, outOk );
 }
 
 static qboolean demoDelagPoseFromActiveSnapWindow( const centity_t *cent, int tHist, vec3_t outOrigin, vec3_t outAngles ) {
@@ -441,6 +518,63 @@ static void demoDelagApplyPoseAndCache( centity_t *cent, const vec3_t origin, co
 	cent->demoDelagVisualCached = qtrue;
 }
 
+void CG_DemoHistory_BeginHitscanRewind( int rewindToServerTime, int skipEntityNum ) {
+	const snapshot_t *sOld, *sNew;
+	float frac;
+	int i;
+	int solid;
+	int tSample;
+	vec3_t origin;
+	qboolean ok;
+	centity_t *cent;
+
+	cg_demoRewindSaveCount = 0;
+	if ( !CG_DemoHistory_DemoDelagActive() ) {
+		return;
+	}
+
+	tSample = demoDelagAttackerSampleTime( rewindToServerTime );
+	bracketServerTime( tSample, &sOld, &sNew, &frac );
+	if ( !sOld || !sNew ) {
+		return;
+	}
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		if ( i == skipEntityNum ) {
+			continue;
+		}
+		cent = &cg_entities[i];
+		if ( !cent->currentValid || cent->currentState.eType != ET_PLAYER ) {
+			continue;
+		}
+		computeRewoundPlayerState( i, tSample, sOld, sNew, frac, origin, &solid, &ok );
+		if ( !ok ) {
+			continue;
+		}
+		if ( cg_demoRewindSaveCount >= MAX_CLIENTS ) {
+			break;
+		}
+		cg_demoRewindSaves[cg_demoRewindSaveCount].cent = cent;
+		VectorCopy( cent->lerpOrigin, cg_demoRewindSaves[cg_demoRewindSaveCount].savedLerp );
+		cg_demoRewindSaves[cg_demoRewindSaveCount].savedSolid = cent->currentState.solid;
+		cg_demoRewindSaveCount++;
+		VectorCopy( origin, cent->lerpOrigin );
+		cent->currentState.solid = solid;
+	}
+}
+
+void CG_DemoHistory_EndHitscanRewind( void ) {
+	int i;
+
+	for ( i = cg_demoRewindSaveCount - 1; i >= 0; i-- ) {
+		centity_t *cent = cg_demoRewindSaves[i].cent;
+
+		VectorCopy( cg_demoRewindSaves[i].savedLerp, cent->lerpOrigin );
+		cent->currentState.solid = cg_demoRewindSaves[i].savedSolid;
+	}
+	cg_demoRewindSaveCount = 0;
+}
+
 void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( centity_t *cent ) {
 	int ping;
 	int tDisp;
@@ -464,19 +598,10 @@ void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( centity_t *cent ) {
 		return;
 	}
 
-	if ( cg.nextSnap ) {
-		int delta = cg.nextSnap->serverTime - cg.snap->serverTime;
-		if ( delta > 0 ) {
-			tDisp = cg.snap->serverTime + (int)( cg.frameInterpolation * (float)delta + 0.5f );
-		} else {
-			tDisp = cg.snap->serverTime;
-		}
-	} else {
-		tDisp = cg.snap->serverTime;
-	}
+	tDisp = demoDelagDisplayServerTime();
 
 	tHist = clampServerTimeToHistory( tDisp - ping );
-	if ( getPlayerPoseAtHistoryTime( cent->currentState.number, tHist, origin, angles ) ) {
+	if ( getEntityPoseAtHistoryTime( cent->currentState.number, tHist, origin, angles ) ) {
 		demoDelagApplyPoseAndCache( cent, origin, angles );
 		return;
 	}
@@ -492,4 +617,36 @@ void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( centity_t *cent ) {
 		VectorCopy( cent->demoDelagVisualOrigin, cent->lerpOrigin );
 		VectorCopy( cent->demoDelagVisualAngles, cent->lerpAngles );
 	}
+}
+
+qboolean CG_DemoHistory_AdjustMissileLerpForDemoDelag( centity_t *cent ) {
+	int ping;
+	int tDisp;
+	int tHist;
+	vec3_t origin;
+	vec3_t angles;
+
+	if ( !CG_DemoHistory_DemoDelagActive() || !cg.snap ) {
+		return qfalse;
+	}
+	if ( cent->currentState.eType != ET_MISSILE ) {
+		return qfalse;
+	}
+	if ( CG_IsOwnMissile( cent ) && cg_altPredictMissiles.integer > 0 && ( cgs.ratFlags & RAT_PREDICTMISSILES ) ) {
+		return qfalse;
+	}
+	if ( !demoDelagResolvePingMs( &ping ) ) {
+		return qfalse;
+	}
+
+	tDisp = demoDelagDisplayServerTime();
+
+	tHist = clampServerTimeToHistory( tDisp - ping );
+	if ( !getEntityPoseAtHistoryTime( cent->currentState.number, tHist, origin, angles ) ) {
+		return qfalse;
+	}
+
+	VectorCopy( origin, cent->lerpOrigin );
+	VectorCopy( angles, cent->lerpAngles );
+	return qtrue;
 }
