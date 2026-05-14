@@ -914,7 +914,17 @@ void CG_BuildDemoScores( void ) {
 
 		if ( i == ps->clientNum ) {
 			s->score = ps->persistant[PERS_SCORE];
-			if ( cg.demoPlayback && cg.demoScoreboardPingValid ) {
+			if ( cg.demoPlayback && cg_demoDelag.integer && cgs.delagHitscan ) {
+				int delagPingSB = CG_DemoHistory_GetScoreboardPingMs();
+
+				if ( delagPingSB >= 0 ) {
+					s->ping = delagPingSB;
+				} else if ( cg.demoScoreboardPingValid ) {
+					s->ping = cg.demoScoreboardPing;
+				} else {
+					s->ping = ps->ping;
+				}
+			} else if ( cg.demoPlayback && cg.demoScoreboardPingValid ) {
 				s->ping = cg.demoScoreboardPing;
 			} else if ( cg.demoPlayback ) {
 				s->ping = ps->ping;
