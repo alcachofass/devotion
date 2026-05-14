@@ -18,6 +18,8 @@ static int cg_demoHistoryCount;
 static int cg_demoHistoryLastServerTime;
 static qboolean cg_demoHistoryPrevPlayback;
 static int cg_demoDelagPingSmoothed = -1;
+static int cg_demoScoreboardPingLatchServerTime = -1;
+static int cg_demoScoreboardPingLatchMs = -1;
 
 typedef struct {
 	centity_t *cent;
@@ -39,6 +41,8 @@ void CG_DemoHistory_Clear( void ) {
 	cg_demoHistoryLastServerTime = -1;
 	cg_demoRewindSaveCount = 0;
 	cg_demoDelagPingSmoothed = -1;
+	cg_demoScoreboardPingLatchServerTime = -1;
+	cg_demoScoreboardPingLatchMs = -1;
 	for ( i = 0; i < MAX_GENTITIES; i++ ) {
 		cg_entities[i].demoDelagVisualCached = qfalse;
 	}
@@ -68,10 +72,40 @@ void CG_DemoHistory_Frame( void ) {
 				cg_demoDelagPingSmoothed += ( p - cg_demoDelagPingSmoothed + 4 ) / 8;
 			}
 		}
+		if ( cg.snap->serverTime != cg_demoScoreboardPingLatchServerTime ) {
+			int latched;
+
+			cg_demoScoreboardPingLatchServerTime = cg.snap->serverTime;
+			if ( demoDelagResolvePingMs( &latched ) ) {
+				if ( latched > 400 ) {
+					latched = 400;
+				}
+				cg_demoScoreboardPingLatchMs = latched;
+			} else {
+				cg_demoScoreboardPingLatchMs = -1;
+			}
+		}
 	} else {
 		cg_demoDelagPingSmoothed = -1;
+		cg_demoScoreboardPingLatchServerTime = -1;
+		cg_demoScoreboardPingLatchMs = -1;
 	}
 	cg_demoHistoryPrevPlayback = cg.demoPlayback;
+}
+
+/*
+=================
+CG_DemoHistory_GetScoreboardPingMs
+
+During demo playback with cg_demoDelag enabled, returns the delag ping latched
+once per snapshot serverTime (same basis as demo delag). Otherwise -1.
+=================
+ */
+int CG_DemoHistory_GetScoreboardPingMs( void ) {
+	if ( !cg.demoPlayback || !cg_demoDelag.integer || !cgs.delagHitscan ) {
+		return -1;
+	}
+	return cg_demoScoreboardPingLatchMs;
 }
 
 void CG_DemoHistory_OnSnapshot( const snapshot_t *snap ) {

@@ -27,5 +27,6 @@ void CG_DemoHistory_EndHitscanRewind( void );
 void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( struct centity_s *cent );
 qboolean CG_DemoHistory_AdjustMissileLerpForDemoDelag( struct centity_s *cent );
 int CG_DemoHistory_LocalFireDelay( void );
+int CG_DemoHistory_GetScoreboardPingMs( void );
 
 #endif
