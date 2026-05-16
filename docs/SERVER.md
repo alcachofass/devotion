@@ -1,6 +1,8 @@
 # Server Commands
 
-## Dedicated Server Example
+For more detailed information, check out the [Server CVARs](SERVER-CVARS.md) and [Server Commands](SERVER-COMMANDS.md) tables.
+
+## Dedicated Server launch Example
 
 ```sh
 quake3-server +set dedicated 2 +set fs_game devotion +exec server.cfg
@@ -11,7 +13,7 @@ quake3-server +set dedicated 2 +set fs_game devotion +exec server.cfg
 ```sh
 // Cleanup
 kickbots
-set g_spskill 4
+set g_spskill 4 //Hardcore bots
 set bot_enable 1
 set bot_minplayers 2
 set bot_nochat 1
@@ -32,13 +34,13 @@ set g_specMuted 0
 set g_tournamentMuteSpec 0
 set sv_floodprotect 0
 set rconpassword "YourSecretPassword"
-set sv_fps 40
+set sv_fps 20 //Higher values are fine but not necessarily beneficial
 
 // Files
-set sv_dlurl "https://your.url.tld"
+set sv_dlurl "https://your.url.tld" //HTTP endpoint where required PK3 files can be found, as a faster alternative to downloading via the in-game server channel.
 
 // Weapon Damage
-set g_lgDamage 8
+set g_lgDamage 8 //heavily server-tick dependent. If you increase sv_fps you're gonna want to drop this
 set g_mgDamage 7
 set g_railgunDamage 100
 set g_newShotgun 0
@@ -47,8 +49,7 @@ set g_newShotgun 0
 set g_gametype 1
 set mode_start 1
 set g_doWarmup 1
-set g_startWhenReady 2                // "1" - over 50% ready needed to start, "2" - 100% ready needed to start, "3" - over 50% ready needed to start in team games
-
+set g_startWhenReady 2 // "1" - over 50% ready needed to start, "2" - 100% ready needed to start, "3" - over 50% ready needed to start in team games
 
 map pro-q3dm6
 ```
