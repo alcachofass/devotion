@@ -15,7 +15,7 @@ See [Client Commands](/docs/CLIENT.md)
 
 ## Building from source
 
-See [Releases](/releases) if you just want a pre-built file to copy into your Q3 folder. But if you want to build from source:
+See [Releases](https://github.com/alcachofass/devotion/releases) if you just want a pre-built file to copy into your Q3 folder. But if you want to build from source:
 
 ### Step 1
 Clone the repo to your local drive:
