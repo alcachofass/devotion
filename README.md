@@ -17,7 +17,7 @@ See the [Client Guide](/docs/CLIENT.md).
 
 Also see [Client Commands](/docs/CLIENT-COMMANDS.md) and [CVARs](/docs/CLIENT-CVARS.md).
 
-## Building from source
+## Building From Source
 
 Download a [Release](/releases) if you just want a pre-built file to copy into your Q3 folder.\
 
@@ -33,13 +33,13 @@ Clone the repo to your local drive:
 
 ### Step 2
 
-**On Linux:** Just run `make` inside the folder
+**On MacOS or Linux:** Just run `make` inside the folder
 
 **On Windows:**
 
-**Option 1:** Install Windows Subsystem for Linux (WSL) then run `make` from the folder as you would on Linux
+***Option 1:*** Install Windows Subsystem for Linux (WSL) then run `make` from the folder as you would on Linux
 
-**Option 2:** Install [MSYS2](https://www.msys2.org/) and follow the steps in [BUILD_WINDOWS.md](BUILD_WINDOWS.md). This is useful if you don't want the weight of installing Hyper-V and WSL on your system.
+***Option 2:*** Install [MSYS2](https://www.msys2.org/) and follow the steps in [BUILD_WINDOWS.md](BUILD_WINDOWS.md). This is useful if you don't want the weight of installing Hyper-V and WSL on your system.
 
 ### Step 3
 
@@ -65,6 +65,13 @@ Many have contributed in different ways over the 20+ years since the game was or
 - [Aries Beats](https://free-songs.de/Aries_Beats_-_Sad_Synthwave.mp3) (Music)
 - Spike ([Level Design](https://lvlworld.com/author/Spike))
 - Foo ([Level Design](https://lvlworld.com/review/id:2507) & [Code](https://github.com/br33zy59))
+
+## Contributing
+Pull requests are welcome! A few of us discuss opportunitites on the Quake3World Discord and occasionally play on nuegados.com.
+```
+   /connect nuegados.com
+```
+
 
 ## Licensing
 Please note that despite the license applied to this mod, such license is obviously not valid for High Quality Quake. They are only here due to insistence of a few friends. [This commit](https://github.com/ceular/devotion/commit/b3ddf1a6f04633add631ff5c4b75eda7448ee7c5) references all such assets that aren't GPLv2, thankfully, ZerTerO is fine with its usage. In addition to that, the model used for green armor is not GPLv2 because the model itself comes from OSP which is still taken from Quake III itself, the only difference is the path contained within the md3 file to a different skin, and such skin is a derivative of the yellow armor skin, just changed to green.
