@@ -8,14 +8,20 @@ Devotion began as a port of [RatArena](https://github.com/rdntcntrl/ratoa_gameco
 Since this is a partial conversion, not everything previously found in RatArena will work here, namely the extra medals, the Treasure Hunt gametype, Team Arena gametypes, alternate rockets, alternate announcers (here we use the default for Quake III), Team Arena items and weapons, radar, grenade skins and maybe one or another cosmetic setting to achieve consistency. For everything else, the documentation available at the [RatArena website](https://ratmod.github.io/) serves well for Devotion. There is also [a wiki](https://github.com/alcachofass/devotion/wiki) in the works.
 
 ### Server Configuration
-See [Dedicated Server Guide](/docs/SERVER.md)
+See the [Server Guide](/docs/SERVER.md).
+
+There is also a fairly exhaustive list of [Server Commands](/docs/SERVER-COMMANDS.md) and [CVARs](/docs/SERVER-CVARS.md).
 
 ### Client Configuration
-See [Client Commands](/docs/CLIENT.md)
+See the [Client Guide](/docs/CLIENT.md).
+
+Also see [Client Commands](/docs/CLIENT-COMMANDS.md) and [CVARs](/docs/CLIENT-CVARS.md).
 
 ## Building from source
 
-See [Releases](/releases) if you just want a pre-built file to copy into your Q3 folder. But if you want to build from source:
+Download a [Release](/releases) if you just want a pre-built file to copy into your Q3 folder.\
+
+If you want to build from source code:
 
 ### Step 1
 Clone the repo to your local drive:

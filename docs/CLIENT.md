@@ -1,5 +1,7 @@
 # Client Commands
 
+For detailed information, check out the full [Client CVARs](CLENT-CVARS.md) and [Client Commands](CLIENT-COMMANDS.md) tables.
+
 ## Quick Start
 ```
 pro 0                            // Unsets team/enemy model/color cvars
