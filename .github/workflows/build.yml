@@ -46,7 +46,7 @@ jobs:
           ls -la build/
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ steps.metadata.outputs.artifact-name }}
           path: build/*.pk3
