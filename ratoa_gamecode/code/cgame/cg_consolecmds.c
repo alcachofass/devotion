@@ -241,6 +241,7 @@ static void CG_ScoresDown_f( void ) {
 		cg.scoresRequestTime = cg.time;
 
 		if ( cg.demoPlayback ) {
+			CG_RefreshDemoPovDisplayPing();
 			CG_BuildDemoScores();
 		} else {
 			trap_SendClientCommand( "score" );
@@ -272,6 +273,9 @@ static void CG_ScoresUp_f( void ) {
 	if ( cg.showScores ) {
 		cg.showScores = qfalse;
 		cg.scoreFadeTime = cg.time;
+		if ( cg.demoPlayback ) {
+			cg.demoPovDisplayPingValid = qfalse;
+		}
 	}
 }
 

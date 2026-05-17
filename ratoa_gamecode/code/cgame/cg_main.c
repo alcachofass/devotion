@@ -2368,7 +2368,7 @@ static const char *CG_FeederItemText(float feederID, int index, int column, qhan
 				if ( sp->ping == -1 ) {
 					return "connecting";
 				} 
-				return va("%4i", sp->ping);
+				return va("%4i", CG_ScoreboardDisplayPing( sp->client, sp->ping ));
 			break;
 		}
 	}
