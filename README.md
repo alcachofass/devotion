@@ -19,13 +19,13 @@ Also see [Client Commands](/docs/CLIENT-COMMANDS.md) and [CVARs](/docs/CLIENT-CV
 
 ## Building From Source
 
-Download a [Release](/releases) if you just want a pre-built file to copy into your Q3 folder.\
+Download a [Release](/releases) if you just want a pre-built file to copy into your Q3 folder.
 
 If you want to build from source code:
 
 ### Step 1
 Clone the repo to your local drive:
-- Make a folder for the code to go in
+- Make a folder for the code to go in.
 - In that folder run:
     ```
     git clone https://github.com/alcachofass/devotion.git
@@ -33,11 +33,11 @@ Clone the repo to your local drive:
 
 ### Step 2
 
-**On MacOS or Linux:** Just run `make` inside the folder
+**On MacOS or Linux:** Just run `make` inside the folder.
 
 **On Windows:**
 
-***Option 1:*** Install Windows Subsystem for Linux (WSL) then run `make` from the folder as you would on Linux
+***Option 1:*** Install Windows Subsystem for Linux (WSL) then run `make` from the folder as you would on Linux.
 
 ***Option 2:*** Install [MSYS2](https://www.msys2.org/) and follow the steps in [BUILD_WINDOWS.md](BUILD_WINDOWS.md). This is useful if you don't want the weight of installing Hyper-V and WSL on your system.
 
@@ -69,7 +69,7 @@ Many have contributed in different ways over the 20+ years since the game was or
 ## Contributing
 Pull requests are welcome! A few of us discuss opportunitites on the Quake3World Discord and occasionally play on nuegados.com.
 ```
-   /connect nuegados.com
+/connect nuegados.com
 ```
 
 
