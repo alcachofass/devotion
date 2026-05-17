@@ -722,9 +722,9 @@ typedef struct {
 
 	// scoreboard
 	int			scoresRequestTime;
-	int			demoScoreboardPing;		/* smoothed POV ping during demo playback */
-	qboolean	demoScoreboardPingValid;
 	qboolean	demoScoreboardRatscores;	/* demo has applied ratscores/scores from stream */
+	int			demoPovDisplayPing;		/* POV ping for scoreboard UI; refreshed with scoresRequestTime */
+	qboolean	demoPovDisplayPingValid;
 	int			demoClientPing[MAX_CLIENTS];	/* last ping from score cmds; CG_DEMO_PING_UNSET if unknown */
 	int			numScores;
 	qboolean		medals_available;
@@ -1697,6 +1697,8 @@ extern	markPoly_t		cg_markPolys[MAX_MARK_POLYS];
 void CG_PredictWeaponEffects( centity_t *cent );
 int CG_ReliablePing( void );
 int CG_ReliablePingFromSnaps(snapshot_t *snap, snapshot_t *nextsnap);
+void CG_RefreshDemoPovDisplayPing( void );
+int CG_ScoreboardDisplayPing( int clientNum, int storedPing );
 void CG_AddBoundingBox( centity_t *cent );
 qboolean CG_Cvar_ClampInt( const char *name, vmCvar_t *vmCvar, int min, int max );
 

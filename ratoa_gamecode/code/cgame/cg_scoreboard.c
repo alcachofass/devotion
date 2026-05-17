@@ -57,7 +57,7 @@ void CG_DemoCachePingsFromScores( const score_t *rows, int count ) {
 		if ( c < 0 || c >= MAX_CLIENTS ) {
 			continue;
 		}
-		/* POV ping is refreshed each demo frame; do not cache scores/ratscores values. */
+		/* POV ping comes from demoPovDisplayPing at draw time; do not cache scores values. */
 		if ( cg.snap && c == cg.snap->ps.clientNum ) {
 			continue;
 		}
@@ -576,9 +576,12 @@ static void CG_RatDrawClientScore(int y, score_t *score, float *color, float fad
 	clientInfo_t *ci;
 	centity_t *cent;
 	int iconx, headx;
+	int displayPing;
 	float tcolor[4] = { 1.0, 1.0, 1.0, 1.0 };
 	int ysmall = y + (SCORECHAR_HEIGHT - SCORESMALLCHAR_HEIGHT);
 	int ytiny = y + (SCORECHAR_HEIGHT - SCORETINYCHAR_HEIGHT);
+
+	displayPing = CG_ScoreboardDisplayPing( score->client, score->ping );
 
 	if (score->client < 0 || score->client >= cgs.maxclients) {
 		Com_Printf("Bad score->client: %i\n", score->client);
@@ -782,9 +785,9 @@ static void CG_RatDrawClientScore(int y, score_t *score, float *color, float fad
 	CG_DrawTinyScoreStringColor(RATSB_ACCURACY_X, ysmall, string, tcolor);
 
 	//tcolor[0] = tcolor[1] = tcolor[2] = 1.0;
-	CG_PingColor(score->ping, tcolor);
-	Com_sprintf(string, sizeof (string), "%3i", score->ping);
-	CG_DrawSmallScoreStringColor(RATSB_PING_X, ysmall, string, tcolor);
+	CG_PingColor( displayPing, tcolor );
+	Com_sprintf( string, sizeof( string ), "%3i", displayPing );
+	CG_DrawSmallScoreStringColor( RATSB_PING_X, ysmall, string, tcolor );
 
 	
 	//if (score->ping == -1) {
@@ -918,27 +921,13 @@ void CG_BuildDemoScores( void ) {
 
 		if ( i == ps->clientNum ) {
 			s->score = ps->persistant[PERS_SCORE];
-			if ( cg.demoPlayback && cg_demoDelag.integer && cgs.delagHitscan ) {
-				int delagPingSB = CG_DemoHistory_GetScoreboardPingMs();
-
-				if ( delagPingSB >= 0 ) {
-					s->ping = delagPingSB;
-				} else if ( cg.demoScoreboardPingValid ) {
-					s->ping = cg.demoScoreboardPing;
-				} else {
-					s->ping = ps->ping;
-				}
-			} else if ( cg.demoPlayback && cg.demoScoreboardPingValid ) {
-				s->ping = cg.demoScoreboardPing;
-			} else if ( cg.demoPlayback ) {
-				s->ping = ps->ping;
-			} else {
+			if ( !cg.demoPlayback ) {
 				s->ping = cg.snap->ping;
-			}
-			if ( s->ping < 0 ) {
-				s->ping = 0;
-			} else if ( s->ping > 999 ) {
-				s->ping = 999;
+				if ( s->ping < 0 ) {
+					s->ping = 0;
+				} else if ( s->ping > 999 ) {
+					s->ping = 999;
+				}
 			}
 			s->time = matchSeconds;
 			s->captures = ps->persistant[PERS_CAPTURES];
@@ -1107,6 +1096,10 @@ qboolean CG_DrawRatScoreboard(void) {
 		fade = *fadeColor;
 	}
 
+	if ( cg.demoPlayback && cg.snap && !cg.demoPovDisplayPingValid ) {
+		CG_RefreshDemoPovDisplayPing();
+	}
+
 	if ( cg.demoPlayback && cg.snap && cg.numScores == 0
 			&& !cg.demoScoreboardRatscores
 			&& cg.snap->ps.pm_type != PM_INTERMISSION
@@ -1120,6 +1113,7 @@ qboolean CG_DrawRatScoreboard(void) {
 		// so request new ones
 		cg.scoresRequestTime = cg.time;
 		if ( cg.demoPlayback ) {
+			CG_RefreshDemoPovDisplayPing();
 			if ( !cg.demoScoreboardRatscores
 					&& cg.snap
 					&& cg.snap->ps.pm_type != PM_INTERMISSION
@@ -1518,7 +1512,10 @@ static void CG_DrawClientScore( int y, score_t *score, float *color, float fade,
 	char	string[1024];
 	vec3_t	headAngles;
 	clientInfo_t	*ci;
+	int		displayPing;
 	int iconx, headx;
+
+	displayPing = CG_ScoreboardDisplayPing( score->client, score->ping );
 
 	if ( score->client < 0 || score->client >= cgs.maxclients ) {
 		Com_Printf( "Bad score->client: %i\n", score->client );
@@ -1613,18 +1610,18 @@ static void CG_DrawClientScore( int y, score_t *score, float *color, float fade,
 			" connecting    %s", ci->name);
 	} else if ( ci->team == TEAM_SPECTATOR ) {
 		Com_sprintf(string, sizeof(string),
-			" SPECT %3i %4i %s", score->ping, score->time/60, ci->name);
+			" SPECT %3i %4i %s", displayPing, score->time/60, ci->name);
 	} else {
 		/*if(cgs.gametype == GT_LMS)
 			Com_sprintf(string, sizeof(string),
-				"%5i %4i %4i %s *%i*", score->score, score->ping, score->time, ci->name, ci->isDead);
+				"%5i %4i %4i %s *%i*", score->score, displayPing, score->time, ci->name, ci->isDead);
 		else*/
 		/*if(ci->isDead)
 			Com_sprintf(string, sizeof(string),
-				"%5i %4i %4i %s *DEAD*", score->score, score->ping, score->time, ci->name);
+				"%5i %4i %4i %s *DEAD*", score->score, displayPing, score->time, ci->name);
 		else*/
 			Com_sprintf(string, sizeof(string),
-				"%5i %4i %4i %s", score->score, score->ping, score->time/60, ci->name);
+				"%5i %4i %4i %s", score->score, displayPing, score->time/60, ci->name);
 	}
 
 	// highlight your position
@@ -1758,6 +1755,10 @@ qboolean CG_DrawOldScoreboard( void ) {
 		fade = *fadeColor;
 	}
 
+	if ( cg.demoPlayback && cg.snap && !cg.demoPovDisplayPingValid ) {
+		CG_RefreshDemoPovDisplayPing();
+	}
+
 	if ( cg.demoPlayback && cg.snap && cg.numScores == 0
 			&& !cg.demoScoreboardRatscores
 			&& cg.snap->ps.pm_type != PM_INTERMISSION
@@ -1769,6 +1770,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 	if ( cg.scoresRequestTime + 1000 < cg.time ) {
 		cg.scoresRequestTime = cg.time;
 		if ( cg.demoPlayback ) {
+			CG_RefreshDemoPovDisplayPing();
 			if ( !cg.demoScoreboardRatscores
 					&& cg.snap
 					&& cg.snap->ps.pm_type != PM_INTERMISSION
@@ -1937,6 +1939,7 @@ void CG_DrawOldTourneyScoreboard( void ) {
 	if ( cg.scoresRequestTime + 2000 < cg.time ) {
 		cg.scoresRequestTime = cg.time;
 		if ( cg.demoPlayback ) {
+			CG_RefreshDemoPovDisplayPing();
 			if ( !cg.demoScoreboardRatscores
 					&& cg.snap && cg.snap->ps.pm_type != PM_INTERMISSION
 					&& cg.predictedPlayerState.pm_type != PM_INTERMISSION ) {

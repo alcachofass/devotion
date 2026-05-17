@@ -919,6 +919,44 @@ int CG_ReliablePingFromSnaps(snapshot_t *snap, snapshot_t *nextSnap) {
 	return ping;
 }
 
+/*
+=================
+CG_RefreshDemoPovDisplayPing
+
+Sample CG_ReliablePing() for scoreboard display. Called from the scoreboard's
+1 Hz refresh (scoresRequestTime) and when opening scores during demo playback.
+=================
+ */
+void CG_RefreshDemoPovDisplayPing( void ) {
+	if ( !cg.demoPlayback || !cg.snap ) {
+		cg.demoPovDisplayPingValid = qfalse;
+		return;
+	}
+	cg.demoPovDisplayPing = CG_ReliablePing();
+	cg.demoPovDisplayPingValid = qtrue;
+}
+
+/*
+=================
+CG_ScoreboardDisplayPing
+
+During demo playback the POV row uses demoPovDisplayPing (refreshed ~1 Hz while
+the scoreboard is open), not the frozen ping from scores/ratscores servercmds.
+=================
+ */
+int CG_ScoreboardDisplayPing( int clientNum, int storedPing ) {
+	if ( storedPing == -1 ) {
+		return -1;
+	}
+	if ( cg.demoPlayback && cg.snap && clientNum == cg.snap->ps.clientNum ) {
+		if ( cg.demoPovDisplayPingValid ) {
+			return cg.demoPovDisplayPing;
+		}
+		return storedPing;
+	}
+	return storedPing;
+}
+
 void CG_FinishPredictMissileModel( entityState_t *ent, predictedMissile_t *pm ) {
 	refEntity_t	*bolt = &pm->refEntity;
 
