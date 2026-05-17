@@ -1,44 +1,62 @@
 name: Build
-on: [push]
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ['v*']
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  actions: read
 
 jobs:
-
   build-linux:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Update
-      run: |
-        sudo apt-get update
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
 
-    - name: Build QVM
-      run: |
-        make -j12
-      env:
-        ARCHIVE: 1
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
-    - name: Set artifact name
-      run: |
-        git fetch --tags
-        FILENAME_HERE=$(ls build/)
-        GIT_DESCRIBECOMMIT=$(git describe --tags --always)
-        ARTIFACT_NAME="${FILENAME_HERE%.*}-${GIT_DESCRIBECOMMIT##*-}"
-        echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $GITHUB_ENV
+      - name: Update package manager
+        run: sudo apt-get update
 
-    - name: Store pk3 artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.ARTIFACT_NAME }}
-        path: |
-          build/*.pk3
-        if-no-files-found: error
-        retention-days: 7
+      - name: Build QVM
+        run: make -j12
+        env:
+          ARCHIVE: 1
 
-    - name: Publish a release
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        files: |
-          build/*.pk3
+      - name: Generate artifact metadata
+        id: metadata
+        run: |
+          GIT_DESCRIBE=$(git describe --tags --always)
+          ARTIFACT_NAME="devotion-${GIT_DESCRIBE}"
+          echo "artifact-name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
+          ls -la build/
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ steps.metadata.outputs.artifact-name }}
+          path: build/*.pk3
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/*.pk3
+          draft: false
+          prerelease: false
