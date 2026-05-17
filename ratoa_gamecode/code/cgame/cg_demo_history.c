@@ -90,6 +90,11 @@ void CG_DemoHistory_Frame( void ) {
 		cg_demoScoreboardPingLatchServerTime = -1;
 		cg_demoScoreboardPingLatchMs = -1;
 	}
+
+	if ( cg.demoPlayback && cg.snap && cg.numScores > 0 ) {
+		CG_DemoPatchScoreboardPovPing();
+	}
+
 	cg_demoHistoryPrevPlayback = cg.demoPlayback;
 }
 
@@ -106,6 +111,53 @@ int CG_DemoHistory_GetScoreboardPingMs( void ) {
 		return -1;
 	}
 	return cg_demoScoreboardPingLatchMs;
+}
+
+/*
+=================
+CG_DemoPatchScoreboardPovPing
+
+When scores/ratscores from the demo populate cg.scores, POV ping is a one-shot
+servercmd value. Overwrite only the recorder's row each frame (same sources as
+CG_BuildDemoScores) so the scoreboard tracks live demo delag ping.
+=================
+ */
+static void CG_DemoPatchScoreboardPovPing( void ) {
+	int		i, ping, pov;
+
+	if ( !cg.demoPlayback || !cg.snap || cg.numScores <= 0 ) {
+		return;
+	}
+	if ( cg.snap->ps.pm_type == PM_INTERMISSION
+			|| cg.predictedPlayerState.pm_type == PM_INTERMISSION ) {
+		return;
+	}
+
+	pov = cg.snap->ps.clientNum;
+	ping = -1;
+
+	if ( cg_demoDelag.integer && cgs.delagHitscan ) {
+		ping = CG_DemoHistory_GetScoreboardPingMs();
+	}
+	if ( ping < 0 && cg.demoScoreboardPingValid ) {
+		ping = cg.demoScoreboardPing;
+	}
+	if ( ping < 0 ) {
+		ping = cg.snap->ps.ping;
+	}
+	if ( ping < 0 ) {
+		return;
+	}
+	if ( ping > 999 ) {
+		ping = 999;
+	}
+
+	for ( i = 0; i < cg.numScores; i++ ) {
+		if ( cg.scores[i].client == pov ) {
+			cg.scores[i].ping = ping;
+			break;
+		}
+	}
 }
 
 void CG_DemoHistory_OnSnapshot( const snapshot_t *snap ) {

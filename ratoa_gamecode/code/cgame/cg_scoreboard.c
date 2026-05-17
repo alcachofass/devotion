@@ -57,6 +57,10 @@ void CG_DemoCachePingsFromScores( const score_t *rows, int count ) {
 		if ( c < 0 || c >= MAX_CLIENTS ) {
 			continue;
 		}
+		/* POV ping is refreshed each demo frame; do not cache scores/ratscores values. */
+		if ( cg.snap && c == cg.snap->ps.clientNum ) {
+			continue;
+		}
 		p = rows[i].ping;
 		if ( p < -1 || p > 999 ) {
 			continue;
