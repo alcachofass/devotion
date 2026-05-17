@@ -357,7 +357,9 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 		cg.lastHitTime = cg.time;
 		cg.lastHitDamage = ps->persistant[PERS_DAMAGE_DONE] - ops->persistant[PERS_DAMAGE_DONE];
 
-		trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
+		if ( !CG_ConsumePredictedHitSuppression() && cg_hitsound.integer ) {
+			trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
+		}
 
 /*      //duffman91 - We aren't doing per damage hit sounds. Instead, hit sounds are a selectable cvar. 
 

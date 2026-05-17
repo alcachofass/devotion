@@ -47,6 +47,227 @@ static int CG_DemoAttackTime( void ) {
 	return attackTime;
 }
 
+#define CG_PREDICTED_HIT_EXPIRE_EXTRA	150
+
+static void CG_PredictedHit_ExpireOld( void ) {
+	int i;
+	int expireTime;
+
+	expireTime = cg.time - ( CG_ReliablePing() + CG_PREDICTED_HIT_EXPIRE_EXTRA );
+	for ( i = 0; i < CG_MAX_PREDICTED_HITS; i++ ) {
+		if ( cg.predictedHits[i].active && cg.predictedHits[i].predictTime < expireTime ) {
+			cg.predictedHits[i].active = qfalse;
+		}
+	}
+}
+
+static qboolean CG_ShouldPredictHitSound( int weapon ) {
+	if ( !cg_predictHitSound.integer ) {
+		return qfalse;
+	}
+	if ( !cgs.delagHitscan ) {
+		return qfalse;
+	}
+	if ( cg_hitsound.integer == 0 ) {
+		return qfalse;
+	}
+	if ( cg.intermissionStarted ) {
+		return qfalse;
+	}
+	if ( !cg.snap ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
+		return qfalse;
+	}
+
+	switch ( weapon ) {
+	case WP_GAUNTLET:
+		return ( cg_delag.integer & 1 ) ? qtrue : qfalse;
+	case WP_MACHINEGUN:
+#ifdef MISSIONPACK
+	case WP_CHAINGUN:
+#endif
+		return ( cg_delag.integer & 1 || cg_delag.integer & 2 ) ? qtrue : qfalse;
+	case WP_SHOTGUN:
+		return ( cg_delag.integer & 1 || cg_delag.integer & 4 ) ? qtrue : qfalse;
+	case WP_LIGHTNING:
+		return ( cg_delag.integer & 1 || cg_delag.integer & 8 ) ? qtrue : qfalse;
+	case WP_RAILGUN:
+		return ( cg_delag.integer & 1 || cg_delag.integer & 16 ) ? qtrue : qfalse;
+	default:
+		return qfalse;
+	}
+}
+
+static qboolean CG_IsValidPredictedHitTarget( int clientNum ) {
+	centity_t *cent;
+	clientInfo_t *ci;
+	clientInfo_t *myCi;
+
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	if ( clientNum == cg.clientNum ) {
+		return qfalse;
+	}
+
+	cent = &cg_entities[clientNum];
+	if ( !cent->currentValid ) {
+		return qfalse;
+	}
+	if ( cent->currentState.eType != ET_PLAYER ) {
+		return qfalse;
+	}
+	if ( cent->currentState.eFlags & EF_DEAD ) {
+		return qfalse;
+	}
+
+	myCi = &cgs.clientinfo[cg.clientNum];
+	ci = &cgs.clientinfo[clientNum];
+	if ( CG_IsTeamGametype() && myCi->team != TEAM_FREE && ci->team == myCi->team ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+static void CG_PredictedHit_Add( int victim, int weapon, int attackTime ) {
+	int i;
+	int oldest;
+	int oldestTime;
+
+	CG_PredictedHit_ExpireOld();
+
+	for ( i = 0; i < CG_MAX_PREDICTED_HITS; i++ ) {
+		if ( !cg.predictedHits[i].active ) {
+			cg.predictedHits[i].attackTime = attackTime;
+			cg.predictedHits[i].victim = victim;
+			cg.predictedHits[i].weapon = weapon;
+			cg.predictedHits[i].predictTime = cg.time;
+			cg.predictedHits[i].active = qtrue;
+			return;
+		}
+	}
+
+	oldest = 0;
+	oldestTime = cg.predictedHits[0].predictTime;
+	for ( i = 1; i < CG_MAX_PREDICTED_HITS; i++ ) {
+		if ( cg.predictedHits[i].predictTime < oldestTime ) {
+			oldestTime = cg.predictedHits[i].predictTime;
+			oldest = i;
+		}
+	}
+	cg.predictedHits[oldest].attackTime = attackTime;
+	cg.predictedHits[oldest].victim = victim;
+	cg.predictedHits[oldest].weapon = weapon;
+	cg.predictedHits[oldest].predictTime = cg.time;
+	cg.predictedHits[oldest].active = qtrue;
+}
+
+static void CG_PlayPredictedHitBeep( int victim, int weapon, int attackTime ) {
+	if ( !CG_ShouldPredictHitSound( weapon ) ) {
+		return;
+	}
+	if ( !CG_IsValidPredictedHitTarget( victim ) ) {
+		return;
+	}
+
+	CG_PredictedHit_Add( victim, weapon, attackTime );
+
+	cg.lastHitTime = cg.time;
+	cg.lastHitDamage = 1;
+	trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
+}
+
+qboolean CG_ConsumePredictedHitSuppression( void ) {
+	int i;
+	int windowStart;
+
+	if ( !cg_predictHitSound.integer ) {
+		return qfalse;
+	}
+
+	CG_PredictedHit_ExpireOld();
+	windowStart = cg.time - ( CG_ReliablePing() + CG_PREDICTED_HIT_EXPIRE_EXTRA );
+
+	for ( i = 0; i < CG_MAX_PREDICTED_HITS; i++ ) {
+		if ( cg.predictedHits[i].active && cg.predictedHits[i].predictTime >= windowStart ) {
+			cg.predictedHits[i].active = qfalse;
+			return qtrue;
+		}
+	}
+
+	return qfalse;
+}
+
+static void CG_PredictWeaponEffects_PlayerHit( int victim, int weapon, int attackTime ) {
+	CG_PlayPredictedHitBeep( victim, weapon, attackTime );
+}
+
+static int CG_ShotgunPattern_PlayerHit( vec3_t origin, vec3_t origin2, int seed, int skipNum ) {
+	int i;
+	float r, u;
+	vec3_t end;
+	vec3_t forward, right, up;
+	trace_t tr;
+
+	VectorNormalize2( origin2, forward );
+	PerpendicularVector( right, forward );
+	CrossProduct( forward, right, up );
+
+	if ( cgs.ratFlags & RAT_NEWSHOTGUN ) {
+		for ( i = 0; i < NEW_SHOTGUN_COUNT; i++ ) {
+			int randomness = 100;
+
+			if ( i < 5 ) {
+				float t = i * ( 72.0f * M_PI / 180.0f ) + M_PI / 5.0f;
+				r = 300 * 16 * cos( t );
+				u = 300 * 16 * sin( t );
+			} else if ( i < 11 ) {
+				float t = ( i - 5 ) * ( 60.0f * M_PI / 180.0f ) + M_PI / 6.0f;
+				r = 600 * 16 * cos( t );
+				u = 600 * 16 * sin( t );
+			} else {
+				r = 0;
+				u = 0;
+			}
+			r += Q_crandom( &seed ) * randomness * 16;
+			u += Q_crandom( &seed ) * randomness * 16;
+
+			VectorMA( origin, 8192 * 16, forward, end );
+			VectorMA( end, r, right, end );
+			VectorMA( end, u, up, end );
+
+			CG_Trace( &tr, origin, NULL, NULL, end, skipNum, MASK_SHOT );
+			if ( tr.surfaceFlags & SURF_NOIMPACT ) {
+				continue;
+			}
+			if ( tr.entityNum < MAX_CLIENTS && CG_IsValidPredictedHitTarget( tr.entityNum ) ) {
+				return tr.entityNum;
+			}
+		}
+	} else {
+		for ( i = 0; i < DEFAULT_SHOTGUN_COUNT; i++ ) {
+			r = Q_crandom( &seed ) * DEFAULT_SHOTGUN_SPREAD * 16;
+			u = Q_crandom( &seed ) * DEFAULT_SHOTGUN_SPREAD * 16;
+			VectorMA( origin, 8192 * 16, forward, end );
+			VectorMA( end, r, right, end );
+			VectorMA( end, u, up, end );
+
+			CG_Trace( &tr, origin, NULL, NULL, end, skipNum, MASK_SHOT );
+			if ( tr.surfaceFlags & SURF_NOIMPACT ) {
+				continue;
+			}
+			if ( tr.entityNum < MAX_CLIENTS && CG_IsValidPredictedHitTarget( tr.entityNum ) ) {
+				return tr.entityNum;
+			}
+		}
+	}
+
+	return -1;
+}
+
 // similar to localentites
 predictedMissile_t	cg_predictedMissiles[MAX_PREDICTED_MISSILES];
 predictedMissile_t	cg_activePMissiles;		// double linked list
@@ -477,6 +698,7 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			}
 			if ( trace.fraction < 1.0f && trace.entityNum < MAX_CLIENTS && !( trace.surfaceFlags & SURF_NOIMPACT ) ) {
 				CG_MissileHitPlayer( WP_GAUNTLET, trace.endpos, trace.plane.normal, trace.entityNum, NULL );
+				CG_PredictWeaponEffects_PlayerHit( trace.entityNum, WP_GAUNTLET, attackTime );
 			}
 		}
 	}
@@ -578,6 +800,23 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 				// predict an explosion
 				CG_MissileHitWall( ent->weapon, cg.predictedPlayerState.clientNum, trace.endpos, trace.plane.normal, IMPACTSOUND_DEFAULT, NULL );
 			}
+
+			{
+				trace_t hitTrace;
+
+				if ( demoRewind ) {
+					CG_DemoHistory_BeginHitscanRewind( attackTime, cg.predictedPlayerState.clientNum );
+				}
+				CG_Trace( &hitTrace, muzzlePoint, vec3_origin, vec3_origin, endPoint,
+					cg.predictedPlayerState.clientNum, MASK_SHOT );
+				if ( demoRewind ) {
+					CG_DemoHistory_EndHitscanRewind();
+				}
+				if ( hitTrace.fraction < 1.0f && hitTrace.entityNum < MAX_CLIENTS
+						&& !( hitTrace.surfaceFlags & SURF_NOIMPACT ) ) {
+					CG_PredictWeaponEffects_PlayerHit( hitTrace.entityNum, WP_RAILGUN, attackTime );
+				}
+			}
 		}
 	}
 	else if ( ent->weapon == WP_LIGHTNING ) {
@@ -601,6 +840,7 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			if (trace.fraction < 1.0) {
 				if (trace.entityNum < MAX_CLIENTS) {
 					CG_MissileHitPlayer(WP_LIGHTNING, trace.endpos, trace.plane.normal, trace.entityNum, NULL);
+					CG_PredictWeaponEffects_PlayerHit( trace.entityNum, WP_LIGHTNING, attackTime );
 				} else if (!(trace.surfaceFlags & SURF_NOIMPACT)) {
 					CG_MissileHitWall(WP_LIGHTNING, 0, trace.endpos, trace.plane.normal, IMPACTSOUND_DEFAULT, NULL);
 				}
@@ -647,7 +887,15 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			if ( demoRewind ) {
 				CG_DemoHistory_BeginHitscanRewind( attackTime, cg.predictedPlayerState.clientNum );
 			}
-			CG_ShotgunPattern( muzzlePoint, endPoint, seed, cg.predictedPlayerState.clientNum );
+			{
+				int shotgunVictim;
+
+				CG_ShotgunPattern( muzzlePoint, endPoint, seed, cg.predictedPlayerState.clientNum );
+				shotgunVictim = CG_ShotgunPattern_PlayerHit( muzzlePoint, endPoint, seed, cg.predictedPlayerState.clientNum );
+				if ( shotgunVictim >= 0 ) {
+					CG_PredictWeaponEffects_PlayerHit( shotgunVictim, WP_SHOTGUN, attackTime );
+				}
+			}
 			if ( demoRewind ) {
 				CG_DemoHistory_EndHitscanRewind();
 			}
@@ -706,6 +954,9 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 
 			// do the bullet impact
 			CG_Bullet( tr.endpos, cg.predictedPlayerState.clientNum, tr.plane.normal, flesh, fleshEntityNum );
+			if ( flesh ) {
+				CG_PredictWeaponEffects_PlayerHit( fleshEntityNum, WP_MACHINEGUN, attackTime );
+			}
 			//Com_Printf( "Predicted bullet\n" );
 		}
 	}
@@ -762,6 +1013,9 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 
 			// do the bullet impact
 			CG_Bullet( tr.endpos, cg.predictedPlayerState.clientNum, tr.plane.normal, flesh, fleshEntityNum );
+			if ( flesh ) {
+				CG_PredictWeaponEffects_PlayerHit( fleshEntityNum, WP_CHAINGUN, attackTime );
+			}
 			//Com_Printf( "Predicted bullet\n" );
 		}
 	}

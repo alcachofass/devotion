@@ -635,6 +635,16 @@ typedef struct {
 //unlagged - optimized prediction
 #define NUM_SAVED_STATES (CMD_BACKUP + 2)
 //unlagged - optimized prediction
+
+#define CG_MAX_PREDICTED_HITS	32
+
+typedef struct {
+	int			attackTime;
+	int			victim;
+	int			weapon;
+	int			predictTime;
+	qboolean	active;
+} cg_predictedHit_t;
  
 typedef struct {
 	int			clientFrame;		// incremented each frame
@@ -893,6 +903,8 @@ typedef struct {
 
 	int lastHitTime;
 	int lastHitDamage;
+
+	cg_predictedHit_t	predictedHits[CG_MAX_PREDICTED_HITS];
 
 	dotbar_t healthbar;
 	dotbar_t armorbar;
@@ -1695,6 +1707,7 @@ extern	markPoly_t		cg_markPolys[MAX_MARK_POLYS];
 
 //unlagged - cg_unlagged.c
 void CG_PredictWeaponEffects( centity_t *cent );
+qboolean CG_ConsumePredictedHitSuppression( void );
 int CG_ReliablePing( void );
 int CG_ReliablePingFromSnaps(snapshot_t *snap, snapshot_t *nextsnap);
 void CG_RefreshDemoPovDisplayPing( void );
