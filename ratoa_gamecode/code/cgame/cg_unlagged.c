@@ -48,6 +48,7 @@ static int CG_DemoAttackTime( void ) {
 }
 
 #define CG_PREDICTED_HIT_EXPIRE_EXTRA	150
+#define CG_PREDICTED_HIT_VICTIM_SPLASH	-1
 
 static void CG_PredictedHit_ExpireOld( void ) {
 	int i;
@@ -199,6 +200,156 @@ qboolean CG_ConsumePredictedHitSuppression( void ) {
 	}
 
 	return qfalse;
+}
+
+/*
+ * Phase 2 projectile hit beep (cg_predictHitSound + missile prediction cvars):
+ * - RL / plasma / BFG: one beep per predicted impact (direct or splash), not per victim
+ * - Deferred: grenade (bounce), prox, nailgun
+ * - Uses same suppression ring as hitscan (ping + 150 ms)
+ */
+
+static float CG_ProjectileSplashRadius( int weapon ) {
+	switch ( weapon ) {
+	case WP_ROCKET_LAUNCHER:
+		return 120.0f;
+	case WP_PLASMAGUN:
+		return 20.0f;
+	case WP_BFG:
+		return 120.0f;
+	default:
+		return 0.0f;
+	}
+}
+
+static qboolean CG_ShouldPredictProjectileHitSound( int weapon ) {
+	if ( !cg_predictHitSound.integer ) {
+		return qfalse;
+	}
+	if ( cg_hitsound.integer == 0 ) {
+		return qfalse;
+	}
+	if ( !cg_predictExplosions.integer ) {
+		return qfalse;
+	}
+	if ( cg_altPredictMissiles.integer <= 0 ) {
+		return qfalse;
+	}
+	if ( !( cgs.ratFlags & RAT_PREDICTMISSILES ) ) {
+		return qfalse;
+	}
+	if ( cg.intermissionStarted ) {
+		return qfalse;
+	}
+	if ( !cg.snap ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
+		return qfalse;
+	}
+
+	switch ( weapon ) {
+	case WP_ROCKET_LAUNCHER:
+	case WP_PLASMAGUN:
+	case WP_BFG:
+		return qtrue;
+	default:
+		return qfalse;
+	}
+}
+
+static qboolean CG_PredictedSplashWouldDamageEnemy( vec3_t origin, float radius, int skipClient ) {
+	int i;
+	vec3_t v;
+	float dist;
+
+	if ( radius < 1.0f ) {
+		return qfalse;
+	}
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		if ( i == skipClient ) {
+			continue;
+		}
+		if ( !CG_IsValidPredictedHitTarget( i ) ) {
+			continue;
+		}
+
+		VectorSubtract( cg_entities[i].lerpOrigin, origin, v );
+		dist = VectorLength( v );
+		if ( dist < radius ) {
+			return qtrue;
+		}
+	}
+
+	return qfalse;
+}
+
+static int CG_PredictedMissileTrTime( predictedMissile_t *predMissile, centity_t *missileEnt ) {
+	if ( predMissile ) {
+		return predMissile->pos.trTime;
+	}
+	if ( missileEnt ) {
+		return missileEnt->currentState.pos.trTime;
+	}
+	return 0;
+}
+
+static void CG_PlayPredictedProjectileHitBeep( int victim, int weapon, int missileTrTime ) {
+	if ( !CG_ShouldPredictProjectileHitSound( weapon ) ) {
+		return;
+	}
+	if ( !CG_ShouldPredictExplosion() ) {
+		return;
+	}
+	if ( victim >= 0 && !CG_IsValidPredictedHitTarget( victim ) ) {
+		return;
+	}
+
+	CG_PredictedHit_Add( victim, weapon, missileTrTime );
+
+	cg.lastHitTime = cg.time;
+	cg.lastHitDamage = 1;
+	trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
+}
+
+static void CG_TryPredictedProjectileHitBeep( trace_t *tr, int weapon, predictedMissile_t *predMissile,
+		centity_t *missileEnt, qboolean directPlayerHit, int hitPlayerNum ) {
+	int missileTrTime;
+	int missileOwner;
+
+	if ( !CG_ShouldPredictProjectileHitSound( weapon ) ) {
+		return;
+	}
+	if ( !CG_ShouldPredictExplosion() ) {
+		return;
+	}
+
+	missileTrTime = CG_PredictedMissileTrTime( predMissile, missileEnt );
+	missileOwner = cg.clientNum;
+	if ( missileEnt ) {
+		if ( !CG_IsOwnMissile( missileEnt ) ) {
+			return;
+		}
+		missileOwner = CG_MissileOwner( missileEnt );
+	}
+
+	if ( directPlayerHit ) {
+		if ( hitPlayerNum == missileOwner ) {
+			return;
+		}
+		if ( hitPlayerNum != cg.clientNum && cg_predictPlayerExplosions.integer <= 1 ) {
+			return;
+		}
+		if ( CG_IsValidPredictedHitTarget( hitPlayerNum ) ) {
+			CG_PlayPredictedProjectileHitBeep( hitPlayerNum, weapon, missileTrTime );
+		}
+		return;
+	}
+
+	if ( CG_PredictedSplashWouldDamageEnemy( tr->endpos, CG_ProjectileSplashRadius( weapon ), missileOwner ) ) {
+		CG_PlayPredictedProjectileHitBeep( CG_PREDICTED_HIT_VICTIM_SPLASH, weapon, missileTrTime );
+	}
 }
 
 static void CG_PredictWeaponEffects_PlayerHit( int victim, int weapon, int attackTime ) {
@@ -524,9 +675,6 @@ void CG_PredictedExplosion(trace_t *tr, int weapon, predictedMissile_t *predMiss
 
 	hitEnt = &cg_entities[tr->entityNum];
 	if (hitEnt->currentState.eType == ET_PLAYER ) {
-		if (!cg_predictPlayerExplosions.integer) {
-			return;
-		}
 		if (missileEnt) {
 			int missileOwner = CG_MissileOwner(missileEnt);
 		       	if (missileOwner == tr->entityNum) {
@@ -539,6 +687,11 @@ void CG_PredictedExplosion(trace_t *tr, int weapon, predictedMissile_t *predMiss
 				return;
 			}
 		}
+		CG_TryPredictedProjectileHitBeep( tr, weapon, predMissile, missileEnt, qtrue, tr->entityNum );
+		if (!cg_predictPlayerExplosions.integer) {
+			CG_UpdateMissileStatus( pms, MF_EXPLODED | MF_HITPLAYER, tr->endpos, tr->entityNum );
+			return;
+		}
 		if (tr->entityNum != cg.clientNum && cg_predictPlayerExplosions.integer <= 1) {
 			// missile hit other player, only predict this on setting >= 2
 			// as this is less accurate
@@ -549,9 +702,11 @@ void CG_PredictedExplosion(trace_t *tr, int weapon, predictedMissile_t *predMiss
 	} else if (tr->surfaceFlags & SURF_METALSTEPS) {
 		CG_MissileHitWall(weapon, 0, tr->endpos, tr->plane.normal, IMPACTSOUND_METAL, pms);
 		CG_UpdateMissileStatus(pms, MF_EXPLODED | MF_HITWALLMETAL, tr->endpos, tr->entityNum);
+		CG_TryPredictedProjectileHitBeep( tr, weapon, predMissile, missileEnt, qfalse, -1 );
 	} else {
 		CG_MissileHitWall(weapon, 0, tr->endpos, tr->plane.normal, IMPACTSOUND_DEFAULT, pms);
 		CG_UpdateMissileStatus(pms, MF_EXPLODED | MF_HITWALL, tr->endpos, tr->entityNum);
+		CG_TryPredictedProjectileHitBeep( tr, weapon, predMissile, missileEnt, qfalse, -1 );
 	}
 }
 
