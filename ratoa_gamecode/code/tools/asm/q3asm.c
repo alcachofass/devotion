@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "cmdlib.h"
 #include "mathlib.h"
 #include "../../qcommon/qfiles.h"
+#include <stdint.h>
 
 /* 19079 total symbols in FI, 2002 Jan 23 */
 #define DEFAULT_HASHTABLE_SIZE 2048
@@ -248,8 +249,12 @@ static int report (const char *fmt, ...)
 
 static void hashtable_init (hashtable_t *H, int buckets)
 {
+  if (buckets <= 0 || (size_t)buckets > (SIZE_MAX / sizeof(*(H->table))))
+    Error("hashtable_init: invalid bucket count %d\n", buckets);
   H->buckets = buckets;
   H->table = calloc(H->buckets, sizeof(*(H->table)));
+  if (!H->table)
+  	Error("hashtable_init: calloc failed\n");
   return;
 }
 
