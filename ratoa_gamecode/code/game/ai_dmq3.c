@@ -5449,6 +5449,7 @@ void BotDeathmatchAI(bot_state_t *bs, float thinktime) {
 		BotSetTeleportTime(bs);
 		//update some inventory values
 		BotUpdateInventory(bs);
+		BotTactics_OnThink(bs);
 		//check out the snapshot
 		BotCheckSnapshot(bs);
 		//check for air

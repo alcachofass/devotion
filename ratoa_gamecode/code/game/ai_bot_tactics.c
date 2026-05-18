@@ -1,6 +1,6 @@
 /*
 ===========================================================================
-BOT TACTICAL AI (v1) — see ai_bot_tactics.h
+BOT TACTICAL AI — see ai_bot_tactics.h
 ===========================================================================
 */
 
@@ -18,6 +18,8 @@ BOT TACTICAL AI (v1) — see ai_bot_tactics.h
 #include "ai_bot_tactics.h"
 
 void AIEnter_Battle_Retreat(bot_state_t *bs, char *s);
+void AIEnter_Battle_Fight(bot_state_t *bs, char *s);
+int AINode_Battle_Fight(bot_state_t *bs);
 
 qboolean EntityCarriesFlag(aas_entityinfo_t *entinfo);
 
@@ -27,6 +29,17 @@ vmCvar_t bot_tacticalAI;
 #define BOT_TACTICS_FAR_ENGAGE_DIST		512
 #define BOT_TACTICS_CLOSER_MARGIN		128
 #define BOT_TACTICS_FINISH_HEALTH		40
+#define BOT_TACTICS_HURT_MIN_DAMAGE		8
+#define BOT_TACTICS_FLEE_HEALTH			50
+#define BOT_TACTICS_BIG_DAMAGE			45
+#define BOT_TACTICS_HURT_DEBOUNCE		0.35f
+#define BOT_TACTICS_THREAT_SWITCH_RATIO	1.25f
+
+typedef enum {
+	TACT_ACT_CONTINUE = 0,
+	TACT_ACT_SWITCH,
+	TACT_ACT_FLEE
+} tact_action_t;
 
 static int BotTactics_IsActive(void) {
 	trap_Cvar_Update(&bot_tacticalAI);
@@ -57,6 +70,242 @@ static int BotTactics_IsGauntletOnly(bot_state_t *bs) {
 	return !BotTactics_HasUsableNonGauntletWeapon(bs);
 }
 
+static void BotTactics_AssignEnemy(bot_state_t *bs, int newenemy) {
+	bs->enemy = newenemy;
+	bs->enemysight_time = FloatTime() - 2;
+	bs->enemysuicide = qfalse;
+	bs->enemydeath_time = 0;
+	bs->enemyvisible_time = FloatTime();
+}
+
+static int BotTactics_IsValidEnemyClient(bot_state_t *bs, int clientnum) {
+	aas_entityinfo_t entinfo;
+
+	if (clientnum < 0 || clientnum >= MAX_CLIENTS) {
+		return 0;
+	}
+	if (clientnum == bs->client) {
+		return 0;
+	}
+	if (BotSameTeam(bs, clientnum)) {
+		return 0;
+	}
+	if (EntityClientIsDead(clientnum)) {
+		return 0;
+	}
+	BotEntityInfo(clientnum, &entinfo);
+	if (!entinfo.valid) {
+		return 0;
+	}
+	if (g_entities[clientnum].flags & FL_NOTARGET) {
+		return 0;
+	}
+	return 1;
+}
+
+static int BotTactics_HorizontalDist(bot_state_t *bs, int clientnum) {
+	vec3_t dir;
+	aas_entityinfo_t entinfo;
+
+	BotEntityInfo(clientnum, &entinfo);
+	VectorSubtract(entinfo.origin, bs->origin, dir);
+	dir[2] = 0;
+	return (int)VectorLength(dir);
+}
+
+static float BotTactics_ModThreatBonus(int mod) {
+	switch (mod) {
+	case MOD_RAILGUN:
+		return 90.0f;
+	case MOD_ROCKET:
+	case MOD_ROCKET_SPLASH:
+		return 55.0f;
+	case MOD_PLASMA:
+	case MOD_PLASMA_SPLASH:
+		return 45.0f;
+	case MOD_LIGHTNING:
+		return 50.0f;
+	case MOD_SHOTGUN:
+		return 35.0f;
+	case MOD_MACHINEGUN:
+		return 25.0f;
+	case MOD_BFG:
+	case MOD_BFG_SPLASH:
+		return 60.0f;
+	default:
+		return 10.0f;
+	}
+}
+
+static float BotTactics_ThreatScore(bot_state_t *bs, int clientnum, int damage, int mod) {
+	float score, vis;
+	aas_entityinfo_t entinfo;
+
+	if (!BotTactics_IsValidEnemyClient(bs, clientnum)) {
+		return -1e9f;
+	}
+	BotEntityInfo(clientnum, &entinfo);
+	score = 900.0f - (float)BotTactics_HorizontalDist(bs, clientnum);
+	if (damage > 0) {
+		score += (float)damage * 2.5f;
+	}
+	score += BotTactics_ModThreatBonus(mod);
+	vis = BotEntityVisible(bs->entitynum, bs->eye, bs->viewangles, 360, clientnum);
+	if (vis > 0) {
+		score += 40.0f * vis;
+	}
+	if (EntityIsShooting(&entinfo)) {
+		score += 35.0f;
+	}
+	if (EntityCarriesFlag(&entinfo)) {
+		score += 80.0f;
+	}
+	return score;
+}
+
+static void BotTactics_QueueEvent(bot_state_t *bs, int evt, int attacker, int damage, int mod) {
+	bs->tact_pending |= evt;
+	bs->tact_evt_attacker = attacker;
+	bs->tact_evt_damage = damage;
+	bs->tact_evt_mod = mod;
+}
+
+static void BotTactics_ScanEvents(bot_state_t *bs) {
+	int damage, attacker, mod;
+	gclient_t *cl;
+
+	if (!BotTactics_IsActive()) {
+		bs->tact_pending = 0;
+		return;
+	}
+	if (!bs->inuse || BotIsDead(bs) || BotIsObserver(bs)) {
+		return;
+	}
+
+	damage = bs->lastframe_health - bs->inventory[INVENTORY_HEALTH];
+	if (damage < BOT_TACTICS_HURT_MIN_DAMAGE) {
+		return;
+	}
+	if (FloatTime() - bs->tact_last_hurt_time < BOT_TACTICS_HURT_DEBOUNCE) {
+		return;
+	}
+
+	cl = g_entities[bs->client].client;
+	if (!cl) {
+		return;
+	}
+	attacker = cl->lasthurt_client;
+	mod = cl->lasthurt_mod;
+	if (!BotTactics_IsValidEnemyClient(bs, attacker)) {
+		return;
+	}
+	if (attacker == bs->enemy) {
+		return;
+	}
+
+	bs->tact_last_hurt_time = FloatTime();
+	BotTactics_QueueEvent(bs, BOT_TACT_EVT_HURT_BY_OTHER, attacker, damage, mod);
+}
+
+static tact_action_t BotTactics_DecideHurtByOther(bot_state_t *bs, int attacker, int damage, int mod) {
+	int curenemy;
+	float attackerThreat, currentThreat;
+	aas_entityinfo_t cureinfo;
+
+	if (!BotTactics_IsValidEnemyClient(bs, attacker)) {
+		return TACT_ACT_CONTINUE;
+	}
+
+	curenemy = bs->enemy;
+	attackerThreat = BotTactics_ThreatScore(bs, attacker, damage, mod);
+
+	if (curenemy < 0 || curenemy >= MAX_CLIENTS) {
+		if (attackerThreat > 0) {
+			return TACT_ACT_SWITCH;
+		}
+		return TACT_ACT_CONTINUE;
+	}
+
+	if (!BotTactics_IsValidEnemyClient(bs, curenemy)) {
+		return TACT_ACT_SWITCH;
+	}
+
+	if (g_entities[curenemy].health > 0 &&
+			g_entities[curenemy].health <= BOT_TACTICS_FINISH_HEALTH) {
+		return TACT_ACT_CONTINUE;
+	}
+	BotEntityInfo(curenemy, &cureinfo);
+	if (EntityCarriesFlag(&cureinfo)) {
+		return TACT_ACT_CONTINUE;
+	}
+
+	currentThreat = BotTactics_ThreatScore(bs, curenemy, 0, MOD_UNKNOWN);
+
+	if (bs->inventory[INVENTORY_HEALTH] <= BOT_TACTICS_FLEE_HEALTH &&
+			(damage >= BOT_TACTICS_BIG_DAMAGE ||
+			 mod == MOD_RAILGUN || mod == MOD_ROCKET || mod == MOD_ROCKET_SPLASH)) {
+		if (attackerThreat >= currentThreat) {
+			return TACT_ACT_FLEE;
+		}
+	}
+
+	if (BotTactics_HorizontalDist(bs, attacker) + 96 <
+			BotTactics_HorizontalDist(bs, curenemy)) {
+		if (attackerThreat > currentThreat * 0.85f) {
+			return TACT_ACT_SWITCH;
+		}
+	}
+
+	if (attackerThreat > currentThreat * BOT_TACTICS_THREAT_SWITCH_RATIO) {
+		return TACT_ACT_SWITCH;
+	}
+
+	return TACT_ACT_CONTINUE;
+}
+
+static void BotTactics_ApplyHurtByOther(bot_state_t *bs) {
+	int attacker, damage, mod;
+	tact_action_t action;
+
+	attacker = bs->tact_evt_attacker;
+	damage = bs->tact_evt_damage;
+	mod = bs->tact_evt_mod;
+
+	action = BotTactics_DecideHurtByOther(bs, attacker, damage, mod);
+
+	switch (action) {
+	case TACT_ACT_SWITCH:
+		BotTactics_AssignEnemy(bs, attacker);
+		BotUpdateBattleInventory(bs, attacker);
+		if (bs->ainode != AINode_Battle_Fight) {
+			AIEnter_Battle_Fight(bs, "tactics: switch to aggressor");
+		}
+		break;
+	case TACT_ACT_FLEE:
+		bs->flags |= BFL_TACTICS_SURVIVAL_FLEE;
+		AIEnter_Battle_Retreat(bs, "tactics: flee aggressor");
+		break;
+	default:
+		break;
+	}
+}
+
+static void BotTactics_ProcessPending(bot_state_t *bs) {
+	int pending;
+
+	if (!BotTactics_IsActive()) {
+		bs->tact_pending = 0;
+		return;
+	}
+
+	pending = bs->tact_pending;
+	bs->tact_pending = 0;
+
+	if (pending & BOT_TACT_EVT_HURT_BY_OTHER) {
+		BotTactics_ApplyHurtByOther(bs);
+	}
+}
+
 void BotTactics_RegisterCvars(void) {
 	trap_Cvar_Register(&bot_tacticalAI, "bot_tacticalAI", "0", CVAR_ARCHIVE);
 	trap_Cvar_Update(&bot_tacticalAI);
@@ -67,6 +316,20 @@ void BotTactics_Reset(bot_state_t *bs) {
 		return;
 	}
 	bs->flags &= ~BFL_TACTICS_SURVIVAL_FLEE;
+	bs->tact_pending = 0;
+	bs->tact_evt_attacker = -1;
+	bs->tact_evt_damage = 0;
+	bs->tact_evt_mod = MOD_UNKNOWN;
+	bs->tact_last_hurt_time = -999999.0f;
+}
+
+void BotTactics_OnThink(bot_state_t *bs) {
+	if (!BotTactics_IsActive()) {
+		bs->tact_pending = 0;
+		return;
+	}
+	BotTactics_ScanEvents(bs);
+	BotTactics_ProcessPending(bs);
 }
 
 int BotTactics_BattleFightTryFlee(bot_state_t *bs) {
@@ -135,14 +398,6 @@ int BotTactics_SkipAimAtEnemy(bot_state_t *bs) {
 		return qfalse;
 	}
 	return qtrue;
-}
-
-static void BotTactics_AssignEnemy(bot_state_t *bs, int newenemy) {
-	bs->enemy = newenemy;
-	bs->enemysight_time = FloatTime() - 2;
-	bs->enemysuicide = qfalse;
-	bs->enemydeath_time = 0;
-	bs->enemyvisible_time = FloatTime();
 }
 
 void BotTactics_PreferCloserEnemy(bot_state_t *bs) {

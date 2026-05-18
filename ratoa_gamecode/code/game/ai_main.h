@@ -302,6 +302,14 @@ typedef struct bot_state_s
 	int			wps_desired_weapon;
 	float		wps_desire_strength;
 	/* ---- end BOT SMART WEAPON SELECT ---- */
+
+	/* ---- BOT TACTICAL AI: ai_bot_tactics.c — remove this block to revert ---- */
+	int			tact_pending;
+	int			tact_evt_attacker;
+	int			tact_evt_damage;
+	int			tact_evt_mod;
+	float		tact_last_hurt_time;
+	/* ---- end BOT TACTICAL AI ---- */
 } bot_state_t;
 
 //resets the whole bot state
