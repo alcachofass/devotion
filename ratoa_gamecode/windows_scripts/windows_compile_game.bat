@@ -23,6 +23,7 @@ cd windows\build\game
 %cc%  ../../../code/game/ai_dmq3.c
 %cc%  ../../../code/game/ai_aim_harness.c
 %cc%  ../../../code/game/ai_weapon_select.c
+%cc%  ../../../code/game/ai_bot_tactics.c
 %cc%  ../../../code/game/ai_main.c
 %cc%  ../../../code/game/ai_team.c
 %cc%  ../../../code/game/ai_vcmd.c

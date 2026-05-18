@@ -46,6 +46,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "ai_dmq3.h"
 #include "ai_aim_harness.h"
 #include "ai_weapon_select.h"
+#include "ai_bot_tactics.h"
 #include "ai_chat.h"
 #include "ai_cmd.h"
 #include "ai_dmnet.h"
@@ -3477,6 +3478,9 @@ void BotAimAtEnemy(bot_state_t *bs) {
 		vectoangles(dir, bs->ideal_viewangles);
 		//set the aim target before trying to attack
 		VectorCopy(target, bs->aimtarget);
+		return;
+	}
+	if (BotTactics_SkipAimAtEnemy(bs)) {
 		return;
 	}
 	//

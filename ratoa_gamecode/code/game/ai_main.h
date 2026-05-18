@@ -42,6 +42,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define BFL_AVOIDRIGHT				16	//avoid obstacles by going to the right
 #define BFL_IDEALVIEWSET			32	//bot has ideal view angles set
 #define BFL_FIGHTSUICIDAL			64	//bot is in a suicidal fight
+#define BFL_TACTICS_SURVIVAL_FLEE		128	//ai_bot_tactics: gauntlet flee, skip aim-at-enemy
 //long term goal types
 #define LTG_TEAMHELP				1	//help a team mate
 #define LTG_TEAMACCOMPANY			2	//accompany a team mate
