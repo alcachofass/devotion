@@ -18,7 +18,10 @@ Include after g_local.h and ai_main.h in .c files (ai_main.h has no guards).
 struct bot_state_s;
 
 void BotAimHarness_RegisterCvars(void);
+void BotAimHarness_ResetCvarLatch(void);
+void BotAimHarness_UpdateCvar(void);
 int BotAimHarness_IsActive(void);
+float BotAimHarness_ClampPitchAngle(float pitch);
 
 void BotAimHarness_Reset(struct bot_state_s *bs);
 void BotAimHarness_SetCombatGoal(struct bot_state_s *bs, const float idealAngles[3],

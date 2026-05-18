@@ -234,15 +234,43 @@ bot_goal_t *BotTeamFlag(bot_state_t *bs) {
 EntityIsDead
 ==================
 */
-qboolean EntityIsDead(aas_entityinfo_t *entinfo) {
+qboolean EntityClientIsDead(int clientNum) {
 	playerState_t ps;
 
-	if (entinfo->number >= 0 && entinfo->number < MAX_CLIENTS) {
-		//retrieve the current client state
-		BotAI_GetClientState( entinfo->number, &ps );
-		if (ps.pm_type != PM_NORMAL) return qtrue;
+	if (clientNum < 0 || clientNum >= MAX_CLIENTS) {
+		return qfalse;
+	}
+	if (!BotAI_GetClientState(clientNum, &ps)) {
+		return qtrue;
+	}
+	if (ps.pm_type != PM_NORMAL) {
+		return qtrue;
+	}
+	if (ps.stats[STAT_HEALTH] <= 0) {
+		return qtrue;
 	}
 	return qfalse;
+}
+
+/*
+==================
+EntityIsDead
+==================
+*/
+qboolean EntityIsDead(aas_entityinfo_t *entinfo) {
+	return EntityClientIsDead(entinfo->number);
+}
+
+/*
+==================
+BotTargetPlayerIsDead
+==================
+*/
+qboolean BotTargetPlayerIsDead(bot_state_t *bs) {
+	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		return qfalse;
+	}
+	return EntityClientIsDead(bs->enemy);
 }
 
 /*
@@ -3079,6 +3107,10 @@ int BotFindEnemy(bot_state_t *bs, int curenemy) {
 	//remember the current health value
 	bs->lasthealth = bs->inventory[INVENTORY_HEALTH];
 	//
+	if (curenemy >= 0 && curenemy < MAX_CLIENTS && EntityClientIsDead(curenemy)) {
+		bs->enemy = -1;
+		curenemy = -1;
+	}
 	if (curenemy >= 0) {
 		BotEntityInfo(curenemy, &curenemyinfo);
 		if (EntityCarriesFlag(&curenemyinfo)) return qfalse;
@@ -3126,7 +3158,7 @@ int BotFindEnemy(bot_state_t *bs, int curenemy) {
 		//
 		if (!entinfo.valid) continue;
 		//if the enemy isn't dead and the enemy isn't the bot self
-		if (EntityIsDead(&entinfo) || entinfo.number == bs->entitynum) continue;
+		if (EntityClientIsDead(i) || entinfo.number == bs->entitynum) continue;
 		//if the enemy is invisible and not shooting
 		if (EntityIsInvisible(&entinfo) && !EntityIsShooting(&entinfo)) {
 			continue;
@@ -3271,6 +3303,8 @@ int BotEnemyFlagCarrierVisible(bot_state_t *bs) {
 		//if this player is active
 		if (!entinfo.valid)
 			continue;
+		if (EntityIsDead(&entinfo))
+			continue;
 		//if this player is carrying a flag
 		if (!EntityCarriesFlag(&entinfo))
 			continue;
@@ -3414,6 +3448,9 @@ void BotAimAtEnemy(bot_state_t *bs) {
 
 	//if the bot has no enemy
 	if (bs->enemy < 0) {
+		return;
+	}
+	if (BotTargetPlayerIsDead(bs)) {
 		return;
 	}
 	//get the enemy entity information
@@ -3710,6 +3747,12 @@ void BotCheckAttack(bot_state_t *bs) {
 	aas_entityinfo_t entinfo;
 	vec3_t mins = {-8, -8, -8}, maxs = {8, 8, 8};
 
+	if (bs->enemy < 0) {
+		return;
+	}
+	if (BotTargetPlayerIsDead(bs)) {
+		return;
+	}
 	attackentity = bs->enemy;
 	//
 	BotEntityInfo(attackentity, &entinfo);

@@ -2132,7 +2132,7 @@ int AINode_Battle_Fight(bot_state_t *bs) {
 		}
 	}
 	else {
-		if (EntityIsDead(&entinfo)) {
+		if (EntityClientIsDead(bs->enemy)) {
 			bs->enemydeath_time = FloatTime();
 		}
 	}
@@ -2276,7 +2276,12 @@ int AINode_Battle_Chase(bot_state_t *bs)
 	}
 	//if the enemy is visible
 	if (BotEntityVisible(bs->entitynum, bs->eye, bs->viewangles, 360, bs->enemy)) {
-		AIEnter_Battle_Fight(bs, "battle chase");
+		if (!EntityClientIsDead(bs->enemy)) {
+			AIEnter_Battle_Fight(bs, "battle chase");
+			return qfalse;
+		}
+		bs->enemy = -1;
+		AIEnter_Seek_LTG(bs, "battle chase: enemy dead");
 		return qfalse;
 	}
 	//if there is another enemy
@@ -2415,11 +2420,11 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 		return qfalse;
 	}
 	//
-	BotEntityInfo(bs->enemy, &entinfo);
-	if (EntityIsDead(&entinfo)) {
+	if (EntityClientIsDead(bs->enemy)) {
 		AIEnter_Seek_LTG(bs, "battle retreat: enemy dead");
 		return qfalse;
 	}
+	BotEntityInfo(bs->enemy, &entinfo);
 	//if there is another better enemy
 	if (BotFindEnemy(bs, bs->enemy)) {
 #ifdef DEBUG
@@ -2602,11 +2607,11 @@ int AINode_Battle_NBG(bot_state_t *bs) {
 		return qfalse;
 	}
 	//
-	BotEntityInfo(bs->enemy, &entinfo);
-	if (EntityIsDead(&entinfo)) {
+	if (EntityClientIsDead(bs->enemy)) {
 		AIEnter_Seek_NBG(bs, "battle nbg: enemy dead");
 		return qfalse;
 	}
+	BotEntityInfo(bs->enemy, &entinfo);
 	//
 	bs->tfl = TFL_DEFAULT;
 	if (bot_grapple.integer) bs->tfl |= TFL_GRAPPLEHOOK;

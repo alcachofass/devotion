@@ -944,7 +944,12 @@ void BotUpdateInput(bot_state_t *bs, int time, int elapsed_time) {
 
 	//add the delta angles to the bot's current view angles
 	for (j = 0; j < 3; j++) {
-		bs->viewangles[j] = AngleMod(bs->viewangles[j] + SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
+		if (j == PITCH && BotAimHarness_IsActive()) {
+			bs->viewangles[PITCH] = BotAimHarness_ClampPitchAngle(bs->viewangles[PITCH] +
+				SHORT2ANGLE(bs->cur_ps.delta_angles[PITCH]));
+		} else {
+			bs->viewangles[j] = AngleMod(bs->viewangles[j] + SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
+		}
 	}
 	//change the bot view angles
 	BotChangeViewAngles(bs, (float) elapsed_time / 1000);
@@ -958,7 +963,12 @@ void BotUpdateInput(bot_state_t *bs, int time, int elapsed_time) {
 	BotInputToUserCommand(&bi, &bs->lastucmd, bs->cur_ps.delta_angles, time);
 	//subtract the delta angles
 	for (j = 0; j < 3; j++) {
-		bs->viewangles[j] = AngleMod(bs->viewangles[j] - SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
+		if (j == PITCH && BotAimHarness_IsActive()) {
+			bs->viewangles[PITCH] = BotAimHarness_ClampPitchAngle(bs->viewangles[PITCH] -
+				SHORT2ANGLE(bs->cur_ps.delta_angles[PITCH]));
+		} else {
+			bs->viewangles[j] = AngleMod(bs->viewangles[j] - SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
+		}
 	}
 }
 
@@ -1066,7 +1076,12 @@ int BotAI(int client, float thinktime) {
 	}
 	//add the delta angles to the bot's current view angles
 	for (j = 0; j < 3; j++) {
-		bs->viewangles[j] = AngleMod(bs->viewangles[j] + SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
+		if (j == PITCH && BotAimHarness_IsActive()) {
+			bs->viewangles[PITCH] = BotAimHarness_ClampPitchAngle(bs->viewangles[PITCH] +
+				SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
+		} else {
+			bs->viewangles[j] = AngleMod(bs->viewangles[j] + SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
+		}
 	}
 	//increase the local time of the bot
 	bs->ltime += thinktime;
@@ -1085,7 +1100,12 @@ int BotAI(int client, float thinktime) {
 	trap_EA_SelectWeapon(bs->client, bs->weaponnum);
 	//subtract the delta angles
 	for (j = 0; j < 3; j++) {
-		bs->viewangles[j] = AngleMod(bs->viewangles[j] - SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
+		if (j == PITCH && BotAimHarness_IsActive()) {
+			bs->viewangles[PITCH] = BotAimHarness_ClampPitchAngle(bs->viewangles[PITCH] -
+				SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
+		} else {
+			bs->viewangles[j] = AngleMod(bs->viewangles[j] - SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
+		}
 	}
 	//everything was ok
 	return qtrue;
@@ -1414,6 +1434,7 @@ int BotAILoadMap( int restart ) {
 	}
 
 	BotSetupDeathmatchAI();
+	BotAimHarness_ResetCvarLatch();
 
 	return qtrue;
 }
@@ -1446,6 +1467,7 @@ int BotAIStartFrame(int time) {
 	trap_Cvar_Update(&bot_saveroutingcache);
 	trap_Cvar_Update(&bot_pause);
 	trap_Cvar_Update(&bot_report);
+	BotAimHarness_UpdateCvar();
 
 	if (bot_report.integer) {
 //		BotTeamplayReport();
@@ -1722,6 +1744,7 @@ int BotAISetup( int restart ) {
 
 	errnum = BotInitLibrary();
 	if (errnum != BLERR_NOERROR) return qfalse;
+	BotAimHarness_ResetCvarLatch();
 	return qtrue;
 }
 
