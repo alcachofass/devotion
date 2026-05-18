@@ -44,6 +44,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 #include "ai_main.h"
 #include "ai_dmq3.h"
+#include "ai_aim_harness.h"
 #include "ai_chat.h"
 #include "ai_cmd.h"
 #include "ai_dmnet.h"
@@ -3610,9 +3611,11 @@ void BotAimAtEnemy(bot_state_t *bs) {
 				}
 			}
 		}
-		bestorigin[0] += 20 * crandom() * (1 - aim_accuracy);
-		bestorigin[1] += 20 * crandom() * (1 - aim_accuracy);
-		bestorigin[2] += 10 * crandom() * (1 - aim_accuracy);
+		if (!BotAimHarness_IsActive()) {
+			bestorigin[0] += 20 * crandom() * (1 - aim_accuracy);
+			bestorigin[1] += 20 * crandom() * (1 - aim_accuracy);
+			bestorigin[2] += 10 * crandom() * (1 - aim_accuracy);
+		}
 	}
 	else {
 		//
@@ -3663,18 +3666,22 @@ void BotAimAtEnemy(bot_state_t *bs) {
 		f = 0.6 + dist / 150 * 0.4;
 		aim_accuracy *= f;
 	}
-	//add some random stuff to the aim direction depending on the aim accuracy
-	if (aim_accuracy < 0.8) {
-		VectorNormalize(dir);
-		for (i = 0; i < 3; i++) dir[i] += 0.3 * crandom() * (1 - aim_accuracy);
+	if (!BotAimHarness_IsActive()) {
+		if (aim_accuracy < 0.8) {
+			VectorNormalize(dir);
+			for (i = 0; i < 3; i++) dir[i] += 0.3 * crandom() * (1 - aim_accuracy);
+		}
 	}
-	//set the ideal view angles
 	vectoangles(dir, bs->ideal_viewangles);
-	//take the weapon spread into account for lower skilled bots
-	bs->ideal_viewangles[PITCH] += 6 * wi.vspread * crandom() * (1 - aim_accuracy);
-	bs->ideal_viewangles[PITCH] = AngleMod(bs->ideal_viewangles[PITCH]);
-	bs->ideal_viewangles[YAW] += 6 * wi.hspread * crandom() * (1 - aim_accuracy);
-	bs->ideal_viewangles[YAW] = AngleMod(bs->ideal_viewangles[YAW]);
+	if (!BotAimHarness_IsActive()) {
+		bs->ideal_viewangles[PITCH] += 6 * wi.vspread * crandom() * (1 - aim_accuracy);
+		bs->ideal_viewangles[PITCH] = AngleMod(bs->ideal_viewangles[PITCH]);
+		bs->ideal_viewangles[YAW] += 6 * wi.hspread * crandom() * (1 - aim_accuracy);
+		bs->ideal_viewangles[YAW] = AngleMod(bs->ideal_viewangles[YAW]);
+	} else {
+		BotAimHarness_SetCombatGoal(bs, bs->ideal_viewangles, aim_accuracy,
+			wi.vspread, wi.hspread);
+	}
 	//if the bots should be really challenging
 	if (bot_challenge.integer) {
 		//if the bot is really accurate and has the enemy in view for some time

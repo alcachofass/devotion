@@ -286,6 +286,13 @@ typedef struct bot_state_s
 	bot_waypoint_t *patrolpoints;					//patrol points
 	bot_waypoint_t *curpatrolpoint;					//current patrol point the bot is going for
 	int patrolflags;								//patrol flags
+
+	/* ---- BOT AIM HARNESS (v1): ai_aim_harness.c — remove this block to revert ---- */
+	vec3_t		aimh_goal;
+	float		aimh_vel[2];
+	float		aimh_motor_inaccuracy;
+	qboolean	aimh_combat_aim;
+	/* ---- end BOT AIM HARNESS ---- */
 } bot_state_t;
 
 //resets the whole bot state

@@ -49,6 +49,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "ai_cmd.h"
 #include "ai_dmnet.h"
 #include "ai_vcmd.h"
+#include "ai_aim_harness.h"
 
 //
 #include "chars.h"
@@ -783,6 +784,11 @@ void BotChangeViewAngles(bot_state_t *bs, float thinktime) {
 	float diff, factor, maxchange, anglespeed, disired_speed;
 	int i;
 
+	/* BOT AIM HARNESS (v1): optional humanized view motor */
+	if (BotAimHarness_ChangeViewAngles(bs, thinktime)) {
+		return;
+	}
+
 	if (bs->ideal_viewangles[PITCH] > 180) bs->ideal_viewangles[PITCH] -= 360;
 	//
 	if (bs->enemy >= 0) {
@@ -1280,6 +1286,7 @@ int BotAISetupClient(int client, struct bot_settings_s *settings, qboolean resta
 	if (restart) {
 		BotReadSessionData(bs);
 	}
+	BotAimHarness_Reset(bs);
 	//bot has been setup succesfully
 	return qtrue;
 }
@@ -1382,6 +1389,7 @@ void BotResetState(bot_state_t *bs) {
 	if (bs->ws) trap_BotResetWeaponState(bs->ws);
 	if (bs->gs) trap_BotResetAvoidGoals(bs->gs);
 	if (bs->ms) trap_BotResetAvoidReach(bs->ms);
+	BotAimHarness_Reset(bs);
 }
 
 /*
@@ -1702,6 +1710,7 @@ int BotAISetup( int restart ) {
 	trap_Cvar_Register(&bot_interbreedbots, "bot_interbreedbots", "10", 0);
 	trap_Cvar_Register(&bot_interbreedcycle, "bot_interbreedcycle", "20", 0);
 	trap_Cvar_Register(&bot_interbreedwrite, "bot_interbreedwrite", "", 0);
+	BotAimHarness_RegisterCvars();
 
 	//if the game is restarted for a tournament
 	if (restart) {
