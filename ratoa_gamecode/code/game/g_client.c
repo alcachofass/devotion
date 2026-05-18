@@ -2369,55 +2369,63 @@ void ClientUserinfoChanged( int clientNum ) {
 	}
 	//}
 
-	// bots set their team a few frames later
-	if (G_IsTeamGametype() && g_entities[clientNum].r.svFlags & SVF_BOT) {
-		s = Info_ValueForKey( userinfo, "team" );
-		if ( !Q_stricmp( s, "red" ) || !Q_stricmp( s, "r" ) ) {
-			team = TEAM_RED;
-		} else if ( !Q_stricmp( s, "blue" ) || !Q_stricmp( s, "b" ) ) {
-			team = TEAM_BLUE;
+	//This block determines which team a bot should join
+	//and actively sets it in the bot's session data
+	//Bots set their team a few frames later
+	if ( ent->r.svFlags & SVF_BOT ) {
+		if ( G_IsTeamGametype() ) {
+			s = Info_ValueForKey( userinfo, "team" );
+			if ( !Q_stricmp( s, "red" ) || !Q_stricmp( s, "r" ) ) {
+				team = TEAM_RED;
+			} else if ( !Q_stricmp( s, "blue" ) || !Q_stricmp( s, "b" ) ) {
+				team = TEAM_BLUE;
+			} else {
+				team = PickTeam( clientNum );
+			}
 		} else {
-			// pick the team with the least number of players
-			team = PickTeam( clientNum );
+			if ( g_gametype.integer == GT_TOURNAMENT ) {
+				if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
+					team = TEAM_SPECTATOR;
+				} else {
+					team = client->sess.sessionTeam;
+				}
+			} else {
+				// FFA, LMS, etc. — always join play
+				team = TEAM_FREE;
+			}
 		}
-        client->sess.sessionTeam = team;
-	} else if (g_gametype.integer != GT_TOURNAMENT && g_entities[clientNum].r.svFlags & SVF_BOT) {
-		// make sure bots can always join the game, even if it's locked
-		team = TEAM_FREE;
 		client->sess.sessionTeam = team;
-	} else if (g_gametype.integer == GT_TOURNAMENT && g_entities[clientNum].r.svFlags & SVF_BOT) {
-		//For tourney, we want bots to queue and not just sit in spec
-		team = TEAM_SPECTATOR;
-		client->sess.sessionTeam = team;
-		client->sess.spectatorGroup = SPECTATORGROUP_QUEUED;
-	}
-	else {
+		if ( team == TEAM_SPECTATOR ) {
+			//If a bot is spectating, it should always be in the queue to join the game
+			client->sess.spectatorGroup = SPECTATORGROUP_QUEUED;
+		}
+	} else {
+		//Not a bot so must be a player. Carry over their team from their session data
 		team = client->sess.sessionTeam;
 	}
 
-/*	NOTE: all client side now
-Sago: I am not happy with this exception
- 
-	// team
-	switch( team ) {
-	case TEAM_RED:
-		ForceClientSkin(client, model, "red");
-//		ForceClientSkin(client, headModel, "red");
-		break;
-	case TEAM_BLUE:
-		ForceClientSkin(client, model, "blue");
-//		ForceClientSkin(client, headModel, "blue");
-		break;
-	}
-	// don't ever use a default skin in teamplay, it would just waste memory
-	// however bots will always join a team but they spawn in as spectator
-	if ( g_gametype.integer >= GT_TEAM && team == TEAM_SPECTATOR) {
-		ForceClientSkin(client, model, "red");
-//		ForceClientSkin(client, headModel, "red");
-	}
-*/
+	/*	NOTE: all client side now
+	Sago: I am not happy with this exception
+		// team
+		switch( team ) {
+		case TEAM_RED:
+			ForceClientSkin(client, model, "red");
+	//		ForceClientSkin(client, headModel, "red");
+			break;
+		case TEAM_BLUE:
+			ForceClientSkin(client, model, "blue");
+	//		ForceClientSkin(client, headModel, "blue");
+			break;
+		}
+		// don't ever use a default skin in teamplay, it would just waste memory
+		// however bots will always join a team but they spawn in as spectator
+		if ( g_gametype.integer >= GT_TEAM && team == TEAM_SPECTATOR) {
+			ForceClientSkin(client, model, "red");
+	//		ForceClientSkin(client, headModel, "red");
+		}
+	*/
 
-	if (G_IsTeamGametype()) {
+	if ( G_IsTeamGametype() ) {
 		client->pers.teamInfo = qtrue;
 	} else {
 		s = Info_ValueForKey( userinfo, "teamoverlay" );

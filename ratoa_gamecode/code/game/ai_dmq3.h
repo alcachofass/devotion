@@ -56,8 +56,12 @@ qboolean BotIsObserver(bot_state_t *bs);
 qboolean BotIntermission(bot_state_t *bs);
 //returns true if the bot is in lava or slime
 qboolean BotInLavaOrSlime(bot_state_t *bs);
+//returns true if the client is dead (use clientNum, not entinfo fields alone)
+qboolean EntityClientIsDead(int clientNum);
 //returns true if the entity is dead
 qboolean EntityIsDead(aas_entityinfo_t *entinfo);
+//returns true if bs->enemy is a dead player
+qboolean BotTargetPlayerIsDead(bot_state_t *bs);
 //returns true if the entity is invisible
 qboolean EntityIsInvisible(aas_entityinfo_t *entinfo);
 //returns true if the entity is shooting

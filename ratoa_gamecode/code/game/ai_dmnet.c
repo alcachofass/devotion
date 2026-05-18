@@ -42,6 +42,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../botlib/be_ai_weap.h"
 //
 #include "ai_main.h"
+#include "ai_bot_tactics.h"
 #include "ai_dmq3.h"
 #include "ai_chat.h"
 #include "ai_cmd.h"
@@ -2132,7 +2133,7 @@ int AINode_Battle_Fight(bot_state_t *bs) {
 		}
 	}
 	else {
-		if (EntityIsDead(&entinfo)) {
+		if (EntityClientIsDead(bs->enemy)) {
 			bs->enemydeath_time = FloatTime();
 		}
 	}
@@ -2161,6 +2162,10 @@ int AINode_Battle_Fight(bot_state_t *bs) {
 	}
 	//update the attack inventory values
 	BotUpdateBattleInventory(bs, bs->enemy);
+	BotTactics_PreferCloserEnemy(bs);
+	if (BotTactics_BattleFightTryFlee(bs)) {
+		return qfalse;
+	}
 	//if the bot's health decreased
 	if (bs->lastframe_health > bs->inventory[INVENTORY_HEALTH]) {
 		if (BotChat_HitNoDeath(bs)) {
@@ -2224,7 +2229,7 @@ int AINode_Battle_Fight(bot_state_t *bs) {
 	BotCheckAttack(bs);
 	//if the bot wants to retreat
 	if (!(bs->flags & BFL_FIGHTSUICIDAL)) {
-		if (BotWantsToRetreat(bs)) {
+		if (!BotTactics_BattleFightSuppressRetreat(bs) && BotWantsToRetreat(bs)) {
 			AIEnter_Battle_Retreat(bs, "battle fight: wants to retreat");
 			return qtrue;
 		}
@@ -2276,7 +2281,12 @@ int AINode_Battle_Chase(bot_state_t *bs)
 	}
 	//if the enemy is visible
 	if (BotEntityVisible(bs->entitynum, bs->eye, bs->viewangles, 360, bs->enemy)) {
-		AIEnter_Battle_Fight(bs, "battle chase");
+		if (!EntityClientIsDead(bs->enemy)) {
+			AIEnter_Battle_Fight(bs, "battle chase");
+			return qfalse;
+		}
+		bs->enemy = -1;
+		AIEnter_Seek_LTG(bs, "battle chase: enemy dead");
 		return qfalse;
 	}
 	//if there is another enemy
@@ -2328,6 +2338,7 @@ int AINode_Battle_Chase(bot_state_t *bs)
 	}
 	//
 	BotUpdateBattleInventory(bs, bs->enemy);
+	BotTactics_PreferCloserEnemy(bs);
 	//initialize the movement state
 	BotSetupForMovement(bs);
 	//move towards the goal
@@ -2415,11 +2426,11 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 		return qfalse;
 	}
 	//
-	BotEntityInfo(bs->enemy, &entinfo);
-	if (EntityIsDead(&entinfo)) {
+	if (EntityClientIsDead(bs->enemy)) {
 		AIEnter_Seek_LTG(bs, "battle retreat: enemy dead");
 		return qfalse;
 	}
+	BotEntityInfo(bs->enemy, &entinfo);
 	//if there is another better enemy
 	if (BotFindEnemy(bs, bs->enemy)) {
 #ifdef DEBUG
@@ -2435,6 +2446,7 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 	BotMapScripts(bs);
 	//update the attack inventory values
 	BotUpdateBattleInventory(bs, bs->enemy);
+	BotTactics_RetreatAfterInventory(bs);
 	//if the bot doesn't want to retreat anymore... probably picked up some nice items
 	if (BotWantsToChase(bs)) {
 		//empty the goal stack, when chasing, only the enemy is the goal
@@ -2602,11 +2614,11 @@ int AINode_Battle_NBG(bot_state_t *bs) {
 		return qfalse;
 	}
 	//
-	BotEntityInfo(bs->enemy, &entinfo);
-	if (EntityIsDead(&entinfo)) {
+	if (EntityClientIsDead(bs->enemy)) {
 		AIEnter_Seek_NBG(bs, "battle nbg: enemy dead");
 		return qfalse;
 	}
+	BotEntityInfo(bs->enemy, &entinfo);
 	//
 	bs->tfl = TFL_DEFAULT;
 	if (bot_grapple.integer) bs->tfl |= TFL_GRAPPLEHOOK;

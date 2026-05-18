@@ -42,6 +42,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define BFL_AVOIDRIGHT				16	//avoid obstacles by going to the right
 #define BFL_IDEALVIEWSET			32	//bot has ideal view angles set
 #define BFL_FIGHTSUICIDAL			64	//bot is in a suicidal fight
+#define BFL_TACTICS_SURVIVAL_FLEE		128	//ai_bot_tactics: gauntlet flee, skip aim-at-enemy
 //long term goal types
 #define LTG_TEAMHELP				1	//help a team mate
 #define LTG_TEAMACCOMPANY			2	//accompany a team mate
@@ -286,6 +287,36 @@ typedef struct bot_state_s
 	bot_waypoint_t *patrolpoints;					//patrol points
 	bot_waypoint_t *curpatrolpoint;					//current patrol point the bot is going for
 	int patrolflags;								//patrol flags
+
+	/* ---- BOT AIM HARNESS (v1): ai_aim_harness.c — remove this block to revert ---- */
+	vec3_t		aimh_goal;
+	float		aimh_vel[2];
+	float		aimh_motor_inaccuracy;
+	qboolean	aimh_combat_aim;
+	float		aimh_last_enemy_z;
+	float		aimh_next_sanity_time;
+	float		aimh_bad_aim_since;
+	float		aimh_recover_until;
+	float		aimh_acquire_until;
+	int			aimh_last_sanity_enemy;
+	int			aimh_sanity_miss_streak;
+	/* ---- end BOT AIM HARNESS ---- */
+
+	/* ---- BOT SMART WEAPON SELECT (v1): ai_weapon_select.c — remove to revert ---- */
+	float		wps_next_eval_time;
+	float		wps_last_switch_time;
+	int			wps_last_chosen_weapon;
+	int			wps_desired_weapon;
+	float		wps_desire_strength;
+	/* ---- end BOT SMART WEAPON SELECT ---- */
+
+	/* ---- BOT TACTICAL AI: ai_bot_tactics.c — remove this block to revert ---- */
+	int			tact_pending;
+	int			tact_evt_attacker;
+	int			tact_evt_damage;
+	int			tact_evt_mod;
+	float		tact_last_hurt_time;
+	/* ---- end BOT TACTICAL AI ---- */
 } bot_state_t;
 
 //resets the whole bot state

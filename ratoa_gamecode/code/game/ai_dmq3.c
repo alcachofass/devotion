@@ -44,6 +44,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 #include "ai_main.h"
 #include "ai_dmq3.h"
+#include "ai_aim_harness.h"
+#include "ai_weapon_select.h"
+#include "ai_bot_tactics.h"
 #include "ai_chat.h"
 #include "ai_cmd.h"
 #include "ai_dmnet.h"
@@ -233,15 +236,43 @@ bot_goal_t *BotTeamFlag(bot_state_t *bs) {
 EntityIsDead
 ==================
 */
-qboolean EntityIsDead(aas_entityinfo_t *entinfo) {
+qboolean EntityClientIsDead(int clientNum) {
 	playerState_t ps;
 
-	if (entinfo->number >= 0 && entinfo->number < MAX_CLIENTS) {
-		//retrieve the current client state
-		BotAI_GetClientState( entinfo->number, &ps );
-		if (ps.pm_type != PM_NORMAL) return qtrue;
+	if (clientNum < 0 || clientNum >= MAX_CLIENTS) {
+		return qfalse;
+	}
+	if (!BotAI_GetClientState(clientNum, &ps)) {
+		return qtrue;
+	}
+	if (ps.pm_type != PM_NORMAL) {
+		return qtrue;
+	}
+	if (ps.stats[STAT_HEALTH] <= 0) {
+		return qtrue;
 	}
 	return qfalse;
+}
+
+/*
+==================
+EntityIsDead
+==================
+*/
+qboolean EntityIsDead(aas_entityinfo_t *entinfo) {
+	return EntityClientIsDead(entinfo->number);
+}
+
+/*
+==================
+BotTargetPlayerIsDead
+==================
+*/
+qboolean BotTargetPlayerIsDead(bot_state_t *bs) {
+	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		return qfalse;
+	}
+	return EntityClientIsDead(bs->enemy);
 }
 
 /*
@@ -1691,7 +1722,9 @@ BotChooseWeapon
 */
 void BotChooseWeapon(bot_state_t *bs) {
 	int newweaponnum;
+	int prevweaponnum;
 
+	prevweaponnum = bs->weaponnum;
 	if (bs->cur_ps.weaponstate == WEAPON_RAISING ||
 			bs->cur_ps.weaponstate == WEAPON_DROPPING) {
 		trap_EA_SelectWeapon(bs->client, bs->weaponnum);
@@ -1701,10 +1734,15 @@ void BotChooseWeapon(bot_state_t *bs) {
                     newweaponnum = WP_RAILGUN;
                 else if(g_rockets.integer)
                     newweaponnum = WP_ROCKET_LAUNCHER;
-                else
-                    newweaponnum = trap_BotChooseBestFightWeapon(bs->ws, bs->inventory);
+                else {
+			newweaponnum = BotWpnSelect_Choose(bs);
+			if (newweaponnum < 0 || newweaponnum >= WP_NUM_WEAPONS) {
+				newweaponnum = trap_BotChooseBestFightWeapon(bs->ws, bs->inventory);
+			}
+		}
 		if (bs->weaponnum != newweaponnum) bs->weaponchange_time = FloatTime();
 		bs->weaponnum = newweaponnum;
+		BotWpnSelect_NotifyWeaponCommitted(bs, prevweaponnum, newweaponnum);
 		//BotAI_Print(PRT_MESSAGE, "bs->weaponnum = %d\n", bs->weaponnum);
 		trap_EA_SelectWeapon(bs->client, bs->weaponnum);
 	}
@@ -3078,6 +3116,10 @@ int BotFindEnemy(bot_state_t *bs, int curenemy) {
 	//remember the current health value
 	bs->lasthealth = bs->inventory[INVENTORY_HEALTH];
 	//
+	if (curenemy >= 0 && curenemy < MAX_CLIENTS && EntityClientIsDead(curenemy)) {
+		bs->enemy = -1;
+		curenemy = -1;
+	}
 	if (curenemy >= 0) {
 		BotEntityInfo(curenemy, &curenemyinfo);
 		if (EntityCarriesFlag(&curenemyinfo)) return qfalse;
@@ -3125,7 +3167,7 @@ int BotFindEnemy(bot_state_t *bs, int curenemy) {
 		//
 		if (!entinfo.valid) continue;
 		//if the enemy isn't dead and the enemy isn't the bot self
-		if (EntityIsDead(&entinfo) || entinfo.number == bs->entitynum) continue;
+		if (EntityClientIsDead(i) || entinfo.number == bs->entitynum) continue;
 		//if the enemy is invisible and not shooting
 		if (EntityIsInvisible(&entinfo) && !EntityIsShooting(&entinfo)) {
 			continue;
@@ -3269,6 +3311,8 @@ int BotEnemyFlagCarrierVisible(bot_state_t *bs) {
 		BotEntityInfo(i, &entinfo);
 		//if this player is active
 		if (!entinfo.valid)
+			continue;
+		if (EntityIsDead(&entinfo))
 			continue;
 		//if this player is carrying a flag
 		if (!EntityCarriesFlag(&entinfo))
@@ -3415,6 +3459,9 @@ void BotAimAtEnemy(bot_state_t *bs) {
 	if (bs->enemy < 0) {
 		return;
 	}
+	if (BotTargetPlayerIsDead(bs)) {
+		return;
+	}
 	//get the enemy entity information
 	BotEntityInfo(bs->enemy, &entinfo);
 	//if this is not a player (should be an obelisk)
@@ -3431,6 +3478,9 @@ void BotAimAtEnemy(bot_state_t *bs) {
 		vectoangles(dir, bs->ideal_viewangles);
 		//set the aim target before trying to attack
 		VectorCopy(target, bs->aimtarget);
+		return;
+	}
+	if (BotTactics_SkipAimAtEnemy(bs)) {
 		return;
 	}
 	//
@@ -3610,9 +3660,11 @@ void BotAimAtEnemy(bot_state_t *bs) {
 				}
 			}
 		}
-		bestorigin[0] += 20 * crandom() * (1 - aim_accuracy);
-		bestorigin[1] += 20 * crandom() * (1 - aim_accuracy);
-		bestorigin[2] += 10 * crandom() * (1 - aim_accuracy);
+		if (!BotAimHarness_IsActive()) {
+			bestorigin[0] += 20 * crandom() * (1 - aim_accuracy);
+			bestorigin[1] += 20 * crandom() * (1 - aim_accuracy);
+			bestorigin[2] += 10 * crandom() * (1 - aim_accuracy);
+		}
 	}
 	else {
 		//
@@ -3663,18 +3715,22 @@ void BotAimAtEnemy(bot_state_t *bs) {
 		f = 0.6 + dist / 150 * 0.4;
 		aim_accuracy *= f;
 	}
-	//add some random stuff to the aim direction depending on the aim accuracy
-	if (aim_accuracy < 0.8) {
-		VectorNormalize(dir);
-		for (i = 0; i < 3; i++) dir[i] += 0.3 * crandom() * (1 - aim_accuracy);
+	if (!BotAimHarness_IsActive()) {
+		if (aim_accuracy < 0.8) {
+			VectorNormalize(dir);
+			for (i = 0; i < 3; i++) dir[i] += 0.3 * crandom() * (1 - aim_accuracy);
+		}
 	}
-	//set the ideal view angles
 	vectoangles(dir, bs->ideal_viewangles);
-	//take the weapon spread into account for lower skilled bots
-	bs->ideal_viewangles[PITCH] += 6 * wi.vspread * crandom() * (1 - aim_accuracy);
-	bs->ideal_viewangles[PITCH] = AngleMod(bs->ideal_viewangles[PITCH]);
-	bs->ideal_viewangles[YAW] += 6 * wi.hspread * crandom() * (1 - aim_accuracy);
-	bs->ideal_viewangles[YAW] = AngleMod(bs->ideal_viewangles[YAW]);
+	if (!BotAimHarness_IsActive()) {
+		bs->ideal_viewangles[PITCH] += 6 * wi.vspread * crandom() * (1 - aim_accuracy);
+		bs->ideal_viewangles[PITCH] = AngleMod(bs->ideal_viewangles[PITCH]);
+		bs->ideal_viewangles[YAW] += 6 * wi.hspread * crandom() * (1 - aim_accuracy);
+		bs->ideal_viewangles[YAW] = AngleMod(bs->ideal_viewangles[YAW]);
+	} else {
+		BotAimHarness_SetCombatGoal(bs, bs->ideal_viewangles, aim_accuracy,
+			wi.vspread, wi.hspread);
+	}
 	//if the bots should be really challenging
 	if (bot_challenge.integer) {
 		//if the bot is really accurate and has the enemy in view for some time
@@ -3703,6 +3759,12 @@ void BotCheckAttack(bot_state_t *bs) {
 	aas_entityinfo_t entinfo;
 	vec3_t mins = {-8, -8, -8}, maxs = {8, 8, 8};
 
+	if (bs->enemy < 0) {
+		return;
+	}
+	if (BotTargetPlayerIsDead(bs)) {
+		return;
+	}
 	attackentity = bs->enemy;
 	//
 	BotEntityInfo(attackentity, &entinfo);
@@ -5387,6 +5449,7 @@ void BotDeathmatchAI(bot_state_t *bs, float thinktime) {
 		BotSetTeleportTime(bs);
 		//update some inventory values
 		BotUpdateInventory(bs);
+		BotTactics_OnThink(bs);
 		//check out the snapshot
 		BotCheckSnapshot(bs);
 		//check for air
