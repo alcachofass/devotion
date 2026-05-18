@@ -1,6 +1,6 @@
 # Server Commands
 
-For more detailed information, check out the [Server CVARs](SERVER-CVARS.md) and [Server Commands](SERVER-COMMANDS.md) tables.
+For more detailed information, check out the [Server CVARs](SERVER-CVARS.md), [Bot CVARs](BOT-CVARS.md), and [Server Commands](SERVER-COMMANDS.md) tables.
 
 ## Dedicated Server launch Example
 
