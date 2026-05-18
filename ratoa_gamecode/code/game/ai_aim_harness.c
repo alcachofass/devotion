@@ -19,6 +19,7 @@ BOT AIM HARNESS (v1) — see ai_aim_harness.h
 vmCvar_t bot_humanizeaim;
 
 extern vmCvar_t bot_challenge;
+extern vmCvar_t bot_thinktime;
 extern bot_state_t *botstates[MAX_CLIENTS];
 
 #define AIMH_FLICK_ANGLE		28.0f
@@ -31,6 +32,9 @@ extern bot_state_t *botstates[MAX_CLIENTS];
 /* Combat turn rate multiplier on top of CHARACTERISTIC_VIEW_* (legacy parity target ~2x) */
 #define AIMH_COMBAT_VEL_SCALE	1.85f
 #define AIMH_MOTOR_NOISE_SCALE	2.0f
+/* Extra lead on hitscan goals to offset bot-think + spring motor lag (seconds). */
+#define AIMH_HITSCAN_LEAD_EXTRA	0.025f
+#define AIMH_HITSCAN_LEAD_SCALE	0.9f
 
 static int bot_humanizeaim_last = -1;
 
@@ -169,11 +173,14 @@ void BotAimHarness_SetCombatGoal(bot_state_t *bs, const vec3_t idealAngles,
 }
 
 /*
- * Re-aim at the live enemy each harness tick (bot think is ~100ms; strafe needs faster goals).
+ * Re-aim at the live enemy each harness tick with velocity lead (aimtarget is only
+ * refreshed on bot think ~100ms and reads behind on hitscan).
  */
 static void BotAimHarness_GetCombatGoal(bot_state_t *bs, vec3_t goal) {
 	aas_entityinfo_t entinfo;
-	vec3_t dir, target;
+	weaponinfo_t wi;
+	vec3_t dir, target, vel;
+	float leadTime, dist, flightTime;
 
 	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
 		VectorCopy(bs->aimh_goal, goal);
@@ -186,12 +193,44 @@ static void BotAimHarness_GetCombatGoal(bot_state_t *bs, vec3_t goal) {
 		return;
 	}
 
-	if (!VectorCompare(bs->aimtarget, vec3_origin)) {
-		VectorCopy(bs->aimtarget, target);
+	VectorSubtract(entinfo.origin, entinfo.lastvisorigin, vel);
+	if (entinfo.update_time > 0.001f) {
+		VectorScale(vel, 1.0f / entinfo.update_time, vel);
 	} else {
+		VectorClear(vel);
+	}
+
+	trap_BotGetWeaponInfo(bs->ws, bs->weaponnum, &wi);
+
+	if (wi.speed > 0.0f) {
+		/* Projectile: BotAimAtEnemy aimtarget already includes prediction. */
+		if (!VectorCompare(bs->aimtarget, vec3_origin)) {
+			VectorCopy(bs->aimtarget, target);
+		} else {
+			VectorCopy(entinfo.origin, target);
+			target[2] += 8.0f;
+			VectorSubtract(target, bs->eye, dir);
+			dist = VectorLength(dir);
+			flightTime = dist / wi.speed;
+			if (flightTime > 2.0f) {
+				flightTime = 2.0f;
+			}
+			VectorMA(target, flightTime, vel, target);
+		}
+		leadTime = AIMH_HITSCAN_LEAD_EXTRA;
+	} else {
+		/* Hitscan: live origin + lead for think interval and view motor lag. */
 		VectorCopy(entinfo.origin, target);
 		target[2] += 8.0f;
+		trap_Cvar_Update(&bot_thinktime);
+		leadTime = (bot_thinktime.integer / 1000.0f) * AIMH_HITSCAN_LEAD_SCALE;
+		leadTime += AIMH_HITSCAN_LEAD_EXTRA;
+		if (leadTime > 0.2f) {
+			leadTime = 0.2f;
+		}
 	}
+
+	VectorMA(target, leadTime, vel, target);
 
 	VectorSubtract(target, bs->eye, dir);
 	vectoangles(dir, goal);
