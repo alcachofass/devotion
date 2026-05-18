@@ -33,6 +33,8 @@ float BotEntityVisible(int viewer, vec3_t eye, vec3_t viewangles, float fov, int
 #define WPNSEL_SWITCH_COST_SCALE	18.0f
 #define WPNSEL_SPLASH_NEAR_MULT	2.2f
 #define WPNSEL_SPLASH_PENALTY	48.0f
+/* Extra weight on range fit vs legacy bias (higher = hitscan wins at long range). */
+#define WPNSEL_RANGE_WEIGHT		1.45f
 
 static int BotWpnSel_HasWeaponAndAmmo(bot_state_t *bs, int wp) {
 	if (wp <= WP_NONE || wp >= WP_NUM_WEAPONS) {
@@ -80,46 +82,64 @@ static float BotWpnSel_RangeScore(int wp, float dist) {
 		return 15.0f;
 	case WP_MACHINEGUN:
 		if (d < 200.0f) return 88.0f;
-		if (d < 700.0f) return 75.0f;
-		if (d < 1400.0f) return 55.0f;
-		return 35.0f;
+		if (d < 550.0f) return 78.0f;
+		if (d < 1000.0f) return 72.0f;
+		if (d < 1800.0f) return 80.0f;
+		if (d < 3200.0f) return 76.0f;
+		return 62.0f;
 	case WP_LIGHTNING:
-		if (d < 320.0f) return 92.0f;
-		if (d < 600.0f) return 55.0f;
-		return 25.0f;
+		if (d < 280.0f) return 94.0f;
+		if (d < 450.0f) return 58.0f;
+		if (d < 650.0f) return 32.0f;
+		return 14.0f;
 	case WP_RAILGUN:
-		if (d < 200.0f) return 35.0f;
-		if (d < 500.0f) return 70.0f;
-		if (d < 2500.0f) return 90.0f;
-		return 65.0f;
+		if (d < 160.0f) return 38.0f;
+		if (d < 400.0f) return 72.0f;
+		if (d < 1200.0f) return 92.0f;
+		if (d < 3200.0f) return 96.0f;
+		return 82.0f;
 	case WP_ROCKET_LAUNCHER:
+		if (d < 96.0f) return 42.0f;
+		if (d < 320.0f) return 88.0f;
+		if (d < 520.0f) return 78.0f;
+		if (d < 720.0f) return 48.0f;
+		if (d < 1100.0f) return 22.0f;
+		if (d < 1600.0f) return 10.0f;
+		return 4.0f;
 	case WP_GRENADE_LAUNCHER:
-		if (d < 120.0f) return 40.0f;
-		if (d < 900.0f) return 82.0f;
-		if (d < 1600.0f) return 55.0f;
-		return 30.0f;
+		if (d < 96.0f) return 38.0f;
+		if (d < 400.0f) return 76.0f;
+		if (d < 640.0f) return 52.0f;
+		if (d < 900.0f) return 26.0f;
+		return 8.0f;
 	case WP_PLASMAGUN:
-		if (d < 200.0f) return 75.0f;
-		if (d < 1000.0f) return 78.0f;
-		return 45.0f;
+		if (d < 200.0f) return 76.0f;
+		if (d < 700.0f) return 80.0f;
+		if (d < 1100.0f) return 52.0f;
+		if (d < 1600.0f) return 32.0f;
+		return 18.0f;
 	case WP_BFG:
-		if (d < 400.0f) return 50.0f;
-		if (d < 2000.0f) return 72.0f;
-		return 40.0f;
+		if (d < 400.0f) return 52.0f;
+		if (d < 1200.0f) return 68.0f;
+		if (d < 2000.0f) return 48.0f;
+		return 22.0f;
 	case WP_GAUNTLET:
 		if (d < 64.0f) return 100.0f;
 		if (d < 128.0f) return 55.0f;
 		return 10.0f;
 #ifdef MISSIONPACK
 	case WP_NAILGUN:
-		if (d < 900.0f) return 70.0f;
-		return 40.0f;
+		if (d < 700.0f) return 70.0f;
+		if (d < 1400.0f) return 48.0f;
+		return 28.0f;
 	case WP_PROX_LAUNCHER:
-		if (d < 350.0f) return 65.0f;
-		return 35.0f;
+		if (d < 320.0f) return 66.0f;
+		return 24.0f;
 	case WP_CHAINGUN:
-		if (d < 800.0f) return 72.0f;
-		return 48.0f;
+		if (d < 600.0f) return 74.0f;
+		if (d < 1400.0f) return 78.0f;
+		if (d < 2600.0f) return 70.0f;
+		return 52.0f;
 #endif
 	default:
 		return 40.0f;
@@ -341,7 +361,7 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 			continue;
 		}
 
-		score = BotWpnSel_RangeScore(wp, dist);
+		score = BotWpnSel_RangeScore(wp, dist) * WPNSEL_RANGE_WEIGHT;
 		score -= BotWpnSel_AmmoPressure(bs, wp);
 		score -= BotWpnSel_SplashPenalty(bs, wp, dist, &wi);
 
@@ -392,7 +412,7 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 		if (!wi.valid) {
 			continue;
 		}
-		miss_score = BotWpnSel_RangeScore(wp, dist);
+		miss_score = BotWpnSel_RangeScore(wp, dist) * WPNSEL_RANGE_WEIGHT;
 		miss_score -= BotWpnSel_SplashPenalty(bs, wp, dist, &wi);
 		if (wp == legacy_best) {
 			miss_score += WPNSEL_LEGACY_BIAS * 0.9f;
