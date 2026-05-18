@@ -2380,11 +2380,16 @@ void ClientUserinfoChanged( int clientNum ) {
 			// pick the team with the least number of players
 			team = PickTeam( clientNum );
 		}
-                client->sess.sessionTeam = team;
+        client->sess.sessionTeam = team;
 	} else if (g_gametype.integer != GT_TOURNAMENT && g_entities[clientNum].r.svFlags & SVF_BOT) {
 		// make sure bots can always join the game, even if it's locked
 		team = TEAM_FREE;
 		client->sess.sessionTeam = team;
+	} else if (g_gametype.integer == GT_TOURNAMENT && g_entities[clientNum].r.svFlags & SVF_BOT) {
+		//For tourney, we want bots to queue and not just sit in spec
+		team = TEAM_SPECTATOR;
+		client->sess.sessionTeam = team;
+		client->sess.spectatorGroup = SPECTATORGROUP_QUEUED;
 	}
 	else {
 		team = client->sess.sessionTeam;
