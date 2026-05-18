@@ -10,6 +10,7 @@ q_shared
 ai_dmnet
 ai_dmq3
 ai_aim_harness
+ai_weapon_select
 ai_team
 ai_main
 ai_chat

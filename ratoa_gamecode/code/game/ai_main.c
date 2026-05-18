@@ -50,6 +50,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "ai_dmnet.h"
 #include "ai_vcmd.h"
 #include "ai_aim_harness.h"
+#include "ai_weapon_select.h"
 
 //
 #include "chars.h"
@@ -1307,6 +1308,7 @@ int BotAISetupClient(int client, struct bot_settings_s *settings, qboolean resta
 		BotReadSessionData(bs);
 	}
 	BotAimHarness_Reset(bs);
+	BotWpnSelect_Reset(bs);
 	//bot has been setup succesfully
 	return qtrue;
 }
@@ -1410,6 +1412,7 @@ void BotResetState(bot_state_t *bs) {
 	if (bs->gs) trap_BotResetAvoidGoals(bs->gs);
 	if (bs->ms) trap_BotResetAvoidReach(bs->ms);
 	BotAimHarness_Reset(bs);
+	BotWpnSelect_Reset(bs);
 }
 
 /*
@@ -1733,6 +1736,7 @@ int BotAISetup( int restart ) {
 	trap_Cvar_Register(&bot_interbreedcycle, "bot_interbreedcycle", "20", 0);
 	trap_Cvar_Register(&bot_interbreedwrite, "bot_interbreedwrite", "", 0);
 	BotAimHarness_RegisterCvars();
+	BotWpnSelect_RegisterCvars();
 
 	//if the game is restarted for a tournament
 	if (restart) {

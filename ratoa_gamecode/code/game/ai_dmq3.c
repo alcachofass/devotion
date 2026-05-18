@@ -45,6 +45,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "ai_main.h"
 #include "ai_dmq3.h"
 #include "ai_aim_harness.h"
+#include "ai_weapon_select.h"
 #include "ai_chat.h"
 #include "ai_cmd.h"
 #include "ai_dmnet.h"
@@ -1720,7 +1721,9 @@ BotChooseWeapon
 */
 void BotChooseWeapon(bot_state_t *bs) {
 	int newweaponnum;
+	int prevweaponnum;
 
+	prevweaponnum = bs->weaponnum;
 	if (bs->cur_ps.weaponstate == WEAPON_RAISING ||
 			bs->cur_ps.weaponstate == WEAPON_DROPPING) {
 		trap_EA_SelectWeapon(bs->client, bs->weaponnum);
@@ -1730,10 +1733,15 @@ void BotChooseWeapon(bot_state_t *bs) {
                     newweaponnum = WP_RAILGUN;
                 else if(g_rockets.integer)
                     newweaponnum = WP_ROCKET_LAUNCHER;
-                else
-                    newweaponnum = trap_BotChooseBestFightWeapon(bs->ws, bs->inventory);
+                else {
+			newweaponnum = BotWpnSelect_Choose(bs);
+			if (newweaponnum < 0 || newweaponnum >= WP_NUM_WEAPONS) {
+				newweaponnum = trap_BotChooseBestFightWeapon(bs->ws, bs->inventory);
+			}
+		}
 		if (bs->weaponnum != newweaponnum) bs->weaponchange_time = FloatTime();
 		bs->weaponnum = newweaponnum;
+		BotWpnSelect_NotifyWeaponCommitted(bs, prevweaponnum, newweaponnum);
 		//BotAI_Print(PRT_MESSAGE, "bs->weaponnum = %d\n", bs->weaponnum);
 		trap_EA_SelectWeapon(bs->client, bs->weaponnum);
 	}

@@ -1780,6 +1780,7 @@ Q3GOBJ_ = \
   $(B)/baseq3/game/ai_dmnet.o \
   $(B)/baseq3/game/ai_dmq3.o \
   $(B)/baseq3/game/ai_aim_harness.o \
+  $(B)/baseq3/game/ai_weapon_select.o \
   $(B)/baseq3/game/ai_main.o \
   $(B)/baseq3/game/ai_team.o \
   $(B)/baseq3/game/ai_vcmd.o \
@@ -1841,6 +1842,7 @@ MPGOBJ_ = \
   $(B)/missionpack/game/ai_dmnet.o \
   $(B)/missionpack/game/ai_dmq3.o \
   $(B)/missionpack/game/ai_aim_harness.o \
+  $(B)/missionpack/game/ai_weapon_select.o \
   $(B)/missionpack/game/ai_main.o \
   $(B)/missionpack/game/ai_team.o \
   $(B)/missionpack/game/ai_vcmd.o \

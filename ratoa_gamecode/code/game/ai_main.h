@@ -293,6 +293,14 @@ typedef struct bot_state_s
 	float		aimh_motor_inaccuracy;
 	qboolean	aimh_combat_aim;
 	/* ---- end BOT AIM HARNESS ---- */
+
+	/* ---- BOT SMART WEAPON SELECT (v1): ai_weapon_select.c — remove to revert ---- */
+	float		wps_next_eval_time;
+	float		wps_last_switch_time;
+	int			wps_last_chosen_weapon;
+	int			wps_desired_weapon;
+	float		wps_desire_strength;
+	/* ---- end BOT SMART WEAPON SELECT ---- */
 } bot_state_t;
 
 //resets the whole bot state
