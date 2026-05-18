@@ -2162,6 +2162,7 @@ int AINode_Battle_Fight(bot_state_t *bs) {
 	}
 	//update the attack inventory values
 	BotUpdateBattleInventory(bs, bs->enemy);
+	BotTactics_PreferCloserEnemy(bs);
 	if (BotTactics_BattleFightTryFlee(bs)) {
 		return qfalse;
 	}
@@ -2337,6 +2338,7 @@ int AINode_Battle_Chase(bot_state_t *bs)
 	}
 	//
 	BotUpdateBattleInventory(bs, bs->enemy);
+	BotTactics_PreferCloserEnemy(bs);
 	//initialize the movement state
 	BotSetupForMovement(bs);
 	//move towards the goal

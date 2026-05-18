@@ -14,13 +14,19 @@ BOT TACTICAL AI (v1) — see ai_bot_tactics.h
 #include "../botlib/be_ai_weap.h"
 #include "ai_main.h"
 #include "inv.h"
+#include "ai_dmq3.h"
 #include "ai_bot_tactics.h"
 
 void AIEnter_Battle_Retreat(bot_state_t *bs, char *s);
 
+qboolean EntityCarriesFlag(aas_entityinfo_t *entinfo);
+
 vmCvar_t bot_tacticalAI;
 
 #define BOT_TACTICS_GAUNTLET_RUSH_DIST	192
+#define BOT_TACTICS_FAR_ENGAGE_DIST		512
+#define BOT_TACTICS_CLOSER_MARGIN		128
+#define BOT_TACTICS_FINISH_HEALTH		40
 
 static int BotTactics_IsActive(void) {
 	trap_Cvar_Update(&bot_tacticalAI);
@@ -129,4 +135,89 @@ int BotTactics_SkipAimAtEnemy(bot_state_t *bs) {
 		return qfalse;
 	}
 	return qtrue;
+}
+
+static void BotTactics_AssignEnemy(bot_state_t *bs, int newenemy) {
+	bs->enemy = newenemy;
+	bs->enemysight_time = FloatTime() - 2;
+	bs->enemysuicide = qfalse;
+	bs->enemydeath_time = 0;
+	bs->enemyvisible_time = FloatTime();
+}
+
+void BotTactics_PreferCloserEnemy(bot_state_t *bs) {
+	int i, curenemy, bestenemy, curhoriz, candhoriz, besthoriz;
+	float vis;
+	vec3_t dir;
+	aas_entityinfo_t entinfo, cureinfo;
+
+	if (!BotTactics_IsActive()) {
+		return;
+	}
+	curenemy = bs->enemy;
+	if (curenemy < 0 || curenemy >= MAX_CLIENTS) {
+		return;
+	}
+	if (EntityClientIsDead(curenemy)) {
+		return;
+	}
+	curhoriz = bs->inventory[ENEMY_HORIZONTAL_DIST];
+	if (curhoriz <= BOT_TACTICS_FAR_ENGAGE_DIST) {
+		return;
+	}
+	if (g_entities[curenemy].health > 0 &&
+			g_entities[curenemy].health <= BOT_TACTICS_FINISH_HEALTH) {
+		return;
+	}
+	BotEntityInfo(curenemy, &cureinfo);
+	if (EntityCarriesFlag(&cureinfo)) {
+		return;
+	}
+
+	bestenemy = -1;
+	besthoriz = 999999;
+	for (i = 0; i < maxclients && i < MAX_CLIENTS; i++) {
+		if (i == bs->client || i == curenemy) {
+			continue;
+		}
+		BotEntityInfo(i, &entinfo);
+		if (!entinfo.valid) {
+			continue;
+		}
+		if (EntityClientIsDead(i) || entinfo.number == bs->entitynum) {
+			continue;
+		}
+		if (EntityIsInvisible(&entinfo) && !EntityIsShooting(&entinfo)) {
+			continue;
+		}
+		if (g_entities[i].flags & FL_NOTARGET) {
+			continue;
+		}
+		if (BotSameTeam(bs, i)) {
+			continue;
+		}
+		VectorSubtract(entinfo.origin, bs->origin, dir);
+		dir[2] = 0;
+		candhoriz = (int)VectorLength(dir);
+		if (candhoriz + BOT_TACTICS_CLOSER_MARGIN >= curhoriz) {
+			continue;
+		}
+		vis = BotEntityVisible(bs->entitynum, bs->eye, bs->viewangles, 360, i);
+		if (vis <= 0) {
+			continue;
+		}
+		if (bestenemy < 0 || candhoriz < besthoriz) {
+			bestenemy = i;
+			besthoriz = candhoriz;
+		}
+	}
+
+	if (bestenemy < 0) {
+		return;
+	}
+	if (bestenemy == curenemy) {
+		return;
+	}
+	BotTactics_AssignEnemy(bs, bestenemy);
+	BotUpdateBattleInventory(bs, bestenemy);
 }

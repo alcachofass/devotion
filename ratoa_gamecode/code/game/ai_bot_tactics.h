@@ -23,4 +23,7 @@ int BotTactics_BattleFightSuppressRetreat(struct bot_state_s *bs);
 void BotTactics_RetreatAfterInventory(struct bot_state_s *bs);
 int BotTactics_SkipAimAtEnemy(struct bot_state_s *bs);
 
+/* Prefer a nearer visible threat while engaging someone far away (finish weak targets). */
+void BotTactics_PreferCloserEnemy(struct bot_state_s *bs);
+
 #endif
