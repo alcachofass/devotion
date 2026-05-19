@@ -300,6 +300,12 @@ typedef struct bot_state_s
 	float		aimh_acquire_until;
 	int			aimh_last_sanity_enemy;
 	int			aimh_sanity_miss_streak;
+	float		aimh_aim_skill;
+	float		aimh_aim_accuracy;
+	float		aimh_last_goal_pitch;
+	float		aimh_last_goal_yaw;
+	float		aimh_last_goal_time;
+	vec3_t		aimh_combat_target;
 	/* ---- end BOT AIM HARNESS ---- */
 
 	/* ---- BOT SMART WEAPON SELECT (v1): ai_weapon_select.c — remove to revert ---- */

@@ -25,7 +25,14 @@ float BotAimHarness_ClampPitchAngle(float pitch);
 
 void BotAimHarness_Reset(struct bot_state_s *bs);
 void BotAimHarness_SetCombatGoal(struct bot_state_s *bs, const float idealAngles[3],
-	float aimAccuracy, float weaponVSpread, float weaponHSpread);
+	float aimSkill, float aimAccuracy, float weaponVSpread, float weaponHSpread);
+void BotAimHarness_ApplyThinkHitscanOrigin(struct bot_state_s *bs, float bestorigin[3],
+	void *entinfo, float aimSkill);
 int BotAimHarness_ChangeViewAngles(struct bot_state_s *bs, float thinktime);
+/*
+ * Sustained-fire path for BotCheckAttack: fire when combat-aiming with clear LOS to
+ * aimtarget, using intent angles (not lagging viewangles). Returns qtrue if handled.
+ */
+int BotAimHarness_TryAttack(struct bot_state_s *bs);
 
 #endif /* AI_AIM_HARNESS_H */

@@ -3664,6 +3664,8 @@ void BotAimAtEnemy(bot_state_t *bs) {
 			bestorigin[0] += 20 * crandom() * (1 - aim_accuracy);
 			bestorigin[1] += 20 * crandom() * (1 - aim_accuracy);
 			bestorigin[2] += 10 * crandom() * (1 - aim_accuracy);
+		} else if (!wi.speed) {
+			BotAimHarness_ApplyThinkHitscanOrigin(bs, bestorigin, &entinfo, aim_skill);
 		}
 	}
 	else {
@@ -3728,7 +3730,7 @@ void BotAimAtEnemy(bot_state_t *bs) {
 		bs->ideal_viewangles[YAW] += 6 * wi.hspread * crandom() * (1 - aim_accuracy);
 		bs->ideal_viewangles[YAW] = AngleMod(bs->ideal_viewangles[YAW]);
 	} else {
-		BotAimHarness_SetCombatGoal(bs, bs->ideal_viewangles, aim_accuracy,
+		BotAimHarness_SetCombatGoal(bs, bs->ideal_viewangles, aim_skill, aim_accuracy,
 			wi.vspread, wi.hspread);
 	}
 	//if the bots should be really challenging
@@ -3807,6 +3809,10 @@ void BotCheckAttack(bot_state_t *bs) {
 		if (VectorLengthSquared(dir) > Square(60)) {
 			return;
 		}
+	}
+	/* BOT AIM HARNESS: sustained-fire uses intent angles + aimtarget LOS */
+	if (BotAimHarness_TryAttack(bs)) {
+		return;
 	}
 	if (VectorLengthSquared(dir) < Square(100))
 		fov = 120;
