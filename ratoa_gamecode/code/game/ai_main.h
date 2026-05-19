@@ -305,6 +305,10 @@ typedef struct bot_state_s
 	float		aimh_last_goal_pitch;
 	float		aimh_last_goal_yaw;
 	float		aimh_last_goal_time;
+	float		aimh_smooth_goal_pitch;
+	float		aimh_smooth_goal_yaw;
+	float		aimh_tracked_ideal_pitch;
+	float		aimh_tracked_ideal_yaw;
 	vec3_t		aimh_combat_target;
 	/* ---- end BOT AIM HARNESS ---- */
 

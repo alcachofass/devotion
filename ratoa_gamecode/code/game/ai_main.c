@@ -943,18 +943,40 @@ BotUpdateInput
 void BotUpdateInput(bot_state_t *bs, int time, int elapsed_time) {
 	bot_input_t bi;
 	int j;
+	float thinktime;
+
+	thinktime = (float)elapsed_time / 1000.0f;
+
+	if (BotAimHarness_IsActive()) {
+		if (!BotAI_GetClientState(bs->client, &bs->cur_ps)) {
+			return;
+		}
+		for (j = 0; j < 3; j++) {
+			bs->viewangles[j] = AngleMod(bs->viewangles[j] +
+				SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
+		}
+		BotAimHarness_BeginMotorFrame(bs);
+		BotChangeViewAngles(bs, thinktime);
+		trap_EA_GetInput(bs->client, (float)time / 1000, &bi);
+		if (bi.actionflags & ACTION_RESPAWN) {
+			if (bs->lastucmd.buttons & BUTTON_ATTACK) {
+				bi.actionflags &= ~(ACTION_RESPAWN | ACTION_ATTACK);
+			}
+		}
+		BotInputToUserCommand(&bi, &bs->lastucmd, bs->cur_ps.delta_angles, time);
+		for (j = 0; j < 3; j++) {
+			bs->viewangles[j] = AngleMod(bs->viewangles[j] -
+				SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
+		}
+		return;
+	}
 
 	//add the delta angles to the bot's current view angles
 	for (j = 0; j < 3; j++) {
-		if (j == PITCH && BotAimHarness_IsActive()) {
-			bs->viewangles[PITCH] = BotAimHarness_ClampPitchAngle(bs->viewangles[PITCH] +
-				SHORT2ANGLE(bs->cur_ps.delta_angles[PITCH]));
-		} else {
-			bs->viewangles[j] = AngleMod(bs->viewangles[j] + SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
-		}
+		bs->viewangles[j] = AngleMod(bs->viewangles[j] + SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
 	}
 	//change the bot view angles
-	BotChangeViewAngles(bs, (float) elapsed_time / 1000);
+	BotChangeViewAngles(bs, thinktime);
 	//retrieve the bot input
 	trap_EA_GetInput(bs->client, (float) time / 1000, &bi);
 	//respawn hack
@@ -965,12 +987,7 @@ void BotUpdateInput(bot_state_t *bs, int time, int elapsed_time) {
 	BotInputToUserCommand(&bi, &bs->lastucmd, bs->cur_ps.delta_angles, time);
 	//subtract the delta angles
 	for (j = 0; j < 3; j++) {
-		if (j == PITCH && BotAimHarness_IsActive()) {
-			bs->viewangles[PITCH] = BotAimHarness_ClampPitchAngle(bs->viewangles[PITCH] -
-				SHORT2ANGLE(bs->cur_ps.delta_angles[PITCH]));
-		} else {
-			bs->viewangles[j] = AngleMod(bs->viewangles[j] - SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
-		}
+		bs->viewangles[j] = AngleMod(bs->viewangles[j] - SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
 	}
 }
 
@@ -1076,13 +1093,10 @@ int BotAI(int client, float thinktime) {
 		else if (!Q_stricmp(buf, "clientLevelShot"))
 			{ /*ignore*/ }
 	}
-	//add the delta angles to the bot's current view angles
-	for (j = 0; j < 3; j++) {
-		if (j == PITCH && BotAimHarness_IsActive()) {
-			bs->viewangles[PITCH] = BotAimHarness_ClampPitchAngle(bs->viewangles[PITCH] +
+	if (!BotAimHarness_IsActive()) {
+		for (j = 0; j < 3; j++) {
+			bs->viewangles[j] = AngleMod(bs->viewangles[j] +
 				SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
-		} else {
-			bs->viewangles[j] = AngleMod(bs->viewangles[j] + SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
 		}
 	}
 	//increase the local time of the bot
@@ -1100,13 +1114,10 @@ int BotAI(int client, float thinktime) {
 	BotDeathmatchAI(bs, thinktime);
 	//set the weapon selection every AI frame
 	trap_EA_SelectWeapon(bs->client, bs->weaponnum);
-	//subtract the delta angles
-	for (j = 0; j < 3; j++) {
-		if (j == PITCH && BotAimHarness_IsActive()) {
-			bs->viewangles[PITCH] = BotAimHarness_ClampPitchAngle(bs->viewangles[PITCH] -
+	if (!BotAimHarness_IsActive()) {
+		for (j = 0; j < 3; j++) {
+			bs->viewangles[j] = AngleMod(bs->viewangles[j] -
 				SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
-		} else {
-			bs->viewangles[j] = AngleMod(bs->viewangles[j] - SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
 		}
 	}
 	//everything was ok

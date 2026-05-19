@@ -3816,8 +3816,11 @@ void BotCheckAttack(bot_state_t *bs) {
 			return;
 		}
 	}
-	/* BOT AIM HARNESS: sustained-fire uses intent angles + aimtarget LOS */
-	if (BotAimHarness_TryAttack(bs)) {
+	/* BOT AIM HARNESS: intent angles + aimtarget LOS (all weapons) */
+	if (BotAimHarness_CheckAttack(bs)) {
+		return;
+	}
+	if (BotAimHarness_IsActive() && BotAimHarness_AimTargetValid(bs)) {
 		return;
 	}
 	if (VectorLengthSquared(dir) < Square(100))

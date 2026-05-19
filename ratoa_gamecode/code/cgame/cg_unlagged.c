@@ -1572,6 +1572,154 @@ void CG_AddBoundingBox( centity_t *cent ) {
 	trap_R_AddPolyToScene( bboxShader_nocull, 4, verts );
 }
 
+#define CG_BOTAIMDBG_FOLLOW	1
+#define CG_BOTAIMDBG_ALL	2
+#define CG_BOTAIMDBG_VIEW	4
+
+/*
+=================
+CG_DrawDebugBeam
+
+Silent tracer poly for debug overlays (no sound).
+=================
+*/
+static void CG_DrawDebugBeam( const vec3_t start, const vec3_t end, int r, int g, int b, int a ) {
+	vec3_t		forward, right;
+	polyVert_t	verts[4];
+	vec3_t		line;
+	float		len;
+	vec3_t		finish;
+	static qhandle_t beamShader;
+
+	if (!beamShader) {
+		beamShader = trap_R_RegisterShader("tracer");
+		if (!beamShader) {
+			beamShader = trap_R_RegisterShader("gfx/misc/teleportEffect2");
+		}
+	}
+
+	VectorSubtract(end, start, forward);
+	len = VectorLength(forward);
+	if (len < 8.0f) {
+		return;
+	}
+	VectorNormalize(forward);
+
+	VectorCopy(end, finish);
+
+	line[0] = DotProduct(forward, cg.refdef.viewaxis[1]);
+	line[1] = DotProduct(forward, cg.refdef.viewaxis[2]);
+	VectorScale(cg.refdef.viewaxis[1], line[1], right);
+	VectorMA(right, -line[0], cg.refdef.viewaxis[2], right);
+	VectorNormalize(right);
+
+	VectorMA(finish, cg_tracerWidth.value, right, verts[0].xyz);
+	verts[0].st[0] = 0;
+	verts[0].st[1] = 1;
+	verts[0].modulate[0] = r;
+	verts[0].modulate[1] = g;
+	verts[0].modulate[2] = b;
+	verts[0].modulate[3] = a;
+
+	VectorMA(finish, -cg_tracerWidth.value, right, verts[1].xyz);
+	verts[1].st[0] = 1;
+	verts[1].st[1] = 0;
+	verts[1].modulate[0] = r;
+	verts[1].modulate[1] = g;
+	verts[1].modulate[2] = b;
+	verts[1].modulate[3] = a;
+
+	VectorMA(start, -cg_tracerWidth.value, right, verts[2].xyz);
+	verts[2].st[0] = 1;
+	verts[2].st[1] = 1;
+	verts[2].modulate[0] = r;
+	verts[2].modulate[1] = g;
+	verts[2].modulate[2] = b;
+	verts[2].modulate[3] = a;
+
+	VectorMA(start, cg_tracerWidth.value, right, verts[3].xyz);
+	verts[3].st[0] = 0;
+	verts[3].st[1] = 0;
+	verts[3].modulate[0] = r;
+	verts[3].modulate[1] = g;
+	verts[3].modulate[2] = b;
+	verts[3].modulate[3] = a;
+
+	trap_R_AddPolyToScene(beamShader, 4, verts);
+}
+
+/*
+=================
+CG_AddBotAimDebug
+
+Draw harness combat aim (eye -> origin2) when server sets EF_BOT_AIM_DEBUG.
+cg_debugBotAim: 1 = followed bot, 2 = all bots, 4 = also draw viewangles ray.
+=================
+*/
+void CG_AddBotAimDebug( centity_t *cent ) {
+	int mode;
+	vec3_t eye, viewEnd, forward;
+	int viewHeight;
+
+	if (!cg_debugBotAim.integer) {
+		return;
+	}
+	if (!cg.snap) {
+		return;
+	}
+	if (cent->currentState.eType != ET_PLAYER) {
+		return;
+	}
+	if (cent->currentState.eFlags & EF_DEAD) {
+		return;
+	}
+	if (!(cent->currentState.eFlags & EF_BOT_AIM_DEBUG)) {
+		return;
+	}
+
+	mode = cg_debugBotAim.integer;
+	if (!(mode & CG_BOTAIMDBG_ALL)) {
+		if (!(cg.snap->ps.pm_flags & PMF_FOLLOW) && !cg.demoPlayback) {
+			return;
+		}
+		if (cent->currentState.clientNum != cg.predictedPlayerState.clientNum) {
+			return;
+		}
+	}
+
+	if (cent->currentState.number == cg.predictedPlayerState.clientNum &&
+			!cg.renderingThirdPerson && (cg.snap->ps.pm_flags & PMF_FOLLOW)) {
+		return;
+	}
+
+	viewHeight = 32;
+	if (cent->currentState.number == cg.predictedPlayerState.clientNum) {
+		viewHeight = cg.predictedPlayerState.viewheight;
+	} else {
+		int x, zd, zu;
+
+		x = (cent->currentState.solid & 255);
+		zd = ((cent->currentState.solid >> 8) & 255);
+		zu = ((cent->currentState.solid >> 16) & 255) - 32;
+		if (zu > 8) {
+			viewHeight = zu;
+		}
+		(void)zd;
+		(void)x;
+	}
+
+	VectorCopy(cent->lerpOrigin, eye);
+	eye[2] += viewHeight;
+
+	CG_DrawDebugBeam(eye, cent->currentState.origin2, 80, 255, 120, 220);
+
+	if (mode & CG_BOTAIMDBG_VIEW) {
+		AngleVectors(cent->lerpAngles, forward, NULL, NULL);
+		VectorMA(eye, 4096.0f, forward, viewEnd);
+		CG_DrawDebugBeam(eye, viewEnd, 255, 220, 80, 160);
+	}
+}
+
 /*
 ================
 CG_Cvar_ClampInt

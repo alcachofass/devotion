@@ -18,6 +18,7 @@ BOT AIM HARNESS (v1) — see ai_aim_harness.h
 #include "ai_aim_harness.h"
 
 vmCvar_t bot_humanizeaim;
+vmCvar_t bot_debugAim;
 
 /* Forward — defined in ai_dmq3.c / ai_main.c */
 float BotEntityVisible(int viewer, vec3_t eye, vec3_t viewangles, float fov, int ent);
@@ -34,8 +35,12 @@ extern bot_state_t *botstates[MAX_CLIENTS];
 #define AIMH_STIFFNESS_FLICK	500.0f
 #define AIMH_DAMPING_TRACK		36.0f
 #define AIMH_DAMPING_FLICK		22.0f
-#define AIMH_ROAM_STIFFNESS		80.0f
-#define AIMH_ROAM_DAMPING		40.0f
+#define AIMH_ROAM_STIFFNESS		300.0f
+#define AIMH_ROAM_DAMPING		34.0f
+#define AIMH_ROAM_MIN_VEL		90.0f
+#define AIMH_ROAM_MIN_ERR		3.0f
+#define AIMH_COMBAT_MIN_VEL		55.0f
+#define AIMH_COMBAT_CATCHUP_GAIN	14.0f
 #define AIMH_COMBAT_VEL_SCALE	1.85f
 #define AIMH_MOTOR_NOISE_SCALE	2.0f
 #define AIMH_HITSCAN_LEAD_EXTRA	0.025f
@@ -85,8 +90,22 @@ extern bot_state_t *botstates[MAX_CLIENTS];
 #define AIMH_ENGAGE_FAR_CATCHUP		0.65f
 #define AIMH_ENGAGE_CLOSE_FLICK	0.72f
 #define AIMH_ENGAGE_FAR_FLICK		1.12f
+#define AIMH_ROAM_IDEAL_SNAP_PITCH	8.0f
+#define AIMH_ROAM_IDEAL_SNAP_YAW	12.0f
+/* Resync motor state to playerState only on large desync (avoids per-frame drag). */
+#define AIMH_PS_DESYNC_PITCH		14.0f
+#define AIMH_PS_DESYNC_YAW		18.0f
+#define AIMH_PS_DESYNC_BLEND		0.65f
+/* Fixed motor sub-steps so low sv_fps (large frame dt) stays stable on dedicated. */
+#define AIMH_MOTOR_SUBSTEP_DT		0.010f
+#define AIMH_MOTOR_SUBSTEP_MAX		12
 
 static int bot_humanizeaim_last = -1;
+static int bot_debugAim_last = -1;
+
+static float BotAimHarness_ClampPitch(float pitch);
+static float BotAimHarness_PitchDiff(float pitch, float goal);
+static float BotAimHarness_YawDiff(float yaw, float goal);
 
 static float BotAimHarness_Lerp(float a, float b, float t) {
 	return a + (b - a) * t;
@@ -208,7 +227,7 @@ static void BotAimHarness_RefreshEye(bot_state_t *bs) {
 	bs->eye[2] += bs->cur_ps.viewheight;
 }
 
-static int BotAimHarness_AimTargetValid(bot_state_t *bs) {
+int BotAimHarness_AimTargetValid(bot_state_t *bs) {
 	if (VectorCompare(bs->aimtarget, vec3_origin)) {
 		return 0;
 	}
@@ -373,11 +392,17 @@ void BotAimHarness_ApplyThinkHitscanOrigin(bot_state_t *bs, vec3_t bestorigin,
 	(void)dist;
 }
 
-static void BotAimHarness_GetAttackAimAngles(bot_state_t *bs, vec3_t angles) {
-	vec3_t dir, target;
+/*
+ * Fire and motor intent: aim at aimtarget (BotAimAtEnemy hittable point). Fall back to
+ * lead-only combat_target only when aimtarget is not set (blind fire).
+ */
+static void BotAimHarness_GetCombatAimAngles(bot_state_t *bs, vec3_t angles) {
+	vec3_t dir;
 
-	if (BotAimHarness_GetCombatTarget(bs, target)) {
-		VectorSubtract(target, bs->eye, dir);
+	if (BotAimHarness_AimTargetValid(bs)) {
+		VectorSubtract(bs->aimtarget, bs->eye, dir);
+	} else if (bs->aimh_combat_aim && VectorLengthSquared(bs->aimh_combat_target) > 1.0f) {
+		VectorSubtract(bs->aimh_combat_target, bs->eye, dir);
 	} else {
 		VectorCopy(bs->aimh_goal, angles);
 		return;
@@ -387,27 +412,16 @@ static void BotAimHarness_GetAttackAimAngles(bot_state_t *bs, vec3_t angles) {
 	angles[YAW] = AngleMod(angles[YAW]);
 }
 
-static int BotAimHarness_IsSustainedFireWeapon(int wp) {
-	switch (wp) {
-	case WP_GAUNTLET:
-	case WP_MACHINEGUN:
-	case WP_LIGHTNING:
-	case WP_PLASMAGUN:
-#ifdef MISSIONPACK
-	case WP_CHAINGUN:
-#endif
-		return 1;
-	default:
-		return 0;
-	}
+static void BotAimHarness_GetAttackAimAngles(bot_state_t *bs, vec3_t angles) {
+	BotAimHarness_GetCombatAimAngles(bs, angles);
 }
 
 /*
- * Hold attack for continuous-fire weapons while harness is tracking a visible enemy
- * with unobstructed aimtarget LOS. Uses attack/intent angles for the hit trace so
- * lagging viewangles do not drop fire between bot thinks.
+ * BotCheckAttack path when harness is on: LOS to aimtarget, weapon trace along intent
+ * angles (aimtarget, not lead-only combat_target). Skips view FOV so lagging viewangles
+ * do not block fire between bot thinks.
  */
-int BotAimHarness_TryAttack(bot_state_t *bs) {
+int BotAimHarness_CheckAttack(bot_state_t *bs) {
 	int attackentity;
 	float points;
 	vec3_t dir, forward, right, start, end, attackAngles;
@@ -415,13 +429,10 @@ int BotAimHarness_TryAttack(bot_state_t *bs) {
 	bsp_trace_t bsptrace, trace;
 	weaponinfo_t wi;
 
-	if (!BotAimHarness_IsActive() || !bs->aimh_combat_aim) {
+	if (!BotAimHarness_IsActive()) {
 		return qfalse;
 	}
 	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
-		return qfalse;
-	}
-	if (!BotAimHarness_IsSustainedFireWeapon(bs->weaponnum)) {
 		return qfalse;
 	}
 	if (!BotAimHarness_AimTargetValid(bs)) {
@@ -483,6 +494,10 @@ int BotAimHarness_TryAttack(bot_state_t *bs) {
 	}
 	bs->flags ^= BFL_ATTACKED;
 	return qtrue;
+}
+
+int BotAimHarness_TryAttack(bot_state_t *bs) {
+	return BotAimHarness_CheckAttack(bs);
 }
 
 /*
@@ -592,21 +607,72 @@ static void BotAimHarness_OnEnemyChange(bot_state_t *bs) {
 	bs->aimh_vel[PITCH] *= 0.4f;
 	bs->aimh_vel[YAW] *= 0.4f;
 	bs->aimh_last_goal_time = 0.0f;
+	bs->aimh_smooth_goal_pitch = bs->viewangles[PITCH];
+	bs->aimh_smooth_goal_yaw = bs->viewangles[YAW];
+	bs->aimh_tracked_ideal_pitch = bs->viewangles[PITCH];
+	bs->aimh_tracked_ideal_yaw = bs->viewangles[YAW];
+}
+
+static void BotAimHarness_ClearEntityDebug(gentity_t *ent) {
+	if (!ent || !ent->client) {
+		return;
+	}
+	ent->s.eFlags &= ~EF_BOT_AIM_DEBUG;
+	VectorClear(ent->s.origin2);
+}
+
+static void BotAimHarness_DebugSync(bot_state_t *bs) {
+	gentity_t *ent;
+
+	trap_Cvar_Update(&bot_debugAim);
+	ent = &g_entities[bs->entitynum];
+	if (!ent->client) {
+		return;
+	}
+
+	if (!bot_debugAim.integer) {
+		BotAimHarness_ClearEntityDebug(ent);
+		return;
+	}
+
+	if (!BotAimHarness_IsActive() || !bs->aimh_combat_aim || bs->enemy < 0 ||
+			VectorLengthSquared(bs->aimh_combat_target) < 1.0f) {
+		BotAimHarness_ClearEntityDebug(ent);
+		return;
+	}
+
+	VectorCopy(bs->aimh_combat_target, ent->s.origin2);
+	SnapVector(ent->s.origin2);
+	ent->s.eFlags |= EF_BOT_AIM_DEBUG;
 }
 
 void BotAimHarness_RegisterCvars(void) {
 	trap_Cvar_Register(&bot_humanizeaim, "bot_humanizeaim", "0", CVAR_ARCHIVE);
+	trap_Cvar_Register(&bot_debugAim, "bot_debugAim", "0", CVAR_CHEAT);
 	trap_Cvar_Update(&bot_humanizeaim);
+	trap_Cvar_Update(&bot_debugAim);
 }
 
 void BotAimHarness_ResetCvarLatch(void) {
 	bot_humanizeaim_last = -1;
+	bot_debugAim_last = -1;
 }
 
 void BotAimHarness_UpdateCvar(void) {
 	int i;
 
 	trap_Cvar_Update(&bot_humanizeaim);
+	trap_Cvar_Update(&bot_debugAim);
+
+	if (bot_debugAim_last != bot_debugAim.integer) {
+		bot_debugAim_last = bot_debugAim.integer;
+		if (!bot_debugAim.integer) {
+			for (i = 0; i < level.maxclients; i++) {
+				BotAimHarness_ClearEntityDebug(&g_entities[i]);
+			}
+		}
+	}
+
 	if (bot_humanizeaim_last == bot_humanizeaim.integer) {
 		return;
 	}
@@ -618,6 +684,7 @@ void BotAimHarness_UpdateCvar(void) {
 			if (!bot_humanizeaim.integer) {
 				botstates[i]->viewanglespeed[0] = 0;
 				botstates[i]->viewanglespeed[1] = 0;
+				BotAimHarness_ClearEntityDebug(&g_entities[i]);
 			}
 		}
 	}
@@ -665,6 +732,10 @@ void BotAimHarness_Reset(bot_state_t *bs) {
 	bs->aimh_last_goal_pitch = 0.0f;
 	bs->aimh_last_goal_yaw = 0.0f;
 	bs->aimh_last_goal_time = 0.0f;
+	bs->aimh_smooth_goal_pitch = bs->viewangles[PITCH];
+	bs->aimh_smooth_goal_yaw = bs->viewangles[YAW];
+	bs->aimh_tracked_ideal_pitch = bs->viewangles[PITCH];
+	bs->aimh_tracked_ideal_yaw = bs->viewangles[YAW];
 	VectorClear(bs->aimh_combat_target);
 }
 
@@ -699,36 +770,97 @@ void BotAimHarness_SetCombatGoal(bot_state_t *bs, const vec3_t idealAngles,
 
 	bs->aimh_combat_aim = qtrue;
 	VectorCopy(bs->aimh_goal, bs->ideal_viewangles);
+	if (BotAimHarness_AimTargetValid(bs)) {
+		VectorCopy(bs->aimtarget, bs->aimh_combat_target);
+	} else if (bs->enemy >= 0) {
+		BotAimHarness_GetCombatTarget(bs, bs->aimh_combat_target);
+	}
+	if (VectorLengthSquared(bs->aimh_combat_target) > 1.0f) {
+		vec3_t ang;
+
+		BotAimHarness_GetCombatAimAngles(bs, ang);
+		bs->aimh_smooth_goal_pitch = ang[PITCH];
+		bs->aimh_smooth_goal_yaw = ang[YAW];
+	}
 }
 
-static void BotAimHarness_GetCombatGoal(bot_state_t *bs, vec3_t goal) {
-	vec3_t dir, target;
+/*
+ * Roam: goal is movement ideal; spring + light noise humanize. Combat: live world target
+ * each motor frame; spring/catch-up humanize (no extra goal slew).
+ */
+static void BotAimHarness_GetMotorGoal(bot_state_t *bs, vec3_t goal, float dt) {
+	vec3_t targetAngles, dir;
+	float pitchJump, yawJump;
 
-	if (!BotAimHarness_GetCombatTarget(bs, target)) {
-		VectorCopy(bs->aimh_goal, goal);
+	if (dt <= 0.0f) {
+		dt = 0.001f;
+	}
+
+	if (bs->aimh_combat_aim) {
+		BotAimHarness_GetCombatAimAngles(bs, targetAngles);
+		bs->aimh_smooth_goal_pitch = targetAngles[PITCH];
+		bs->aimh_smooth_goal_yaw = targetAngles[YAW];
+	} else {
+		VectorCopy(bs->ideal_viewangles, targetAngles);
+		targetAngles[PITCH] = BotAimHarness_ClampPitch(targetAngles[PITCH]);
+		targetAngles[YAW] = AngleMod(targetAngles[YAW]);
+
+		pitchJump = fabs(BotAimHarness_PitchDiff(bs->aimh_tracked_ideal_pitch,
+			targetAngles[PITCH]));
+		yawJump = fabs(BotAimHarness_YawDiff(bs->aimh_tracked_ideal_yaw, targetAngles[YAW]));
+		if (pitchJump > AIMH_ROAM_IDEAL_SNAP_PITCH || yawJump > AIMH_ROAM_IDEAL_SNAP_YAW) {
+			bs->aimh_smooth_goal_pitch = targetAngles[PITCH];
+			bs->aimh_smooth_goal_yaw = targetAngles[YAW];
+			bs->aimh_vel[PITCH] *= 0.35f;
+			bs->aimh_vel[YAW] *= 0.35f;
+		}
+		bs->aimh_tracked_ideal_pitch = targetAngles[PITCH];
+		bs->aimh_tracked_ideal_yaw = targetAngles[YAW];
+
+		goal[PITCH] = targetAngles[PITCH];
+		goal[YAW] = targetAngles[YAW];
+		bs->aimh_smooth_goal_pitch = goal[PITCH];
+		bs->aimh_smooth_goal_yaw = goal[YAW];
 		return;
 	}
 
-	VectorSubtract(target, bs->eye, dir);
-	vectoangles(dir, goal);
-	goal[PITCH] = BotAimHarness_ClampPitch(goal[PITCH]);
-	goal[YAW] = AngleMod(goal[YAW]);
+	goal[PITCH] = bs->aimh_smooth_goal_pitch;
+	goal[YAW] = bs->aimh_smooth_goal_yaw;
 }
 
-static void BotAimHarness_ApplyGoalFeedforward(bot_state_t *bs, const vec3_t goal,
-	float dt, float ffGain) {
-	float pitchRate, yawRate, ff;
+static void BotAimHarness_ResyncViewFromPSIfDesynced(bot_state_t *bs) {
+	float psPitch, psYaw;
+	float pErr, yErr;
 
-	if (bs->aimh_last_goal_time <= 0.0f || dt <= 0.001f || dt > 0.5f) {
+	psPitch = BotAimHarness_ClampPitch(bs->cur_ps.viewangles[PITCH]);
+	psYaw = AngleMod(bs->cur_ps.viewangles[YAW]);
+
+	pErr = BotAimHarness_PitchDiff(bs->viewangles[PITCH], psPitch);
+	yErr = BotAimHarness_YawDiff(bs->viewangles[YAW], psYaw);
+
+	if (fabs(pErr) < AIMH_PS_DESYNC_PITCH && fabs(yErr) < AIMH_PS_DESYNC_YAW) {
 		return;
 	}
 
-	pitchRate = BotAimHarness_PitchDiff(goal[PITCH], bs->aimh_last_goal_pitch) / dt;
-	yawRate = BotAimHarness_YawDiff(goal[YAW], bs->aimh_last_goal_yaw) / dt;
+	if (fabs(pErr) > 45.0f || fabs(yErr) > 50.0f) {
+		bs->viewangles[PITCH] = psPitch;
+		bs->viewangles[YAW] = psYaw;
+		bs->aimh_vel[PITCH] *= 0.35f;
+		bs->aimh_vel[YAW] *= 0.35f;
+	} else {
+		bs->viewangles[PITCH] = BotAimHarness_ClampPitch(bs->viewangles[PITCH] +
+			pErr * AIMH_PS_DESYNC_BLEND);
+		bs->viewangles[YAW] = AngleMod(bs->viewangles[YAW] + yErr * AIMH_PS_DESYNC_BLEND);
+	}
+	bs->viewangles[ROLL] = 0.0f;
+}
 
-	ff = (AIMH_FEEDFORWARD_BASE + AIMH_FEEDFORWARD_SKILL * bs->aimh_aim_skill) * ffGain;
-	bs->aimh_vel[PITCH] += pitchRate * ff;
-	bs->aimh_vel[YAW] += yawRate * ff;
+void BotAimHarness_BeginMotorFrame(bot_state_t *bs) {
+	if (!BotAimHarness_IsActive()) {
+		return;
+	}
+
+	BotAimHarness_ResyncViewFromPSIfDesynced(bs);
 }
 
 static void BotAimHarness_SaveGoalHistory(bot_state_t *bs, const vec3_t goal) {
@@ -738,7 +870,8 @@ static void BotAimHarness_SaveGoalHistory(bot_state_t *bs, const vec3_t goal) {
 }
 
 static void BotAimHarness_UpdateAxis(bot_state_t *bs, int axis, float goalAngle,
-	float dt, float stiffness, float damping, float maxVel, float motorNoise) {
+	float dt, float stiffness, float damping, float maxVel, float motorNoise,
+	float minVel, float catchupGain) {
 	float err, accel, delta;
 
 	if (axis == PITCH) {
@@ -751,6 +884,17 @@ static void BotAimHarness_UpdateAxis(bot_state_t *bs, int axis, float goalAngle,
 	accel = stiffness * err - damping * bs->aimh_vel[axis];
 	bs->aimh_vel[axis] += accel * dt;
 
+	if (minVel > 0.0f && fabs(err) > AIMH_ROAM_MIN_ERR) {
+		if (err > 0.0f && bs->aimh_vel[axis] < minVel) {
+			bs->aimh_vel[axis] = minVel;
+		} else if (err < 0.0f && bs->aimh_vel[axis] > -minVel) {
+			bs->aimh_vel[axis] = -minVel;
+		}
+	}
+	if (catchupGain > 0.0f && fabs(err) > 2.5f && fabs(err) < 26.0f) {
+		bs->aimh_vel[axis] += err * catchupGain * dt;
+	}
+
 	if (bs->aimh_vel[axis] > maxVel) {
 		bs->aimh_vel[axis] = maxVel;
 	} else if (bs->aimh_vel[axis] < -maxVel) {
@@ -760,16 +904,48 @@ static void BotAimHarness_UpdateAxis(bot_state_t *bs, int axis, float goalAngle,
 	delta = bs->aimh_vel[axis] * dt;
 	if (axis == PITCH) {
 		bs->viewangles[PITCH] = BotAimHarness_ClampPitch(bs->viewangles[PITCH] + delta);
-		if (motorNoise > 0.01f && fabs(err) < 12.0f) {
+		if (motorNoise > 0.01f && fabs(err) > 2.5f && fabs(err) < 9.0f) {
 			bs->viewangles[PITCH] = BotAimHarness_ClampPitch(bs->viewangles[PITCH] +
-				crandom() * AIMH_MOTOR_NOISE_SCALE * motorNoise * dt * 60.0f * 0.5f);
+				crandom() * AIMH_MOTOR_NOISE_SCALE * motorNoise * dt * 60.0f * 0.35f);
 		}
 	} else {
 		bs->viewangles[axis] = AngleMod(bs->viewangles[axis] + delta);
-		if (motorNoise > 0.01f && fabs(err) < 12.0f) {
+		if (motorNoise > 0.01f && fabs(err) > 2.5f && fabs(err) < 9.0f) {
 			bs->viewangles[axis] = AngleMod(bs->viewangles[axis] +
-				crandom() * AIMH_MOTOR_NOISE_SCALE * motorNoise * dt * 60.0f);
+				crandom() * AIMH_MOTOR_NOISE_SCALE * motorNoise * dt * 60.0f * 0.4f);
 		}
+	}
+}
+
+static void BotAimHarness_IntegrateMotorSubsteps(bot_state_t *bs, vec3_t goal,
+	float frameTime, float stiffness, float damping, float maxVel, float maxVelPitch,
+	float motorNoise, float minVel, float catchupGain, int refreshGoalEachStep) {
+	float remaining, subDt;
+	int steps;
+
+	remaining = frameTime;
+	steps = 0;
+	while (remaining > 0.0001f) {
+		if (steps >= AIMH_MOTOR_SUBSTEP_MAX) {
+			subDt = remaining;
+		} else {
+			subDt = remaining;
+			if (subDt > AIMH_MOTOR_SUBSTEP_DT) {
+				subDt = AIMH_MOTOR_SUBSTEP_DT;
+			}
+		}
+		remaining -= subDt;
+		steps++;
+
+		if (refreshGoalEachStep) {
+			BotAimHarness_GetMotorGoal(bs, goal, subDt);
+			goal[PITCH] = BotAimHarness_ClampPitch(goal[PITCH]);
+		}
+
+		BotAimHarness_UpdateAxis(bs, PITCH, goal[PITCH], subDt,
+			stiffness, damping, maxVelPitch, motorNoise, minVel, catchupGain);
+		BotAimHarness_UpdateAxis(bs, YAW, goal[YAW], subDt,
+			stiffness, damping, maxVel, motorNoise, minVel, catchupGain);
 	}
 }
 
@@ -777,10 +953,12 @@ int BotAimHarness_ChangeViewAngles(bot_state_t *bs, float thinktime) {
 	vec3_t goal;
 	float skill, aimSkill, maxChange, maxTrack, maxFlick, maxVelPitch;
 	float stiffness, damping, maxVel, motorNoise, motorScale;
-	float magErr, pitchErr, yawErr, catchup, catchupRate;
-	float flickAngle, goalDt, engageFar, ffGain, catchupMult;
+	float magErr, pitchErr, yawErr;
+	float flickAngle, goalDt, engageFar, ffDummy, catchupMult;
+	float minVel, catchupGain;
 
 	if (!BotAimHarness_IsActive()) {
+		BotAimHarness_DebugSync(bs);
 		return 0;
 	}
 
@@ -798,6 +976,7 @@ int BotAimHarness_ChangeViewAngles(bot_state_t *bs, float thinktime) {
 		bs->aimh_acquire_until = 0.0f;
 		bs->aimh_last_goal_time = 0.0f;
 		trap_EA_View(bs->client, bs->viewangles);
+		BotAimHarness_DebugSync(bs);
 		return 1;
 	}
 
@@ -809,12 +988,14 @@ int BotAimHarness_ChangeViewAngles(bot_state_t *bs, float thinktime) {
 		BotAimHarness_ClearRecoveryState(bs);
 		bs->aimh_acquire_until = 0.0f;
 		bs->aimh_last_goal_time = 0.0f;
+		bs->aimh_tracked_ideal_pitch = BotAimHarness_ClampPitch(bs->ideal_viewangles[PITCH]);
+		bs->aimh_tracked_ideal_yaw = AngleMod(bs->ideal_viewangles[YAW]);
 	} else {
 		BotAimHarness_OnEnemyChange(bs);
 	}
 
 	if (bs->aimh_combat_aim) {
-		BotAimHarness_GetCombatGoal(bs, goal);
+		BotAimHarness_GetMotorGoal(bs, goal, thinktime);
 		motorNoise = bs->aimh_motor_inaccuracy;
 		aimSkill = bs->aimh_aim_skill;
 		skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_VIEW_FACTOR, 0.01f, 1.0f);
@@ -828,7 +1009,7 @@ int BotAimHarness_ChangeViewAngles(bot_state_t *bs, float thinktime) {
 		maxTrack *= motorScale;
 		maxFlick *= motorScale;
 	} else {
-		VectorCopy(bs->ideal_viewangles, goal);
+		BotAimHarness_GetMotorGoal(bs, goal, thinktime);
 		motorNoise = 0.0f;
 		aimSkill = 0.05f;
 		skill = 0.05f;
@@ -840,15 +1021,10 @@ int BotAimHarness_ChangeViewAngles(bot_state_t *bs, float thinktime) {
 	bs->viewangles[PITCH] = BotAimHarness_ClampPitch(bs->viewangles[PITCH]);
 
 	engageFar = 1.0f;
-	ffGain = 1.0f;
 	catchupMult = 1.0f;
 	goalDt = thinktime;
 	if (bs->aimh_combat_aim) {
-		if (bs->aimh_last_goal_time > 0.0f) {
-			goalDt = FloatTime() - bs->aimh_last_goal_time;
-		}
 		engageFar = BotAimHarness_GetEngageFar(bs, goal, goalDt);
-		ffGain = BotAimHarness_Lerp(AIMH_ENGAGE_CLOSE_FF, AIMH_ENGAGE_FAR_FF, engageFar);
 		catchupMult = BotAimHarness_Lerp(AIMH_ENGAGE_CLOSE_CATCHUP, AIMH_ENGAGE_FAR_CATCHUP,
 			engageFar);
 	}
@@ -859,7 +1035,7 @@ int BotAimHarness_ChangeViewAngles(bot_state_t *bs, float thinktime) {
 
 	if (bs->aimh_combat_aim && bs->aimh_acquire_until <= FloatTime() &&
 			fabs(pitchErr) > AIMH_PITCH_RESET_ERR) {
-		bs->aimh_vel[PITCH] = 0.0f;
+		bs->aimh_vel[PITCH] *= 0.55f;
 	}
 
 	flickAngle = AIMH_FLICK_ANGLE;
@@ -872,14 +1048,16 @@ int BotAimHarness_ChangeViewAngles(bot_state_t *bs, float thinktime) {
 		maxTrack *= 0.82f;
 		maxFlick *= 0.82f;
 	}
-	if (bs->aimh_combat_aim && magErr > flickAngle) {
-		stiffness = AIMH_STIFFNESS_FLICK;
-		damping = AIMH_DAMPING_FLICK;
-		maxVel = maxFlick;
-	} else if (bs->aimh_combat_aim) {
+	if (bs->aimh_combat_aim) {
+		/* Single track mode in combat — flick mode caused dedicated tick oscillation. */
 		stiffness = AIMH_STIFFNESS_TRACK;
 		damping = AIMH_DAMPING_TRACK;
 		maxVel = maxTrack;
+		if (magErr > flickAngle * 1.35f) {
+			maxVel = maxFlick;
+			stiffness = AIMH_STIFFNESS_FLICK;
+			damping = AIMH_DAMPING_FLICK;
+		}
 	} else {
 		stiffness = AIMH_ROAM_STIFFNESS;
 		damping = AIMH_ROAM_DAMPING;
@@ -892,8 +1070,11 @@ int BotAimHarness_ChangeViewAngles(bot_state_t *bs, float thinktime) {
 	}
 
 	if (bs->aimh_combat_aim) {
+		ffDummy = 1.0f;
 		BotAimHarness_ApplyEngageProfile(engageFar, &stiffness, &damping, &maxVel,
-			&motorNoise, &ffGain, &catchupMult);
+			&motorNoise, &ffDummy, &catchupMult);
+		(void)catchupMult;
+		(void)ffDummy;
 	}
 
 	if (bs->aimh_combat_aim && maxVel < 140.0f) {
@@ -911,44 +1092,19 @@ int BotAimHarness_ChangeViewAngles(bot_state_t *bs, float thinktime) {
 	}
 
 	if (bs->aimh_combat_aim) {
-		BotAimHarness_ApplyGoalFeedforward(bs, goal, goalDt, ffGain);
+		minVel = AIMH_COMBAT_MIN_VEL + 45.0f * aimSkill;
+		catchupGain = AIMH_COMBAT_CATCHUP_GAIN * catchupMult;
+	} else {
+		minVel = AIMH_ROAM_MIN_VEL;
+		catchupGain = 0.0f;
 	}
 
-	BotAimHarness_UpdateAxis(bs, PITCH, goal[PITCH], thinktime,
-		stiffness, damping, maxVelPitch, motorNoise);
-	BotAimHarness_UpdateAxis(bs, YAW, goal[YAW], thinktime,
-		stiffness, damping, maxVel, motorNoise);
-
-	catchupRate = AIMH_PITCH_CATCHUP_RATE * catchupMult;
-	if (bs->aimh_recover_until > FloatTime() && bs->aimh_acquire_until <= FloatTime()) {
-		catchupRate *= AIMH_RECOVER_CATCHUP_MULT;
-	}
-	if (bs->aimh_combat_aim && bs->aimh_acquire_until <= FloatTime() &&
-			fabs(pitchErr) > AIMH_PITCH_CATCHUP_ERR) {
-		catchup = pitchErr * thinktime * catchupRate;
-		if (catchup > pitchErr) {
-			catchup = pitchErr;
-		} else if (catchup < -pitchErr) {
-			catchup = -pitchErr;
-		}
-		bs->viewangles[PITCH] = BotAimHarness_ClampPitch(bs->viewangles[PITCH] + catchup);
-	}
-	if (bs->aimh_combat_aim && bs->aimh_acquire_until <= FloatTime() &&
-			fabs(yawErr) > AIMH_YAW_CATCHUP_ERR) {
-		catchupRate = AIMH_YAW_CATCHUP_RATE * catchupMult;
-		if (bs->aimh_recover_until > FloatTime()) {
-			catchupRate *= AIMH_RECOVER_CATCHUP_MULT;
-		}
-		catchup = yawErr * thinktime * catchupRate;
-		if (catchup > yawErr) {
-			catchup = yawErr;
-		} else if (catchup < -yawErr) {
-			catchup = -yawErr;
-		}
-		bs->viewangles[YAW] = AngleMod(bs->viewangles[YAW] + catchup);
-	}
+	BotAimHarness_IntegrateMotorSubsteps(bs, goal, thinktime,
+		stiffness, damping, maxVel, maxVelPitch, motorNoise, minVel, catchupGain,
+		bs->aimh_combat_aim);
 
 	if (bs->aimh_combat_aim) {
+		BotAimHarness_GetMotorGoal(bs, goal, thinktime);
 		BotAimHarness_SaveGoalHistory(bs, goal);
 	}
 
@@ -959,5 +1115,6 @@ int BotAimHarness_ChangeViewAngles(bot_state_t *bs, float thinktime) {
 	bs->viewangles[PITCH] = BotAimHarness_ClampPitch(bs->viewangles[PITCH]);
 
 	trap_EA_View(bs->client, bs->viewangles);
+	BotAimHarness_DebugSync(bs);
 	return 1;
 }

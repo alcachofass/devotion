@@ -1713,6 +1713,7 @@ int CG_ReliablePingFromSnaps(snapshot_t *snap, snapshot_t *nextsnap);
 void CG_RefreshDemoPovDisplayPing( void );
 int CG_ScoreboardDisplayPing( int clientNum, int storedPing );
 void CG_AddBoundingBox( centity_t *cent );
+void CG_AddBotAimDebug( centity_t *cent );
 qboolean CG_Cvar_ClampInt( const char *name, vmCvar_t *vmCvar, int min, int max );
 
 qboolean CG_IsOwnMissile(centity_t *missile);
