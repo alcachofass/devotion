@@ -30,6 +30,8 @@ void BotWpnSelect_Reset(struct bot_state_s *bs);
  * trap_BotChooseBestFightWeapon (legacy).
  */
 int BotWpnSelect_Choose(struct bot_state_s *bs);
+int BotWpnSelect_ChooseRoaming(struct bot_state_s *bs);
+void BotWpnSelect_TickRoaming(struct bot_state_s *bs);
 /* Call after weaponnum is committed so fatigue/switch timers stay accurate. */
 void BotWpnSelect_NotifyWeaponCommitted(struct bot_state_s *bs, int prev_wp, int new_wp);
 /* For future item pickup / goal weighting (v1 fills when active + enemy). */

@@ -35,6 +35,26 @@ float BotEntityVisible(int viewer, vec3_t eye, vec3_t viewangles, float fov, int
 #define WPNSEL_SPLASH_PENALTY	48.0f
 /* Extra weight on range fit vs legacy bias (higher = hitscan wins at long range). */
 #define WPNSEL_RANGE_WEIGHT		1.45f
+/* Machinegun: fallback / plink / chip — not a primary DPS weapon. */
+#define WPNSEL_MG_OVERSHADOW_PENALTY	55.0f
+#define WPNSEL_MG_FALLBACK_BONUS		40.0f
+#define WPNSEL_MG_PLINK_DIST			1200.0f
+#define WPNSEL_MG_PLINK_BONUS			28.0f
+#define WPNSEL_MG_CHIP_HEALTH			40
+#define WPNSEL_MG_CHIP_MAX				25.0f
+#define WPNSEL_MG_DOWNGRADE_HYSTERESIS	18.0f
+#define WPNSEL_MG_OBVIOUS_GAP_BASE		8.0f
+#define WPNSEL_MG_OBVIOUS_GAP_SKILL		10.0f
+#define WPNSEL_MG_LEGACY_BIAS_SCALE		0.12f
+/* Roaming: throttled ready-weapon selection, prefer silent over audible. */
+#define WPNSEL_ROAM_EVAL_MIN			0.85f
+#define WPNSEL_ROAM_EVAL_MAX			1.45f
+#define WPNSEL_ROAM_HYSTERESIS			14.0f
+#define WPNSEL_ROAM_AUDIBLE_LG			50.0f
+#define WPNSEL_ROAM_AUDIBLE_RAIL		40.0f
+#define WPNSEL_ROAM_MG_LASTRESORT_PEN	48.0f
+#define WPNSEL_ROAM_MG_ONLY_BONUS		22.0f
+#define WPNSEL_ROAM_NOISE_MAX			18.0f
 
 static int BotWpnSel_HasWeaponAndAmmo(bot_state_t *bs, int wp) {
 	if (wp <= WP_NONE || wp >= WP_NUM_WEAPONS) {
@@ -81,12 +101,12 @@ static float BotWpnSel_RangeScore(int wp, float dist) {
 		if (d < 400.0f) return 40.0f;
 		return 15.0f;
 	case WP_MACHINEGUN:
-		if (d < 200.0f) return 88.0f;
-		if (d < 550.0f) return 78.0f;
-		if (d < 1000.0f) return 72.0f;
-		if (d < 1800.0f) return 80.0f;
-		if (d < 3200.0f) return 76.0f;
-		return 62.0f;
+		if (d < 200.0f) return 58.0f;
+		if (d < 550.0f) return 42.0f;
+		if (d < 1000.0f) return 40.0f;
+		if (d < 1800.0f) return 52.0f;
+		if (d < 3200.0f) return 48.0f;
+		return 42.0f;
 	case WP_LIGHTNING:
 		if (d < 280.0f) return 94.0f;
 		if (d < 450.0f) return 58.0f;
@@ -238,6 +258,100 @@ static float BotWpnSel_SwitchInCost(const weaponinfo_t *wi) {
 	return t;
 }
 
+static int BotWpnSel_EnemyHealth(bot_state_t *bs) {
+	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		return 999;
+	}
+	if (!g_entities[bs->enemy].client) {
+		return 999;
+	}
+	return g_entities[bs->enemy].health;
+}
+
+static int BotWpnSel_HasLongRangeHitscan(bot_state_t *bs, float dist) {
+	(void)dist;
+	if (BotWpnSel_HasWeaponAndAmmo(bs, WP_RAILGUN)) {
+		return 1;
+	}
+#ifdef MISSIONPACK
+	if (dist > 800.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_CHAINGUN)) {
+		return 1;
+	}
+#endif
+	return 0;
+}
+
+/*
+ * Weapons clearly better than MG at this distance (for fallback / overshadow logic).
+ */
+static int BotWpnSel_CountCombatAlternatives(bot_state_t *bs, float dist) {
+	int n;
+
+	n = 0;
+	if (dist < 200.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_SHOTGUN)) {
+		n++;
+	}
+	if (dist < 650.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_LIGHTNING)) {
+		n++;
+	}
+	if (dist > 350.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_RAILGUN)) {
+		n++;
+	}
+	if (dist > 200.0f && dist < 1100.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_PLASMAGUN)) {
+		n++;
+	}
+	if (dist > 96.0f && dist < 900.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_ROCKET_LAUNCHER)) {
+		n++;
+	}
+	if (dist > 96.0f && dist < 900.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_GRENADE_LAUNCHER)) {
+		n++;
+	}
+#ifdef MISSIONPACK
+	if (dist > 600.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_CHAINGUN)) {
+		n++;
+	}
+#endif
+	return n;
+}
+
+static float BotWpnSel_MachinegunModifier(bot_state_t *bs, float dist,
+	float skillCombat) {
+	int alternatives, enemyHealth;
+	float mod, penScale, chipBonus, plinkBonus;
+
+	alternatives = BotWpnSel_CountCombatAlternatives(bs, dist);
+	if (alternatives <= 0) {
+		return WPNSEL_MG_FALLBACK_BONUS;
+	}
+
+	penScale = 0.35f + 0.65f * skillCombat;
+	mod = 0.0f;
+	chipBonus = 0.0f;
+	plinkBonus = 0.0f;
+
+	enemyHealth = BotWpnSel_EnemyHealth(bs);
+	if (enemyHealth > 0 && enemyHealth <= WPNSEL_MG_CHIP_HEALTH) {
+		chipBonus = (float)(WPNSEL_MG_CHIP_HEALTH - enemyHealth) * 0.6f;
+		chipBonus *= (0.45f + 0.55f * skillCombat);
+		if (chipBonus > WPNSEL_MG_CHIP_MAX) {
+			chipBonus = WPNSEL_MG_CHIP_MAX;
+		}
+	}
+
+	if (dist >= WPNSEL_MG_PLINK_DIST && !BotWpnSel_HasLongRangeHitscan(bs, dist)) {
+		plinkBonus = WPNSEL_MG_PLINK_BONUS * (0.55f + 0.45f * skillCombat);
+	}
+
+	if (chipBonus > 0.0f || plinkBonus > 0.0f) {
+		mod = chipBonus + plinkBonus;
+		mod -= WPNSEL_MG_OVERSHADOW_PENALTY * penScale * 0.22f;
+	} else {
+		mod -= WPNSEL_MG_OVERSHADOW_PENALTY * penScale;
+	}
+
+	return mod;
+}
+
 static float BotWpnSel_SwitchFatigue(bot_state_t *bs, float skillCombat) {
 	float dt, u, cool;
 
@@ -267,8 +381,104 @@ int BotWpnSelect_IsActive(void) {
 	return 1;
 }
 
+static float BotWpnSel_RoamStealth(bot_state_t *bs) {
+	float stealth;
+
+	stealth = 0.78f;
+	if (bs->enemysight_time > 0.0f && FloatTime() - bs->enemysight_time < 4.0f) {
+		stealth = 0.42f;
+	}
+	if (bs->inventory[INVENTORY_REDFLAG] || bs->inventory[INVENTORY_BLUEFLAG] ||
+			bs->inventory[INVENTORY_NEUTRALFLAG]) {
+		stealth = 0.32f;
+	}
+	return stealth;
+}
+
+static int BotWpnSel_HasBetterSilentRoamer(bot_state_t *bs) {
+	if (BotWpnSel_HasWeaponAndAmmo(bs, WP_ROCKET_LAUNCHER)) {
+		return 1;
+	}
+	if (BotWpnSel_HasWeaponAndAmmo(bs, WP_SHOTGUN)) {
+		return 1;
+	}
+	if (BotWpnSel_HasWeaponAndAmmo(bs, WP_PLASMAGUN)) {
+		return 1;
+	}
+	if (BotWpnSel_HasWeaponAndAmmo(bs, WP_GRENADE_LAUNCHER)) {
+		return 1;
+	}
+#ifdef MISSIONPACK
+	if (BotWpnSel_HasWeaponAndAmmo(bs, WP_NAILGUN)) {
+		return 1;
+	}
+	if (BotWpnSel_HasWeaponAndAmmo(bs, WP_PROX_LAUNCHER)) {
+		return 1;
+	}
+#endif
+	return 0;
+}
+
+static float BotWpnSel_RoamArsenalTier(int wp) {
+	switch (wp) {
+	case WP_RAILGUN:
+		return 92.0f;
+	case WP_LIGHTNING:
+		return 90.0f;
+	case WP_BFG:
+		return 78.0f;
+	case WP_PLASMAGUN:
+		return 82.0f;
+	case WP_ROCKET_LAUNCHER:
+		return 80.0f;
+	case WP_GRENADE_LAUNCHER:
+		return 72.0f;
+	case WP_SHOTGUN:
+		return 68.0f;
+#ifdef MISSIONPACK
+	case WP_CHAINGUN:
+		return 74.0f;
+	case WP_NAILGUN:
+		return 66.0f;
+	case WP_PROX_LAUNCHER:
+		return 62.0f;
+#endif
+	case WP_MACHINEGUN:
+		return 34.0f;
+	case WP_GAUNTLET:
+		return 8.0f;
+	default:
+		return 40.0f;
+	}
+}
+
+static float BotWpnSel_RoamAudiblePenalty(int wp, float stealth, float skillCombat) {
+	float pen;
+
+	pen = 0.0f;
+	if (wp == WP_LIGHTNING) {
+		pen = WPNSEL_ROAM_AUDIBLE_LG;
+	} else if (wp == WP_RAILGUN) {
+		pen = WPNSEL_ROAM_AUDIBLE_RAIL;
+	} else {
+		return 0.0f;
+	}
+	return pen * stealth * (0.4f + 0.6f * skillCombat);
+}
+
+static float BotWpnSel_MachinegunRoamModifier(bot_state_t *bs) {
+	if (!BotWpnSel_HasWeaponAndAmmo(bs, WP_MACHINEGUN)) {
+		return 0.0f;
+	}
+	if (BotWpnSel_HasBetterSilentRoamer(bs)) {
+		return -WPNSEL_ROAM_MG_LASTRESORT_PEN;
+	}
+	return WPNSEL_ROAM_MG_ONLY_BONUS;
+}
+
 void BotWpnSelect_Reset(bot_state_t *bs) {
 	bs->wps_next_eval_time = 0.0f;
+	bs->wps_next_roam_eval_time = 0.0f;
 	bs->wps_last_switch_time = -999999.0f;
 	bs->wps_last_chosen_weapon = 0;
 	bs->wps_desired_weapon = BOTWPN_DESIRE_NONE;
@@ -292,9 +502,10 @@ void BotWpnSelect_GetDesire(bot_state_t *bs, bot_weapon_desire_t *out) {
 
 int BotWpnSelect_Choose(bot_state_t *bs) {
 	int wp, best_wp, legacy_best, weap_list[16], n_weaps, i;
+	int alternatives, best_non_mg_wp;
 	float dist, score, best_score, cur_score, skillCombat, react, eval_dt;
-	float hysteresis, noiseAmp, vis;
-	float miss_score, best_miss_score;
+	float hysteresis, noiseAmp, vis, mgMod, legacyBias;
+	float miss_score, best_miss_score, best_non_mg_score, obviousGap;
 	int best_miss_wp;
 	weaponinfo_t wi;
 
@@ -331,6 +542,9 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 		dist *= 1.15f;
 	}
 
+	alternatives = BotWpnSel_CountCombatAlternatives(bs, dist);
+	mgMod = BotWpnSel_MachinegunModifier(bs, dist, skillCombat);
+
 	n_weaps = 0;
 	weap_list[n_weaps++] = WP_GAUNTLET;
 	weap_list[n_weaps++] = WP_MACHINEGUN;
@@ -350,6 +564,8 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 	best_wp = legacy_best;
 	best_score = -1e12f;
 	cur_score = -1e12f;
+	best_non_mg_score = -1e12f;
+	best_non_mg_wp = -1;
 
 	for (i = 0; i < n_weaps; i++) {
 		wp = weap_list[i];
@@ -365,8 +581,16 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 		score -= BotWpnSel_AmmoPressure(bs, wp);
 		score -= BotWpnSel_SplashPenalty(bs, wp, dist, &wi);
 
+		if (wp == WP_MACHINEGUN) {
+			score += mgMod;
+		}
+
 		if (wp == legacy_best) {
-			score += WPNSEL_LEGACY_BIAS;
+			legacyBias = WPNSEL_LEGACY_BIAS;
+			if (wp == WP_MACHINEGUN && alternatives > 0) {
+				legacyBias *= WPNSEL_MG_LEGACY_BIAS_SCALE;
+			}
+			score += legacyBias;
 		} else {
 			score += WPNSEL_LEGACY_BIAS * 0.15f;
 		}
@@ -384,6 +608,10 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 		if (wp == bs->weaponnum) {
 			cur_score = score;
 		}
+		if (wp != WP_MACHINEGUN && score > best_non_mg_score) {
+			best_non_mg_score = score;
+			best_non_mg_wp = wp;
+		}
 		if (score > best_score) {
 			best_score = score;
 			best_wp = wp;
@@ -396,6 +624,23 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 	if (best_wp != bs->weaponnum) {
 		if (best_score < cur_score + hysteresis) {
 			best_wp = bs->weaponnum;
+		}
+	}
+
+	if (best_wp == WP_MACHINEGUN && bs->weaponnum != WP_MACHINEGUN &&
+			(bs->weaponnum == WP_LIGHTNING || bs->weaponnum == WP_RAILGUN)) {
+		float downgradeHyst;
+
+		downgradeHyst = WPNSEL_MG_DOWNGRADE_HYSTERESIS * (0.45f + 0.55f * skillCombat);
+		if (best_score < cur_score + hysteresis + downgradeHyst) {
+			best_wp = bs->weaponnum;
+		}
+	}
+
+	if (best_wp == WP_MACHINEGUN && best_non_mg_wp >= 0 && skillCombat > 0.45f) {
+		obviousGap = WPNSEL_MG_OBVIOUS_GAP_BASE + WPNSEL_MG_OBVIOUS_GAP_SKILL * skillCombat;
+		if (best_non_mg_score > best_score - obviousGap) {
+			best_wp = best_non_mg_wp;
 		}
 	}
 
@@ -430,4 +675,148 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 	}
 
 	return best_wp;
+}
+
+int BotWpnSelect_ChooseRoaming(bot_state_t *bs) {
+	int wp, best_wp, weap_list[16], n_weaps, i;
+	float score, best_score, cur_score, skillCombat, react, eval_dt;
+	float stealth, hysteresis, noiseAmp;
+	weaponinfo_t wi;
+
+	if (!BotWpnSelect_IsActive()) {
+		return -1;
+	}
+	if (bs->enemy >= 0) {
+		return -1;
+	}
+
+	skillCombat = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_SKILL,
+		0.0f, 1.0f);
+	react = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_REACTIONTIME,
+		0.0f, 1.0f);
+
+	eval_dt = WPNSEL_ROAM_EVAL_MIN + (WPNSEL_ROAM_EVAL_MAX - WPNSEL_ROAM_EVAL_MIN) *
+		(0.3f + 0.35f * react + 0.35f * (1.0f - skillCombat));
+
+	if (bs->wps_next_roam_eval_time > FloatTime()) {
+		return bs->weaponnum;
+	}
+	bs->wps_next_roam_eval_time = FloatTime() + eval_dt;
+
+	stealth = BotWpnSel_RoamStealth(bs);
+
+	n_weaps = 0;
+	weap_list[n_weaps++] = WP_GAUNTLET;
+	weap_list[n_weaps++] = WP_MACHINEGUN;
+	weap_list[n_weaps++] = WP_SHOTGUN;
+	weap_list[n_weaps++] = WP_GRENADE_LAUNCHER;
+	weap_list[n_weaps++] = WP_ROCKET_LAUNCHER;
+	weap_list[n_weaps++] = WP_LIGHTNING;
+	weap_list[n_weaps++] = WP_RAILGUN;
+	weap_list[n_weaps++] = WP_PLASMAGUN;
+	weap_list[n_weaps++] = WP_BFG;
+#ifdef MISSIONPACK
+	weap_list[n_weaps++] = WP_NAILGUN;
+	weap_list[n_weaps++] = WP_PROX_LAUNCHER;
+	weap_list[n_weaps++] = WP_CHAINGUN;
+#endif
+
+	best_wp = bs->weaponnum;
+	best_score = -1e12f;
+	cur_score = -1e12f;
+
+	for (i = 0; i < n_weaps; i++) {
+		wp = weap_list[i];
+		if (wp == WP_GAUNTLET) {
+			continue;
+		}
+		if (!BotWpnSel_HasWeaponAndAmmo(bs, wp)) {
+			continue;
+		}
+		trap_BotGetWeaponInfo(bs->ws, wp, &wi);
+		if (!wi.valid) {
+			continue;
+		}
+
+		score = BotWpnSel_RoamArsenalTier(wp);
+		score -= BotWpnSel_AmmoPressure(bs, wp) * 0.35f;
+		score -= BotWpnSel_RoamAudiblePenalty(wp, stealth, skillCombat);
+		if (wp == WP_MACHINEGUN) {
+			score += BotWpnSel_MachinegunRoamModifier(bs);
+		}
+
+		if (wp != bs->weaponnum) {
+			score -= BotWpnSel_SwitchFatigue(bs, skillCombat) * 0.5f;
+			score -= (BotWpnSel_SwitchOutCost(bs, bs->weaponnum) +
+				BotWpnSel_SwitchInCost(&wi)) * WPNSEL_SWITCH_COST_SCALE * 0.65f;
+		}
+
+		noiseAmp = WPNSEL_ROAM_NOISE_MAX * (0.3f + 0.7f * (1.0f - skillCombat));
+		score += crandom() * noiseAmp;
+
+		if (wp == bs->weaponnum) {
+			cur_score = score;
+		}
+		if (score > best_score) {
+			best_score = score;
+			best_wp = wp;
+		}
+	}
+
+	hysteresis = WPNSEL_ROAM_HYSTERESIS +
+		WPNSEL_HYSTERESIS_SKILL * 0.35f * (1.0f - skillCombat);
+
+	if (best_wp != bs->weaponnum) {
+		if (best_score < cur_score + hysteresis) {
+			best_wp = bs->weaponnum;
+		}
+	}
+
+	if (best_wp == WP_MACHINEGUN && BotWpnSel_HasBetterSilentRoamer(bs) &&
+			skillCombat > 0.4f) {
+		for (i = 0; i < n_weaps; i++) {
+			wp = weap_list[i];
+			if (wp == WP_MACHINEGUN || wp == WP_GAUNTLET) {
+				continue;
+			}
+			if (!BotWpnSel_HasWeaponAndAmmo(bs, wp)) {
+				continue;
+			}
+			if (BotWpnSel_RoamArsenalTier(wp) + BotWpnSel_MachinegunRoamModifier(bs) >
+					best_score - 6.0f) {
+				best_wp = wp;
+				break;
+			}
+		}
+	}
+
+	return best_wp;
+}
+
+void BotWpnSelect_TickRoaming(bot_state_t *bs) {
+	int new_wp, prev_wp;
+
+	if (!BotWpnSelect_IsActive()) {
+		return;
+	}
+	if (bs->enemy >= 0) {
+		return;
+	}
+	if (bs->cur_ps.weaponstate == WEAPON_RAISING ||
+			bs->cur_ps.weaponstate == WEAPON_DROPPING) {
+		return;
+	}
+
+	prev_wp = bs->weaponnum;
+	new_wp = BotWpnSelect_ChooseRoaming(bs);
+	if (new_wp < WP_MACHINEGUN || new_wp >= WP_NUM_WEAPONS) {
+		return;
+	}
+	if (new_wp == prev_wp) {
+		return;
+	}
+
+	bs->weaponchange_time = FloatTime();
+	bs->weaponnum = new_wp;
+	BotWpnSelect_NotifyWeaponCommitted(bs, prev_wp, new_wp);
 }

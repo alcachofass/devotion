@@ -1735,7 +1735,13 @@ void BotChooseWeapon(bot_state_t *bs) {
                 else if(g_rockets.integer)
                     newweaponnum = WP_ROCKET_LAUNCHER;
                 else {
-			newweaponnum = BotWpnSelect_Choose(bs);
+			if (bs->enemy >= 0) {
+				newweaponnum = BotWpnSelect_Choose(bs);
+			} else if (BotWpnSelect_IsActive()) {
+				newweaponnum = BotWpnSelect_ChooseRoaming(bs);
+			} else {
+				newweaponnum = -1;
+			}
 			if (newweaponnum < 0 || newweaponnum >= WP_NUM_WEAPONS) {
 				newweaponnum = trap_BotChooseBestFightWeapon(bs->ws, bs->inventory);
 			}
@@ -5455,6 +5461,9 @@ void BotDeathmatchAI(bot_state_t *bs, float thinktime) {
 		BotSetTeleportTime(bs);
 		//update some inventory values
 		BotUpdateInventory(bs);
+		if (BotWpnSelect_IsActive() && bs->enemy < 0 && !BotIsObserver(bs)) {
+			BotWpnSelect_TickRoaming(bs);
+		}
 		BotTactics_OnThink(bs);
 		//check out the snapshot
 		BotCheckSnapshot(bs);
