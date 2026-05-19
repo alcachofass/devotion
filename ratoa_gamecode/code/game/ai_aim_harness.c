@@ -103,6 +103,8 @@ extern bot_state_t *botstates[MAX_CLIENTS];
 static int bot_humanizeaim_last = -1;
 static int bot_debugAim_last = -1;
 
+void BotAimHarness_SyncAllBotsDebug(void);
+
 static float BotAimHarness_ClampPitch(float pitch);
 static float BotAimHarness_PitchDiff(float pitch, float goal);
 static float BotAimHarness_YawDiff(float yaw, float goal);
@@ -619,10 +621,69 @@ static void BotAimHarness_ClearEntityDebug(gentity_t *ent) {
 	}
 	ent->s.eFlags &= ~EF_BOT_AIM_DEBUG;
 	VectorClear(ent->s.origin2);
+	ent->client->ps.eFlags &= ~EF_BOT_AIM_DEBUG;
+	ent->client->ps.stats[STAT_EXTFLAGS] &= ~EXTFL_BOT_AIM_DEBUG;
+	VectorClear(ent->client->ps.grapplePoint);
+}
+
+static void BotAimHarness_AnglesToAimPoint(bot_state_t *bs, float pitch, float yaw,
+		vec3_t point) {
+	vec3_t dir;
+	vec3_t angles;
+
+	angles[PITCH] = BotAimHarness_ClampPitch(pitch);
+	angles[YAW] = AngleMod(yaw);
+	angles[ROLL] = 0;
+	AngleVectors(angles, dir, NULL, NULL);
+	VectorMA(bs->eye, 2048.0f, dir, point);
+}
+
+/*
+ * Debug aim point: combat = fire/motor intent (aimtarget); roam = navigation
+ * ideal (never stale aimtarget left over from the last fight).
+ */
+static int BotAimHarness_GetDebugAimPoint(bot_state_t *bs, vec3_t point) {
+	vec3_t wishAngles;
+
+	if (bs->aimh_combat_aim) {
+		if (BotAimHarness_AimTargetValid(bs)) {
+			VectorCopy(bs->aimtarget, point);
+			return qtrue;
+		}
+		if (VectorLengthSquared(bs->aimh_combat_target) > 1.0f) {
+			VectorCopy(bs->aimh_combat_target, point);
+			return qtrue;
+		}
+		BotAimHarness_GetCombatAimAngles(bs, wishAngles);
+		BotAimHarness_AnglesToAimPoint(bs, wishAngles[PITCH], wishAngles[YAW], point);
+		return qtrue;
+	}
+
+	if (BotAimHarness_IsActive()) {
+		BotAimHarness_AnglesToAimPoint(bs, bs->ideal_viewangles[PITCH],
+			bs->ideal_viewangles[YAW], point);
+	} else {
+		BotAimHarness_AnglesToAimPoint(bs, bs->viewangles[PITCH],
+			bs->viewangles[YAW], point);
+	}
+	return qtrue;
+}
+
+static void BotAimHarness_ApplyEntityDebug(gentity_t *ent, const vec3_t point) {
+	vec3_t snapped;
+
+	VectorCopy(point, snapped);
+	SnapVector(snapped);
+	VectorCopy(snapped, ent->s.origin2);
+	VectorCopy(snapped, ent->client->ps.grapplePoint);
+	ent->s.eFlags |= EF_BOT_AIM_DEBUG;
+	ent->client->ps.eFlags |= EF_BOT_AIM_DEBUG;
+	ent->client->ps.stats[STAT_EXTFLAGS] |= EXTFL_BOT_AIM_DEBUG;
 }
 
 static void BotAimHarness_DebugSync(bot_state_t *bs) {
 	gentity_t *ent;
+	vec3_t point;
 
 	trap_Cvar_Update(&bot_debugAim);
 	ent = &g_entities[bs->entitynum];
@@ -630,20 +691,79 @@ static void BotAimHarness_DebugSync(bot_state_t *bs) {
 		return;
 	}
 
+	BotAI_GetClientState(bs->client, &bs->cur_ps);
+
 	if (!bot_debugAim.integer) {
 		BotAimHarness_ClearEntityDebug(ent);
 		return;
 	}
 
-	if (!BotAimHarness_IsActive() || !bs->aimh_combat_aim || bs->enemy < 0 ||
-			VectorLengthSquared(bs->aimh_combat_target) < 1.0f) {
+	BotAimHarness_RefreshEye(bs);
+	if (!BotAimHarness_GetDebugAimPoint(bs, point)) {
 		BotAimHarness_ClearEntityDebug(ent);
 		return;
 	}
 
-	VectorCopy(bs->aimh_combat_target, ent->s.origin2);
-	SnapVector(ent->s.origin2);
+	BotAimHarness_ApplyEntityDebug(ent, point);
+}
+
+void BotAimHarness_SyncEntityFromPlayerState(gentity_t *ent) {
+	if (!ent || !ent->client) {
+		return;
+	}
+	if (!(ent->client->ps.stats[STAT_EXTFLAGS] & EXTFL_BOT_AIM_DEBUG)) {
+		ent->s.eFlags &= ~EF_BOT_AIM_DEBUG;
+		return;
+	}
 	ent->s.eFlags |= EF_BOT_AIM_DEBUG;
+	VectorCopy(ent->client->ps.grapplePoint, ent->s.origin2);
+}
+
+void BotAimHarness_PostInputSync(bot_state_t *bs) {
+	if (!bs || !bs->inuse) {
+		return;
+	}
+	BotAimHarness_DebugSync(bs);
+	BotAimHarness_SyncEntityFromPlayerState(&g_entities[bs->entitynum]);
+}
+
+void BotAimHarness_SyncClientDebug(int clientNum) {
+	bot_state_t *bs;
+
+	if (clientNum < 0 || clientNum >= MAX_CLIENTS) {
+		return;
+	}
+	bs = botstates[clientNum];
+	if (!bs || !bs->inuse) {
+		return;
+	}
+	if (!g_entities[clientNum].client) {
+		return;
+	}
+	if (g_entities[clientNum].client->pers.connected != CON_CONNECTED) {
+		return;
+	}
+	BotAimHarness_PostInputSync(bs);
+}
+
+void BotAimHarness_SyncAllBotsDebug(void) {
+	int i;
+
+	trap_Cvar_Update(&bot_debugAim);
+	if (!bot_debugAim.integer) {
+		return;
+	}
+
+	for (i = 0; i < MAX_CLIENTS; i++) {
+		if (!botstates[i] || !botstates[i]->inuse) {
+			continue;
+		}
+		if (!g_entities[i].client ||
+				g_entities[i].client->pers.connected != CON_CONNECTED) {
+			continue;
+		}
+		BotAimHarness_PostInputSync(botstates[i]);
+	}
 }
 
 void BotAimHarness_RegisterCvars(void) {
@@ -670,6 +790,8 @@ void BotAimHarness_UpdateCvar(void) {
 			for (i = 0; i < level.maxclients; i++) {
 				BotAimHarness_ClearEntityDebug(&g_entities[i]);
 			}
+		} else {
+			BotAimHarness_SyncAllBotsDebug();
 		}
 	}
 
@@ -988,6 +1110,7 @@ int BotAimHarness_ChangeViewAngles(bot_state_t *bs, float thinktime) {
 		BotAimHarness_ClearRecoveryState(bs);
 		bs->aimh_acquire_until = 0.0f;
 		bs->aimh_last_goal_time = 0.0f;
+		VectorClear(bs->aimtarget);
 		bs->aimh_tracked_ideal_pitch = BotAimHarness_ClampPitch(bs->ideal_viewangles[PITCH]);
 		bs->aimh_tracked_ideal_yaw = AngleMod(bs->ideal_viewangles[YAW]);
 	} else {

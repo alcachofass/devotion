@@ -16,7 +16,7 @@ Console variables that control bot AI, navigation, chat, and fill rules. Set the
 | `bot_forcewrite` | Vanilla | `0` | 0 or 1 | Forces the navigation `.aas` file to be written to disk when the map is processed. |
 | `bot_grapple` | Vanilla | `0` | 0 or 1 | When `1`, bots may use the off-hand grapple for movement where the mod supports it. |
 | `bot_humanizeaim` | Devotion | `0` | 0 or 1 | Smoother, more human-like bot aiming when `1` (`0` = classic snap aim). No effect while `bot_challenge` is `1`. Saved to config. |
-| `bot_debugAim` | Devotion | `0` | 0 or 1 | Publishes harness combat aim point on bot entities for `cg_debugBotAim` (sets `origin2` + `EF_BOT_AIM_DEBUG`). Requires `sv_cheats 1`. |
+| `bot_debugAim` | Devotion | `0` | 0 or 1 | Publishes bot aim on `ps.grapplePoint`, `STAT_EXTFLAGS` (`EXTFL_BOT_AIM_DEBUG`), and `ent->s.origin2` for `cg_debugBotAim`. Works with or without `bot_humanizeaim`. Requires `sv_cheats 1`. |
 | `bot_interbreedbots` | Vanilla | `10` | integer ≥ 1 | Number of bots spawned when a bot “interbreeding” run starts. |
 | `bot_interbreedchar` | Vanilla | `` | bot name string | Bot character file to use for interbreeding; setting this starts a tournament-style breeding session. Cleared after spawn. |
 | `bot_interbreedcycle` | Vanilla | `20` | integer ≥ 1 | How many matches to run before the best bot’s AI is saved and a new generation is spawned. |

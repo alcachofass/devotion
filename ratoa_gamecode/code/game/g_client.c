@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 //
 #include "g_local.h"
+#include "ai_aim_harness.h"
 
 // g_client.c -- client functions that don't happen every frame
 
@@ -3121,6 +3122,10 @@ void ClientBegin( int clientNum ) {
 
 	// locate ent at a spawn point
 	ClientSpawn( ent );
+
+	if (ent->r.svFlags & SVF_BOT) {
+		BotAimHarness_SyncClientDebug(clientNum);
+	}
 
 	if( ( client->sess.sessionTeam != TEAM_SPECTATOR ) &&
 		( ( !( client->isEliminated ) /*&&

@@ -7,7 +7,9 @@ To remove: delete these files, drop from Makefile/q3asm, revert marked hooks in
 ai_main.h, ai_main.c, and ai_dmq3.c, and unset bot_humanizeaim.
 
 Toggle at runtime: bot_humanizeaim 1 (default 0 = legacy aim motor)
-Debug: bot_debugAim 1 (server, CVAR_CHEAT) publishes aim point; cg_debugBotAim draws it.
+Debug: bot_debugAim 1 (server, CVAR_CHEAT) publishes motor wish (ideal_viewangles
+when roaming, aimtarget when fighting) via ps.grapplePoint + EXTFL_BOT_AIM_DEBUG;
+cg_debugBotAim draws green = wish, yellow (bit 4) = crosshair.
 
 Motor frames use legacy delta-angle rebasing in BotUpdateInput, 10 ms integration
 sub-steps (stable at low sv_fps on dedicated), resync playerState only on large desync,
@@ -43,5 +45,12 @@ int BotAimHarness_AimTargetValid(struct bot_state_s *bs);
  */
 int BotAimHarness_CheckAttack(struct bot_state_s *bs);
 int BotAimHarness_TryAttack(struct bot_state_s *bs);
+
+/* After bot usercmds: copy ps aim debug onto ent->s for entity snapshots. */
+void BotAimHarness_SyncEntityFromPlayerState(struct gentity_s *ent);
+void BotAimHarness_PostInputSync(struct bot_state_s *bs);
+/* Publish debug for one bot or every connected bot (late join / cvar on). */
+void BotAimHarness_SyncClientDebug(int clientNum);
+void BotAimHarness_SyncAllBotsDebug(void);
 
 #endif /* AI_AIM_HARNESS_H */

@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 
 #include "g_local.h"
+#include "ai_aim_harness.h"
 
 
 /*
@@ -1912,6 +1913,9 @@ void ClientEndFrame( gentity_t *ent ) {
 	else { */
 		BG_PlayerStateToEntityState( &ent->client->ps, &ent->s, (qboolean)!g_floatPlayerPosition.integer );
 //	}
+	if ( ent->r.svFlags & SVF_BOT ) {
+		BotAimHarness_SyncEntityFromPlayerState( ent );
+	}
 	SendPendingPredictableEvents( &ent->client->ps );
 
 //unlagged - smooth clients #1

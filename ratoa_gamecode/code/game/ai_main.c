@@ -1322,6 +1322,7 @@ int BotAISetupClient(int client, struct bot_settings_s *settings, qboolean resta
 	BotAimHarness_Reset(bs);
 	BotWpnSelect_Reset(bs);
 	BotTactics_Reset(bs);
+	BotAimHarness_SyncClientDebug(client);
 	//bot has been setup succesfully
 	return qtrue;
 }
@@ -1507,6 +1508,7 @@ int BotAIStartFrame(int time) {
 			botstates[i]->lastucmd.buttons = 0;
 			botstates[i]->lastucmd.serverTime = time;
 			trap_BotUserCommand(botstates[i]->client, &botstates[i]->lastucmd);
+			BotAimHarness_PostInputSync(botstates[i]);
 		}
 		return qtrue;
 	}
@@ -1650,6 +1652,7 @@ int BotAIStartFrame(int time) {
 
 		BotUpdateInput(botstates[i], time, elapsed_time);
 		trap_BotUserCommand(botstates[i]->client, &botstates[i]->lastucmd);
+		BotAimHarness_PostInputSync(botstates[i]);
 	}
 
 	return qtrue;
