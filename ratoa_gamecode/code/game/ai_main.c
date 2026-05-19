@@ -957,6 +957,7 @@ void BotUpdateInput(bot_state_t *bs, int time, int elapsed_time) {
 		}
 		BotAimHarness_BeginMotorFrame(bs);
 		BotChangeViewAngles(bs, thinktime);
+		BotAimHarness_ApplyCombatFire(bs);
 		trap_EA_GetInput(bs->client, (float)time / 1000, &bi);
 		if (bi.actionflags & ACTION_RESPAWN) {
 			if (bs->lastucmd.buttons & BUTTON_ATTACK) {

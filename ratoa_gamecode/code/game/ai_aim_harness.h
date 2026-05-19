@@ -11,6 +11,9 @@ Debug: bot_debugAim 1 (server, CVAR_CHEAT) publishes motor wish (ideal_viewangle
 when roaming, aimtarget when fighting) via ps.grapplePoint + EXTFL_BOT_AIM_DEBUG;
 cg_debugBotAim draws green = wish, yellow (bit 4) = crosshair.
 
+Combat fire: loose FOV + eye LOS to enemy body (not lead-only); MG/LG hold +attack
+each input frame while on target. Railgun-style (WFL_FIRERELEASED) uses think cadence.
+
 Motor frames use legacy delta-angle rebasing in BotUpdateInput, 10 ms integration
 sub-steps (stable at low sv_fps on dedicated), resync playerState only on large desync,
 and spring/catch-up toward live goals (humanized, not snap-aim).
@@ -40,10 +43,11 @@ void BotAimHarness_ApplyThinkHitscanOrigin(struct bot_state_s *bs, float bestori
 int BotAimHarness_ChangeViewAngles(struct bot_state_s *bs, float thinktime);
 int BotAimHarness_AimTargetValid(struct bot_state_s *bs);
 /*
- * BotCheckAttack when harness is on: fire using aimtarget + intent angles (all weapons).
- * Returns qtrue if attack was issued.
+ * Think-time attack (BotCheckAttack): sets aimh_hold_fire for suppressive weapons.
+ * Per-frame +attack while hold is set: BotAimHarness_ApplyCombatFire (BotUpdateInput).
  */
-int BotAimHarness_CheckAttack(struct bot_state_s *bs);
+void BotAimHarness_CheckAttack(struct bot_state_s *bs);
+void BotAimHarness_ApplyCombatFire(struct bot_state_s *bs);
 int BotAimHarness_TryAttack(struct bot_state_s *bs);
 
 /* After bot usercmds: copy ps aim debug onto ent->s for entity snapshots. */

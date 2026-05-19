@@ -3816,11 +3816,9 @@ void BotCheckAttack(bot_state_t *bs) {
 			return;
 		}
 	}
-	/* BOT AIM HARNESS: intent angles + aimtarget LOS (all weapons) */
-	if (BotAimHarness_CheckAttack(bs)) {
-		return;
-	}
-	if (BotAimHarness_IsActive() && BotAimHarness_AimTargetValid(bs)) {
+	/* BOT AIM HARNESS: suppressive fire (loose aim + per-frame hold for hitscan) */
+	if (BotAimHarness_IsActive() && bs->enemy >= 0 && bs->enemy < MAX_CLIENTS) {
+		BotAimHarness_CheckAttack(bs);
 		return;
 	}
 	if (VectorLengthSquared(dir) < Square(100))

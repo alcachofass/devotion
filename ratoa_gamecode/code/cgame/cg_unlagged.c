@@ -1775,6 +1775,11 @@ static void CG_BotAimDebugDrawLine( const vec3_t start, const vec3_t endPos,
 }
 
 /*
+ * Player vertical offset from lerpOrigin. heightScale 1 = eye, ~0.45 = chest.
+ */
+static void CG_BotAimDebugEye( centity_t *cent, vec3_t out, float heightScale );
+
+/*
 =================
 CG_DrawBotAimFollowFirstPerson
 

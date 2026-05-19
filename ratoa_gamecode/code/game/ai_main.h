@@ -310,6 +310,7 @@ typedef struct bot_state_s
 	float		aimh_tracked_ideal_pitch;
 	float		aimh_tracked_ideal_yaw;
 	vec3_t		aimh_combat_target;
+	qboolean	aimh_hold_fire;		/* suppressive fire: +attack each input frame */
 	/* ---- end BOT AIM HARNESS ---- */
 
 	/* ---- BOT SMART WEAPON SELECT (v1): ai_weapon_select.c — remove to revert ---- */
