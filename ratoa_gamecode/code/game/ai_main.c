@@ -49,6 +49,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "ai_cmd.h"
 #include "ai_dmnet.h"
 #include "ai_vcmd.h"
+#include "ai_bot_enhanced.h"
 #include "ai_aim_harness.h"
 #include "ai_weapon_select.h"
 #include "ai_bot_tactics.h"
@@ -947,7 +948,8 @@ void BotUpdateInput(bot_state_t *bs, int time, int elapsed_time) {
 
 	thinktime = (float)elapsed_time / 1000.0f;
 
-	if (BotAimHarness_IsActive()) {
+	/* ENHANCED: aim — input-frame motor path */
+	if (BotEnhanced_AimActive()) {
 		if (!BotAI_GetClientState(bs->client, &bs->cur_ps)) {
 			return;
 		}
@@ -1094,7 +1096,8 @@ int BotAI(int client, float thinktime) {
 		else if (!Q_stricmp(buf, "clientLevelShot"))
 			{ /*ignore*/ }
 	}
-	if (!BotAimHarness_IsActive()) {
+	/* ENHANCED: aim — legacy delta-angle rebase when harness off */
+	if (!BotEnhanced_AimActive()) {
 		for (j = 0; j < 3; j++) {
 			bs->viewangles[j] = AngleMod(bs->viewangles[j] +
 				SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
@@ -1115,7 +1118,7 @@ int BotAI(int client, float thinktime) {
 	BotDeathmatchAI(bs, thinktime);
 	//set the weapon selection every AI frame
 	trap_EA_SelectWeapon(bs->client, bs->weaponnum);
-	if (!BotAimHarness_IsActive()) {
+	if (!BotEnhanced_AimActive()) {
 		for (j = 0; j < 3; j++) {
 			bs->viewangles[j] = AngleMod(bs->viewangles[j] -
 				SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
@@ -1320,9 +1323,7 @@ int BotAISetupClient(int client, struct bot_settings_s *settings, qboolean resta
 	if (restart) {
 		BotReadSessionData(bs);
 	}
-	BotAimHarness_Reset(bs);
-	BotWpnSelect_Reset(bs);
-	BotTactics_Reset(bs);
+	BotEnhanced_ResetBot(bs);
 	BotAimHarness_SyncClientDebug(client);
 	//bot has been setup succesfully
 	return qtrue;
@@ -1426,9 +1427,7 @@ void BotResetState(bot_state_t *bs) {
 	if (bs->ws) trap_BotResetWeaponState(bs->ws);
 	if (bs->gs) trap_BotResetAvoidGoals(bs->gs);
 	if (bs->ms) trap_BotResetAvoidReach(bs->ms);
-	BotAimHarness_Reset(bs);
-	BotWpnSelect_Reset(bs);
-	BotTactics_Reset(bs);
+	BotEnhanced_ResetBot(bs);
 }
 
 /*
@@ -1753,9 +1752,7 @@ int BotAISetup( int restart ) {
 	trap_Cvar_Register(&bot_interbreedbots, "bot_interbreedbots", "10", 0);
 	trap_Cvar_Register(&bot_interbreedcycle, "bot_interbreedcycle", "20", 0);
 	trap_Cvar_Register(&bot_interbreedwrite, "bot_interbreedwrite", "", 0);
-	BotAimHarness_RegisterCvars();
-	BotWpnSelect_RegisterCvars();
-	BotTactics_RegisterCvars();
+	BotEnhanced_RegisterCvars();
 
 	//if the game is restarted for a tournament
 	if (restart) {

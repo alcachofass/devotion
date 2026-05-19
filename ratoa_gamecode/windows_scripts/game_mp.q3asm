@@ -9,6 +9,10 @@ q_math
 q_shared
 ai_dmnet
 ai_dmq3
+ai_bot_enhanced
+ai_bot_combat
+ai_bot_events
+ai_bot_move_harness
 ai_aim_harness
 ai_weapon_select
 ai_bot_tactics

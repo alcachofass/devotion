@@ -2,7 +2,8 @@
 ===========================================================================
 BOT SMART WEAPON SELECT (v1) — situational weapon choice.
 
-Ringfenced: logic in ai_weapon_select.c. Toggle with bot_smartWeaponChoice.
+Ringfenced: logic in ai_weapon_select.c. Toggle with bot_enhanced_weapons (requires bot_enhanced).
+Was bot_smartWeaponChoice (migrated at init if bot_enhanced_weapons is unset).
 Include after g_local.h and ai_main.h in .c files (ai_main.h has no guards).
 
 Remove: delete ai_weapon_select.c/h, Makefile/q3asm entries, revert hooks in

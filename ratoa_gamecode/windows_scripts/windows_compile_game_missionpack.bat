@@ -21,6 +21,10 @@ cd windows\build\game
 %cc%  ../../../code/game/ai_cmd.c
 %cc%  ../../../code/game/ai_dmnet.c
 %cc%  ../../../code/game/ai_dmq3.c
+%cc%  ../../../code/game/ai_bot_enhanced.c
+%cc%  ../../../code/game/ai_bot_combat.c
+%cc%  ../../../code/game/ai_bot_events.c
+%cc%  ../../../code/game/ai_bot_move_harness.c
 %cc%  ../../../code/game/ai_aim_harness.c
 %cc%  ../../../code/game/ai_weapon_select.c
 %cc%  ../../../code/game/ai_bot_tactics.c

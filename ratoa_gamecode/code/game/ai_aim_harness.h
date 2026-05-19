@@ -4,9 +4,10 @@ BOT AIM HARNESS (v1) — humanized view actuation for bots.
 
 Ringfenced module: all harness logic lives in ai_aim_harness.c / this header.
 To remove: delete these files, drop from Makefile/q3asm, revert marked hooks in
-ai_main.h, ai_main.c, and ai_dmq3.c, and unset bot_humanizeaim.
+ai_main.h, ai_main.c, and ai_dmq3.c, and unset bot_enhanced / bot_enhanced_aim.
 
-Toggle at runtime: bot_humanizeaim 1 (default 0 = legacy aim motor)
+Toggle at runtime: bot_enhanced 1 and bot_enhanced_aim 1 (default 0 = legacy aim motor).
+Was bot_humanizeaim; that name is migrated at init if bot_enhanced_aim is unset.
 Debug: bot_debugAim 1 (server, CVAR_CHEAT) publishes motor wish (ideal_viewangles
 when roaming, aimtarget when fighting) via ps.grapplePoint + EXTFL_BOT_AIM_DEBUG;
 cg_debugBotAim draws green = wish, yellow (bit 4) = crosshair.

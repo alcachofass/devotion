@@ -128,6 +128,8 @@ typedef struct bot_activategoal_s
 	struct bot_activategoal_s *next;		//next activate goal on stack
 } bot_activategoal_t;
 
+#include "ai_bot_combat.h"
+
 //bot state
 typedef struct bot_state_s
 {
@@ -287,6 +289,14 @@ typedef struct bot_state_s
 	bot_waypoint_t *patrolpoints;					//patrol points
 	bot_waypoint_t *curpatrolpoint;					//current patrol point the bot is going for
 	int patrolflags;								//patrol flags
+
+	/* ---- BOT ENHANCED (foundation): ai_bot_combat.c, ai_bot_events.c ---- */
+	bot_combat_intent_t	combat;
+	int			evt_pending;
+	int			evt_attacker;
+	int			evt_damage;
+	int			evt_mod;
+	/* ---- end BOT ENHANCED ---- */
 
 	/* ---- BOT AIM HARNESS (v1): ai_aim_harness.c — remove this block to revert ---- */
 	vec3_t		aimh_goal;

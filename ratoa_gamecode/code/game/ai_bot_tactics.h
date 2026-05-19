@@ -1,8 +1,9 @@
 /*
 ===========================================================================
-BOT TACTICAL AI — decision hooks + minimal events, gated by bot_tacticalAI.
+BOT TACTICAL AI — decision hooks + minimal events, gated by bot_enhanced_tactics.
 
-Ringfenced: logic in ai_bot_tactics.c. Toggle with bot_tacticalAI (0/1).
+Ringfenced: logic in ai_bot_tactics.c. Toggle with bot_enhanced_tactics (requires bot_enhanced).
+Was bot_tacticalAI (migrated at init if bot_enhanced_tactics is unset).
 
 Remove: delete ai_bot_tactics.c/h, Makefile/q3asm/bat entries, revert hooks in
 ai_main.h, ai_main.c, ai_dmq3.c, ai_dmnet.c.
@@ -14,14 +15,15 @@ ai_main.h, ai_main.c, ai_dmq3.c, ai_dmnet.c.
 
 struct bot_state_s;
 
-/* Pending event bits (set by scan/notify, cleared in Process). */
-#define BOT_TACT_EVT_HURT_BY_OTHER	1
+#include "ai_bot_events.h"
+#define BOT_TACT_EVT_HURT_BY_OTHER	BOT_EVT_HURT_BY_OTHER
 
 void BotTactics_RegisterCvars(void);
 void BotTactics_Reset(struct bot_state_s *bs);
 
-/* Once per think after inventory: edge-detect damage, dispatch pending events. */
-void BotTactics_OnThink(struct bot_state_s *bs);
+/* Called from BotEvents_Drain only (world scan + pending dispatch). */
+void BotTactics_ScanEvents(struct bot_state_s *bs);
+void BotTactics_ProcessPending(struct bot_state_s *bs);
 
 /* Gauntlet-only survival */
 int BotTactics_BattleFightTryFlee(struct bot_state_s *bs);

@@ -16,8 +16,9 @@ BOT AIM HARNESS (v1) — see ai_aim_harness.h
 #include "ai_dmq3.h"
 #include "chars.h"
 #include "ai_aim_harness.h"
+#include "ai_bot_enhanced.h"
 
-vmCvar_t bot_humanizeaim;
+vmCvar_t bot_enhanced_aim;
 vmCvar_t bot_debugAim;
 
 /* Forward — defined in ai_dmq3.c / ai_main.c */
@@ -107,7 +108,7 @@ extern bot_state_t *botstates[MAX_CLIENTS];
 #define AIMH_FIRE_VIEW_SLACK			14.0f
 #define AIMH_FIRE_MIN_VISIBILITY		0.12f
 
-static int bot_humanizeaim_last = -1;
+static int bot_enhanced_aim_last = -1;
 static int bot_debugAim_last = -1;
 
 void BotAimHarness_SyncAllBotsDebug(void);
@@ -949,21 +950,21 @@ void BotAimHarness_SyncAllBotsDebug(void) {
 }
 
 void BotAimHarness_RegisterCvars(void) {
-	trap_Cvar_Register(&bot_humanizeaim, "bot_humanizeaim", "0", CVAR_ARCHIVE);
+	trap_Cvar_Register(&bot_enhanced_aim, "bot_enhanced_aim", "0", CVAR_ARCHIVE);
 	trap_Cvar_Register(&bot_debugAim, "bot_debugAim", "0", CVAR_CHEAT);
-	trap_Cvar_Update(&bot_humanizeaim);
+	trap_Cvar_Update(&bot_enhanced_aim);
 	trap_Cvar_Update(&bot_debugAim);
 }
 
 void BotAimHarness_ResetCvarLatch(void) {
-	bot_humanizeaim_last = -1;
+	bot_enhanced_aim_last = -1;
 	bot_debugAim_last = -1;
 }
 
 void BotAimHarness_UpdateCvar(void) {
 	int i;
 
-	trap_Cvar_Update(&bot_humanizeaim);
+	trap_Cvar_Update(&bot_enhanced_aim);
 	trap_Cvar_Update(&bot_debugAim);
 
 	if (bot_debugAim_last != bot_debugAim.integer) {
@@ -977,15 +978,15 @@ void BotAimHarness_UpdateCvar(void) {
 		}
 	}
 
-	if (bot_humanizeaim_last == bot_humanizeaim.integer) {
+	if (bot_enhanced_aim_last == bot_enhanced_aim.integer) {
 		return;
 	}
-	bot_humanizeaim_last = bot_humanizeaim.integer;
+	bot_enhanced_aim_last = bot_enhanced_aim.integer;
 
 	for (i = 0; i < MAX_CLIENTS; i++) {
 		if (botstates[i] && botstates[i]->inuse) {
 			BotAimHarness_Reset(botstates[i]);
-			if (!bot_humanizeaim.integer) {
+			if (!bot_enhanced_aim.integer) {
 				botstates[i]->viewanglespeed[0] = 0;
 				botstates[i]->viewanglespeed[1] = 0;
 				BotAimHarness_ClearEntityDebug(&g_entities[i]);
@@ -995,14 +996,7 @@ void BotAimHarness_UpdateCvar(void) {
 }
 
 int BotAimHarness_IsActive(void) {
-	trap_Cvar_Update(&bot_humanizeaim);
-	if (!bot_humanizeaim.integer) {
-		return 0;
-	}
-	if (bot_challenge.integer) {
-		return 0;
-	}
-	return 1;
+	return BotEnhanced_AimActive();
 }
 
 static void BotAimHarness_SyncViewAngles(bot_state_t *bs) {

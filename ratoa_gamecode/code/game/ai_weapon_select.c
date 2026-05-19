@@ -16,8 +16,10 @@ BOT SMART WEAPON SELECT (v1) — see ai_weapon_select.h
 #include "chars.h"
 #include "inv.h"
 #include "ai_weapon_select.h"
+#include "ai_bot_enhanced.h"
+#include "ai_bot_combat.h"
 
-vmCvar_t bot_smartWeaponChoice;
+vmCvar_t bot_enhanced_weapons;
 
 /* Forward — defined in ai_dmq3.c */
 float BotEntityVisible(int viewer, vec3_t eye, vec3_t viewangles, float fov, int ent);
@@ -368,17 +370,13 @@ static float BotWpnSel_SwitchFatigue(bot_state_t *bs, float skillCombat) {
 }
 
 void BotWpnSelect_RegisterCvars(void) {
-	trap_Cvar_Register(&bot_smartWeaponChoice, "bot_smartWeaponChoice", "0",
+	trap_Cvar_Register(&bot_enhanced_weapons, "bot_enhanced_weapons", "0",
 		CVAR_ARCHIVE);
-	trap_Cvar_Update(&bot_smartWeaponChoice);
+	trap_Cvar_Update(&bot_enhanced_weapons);
 }
 
 int BotWpnSelect_IsActive(void) {
-	trap_Cvar_Update(&bot_smartWeaponChoice);
-	if (!bot_smartWeaponChoice.integer) {
-		return 0;
-	}
-	return 1;
+	return BotEnhanced_WeaponsActive();
 }
 
 static float BotWpnSel_RoamStealth(bot_state_t *bs) {
@@ -490,6 +488,7 @@ void BotWpnSelect_NotifyWeaponCommitted(bot_state_t *bs, int prev_wp, int new_wp
 		bs->wps_last_switch_time = FloatTime();
 	}
 	bs->wps_last_chosen_weapon = new_wp;
+	BotCombat_OnWeaponCommitted(bs, prev_wp, new_wp);
 }
 
 void BotWpnSelect_GetDesire(bot_state_t *bs, bot_weapon_desire_t *out) {

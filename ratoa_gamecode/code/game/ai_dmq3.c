@@ -47,6 +47,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "ai_aim_harness.h"
 #include "ai_weapon_select.h"
 #include "ai_bot_tactics.h"
+#include "ai_bot_enhanced.h"
 #include "ai_chat.h"
 #include "ai_cmd.h"
 #include "ai_dmnet.h"
@@ -1737,7 +1738,7 @@ void BotChooseWeapon(bot_state_t *bs) {
                 else {
 			if (bs->enemy >= 0) {
 				newweaponnum = BotWpnSelect_Choose(bs);
-			} else if (BotWpnSelect_IsActive()) {
+			} else if (BotEnhanced_WeaponsActive()) {
 				newweaponnum = BotWpnSelect_ChooseRoaming(bs);
 			} else {
 				newweaponnum = -1;
@@ -3666,7 +3667,8 @@ void BotAimAtEnemy(bot_state_t *bs) {
 				}
 			}
 		}
-		if (!BotAimHarness_IsActive()) {
+		/* ENHANCED: aim — combat origin jitter when harness off */
+		if (!BotEnhanced_AimActive()) {
 			bestorigin[0] += 20 * crandom() * (1 - aim_accuracy);
 			bestorigin[1] += 20 * crandom() * (1 - aim_accuracy);
 			bestorigin[2] += 10 * crandom() * (1 - aim_accuracy);
@@ -3723,14 +3725,14 @@ void BotAimAtEnemy(bot_state_t *bs) {
 		f = 0.6 + dist / 150 * 0.4;
 		aim_accuracy *= f;
 	}
-	if (!BotAimHarness_IsActive()) {
+	if (!BotEnhanced_AimActive()) {
 		if (aim_accuracy < 0.8) {
 			VectorNormalize(dir);
 			for (i = 0; i < 3; i++) dir[i] += 0.3 * crandom() * (1 - aim_accuracy);
 		}
 	}
 	vectoangles(dir, bs->ideal_viewangles);
-	if (!BotAimHarness_IsActive()) {
+	if (!BotEnhanced_AimActive()) {
 		bs->ideal_viewangles[PITCH] += 6 * wi.vspread * crandom() * (1 - aim_accuracy);
 		bs->ideal_viewangles[PITCH] = AngleMod(bs->ideal_viewangles[PITCH]);
 		bs->ideal_viewangles[YAW] += 6 * wi.hspread * crandom() * (1 - aim_accuracy);
@@ -3816,8 +3818,8 @@ void BotCheckAttack(bot_state_t *bs) {
 			return;
 		}
 	}
-	/* BOT AIM HARNESS: suppressive fire (loose aim + per-frame hold for hitscan) */
-	if (BotAimHarness_IsActive() && bs->enemy >= 0 && bs->enemy < MAX_CLIENTS) {
+	/* ENHANCED: aim — suppressive fire (loose aim + per-frame hold for hitscan) */
+	if (BotEnhanced_AimActive() && bs->enemy >= 0 && bs->enemy < MAX_CLIENTS) {
 		BotAimHarness_CheckAttack(bs);
 		return;
 	}
@@ -5462,10 +5464,10 @@ void BotDeathmatchAI(bot_state_t *bs, float thinktime) {
 		BotSetTeleportTime(bs);
 		//update some inventory values
 		BotUpdateInventory(bs);
-		if (BotWpnSelect_IsActive() && bs->enemy < 0 && !BotIsObserver(bs)) {
+		BotEnhanced_OnThinkStart(bs);
+		if (BotEnhanced_WeaponsActive() && bs->enemy < 0 && !BotIsObserver(bs)) {
 			BotWpnSelect_TickRoaming(bs);
 		}
-		BotTactics_OnThink(bs);
 		//check out the snapshot
 		BotCheckSnapshot(bs);
 		//check for air

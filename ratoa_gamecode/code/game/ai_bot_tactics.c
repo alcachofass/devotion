@@ -16,6 +16,7 @@ BOT TACTICAL AI — see ai_bot_tactics.h
 #include "inv.h"
 #include "ai_dmq3.h"
 #include "ai_bot_tactics.h"
+#include "ai_bot_enhanced.h"
 
 void AIEnter_Battle_Retreat(bot_state_t *bs, char *s);
 void AIEnter_Battle_Fight(bot_state_t *bs, char *s);
@@ -23,7 +24,7 @@ int AINode_Battle_Fight(bot_state_t *bs);
 
 qboolean EntityCarriesFlag(aas_entityinfo_t *entinfo);
 
-vmCvar_t bot_tacticalAI;
+vmCvar_t bot_enhanced_tactics;
 
 #define BOT_TACTICS_GAUNTLET_RUSH_DIST	192
 #define BOT_TACTICS_FAR_ENGAGE_DIST		512
@@ -42,8 +43,7 @@ typedef enum {
 } tact_action_t;
 
 static int BotTactics_IsActive(void) {
-	trap_Cvar_Update(&bot_tacticalAI);
-	return bot_tacticalAI.integer != 0;
+	return BotEnhanced_TacticsActive();
 }
 
 static int BotTactics_HasUsableNonGauntletWeapon(bot_state_t *bs) {
@@ -170,7 +170,7 @@ static void BotTactics_QueueEvent(bot_state_t *bs, int evt, int attacker, int da
 	bs->tact_evt_mod = mod;
 }
 
-static void BotTactics_ScanEvents(bot_state_t *bs) {
+void BotTactics_ScanEvents(bot_state_t *bs) {
 	int damage, attacker, mod;
 	gclient_t *cl;
 
@@ -290,7 +290,7 @@ static void BotTactics_ApplyHurtByOther(bot_state_t *bs) {
 	}
 }
 
-static void BotTactics_ProcessPending(bot_state_t *bs) {
+void BotTactics_ProcessPending(bot_state_t *bs) {
 	int pending;
 
 	if (!BotTactics_IsActive()) {
@@ -307,8 +307,9 @@ static void BotTactics_ProcessPending(bot_state_t *bs) {
 }
 
 void BotTactics_RegisterCvars(void) {
-	trap_Cvar_Register(&bot_tacticalAI, "bot_tacticalAI", "0", CVAR_ARCHIVE);
-	trap_Cvar_Update(&bot_tacticalAI);
+	trap_Cvar_Register(&bot_enhanced_tactics, "bot_enhanced_tactics", "0",
+		CVAR_ARCHIVE);
+	trap_Cvar_Update(&bot_enhanced_tactics);
 }
 
 void BotTactics_Reset(bot_state_t *bs) {
@@ -321,15 +322,6 @@ void BotTactics_Reset(bot_state_t *bs) {
 	bs->tact_evt_damage = 0;
 	bs->tact_evt_mod = MOD_UNKNOWN;
 	bs->tact_last_hurt_time = -999999.0f;
-}
-
-void BotTactics_OnThink(bot_state_t *bs) {
-	if (!BotTactics_IsActive()) {
-		bs->tact_pending = 0;
-		return;
-	}
-	BotTactics_ScanEvents(bs);
-	BotTactics_ProcessPending(bs);
 }
 
 int BotTactics_BattleFightTryFlee(bot_state_t *bs) {
