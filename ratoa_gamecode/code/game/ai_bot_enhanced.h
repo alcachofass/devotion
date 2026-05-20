@@ -36,4 +36,13 @@ int BotEnhanced_AllowsVoluntaryCloseGauntlet(struct bot_state_s *bs);
 
 int BotEnhanced_ItemsActive(void);
 
+/* EF_TALK on client — typing in chat (chat balloon). */
+int BotEnhanced_ClientIsChatting(int clientnum);
+
+/* False for chatting players; use before acquiring or engaging an enemy. */
+int BotEnhanced_CanEngageClient(struct bot_state_s *bs, int clientnum);
+
+/* Enhanced bots do not use info_camp / BotWantsToCamp roaming. */
+int BotEnhanced_AllowsCamping(void);
+
 #endif /* AI_BOT_ENHANCED_H */

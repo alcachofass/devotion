@@ -17,6 +17,7 @@ BOT AIM HARNESS (v1) — see ai_aim_harness.h
 #include "chars.h"
 #include "ai_aim_harness.h"
 #include "ai_bot_enhanced.h"
+#include "ai_dmq3.h"
 
 vmCvar_t bot_enhanced_aim;
 vmCvar_t bot_debugAim;
@@ -538,6 +539,9 @@ static qboolean BotAimHarness_PassesThinkFireGates(bot_state_t *bs) {
 	if (bs->enemy < 0) {
 		return qfalse;
 	}
+	if (!BotEnhanced_CanEngageClient(bs, bs->enemy)) {
+		return qfalse;
+	}
 	if (BotTargetPlayerIsDead(bs)) {
 		return qfalse;
 	}
@@ -622,6 +626,9 @@ void BotAimHarness_CheckAttack(bot_state_t *bs) {
 	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
 		return;
 	}
+	if (!BotEnhanced_CanEngageClient(bs, bs->enemy)) {
+		return;
+	}
 	if (!BotAimHarness_PassesThinkFireGates(bs)) {
 		return;
 	}
@@ -658,6 +665,10 @@ void BotAimHarness_ApplyCombatFire(bot_state_t *bs) {
 		return;
 	}
 	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		bs->aimh_hold_fire = qfalse;
+		return;
+	}
+	if (!BotEnhanced_CanEngageClient(bs, bs->enemy)) {
 		bs->aimh_hold_fire = qfalse;
 		return;
 	}
@@ -998,6 +1009,20 @@ int BotAimHarness_IsActive(void) {
 	return BotEnhanced_AimActive();
 }
 
+void BotAimHarness_SyncMotorToView(bot_state_t *bs) {
+	if (!bs) {
+		return;
+	}
+	bs->aimh_combat_aim = qfalse;
+	bs->aimh_vel[PITCH] = 0.0f;
+	bs->aimh_vel[YAW] = 0.0f;
+	bs->aimh_tracked_ideal_pitch = BotAimHarness_ClampPitch(bs->viewangles[PITCH]);
+	bs->aimh_tracked_ideal_yaw = AngleMod(bs->viewangles[YAW]);
+	bs->aimh_smooth_goal_pitch = bs->aimh_tracked_ideal_pitch;
+	bs->aimh_smooth_goal_yaw = bs->aimh_tracked_ideal_yaw;
+	VectorCopy(bs->viewangles, bs->aimh_goal);
+}
+
 static void BotAimHarness_SyncViewAngles(bot_state_t *bs) {
 	entityState_t es;
 
@@ -1035,6 +1060,13 @@ void BotAimHarness_Reset(bot_state_t *bs) {
 	bs->aimh_tracked_ideal_yaw = bs->viewangles[YAW];
 	VectorClear(bs->aimh_combat_target);
 	bs->aimh_hold_fire = qfalse;
+	bs->aimh_weapon_jump_until = 0.0f;
+	VectorClear(bs->aimh_weapon_jump_angles);
+	VectorClear(bs->aimh_weapon_jump_spot);
+	VectorClear(bs->aimh_weapon_jump_dest);
+	VectorClear(bs->aimh_weapon_jump_air_dir);
+	bs->aimh_weapon_jump_weapon = 0;
+	bs->aimh_weapon_jump_fired = qfalse;
 }
 
 void BotAimHarness_SetCombatGoal(bot_state_t *bs, const vec3_t idealAngles,
@@ -1158,6 +1190,10 @@ void BotAimHarness_BeginMotorFrame(bot_state_t *bs) {
 		return;
 	}
 
+	if (BotAI_WeaponJumpActive(bs)) {
+		return;
+	}
+
 	BotAimHarness_ResyncViewFromPSIfDesynced(bs);
 }
 
@@ -1273,7 +1309,19 @@ int BotAimHarness_ChangeViewAngles(bot_state_t *bs, float thinktime) {
 		bs->aimh_last_sanity_enemy = -1;
 		bs->aimh_acquire_until = 0.0f;
 		bs->aimh_last_goal_time = 0.0f;
+		bs->aimh_weapon_jump_until = 0.0f;
+		bs->aimh_weapon_jump_fired = qfalse;
 		trap_EA_View(bs->client, bs->viewangles);
+		BotAimHarness_DebugSync(bs);
+		return 1;
+	}
+
+	if (BotAI_WeaponJumpActive(bs)) {
+		VectorCopy(bs->aimh_weapon_jump_angles, bs->ideal_viewangles);
+		VectorCopy(bs->aimh_weapon_jump_angles, bs->viewangles);
+		bs->viewangles[ROLL] = 0.0f;
+		trap_EA_View(bs->client, bs->viewangles);
+		BotAimHarness_SyncMotorToView(bs);
 		BotAimHarness_DebugSync(bs);
 		return 1;
 	}

@@ -201,6 +201,11 @@ void BotCombat_UpdateIntent(bot_state_t *bs) {
 		BotCombat_ClearVoluntaryPursuit(bs);
 		return;
 	}
+	if (!BotEnhanced_CanEngageClient(bs, bs->enemy)) {
+		bs->enemy = -1;
+		BotCombat_ClearVoluntaryPursuit(bs);
+		return;
+	}
 	if (BotCombat_UpdateVoluntaryGauntletAbort(bs)) {
 		return;
 	}

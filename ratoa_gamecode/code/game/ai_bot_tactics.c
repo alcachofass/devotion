@@ -99,6 +99,9 @@ static int BotTactics_IsValidEnemyClient(bot_state_t *bs, int clientnum) {
 	if (g_entities[clientnum].flags & FL_NOTARGET) {
 		return 0;
 	}
+	if (BotEnhanced_IsActive() && BotEnhanced_ClientIsChatting(clientnum)) {
+		return 0;
+	}
 	return 1;
 }
 

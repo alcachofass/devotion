@@ -536,7 +536,7 @@ void BotSetInfoConfigString(bot_state_t *bs) {
 		}
 		case LTG_POINTA:
 		{
-			Com_sprintf(action, sizeof(action), "going for point A");
+			Com_sprintf(action, sizeof(action), " point A");
 			break;
 		}
 		case LTG_POINTB:
@@ -959,11 +959,19 @@ void BotUpdateInput(bot_state_t *bs, int time, int elapsed_time) {
 		}
 		BotAimHarness_BeginMotorFrame(bs);
 		BotChangeViewAngles(bs, thinktime);
+		if (BotAI_WeaponJumpActive(bs)) {
+			BotAI_WeaponJumpInput(bs);
+		}
 		BotAimHarness_ApplyCombatFire(bs);
 		trap_EA_GetInput(bs->client, (float)time / 1000, &bi);
 		if (bi.actionflags & ACTION_RESPAWN) {
 			if (bs->lastucmd.buttons & BUTTON_ATTACK) {
 				bi.actionflags &= ~(ACTION_RESPAWN | ACTION_ATTACK);
+			}
+		}
+		if (BotAI_WeaponJumpActive(bs) && !bs->aimh_weapon_jump_fired) {
+			if (!BotAI_WeaponJumpReadyToFire(bs)) {
+				bi.actionflags &= ~(ACTION_ATTACK | ACTION_JUMP);
 			}
 		}
 		BotInputToUserCommand(&bi, &bs->lastucmd, bs->cur_ps.delta_angles, time);

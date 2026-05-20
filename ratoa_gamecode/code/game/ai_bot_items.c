@@ -315,7 +315,7 @@ static void BotItems_DebugLine(bot_state_t *bs, int kind, const char *event) {
 
 	BotItems_KindLabel(kind, itemName, sizeof(itemName));
 
-	G_Printf("BotItems: %s %s for %s\n", botName, event, itemName);
+	G_Printf("BotItems: %s %s the %s\n", botName, event, itemName);
 
 }
 
@@ -489,6 +489,18 @@ void BotItems_Reset(bot_state_t *bs) {
 
 	memset(&bs->item_commit_goal, 0, sizeof(bot_goal_t));
 
+	bs->item_commit_snap_health = 0;
+
+	bs->item_commit_snap_armor = 0;
+
+	bs->item_commit_snap_quad = 0;
+
+	bs->item_commit_snap_redflag = 0;
+
+	bs->item_commit_snap_blueflag = 0;
+
+	bs->item_commit_snap_weapon = 0;
+
 }
 
 
@@ -535,6 +547,18 @@ static void BotItems_ClearCommit(bot_state_t *bs, int endEvent) {
 
 	memset(&bs->item_commit_goal, 0, sizeof(bot_goal_t));
 
+	bs->item_commit_snap_health = 0;
+
+	bs->item_commit_snap_armor = 0;
+
+	bs->item_commit_snap_quad = 0;
+
+	bs->item_commit_snap_redflag = 0;
+
+	bs->item_commit_snap_blueflag = 0;
+
+	bs->item_commit_snap_weapon = 0;
+
 
 
 	if (wasActive && endEvent == BOT_ITEMS_DBG_GONE && goalNumber) {
@@ -557,7 +581,7 @@ static void BotItems_ClearCommit(bot_state_t *bs, int endEvent) {
 
 		case BOT_ITEMS_DBG_TIMEOUT:
 
-			BotItems_DebugLine(bs, kind, "abandoned (timeout)");
+			(bs, kind, "abandoned (timeout)");
 
 			break;
 
@@ -730,6 +754,106 @@ static qboolean BotItems_NeedsKind(bot_state_t *bs, int kind) {
 	case BOT_ITEM_YELLOW_ARMOR:
 
 		return bs->inventory[INVENTORY_ARMOR] < 80;
+
+	default:
+
+		return qfalse;
+
+	}
+
+}
+
+
+
+static void BotItems_SnapshotCommitInventory(bot_state_t *bs, int kind) {
+
+	const botItemWeaponDef_t *wdef;
+
+
+
+	if (!bs) {
+
+		return;
+
+	}
+
+	bs->item_commit_snap_health = bs->inventory[INVENTORY_HEALTH];
+
+	bs->item_commit_snap_armor = bs->inventory[INVENTORY_ARMOR];
+
+	bs->item_commit_snap_quad = bs->inventory[INVENTORY_QUAD];
+
+	bs->item_commit_snap_redflag = bs->inventory[INVENTORY_REDFLAG];
+
+	bs->item_commit_snap_blueflag = bs->inventory[INVENTORY_BLUEFLAG];
+
+	wdef = BotItems_WeaponDef(kind);
+
+	bs->item_commit_snap_weapon = wdef ? bs->inventory[wdef->inventoryIndex] : 0;
+
+}
+
+
+
+/* Goal achieved: no longer need item, or inventory improved since commit (denial modes). */
+
+static qboolean BotItems_CommitAchieved(bot_state_t *bs) {
+
+	const botItemWeaponDef_t *wdef;
+
+	int kind;
+
+
+
+	if (!bs || !bs->item_commit_active) {
+
+		return qfalse;
+
+	}
+
+	kind = bs->item_commit_kind;
+
+	if (kind == BOT_ITEM_NONE) {
+
+		return qfalse;
+
+	}
+
+	if (!BotItems_NeedsKind(bs, kind)) {
+
+		return qtrue;
+
+	}
+
+	wdef = BotItems_WeaponDef(kind);
+
+	if (wdef) {
+
+		return bs->inventory[wdef->inventoryIndex] > bs->item_commit_snap_weapon;
+
+	}
+
+	switch (kind) {
+
+	case BOT_ITEM_QUAD:
+
+		return bs->inventory[INVENTORY_QUAD] && !bs->item_commit_snap_quad;
+
+	case BOT_ITEM_ENEMY_FLAG:
+
+		return (bs->inventory[INVENTORY_REDFLAG] > bs->item_commit_snap_redflag) ||
+
+			(bs->inventory[INVENTORY_BLUEFLAG] > bs->item_commit_snap_blueflag);
+
+	case BOT_ITEM_MEGA_HEALTH:
+
+		return bs->inventory[INVENTORY_HEALTH] > bs->item_commit_snap_health;
+
+	case BOT_ITEM_RED_ARMOR:
+
+	case BOT_ITEM_YELLOW_ARMOR:
+
+		return bs->inventory[INVENTORY_ARMOR] > bs->item_commit_snap_armor;
 
 	default:
 
@@ -944,6 +1068,8 @@ static void BotItems_BeginCommit(bot_state_t *bs, bot_goal_t *goal, int kind) {
 	bs->item_commit_kind = kind;
 
 	bs->item_commit_until = FloatTime() + BOT_ITEMS_COMMIT_DURATION;
+
+	BotItems_SnapshotCommitInventory(bs, kind);
 
 
 
@@ -1185,6 +1311,14 @@ void BotItems_Tick(bot_state_t *bs) {
 
 		}
 
+		if (BotItems_CommitAchieved(bs)) {
+
+			BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GOT);
+
+			return;
+
+		}
+
 		if (!BotItems_RefreshGoalByNumber(bs, &bs->item_commit_goal, bs->item_commit_kind)) {
 
 			BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GONE);
@@ -1282,6 +1416,18 @@ int BotItems_HandleReachedGoal(bot_state_t *bs, bot_goal_t *goal) {
 
 
 	if (trap_BotTouchingGoal(bs->origin, goal)) {
+
+		trap_BotSetAvoidGoalTime(bs->gs, goal->number, -1);
+
+		BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GOT);
+
+		return 1;
+
+	}
+
+
+
+	if (BotItems_CommitAchieved(bs)) {
 
 		trap_BotSetAvoidGoalTime(bs->gs, goal->number, -1);
 

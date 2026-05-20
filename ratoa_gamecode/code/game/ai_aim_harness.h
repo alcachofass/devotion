@@ -32,6 +32,7 @@ void BotAimHarness_RegisterCvars(void);
 void BotAimHarness_ResetCvarLatch(void);
 void BotAimHarness_UpdateCvar(void);
 int BotAimHarness_IsActive(void);
+void BotAimHarness_SyncMotorToView(struct bot_state_s *bs);
 float BotAimHarness_ClampPitchAngle(float pitch);
 /* Sync motor state from authoritative playerState before each bot input frame. */
 void BotAimHarness_BeginMotorFrame(struct bot_state_s *bs);

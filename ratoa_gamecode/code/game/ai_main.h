@@ -304,6 +304,12 @@ typedef struct bot_state_s
 	float		item_commit_until;
 	float		item_next_scan_time;
 	bot_goal_t	item_commit_goal;
+	int			item_commit_snap_health;
+	int			item_commit_snap_armor;
+	int			item_commit_snap_quad;
+	int			item_commit_snap_redflag;
+	int			item_commit_snap_blueflag;
+	int			item_commit_snap_weapon;
 	/* ---- end BOT ITEMS ---- */
 
 	/* ---- BOT AIM HARNESS (v1): ai_aim_harness.c — remove this block to revert ---- */
@@ -329,6 +335,13 @@ typedef struct bot_state_s
 	float		aimh_tracked_ideal_yaw;
 	vec3_t		aimh_combat_target;
 	qboolean	aimh_hold_fire;		/* suppressive fire: +attack each input frame */
+	float		aimh_weapon_jump_until;	/* hold down-aim; bypass harness spring/PS resync */
+	vec3_t		aimh_weapon_jump_angles;
+	vec3_t		aimh_weapon_jump_spot;	/* reach start (MovementViewTarget) */
+	vec3_t		aimh_weapon_jump_dest;	/* LTG / reach end while airborne */
+	vec3_t		aimh_weapon_jump_air_dir;
+	int			aimh_weapon_jump_weapon;
+	qboolean	aimh_weapon_jump_fired;
 	/* ---- end BOT AIM HARNESS ---- */
 
 	/* ---- BOT SMART WEAPON SELECT (v1): ai_weapon_select.c — remove to revert ---- */

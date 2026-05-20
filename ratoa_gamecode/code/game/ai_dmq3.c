@@ -33,6 +33,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "g_local.h"
 #include "../botlib/botlib.h"
+#include "../botlib/aasfile.h"
 #include "../botlib/be_aas.h"
 #include "../botlib/be_ea.h"
 #include "../botlib/be_ai_char.h"
@@ -2676,6 +2677,9 @@ int BotWantsToCamp(bot_state_t *bs) {
 	int cs, traveltime, besttraveltime;
 	bot_goal_t goal, bestgoal;
 
+	if (!BotEnhanced_AllowsCamping()) {
+		return qfalse;
+	}
 	camper = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_CAMPER, 0, 1);
 	if (camper < 0.1) return qfalse;
 	//if the bot has a team goal
@@ -2985,6 +2989,330 @@ int BotSameTeam(bot_state_t *bs, int entnum) {
 	return qfalse;
 }
 
+#define BOT_WEAPONJUMP_MAX_DIST		4.0f
+#define BOT_WEAPONJUMP_MAX_HVEL		48.0f
+#define BOT_WEAPONJUMP_FOV			5.0f
+#define BOT_WEAPONJUMP_MIN_PITCH	45.0f
+/* 5 degrees above straight down (90); face away from dest so blast pushes toward ledge */
+#define BOT_WEAPONJUMP_AIM_PITCH	85.0f
+
+/*
+==================
+BotAI_WeaponJumpActive
+==================
+*/
+int BotAI_WeaponJumpActive(bot_state_t *bs) {
+	if (!bs) {
+		return 0;
+	}
+	return bs->aimh_weapon_jump_until > FloatTime();
+}
+
+/*
+==================
+BotAI_WeaponJumpHorizSpeed
+==================
+*/
+static float BotAI_WeaponJumpHorizSpeed(bot_state_t *bs) {
+	vec3_t vel;
+
+	VectorCopy(bs->cur_ps.velocity, vel);
+	vel[2] = 0.0f;
+	return VectorLength(vel);
+}
+
+/*
+==================
+BotAI_WeaponJumpUpdateSpot
+==================
+*/
+static void BotAI_WeaponJumpUpdateSpot(bot_state_t *bs, bot_goal_t *goal) {
+	vec3_t target;
+
+	if (!goal || !trap_BotMovementViewTarget(bs->ms, goal, bs->tfl, 80, target)) {
+		return;
+	}
+	VectorCopy(target, bs->aimh_weapon_jump_spot);
+}
+
+/*
+==================
+BotAI_WeaponJumpUpdateDest
+==================
+*/
+static void BotAI_WeaponJumpUpdateDest(bot_state_t *bs, bot_goal_t *goal) {
+	if (!goal) {
+		return;
+	}
+	VectorCopy(goal->origin, bs->aimh_weapon_jump_dest);
+}
+
+/*
+==================
+BotAI_WeaponJumpSetAimAngles
+
+Pitch slightly above nadir; yaw 180 from goal so the rocket kicks toward dest.
+==================
+*/
+static void BotAI_WeaponJumpSetAimAngles(bot_state_t *bs) {
+	vec3_t toDest, faceAngles;
+
+	VectorSubtract(bs->aimh_weapon_jump_dest, bs->cur_ps.origin, toDest);
+	toDest[2] = 0.0f;
+	if (VectorLength(toDest) < 1.0f) {
+		bs->aimh_weapon_jump_angles[PITCH] = AngleMod(BOT_WEAPONJUMP_AIM_PITCH);
+		bs->aimh_weapon_jump_angles[ROLL] = 0.0f;
+		return;
+	}
+	VectorNormalize(toDest);
+	vectoangles(toDest, faceAngles);
+	bs->aimh_weapon_jump_angles[PITCH] = AngleMod(BOT_WEAPONJUMP_AIM_PITCH);
+	bs->aimh_weapon_jump_angles[YAW] = AngleMod(faceAngles[YAW] + 180.0f);
+	bs->aimh_weapon_jump_angles[ROLL] = 0.0f;
+}
+
+/*
+==================
+BotAI_WeaponJumpHorizDirToDest
+==================
+*/
+static qboolean BotAI_WeaponJumpHorizDirToDest(bot_state_t *bs, vec3_t dir) {
+	vec3_t toDest;
+
+	VectorSubtract(bs->aimh_weapon_jump_dest, bs->cur_ps.origin, toDest);
+	toDest[2] = 0.0f;
+	if (VectorNormalize(toDest) < 0.1f) {
+		return qfalse;
+	}
+	VectorCopy(toDest, dir);
+	return qtrue;
+}
+
+/*
+==================
+BotAI_WeaponJumpAirMove
+==================
+*/
+static void BotAI_WeaponJumpAirMove(bot_state_t *bs) {
+	vec3_t hordir;
+
+	if (!bs->aimh_weapon_jump_fired) {
+		return;
+	}
+	if (bs->cur_ps.groundEntityNum != ENTITYNUM_NONE) {
+		return;
+	}
+
+	bs->aimh_weapon_jump_until = FloatTime() + 2.0f;
+
+	VectorSubtract(bs->aimh_weapon_jump_dest, bs->cur_ps.origin, hordir);
+	hordir[2] = 0.0f;
+	if (VectorNormalize(hordir) < 0.1f) {
+		VectorCopy(bs->aimh_weapon_jump_air_dir, hordir);
+		if (VectorNormalize(hordir) < 0.1f) {
+			return;
+		}
+	}
+	trap_EA_Move(bs->client, hordir, 800);
+}
+
+/*
+==================
+BotAI_WeaponJumpDistToSpot
+==================
+*/
+static float BotAI_WeaponJumpDistToSpot(bot_state_t *bs) {
+	vec3_t delta;
+
+	VectorSubtract(bs->aimh_weapon_jump_spot, bs->cur_ps.origin, delta);
+	delta[2] = 0.0f;
+	return VectorLength(delta);
+}
+
+/*
+==================
+BotAI_WeaponJumpReadyToFire
+==================
+*/
+qboolean BotAI_WeaponJumpReadyToFire(bot_state_t *bs) {
+	float pitch, dist;
+
+	if (bs->aimh_weapon_jump_fired) {
+		return qfalse;
+	}
+
+	pitch = bs->aimh_weapon_jump_angles[PITCH];
+	if (pitch > 180.0f) {
+		pitch -= 360.0f;
+	}
+	if (pitch < BOT_WEAPONJUMP_MIN_PITCH) {
+		return qfalse;
+	}
+
+	dist = BotAI_WeaponJumpDistToSpot(bs);
+	if (dist > BOT_WEAPONJUMP_MAX_DIST) {
+		return qfalse;
+	}
+
+	if (BotAI_WeaponJumpHorizSpeed(bs) > BOT_WEAPONJUMP_MAX_HVEL) {
+		return qfalse;
+	}
+
+	if (!InFieldOfVision(bs->viewangles, BOT_WEAPONJUMP_FOV, bs->aimh_weapon_jump_angles)) {
+		return qfalse;
+	}
+
+	if (bs->aimh_weapon_jump_weapon > 0) {
+		if (bs->cur_ps.weapon != bs->aimh_weapon_jump_weapon) {
+			return qfalse;
+		}
+		if (bs->cur_ps.weaponstate == WEAPON_RAISING ||
+				bs->cur_ps.weaponstate == WEAPON_DROPPING) {
+			return qfalse;
+		}
+	}
+
+	return qtrue;
+}
+
+/*
+==================
+BotAI_WeaponJumpFire
+==================
+*/
+static void BotAI_WeaponJumpFire(bot_state_t *bs) {
+	vec3_t moveDir;
+
+	bs->aimh_weapon_jump_fired = qtrue;
+
+	BotAI_WeaponJumpSetAimAngles(bs);
+	trap_EA_View(bs->client, bs->aimh_weapon_jump_angles);
+
+	trap_EA_Jump(bs->client);
+	trap_EA_Attack(bs->client);
+
+	if (BotAI_WeaponJumpHorizDirToDest(bs, moveDir)) {
+		VectorCopy(moveDir, bs->aimh_weapon_jump_air_dir);
+		trap_EA_Move(bs->client, moveDir, 800);
+	}
+}
+
+/*
+==================
+BotAI_WeaponJumpInput
+
+Approach reach start between thinks (botlib speed curve). No jump until
+BotAI_HandleWeaponJumpMove confirms stopped at the spot.
+==================
+*/
+void BotAI_WeaponJumpInput(bot_state_t *bs) {
+	vec3_t toSpot;
+	float dist, speed;
+
+	if (!bs) {
+		return;
+	}
+
+	if (bs->aimh_weapon_jump_fired) {
+		BotAI_WeaponJumpAirMove(bs);
+		return;
+	}
+
+	if (BotAI_WeaponJumpReadyToFire(bs)) {
+		BotAI_WeaponJumpFire(bs);
+		BotAI_WeaponJumpAirMove(bs);
+		return;
+	}
+
+	VectorSubtract(bs->aimh_weapon_jump_spot, bs->cur_ps.origin, toSpot);
+	toSpot[2] = 0.0f;
+	dist = VectorLength(toSpot);
+	if (dist <= BOT_WEAPONJUMP_MAX_DIST) {
+		return;
+	}
+
+	if (dist > 80.0f) {
+		dist = 80.0f;
+	}
+	speed = 400.0f - (400.0f - 5.0f * dist);
+	VectorNormalize(toSpot);
+	trap_EA_Move(bs->client, toSpot, speed);
+}
+
+/*
+==================
+BotAI_HandleWeaponJumpMove
+==================
+*/
+void BotAI_HandleWeaponJumpMove(bot_state_t *bs, bot_goal_t *goal, bot_moveresult_t *moveresult) {
+	int travel;
+	vec3_t movedir;
+
+	if (!bs || !moveresult || !goal) {
+		return;
+	}
+
+	if (BotAI_WeaponJumpActive(bs) || bs->aimh_weapon_jump_fired) {
+		BotAI_WeaponJumpUpdateDest(bs, goal);
+		if (!bs->aimh_weapon_jump_fired) {
+			BotAI_WeaponJumpSetAimAngles(bs);
+		}
+	}
+
+	if (bs->aimh_weapon_jump_fired) {
+		if (VectorLengthSquared(moveresult->movedir) > 0.01f) {
+			VectorCopy(moveresult->movedir, movedir);
+			movedir[2] = 0.0f;
+			if (VectorNormalize(movedir) > 0.1f) {
+				VectorCopy(movedir, bs->aimh_weapon_jump_air_dir);
+			}
+		}
+		BotAI_WeaponJumpAirMove(bs);
+	}
+
+	travel = moveresult->traveltype & TRAVELTYPE_MASK;
+	if (travel != TRAVEL_ROCKETJUMP && travel != TRAVEL_BFGJUMP) {
+		if (BotAI_WeaponJumpActive(bs)) {
+			if (bs->aimh_weapon_jump_fired &&
+					bs->cur_ps.groundEntityNum == ENTITYNUM_NONE) {
+				bs->aimh_weapon_jump_until = FloatTime() + 2.0f;
+			} else {
+				bs->aimh_weapon_jump_until = 0.0f;
+				bs->aimh_weapon_jump_fired = qfalse;
+				bs->aimh_weapon_jump_weapon = 0;
+			}
+		}
+		return;
+	}
+
+	if (moveresult->flags & MOVERESULT_MOVEMENTVIEWSET) {
+		bs->aimh_weapon_jump_until = FloatTime() + 5.0f;
+		BotAI_WeaponJumpUpdateSpot(bs, goal);
+		BotAI_WeaponJumpUpdateDest(bs, goal);
+		BotAI_WeaponJumpSetAimAngles(bs);
+		if (moveresult->flags & MOVERESULT_MOVEMENTWEAPON) {
+			bs->aimh_weapon_jump_weapon = moveresult->weapon;
+			bs->weaponnum = moveresult->weapon;
+			trap_EA_SelectWeapon(bs->client, bs->weaponnum);
+		}
+	} else if (!BotAI_WeaponJumpActive(bs)) {
+		return;
+	} else if (!bs->aimh_weapon_jump_fired) {
+		BotAI_WeaponJumpSetAimAngles(bs);
+	}
+
+	VectorCopy(bs->aimh_weapon_jump_angles, bs->ideal_viewangles);
+	VectorCopy(bs->aimh_weapon_jump_angles, bs->viewangles);
+	trap_EA_View(bs->client, bs->viewangles);
+	if (BotEnhanced_AimActive()) {
+		BotAimHarness_SyncMotorToView(bs);
+	}
+
+	if (!bs->aimh_weapon_jump_fired && BotAI_WeaponJumpReadyToFire(bs)) {
+		BotAI_WeaponJumpFire(bs);
+	}
+}
+
 /*
 ==================
 InFieldOfVision
@@ -3144,6 +3472,11 @@ int BotFindEnemy(bot_state_t *bs, int curenemy) {
 		bs->enemy = -1;
 		curenemy = -1;
 	}
+	if (BotEnhanced_IsActive() && curenemy >= 0 && curenemy < MAX_CLIENTS &&
+			!BotEnhanced_CanEngageClient(bs, curenemy)) {
+		bs->enemy = -1;
+		curenemy = -1;
+	}
 	if (curenemy >= 0) {
 		BotEntityInfo(curenemy, &curenemyinfo);
 		if (EntityCarriesFlag(&curenemyinfo)) return qfalse;
@@ -3201,8 +3534,14 @@ int BotFindEnemy(bot_state_t *bs, int curenemy) {
 		// this has nothing to do with lag compensation, but it's great for testing
 		if ( g_entities[i].flags & FL_NOTARGET ) continue;
 //unlagged - misc
-		//if not an easy fragger don't shoot at chatting players
-		if (easyfragger < 0.5 && EntityIsChatting(&entinfo)) continue;
+		/* Enhanced: never acquire or switch to a chatting player. */
+		if (BotEnhanced_IsActive()) {
+			if (!BotEnhanced_CanEngageClient(bs, i)) {
+				continue;
+			}
+		} else if (easyfragger < 0.5 && EntityIsChatting(&entinfo)) {
+			continue;
+		}
 		//
 		if (lastteleport_time > FloatTime() - 3) {
 			VectorSubtract(entinfo.origin, lastteleport_origin, dir);
@@ -3484,6 +3823,9 @@ void BotAimAtEnemy(bot_state_t *bs) {
 		return;
 	}
 	if (BotTargetPlayerIsDead(bs)) {
+		return;
+	}
+	if (BotEnhanced_IsActive() && !BotEnhanced_CanEngageClient(bs, bs->enemy)) {
 		return;
 	}
 	//get the enemy entity information
@@ -4677,6 +5019,11 @@ void BotAIBlocked(bot_state_t *bs, bot_moveresult_t *moveresult, int activate) {
 	// if the bot is not blocked by anything
 	if (!moveresult->blocked) {
 		bs->notblocked_time = FloatTime();
+		return;
+	}
+	// weapon jump uses fixed view/weapon; sidestep avoidance breaks alignment
+	if (moveresult->flags & (MOVERESULT_MOVEMENTVIEWSET | MOVERESULT_MOVEMENTVIEW |
+			MOVERESULT_MOVEMENTWEAPON | MOVERESULT_SWIMVIEW)) {
 		return;
 	}
 	// if stuck in a solid area

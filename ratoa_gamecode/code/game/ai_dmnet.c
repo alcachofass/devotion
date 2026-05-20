@@ -1711,7 +1711,7 @@ int AINode_Seek_ActivateEntity(bot_state_t *bs) {
 			bs->ideal_viewangles[2] *= 0.5;
 		}
 	}
-	else if (!(bs->flags & BFL_IDEALVIEWSET)) {
+	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs)) {
 		if (trap_BotMovementViewTarget(bs->ms, goal, bs->tfl, 300, target)) {
 			VectorSubtract(target, bs->origin, dir);
 			vectoangles(dir, bs->ideal_viewangles);
@@ -1722,8 +1722,10 @@ int AINode_Seek_ActivateEntity(bot_state_t *bs) {
 		bs->ideal_viewangles[2] *= 0.5;
 	}
 	// if the weapon is used for the bot movement
-	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON)
+	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
 		bs->weaponnum = moveresult.weapon;
+	}
+	BotAI_HandleWeaponJumpMove(bs, goal, &moveresult);
 	// if there is an enemy
 	if (BotFindEnemy(bs, -1)) {
 		if (BotWantsToRetreat(bs)) {
@@ -1846,7 +1848,7 @@ int AINode_Seek_NBG(bot_state_t *bs) {
 			bs->ideal_viewangles[2] *= 0.5;
 		}
 	}
-	else if (!(bs->flags & BFL_IDEALVIEWSET)) {
+	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs)) {
 		if (!trap_BotGetSecondGoal(bs->gs, &goal)) trap_BotGetTopGoal(bs->gs, &goal);
 		if (trap_BotMovementViewTarget(bs->ms, &goal, bs->tfl, 300, target)) {
 			VectorSubtract(target, bs->origin, dir);
@@ -1857,7 +1859,10 @@ int AINode_Seek_NBG(bot_state_t *bs) {
 		bs->ideal_viewangles[2] *= 0.5;
 	}
 	//if the weapon is used for the bot movement
-	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) bs->weaponnum = moveresult.weapon;
+	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
+		bs->weaponnum = moveresult.weapon;
+	}
+	BotAI_HandleWeaponJumpMove(bs, &goal, &moveresult);
 	//if there is an enemy
 	if (BotFindEnemy(bs, -1)) {
 		if (BotWantsToRetreat(bs)) {
@@ -1973,7 +1978,9 @@ int AINode_Seek_LTG(bot_state_t *bs)
 	if (bs->check_time < FloatTime()) {
 		bs->check_time = FloatTime() + 0.5;
 		//check if the bot wants to camp
-		BotWantsToCamp(bs);
+		if (BotEnhanced_AllowsCamping()) {
+			BotWantsToCamp(bs);
+		}
 		//
 		if (bs->ltgtype == LTG_DEFENDKEYAREA) range = 400;
 		else range = 150;
@@ -2044,7 +2051,7 @@ int AINode_Seek_LTG(bot_state_t *bs)
 			bs->ideal_viewangles[2] *= 0.5;
 		}
 	}
-	else if (!(bs->flags & BFL_IDEALVIEWSET)) {
+	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs)) {
 		if (trap_BotMovementViewTarget(bs->ms, &goal, bs->tfl, 300, target)) {
 			VectorSubtract(target, bs->origin, dir);
 			vectoangles(dir, bs->ideal_viewangles);
@@ -2062,7 +2069,10 @@ int AINode_Seek_LTG(bot_state_t *bs)
 		bs->ideal_viewangles[2] *= 0.5;
 	}
 	//if the weapon is used for the bot movement
-	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) bs->weaponnum = moveresult.weapon;
+	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
+		bs->weaponnum = moveresult.weapon;
+	}
+	BotAI_HandleWeaponJumpMove(bs, &goal, &moveresult);
 	//
 	return qtrue;
 }
@@ -2385,7 +2395,7 @@ int AINode_Battle_Chase(bot_state_t *bs)
 	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
 		VectorCopy(moveresult.ideal_viewangles, bs->ideal_viewangles);
 	}
-	else if (!(bs->flags & BFL_IDEALVIEWSET)) {
+	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs)) {
 		if (bs->chase_time > FloatTime() - 2) {
 			BotAimAtEnemy(bs);
 		}
@@ -2401,7 +2411,10 @@ int AINode_Battle_Chase(bot_state_t *bs)
 		bs->ideal_viewangles[2] *= 0.5;
 	}
 	//if the weapon is used for the bot movement
-	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) bs->weaponnum = moveresult.weapon;
+	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
+		bs->weaponnum = moveresult.weapon;
+	}
+	BotAI_HandleWeaponJumpMove(bs, &goal, &moveresult);
 	//if the bot is in the area the enemy was last seen in
 	if (bs->areanum == bs->lastenemyareanum) bs->chase_time = 0;
 	//if the bot wants to retreat (the bot could have been damage during the chase)
@@ -2581,11 +2594,11 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 	//choose the best weapon to fight with
 	BotChooseWeapon(bs);
 	//if the view is fixed for the movement
-	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
+	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
 		VectorCopy(moveresult.ideal_viewangles, bs->ideal_viewangles);
 	}
 	else if (!(moveresult.flags & MOVERESULT_MOVEMENTVIEWSET)
-				&& !(bs->flags & BFL_IDEALVIEWSET) ) {
+				&& !(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs) ) {
 		attack_skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_ATTACK_SKILL, 0, 1);
 		//if the bot is skilled anough
 		if (attack_skill > 0.3) {
@@ -2603,7 +2616,10 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 		}
 	}
 	//if the weapon is used for the bot movement
-	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) bs->weaponnum = moveresult.weapon;
+	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
+		bs->weaponnum = moveresult.weapon;
+	}
+	BotAI_HandleWeaponJumpMove(bs, &goal, &moveresult);
 	//attack the enemy if possible
 	BotCheckAttack(bs);
 	//
@@ -2725,11 +2741,11 @@ int AINode_Battle_NBG(bot_state_t *bs) {
 	//choose the best weapon to fight with
 	BotChooseWeapon(bs);
 	//if the view is fixed for the movement
-	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
+	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
 		VectorCopy(moveresult.ideal_viewangles, bs->ideal_viewangles);
 	}
 	else if (!(moveresult.flags & MOVERESULT_MOVEMENTVIEWSET)
-				&& !(bs->flags & BFL_IDEALVIEWSET)) {
+				&& !(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs)) {
 		attack_skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_ATTACK_SKILL, 0, 1);
 		//if the bot is skilled anough and the enemy is visible
 		if (attack_skill > 0.3) {
@@ -2748,7 +2764,10 @@ int AINode_Battle_NBG(bot_state_t *bs) {
 		}
 	}
 	//if the weapon is used for the bot movement
-	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) bs->weaponnum = moveresult.weapon;
+	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
+		bs->weaponnum = moveresult.weapon;
+	}
+	BotAI_HandleWeaponJumpMove(bs, &goal, &moveresult);
 	//attack the enemy if possible
 	BotCheckAttack(bs);
 	//
