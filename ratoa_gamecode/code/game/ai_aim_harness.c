@@ -27,7 +27,6 @@ qboolean BotIsDead(bot_state_t *bs);
 void BotAI_Trace(bsp_trace_t *bsptrace, vec3_t start, vec3_t mins, vec3_t maxs,
 	vec3_t end, int passent, int contentmask);
 
-extern vmCvar_t bot_challenge;
 extern vmCvar_t bot_thinktime;
 extern bot_state_t *botstates[MAX_CLIENTS];
 

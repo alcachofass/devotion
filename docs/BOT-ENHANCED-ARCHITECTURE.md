@@ -49,7 +49,7 @@ flowchart TB
 | Active when | Cvar | Notes |
 |-------------|------|--------|
 | Master | `bot_enhanced` | Default `0`. Sub-cvars ignored if off. |
-| Aim harness | `bot_enhanced` + `bot_enhanced_aim` + `!bot_challenge` | Facade: `BotEnhanced_AimActive()` |
+| Aim harness | `bot_enhanced` + `bot_enhanced_aim` | Facade: `BotEnhanced_AimActive()` (`bot_challenge` ignored) |
 | Smart weapons | `bot_enhanced` + `bot_enhanced_weapons` | Facade: `BotEnhanced_WeaponsActive()` |
 | Tactical AI | `bot_enhanced` + `bot_enhanced_tactics` | Facade: `BotEnhanced_TacticsActive()` |
 | Debug (cheat) | `bot_debugAim` | Independent of master; client `cg_debugBotAim` |

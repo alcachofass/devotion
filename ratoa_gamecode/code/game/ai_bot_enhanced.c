@@ -13,7 +13,6 @@ BOT ENHANCED — master cvar, feature gates, centralized register/reset.
 #include "../botlib/be_ai_move.h"
 #include "../botlib/be_ai_weap.h"
 #include "ai_main.h"
-#include "ai_dmq3.h"
 #include "ai_bot_enhanced.h"
 #include "ai_aim_harness.h"
 #include "ai_weapon_select.h"
@@ -120,14 +119,7 @@ int BotEnhanced_AimActive(void) {
 		return 0;
 	}
 	trap_Cvar_Update(&bot_enhanced_aim);
-	if (!bot_enhanced_aim.integer) {
-		return 0;
-	}
-	trap_Cvar_Update(&bot_challenge);
-	if (bot_challenge.integer) {
-		return 0;
-	}
-	return 1;
+	return bot_enhanced_aim.integer != 0;
 }
 
 int BotEnhanced_WeaponsActive(void) {

@@ -30,7 +30,7 @@ bot_enhanced (master, CVAR_ARCHIVE, default 0)
   ├─ bot_enhanced_aim      (was bot_humanizeaim)
   ├─ bot_enhanced_weapons  (was bot_smartWeaponChoice)
   └─ bot_enhanced_tactics  (was bot_tacticalAI)
-bot_debugAim, bot_challenge     — unchanged; challenge still disables enhanced aim
+bot_debugAim — unchanged; bot_challenge does not gate enhanced aim (legacy path only)
 Per think (combat path):
   BotEnhanced_OnThinkStart(bs)     — drain world events, reset/update intent scaffold
   … legacy AINode / BotDeathmatchAI …
@@ -57,7 +57,7 @@ bot_enhanced
 Master; 0 = all enhanced features off regardless of sub-cvars
 bot_enhanced_aim
 bot_humanizeaim
-bot_enhanced && bot_enhanced_aim && !bot_challenge
+bot_enhanced && bot_enhanced_aim
 bot_enhanced_weapons
 bot_smartWeaponChoice
 bot_enhanced && bot_enhanced_weapons
@@ -162,7 +162,7 @@ Add: ai_bot_enhanced.c/h.
 Tasks:
 
 Register bot_enhanced (default 0, CVAR_ARCHIVE).
-Implement BotEnhanced_IsActive, BotEnhanced_*Active() compositing master + feature cvars + bot_challenge for aim.
+Implement BotEnhanced_IsActive, BotEnhanced_*Active() compositing master + feature cvars (aim: no bot_challenge gate).
 BotEnhanced_RegisterCvars() — call existing BotAimHarness_RegisterCvars, etc., after registering master/feature names.
 BotEnhanced_ResetBot(bs) — call three existing resets.
 Replace registrations in feature modules: feature cvars renamed to bot_enhanced_*; remove duplicate Register from ai_main.c if centralized.
@@ -254,7 +254,7 @@ All enhanced on
 Same as old all three on
 7
 bot_challenge 1 + enhanced aim on
-Aim off (challenge wins)
+Harness on (challenge ignored on enhanced path)
 8
 bot_debugAim 1
 Debug unchanged

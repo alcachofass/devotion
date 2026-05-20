@@ -7,12 +7,12 @@ Console variables that control bot AI, navigation, chat, and fill rules. Set the
 | Name | Origin | Default | Valid values | Description |
 |------|--------|---------|--------------|-------------|
 | `bot_aasoptimize` | Vanilla | `0` | 0 or 1 | When `1`, allows the bot navigation library to optimize the map’s AAS data when it is built or loaded. |
-| `bot_challenge` | Vanilla | `0` | 0 or 1 | Harder bots: steadier aim when locked on and more precise view tracking. Disables `bot_enhanced_aim` while enabled. |
+| `bot_challenge` | Vanilla | `0` | 0 or 1 | Harder bots on **legacy** aim: steadier tracking and snap-to-target when locked on. No effect on `bot_enhanced_aim` (enhanced harness ignores this cvar). |
 | `bot_developer` | Vanilla | `0` | 0 or 1 | Extra bot-library debug output. Requires `sv_cheats 1`. |
 | `bot_debugAim` | Devotion | `0` | 0 or 1 | Publishes bot aim on `ps.grapplePoint`, `STAT_EXTFLAGS` (`EXTFL_BOT_AIM_DEBUG`), and `ent->s.origin2` for `cg_debugBotAim`. Works with or without enhanced aim. Requires `sv_cheats 1`. |
 | `bot_enable` | Vanilla | `0` | 0 or 1 | Master switch: bots only load and play when `1`. Usually set in `server.cfg` (provided by the engine, not the game module). |
 | `bot_enhanced` | Devotion | `0` | 0 or 1 | Master switch for Devotion bot AI upgrades (aim harness, smart weapons, tactics). When `0`, sub-cvars have no effect. Saved to config. |
-| `bot_enhanced_aim` | Devotion | `0` | 0 or 1 | Smoother, more human-like bot aiming when `1` and `bot_enhanced` is `1` (`0` = classic snap aim). No effect while `bot_challenge` is `1`. Saved to config. |
+| `bot_enhanced_aim` | Devotion | `0` | 0 or 1 | Smoother, more human-like bot aiming when `1` and `bot_enhanced` is `1` (`0` = classic snap aim). Independent of `bot_challenge`. Saved to config. |
 | `bot_enhanced_tactics` | Devotion | `0` | 0 or 1 | Extra combat decisions when `1` and `bot_enhanced` is `1`: gauntlet rush/flee, react to third-party damage, finish wounded targets, prefer nearer threats. Saved to config. |
 | `bot_enhanced_weapons` | Devotion | `0` | 0 or 1 | Smarter weapon picks by range and ammo when `1` and `bot_enhanced` is `1` (e.g. rail/MG at distance, rocket mid-range, shotgun up close). Saved to config. |
 | `bot_fastchat` | Vanilla | `0` | 0 or 1 | When `1`, bots are more likely to use chat lines (skips some random “stay quiet” rolls). |

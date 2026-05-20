@@ -3741,8 +3741,8 @@ void BotAimAtEnemy(bot_state_t *bs) {
 		BotAimHarness_SetCombatGoal(bs, bs->ideal_viewangles, aim_skill, aim_accuracy,
 			wi.vspread, wi.hspread);
 	}
-	//if the bots should be really challenging
-	if (bot_challenge.integer) {
+	/* Legacy challenge snap-aim; skipped when enhanced aim harness is active */
+	if (bot_challenge.integer && !BotEnhanced_AimActive()) {
 		//if the bot is really accurate and has the enemy in view for some time
 		if (aim_accuracy > 0.9 && bs->enemysight_time < FloatTime() - 1) {
 			//set the view angles directly
