@@ -128,6 +128,8 @@ typedef struct bot_activategoal_s
 	struct bot_activategoal_s *next;		//next activate goal on stack
 } bot_activategoal_t;
 
+#include "ai_bot_combat.h"
+
 //bot state
 typedef struct bot_state_s
 {
@@ -288,6 +290,28 @@ typedef struct bot_state_s
 	bot_waypoint_t *curpatrolpoint;					//current patrol point the bot is going for
 	int patrolflags;								//patrol flags
 
+	/* ---- BOT ENHANCED (foundation): ai_bot_combat.c, ai_bot_events.c ---- */
+	bot_combat_intent_t	combat;
+	int			evt_pending;
+	int			evt_attacker;
+	int			evt_damage;
+	int			evt_mod;
+	/* ---- end BOT ENHANCED ---- */
+
+	/* ---- BOT ITEMS: ai_bot_items.c — remove this block to revert ---- */
+	qboolean	item_commit_active;
+	int			item_commit_kind;		/* BOT_ITEM_* while committed */
+	float		item_commit_until;
+	float		item_next_scan_time;
+	bot_goal_t	item_commit_goal;
+	int			item_commit_snap_health;
+	int			item_commit_snap_armor;
+	int			item_commit_snap_quad;
+	int			item_commit_snap_redflag;
+	int			item_commit_snap_blueflag;
+	int			item_commit_snap_weapon;
+	/* ---- end BOT ITEMS ---- */
+
 	/* ---- BOT AIM HARNESS (v1): ai_aim_harness.c — remove this block to revert ---- */
 	vec3_t		aimh_goal;
 	float		aimh_vel[2];
@@ -300,10 +324,30 @@ typedef struct bot_state_s
 	float		aimh_acquire_until;
 	int			aimh_last_sanity_enemy;
 	int			aimh_sanity_miss_streak;
+	float		aimh_aim_skill;
+	float		aimh_aim_accuracy;
+	float		aimh_last_goal_pitch;
+	float		aimh_last_goal_yaw;
+	float		aimh_last_goal_time;
+	float		aimh_smooth_goal_pitch;
+	float		aimh_smooth_goal_yaw;
+	float		aimh_tracked_ideal_pitch;
+	float		aimh_tracked_ideal_yaw;
+	vec3_t		aimh_combat_target;
+	qboolean	aimh_hold_fire;		/* suppressive fire: +attack each input frame */
+	float		aimh_weapon_jump_until;	/* hold down-aim; bypass harness spring/PS resync */
+	vec3_t		aimh_weapon_jump_angles;
+	vec3_t		aimh_weapon_jump_spot;	/* reach start (MovementViewTarget) */
+	vec3_t		aimh_weapon_jump_dest;	/* LTG / reach end while airborne */
+	vec3_t		aimh_weapon_jump_air_dir;
+	int			aimh_weapon_jump_weapon;
+	qboolean	aimh_weapon_jump_fired;
 	/* ---- end BOT AIM HARNESS ---- */
 
 	/* ---- BOT SMART WEAPON SELECT (v1): ai_weapon_select.c — remove to revert ---- */
 	float		wps_next_eval_time;
+	float		wps_next_roam_eval_time;
+	float		wps_enhanced_latch_until;	/* no fight weapon re-eval until this time */
 	float		wps_last_switch_time;
 	int			wps_last_chosen_weapon;
 	int			wps_desired_weapon;

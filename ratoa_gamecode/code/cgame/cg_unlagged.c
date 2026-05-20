@@ -1572,6 +1572,390 @@ void CG_AddBoundingBox( centity_t *cent ) {
 	trap_R_AddPolyToScene( bboxShader_nocull, 4, verts );
 }
 
+#define CG_BOTAIMDBG_FOLLOW	1
+#define CG_BOTAIMDBG_ALL	2
+#define CG_BOTAIMDBG_VIEW	4
+
+#define CG_BOTAIMDBG_RAIL_TIME		1
+#define CG_BOTAIMDBG_BODY_HEIGHT	0.45f	/* fraction of viewheight for rail start (chest) */
+
+static qboolean CG_ClientIsBot( int clientNum ) {
+	const char *configstring;
+	const char *skill;
+
+	if (clientNum < 0 || clientNum >= MAX_CLIENTS) {
+		return qfalse;
+	}
+	if (cgs.clientinfo[clientNum].botSkill > 0) {
+		return qtrue;
+	}
+	/* Late-join bots: clientinfo can lag CS_PLAYERS by a frame. */
+	configstring = CG_ConfigString(clientNum + CS_PLAYERS);
+	if (!configstring[0]) {
+		return qfalse;
+	}
+	skill = Info_ValueForKey(configstring, "skill");
+	return (skill && skill[0]);
+}
+
+/*
+=================
+CG_BotAimDebugHasData
+
+Server aim debug is signaled via STAT_EXTFLAGS (reliable), with legacy
+eFlags / grapplePoint / origin2 fallbacks.
+=================
+*/
+static qboolean CG_BotAimDebugHasData( centity_t *cent, qboolean usePsAim ) {
+	if (usePsAim) {
+		if (cg.snap->ps.stats[STAT_EXTFLAGS] & EXTFL_BOT_AIM_DEBUG) {
+			return qtrue;
+		}
+		if (cg.snap->ps.eFlags & EF_BOT_AIM_DEBUG) {
+			return qtrue;
+		}
+		if (VectorLengthSquared(cg.snap->ps.grapplePoint) > 64.0f) {
+			return qtrue;
+		}
+		return qfalse;
+	}
+
+	if (cent->currentState.eFlags & EF_BOT_AIM_DEBUG) {
+		return qtrue;
+	}
+	if (VectorLengthSquared(cent->currentState.origin2) > 64.0f) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+/*
+=================
+CG_BotAimDebugRail
+
+Rail-core segment (same path as weapon rails — always visible).
+=================
+*/
+static void CG_BotAimDebugRail( const vec3_t start, const vec3_t end, int r, int g, int b ) {
+	localEntity_t	*le;
+	refEntity_t		*re;
+	vec3_t			delta;
+	float			len;
+
+	VectorSubtract(end, start, delta);
+	len = VectorLength(delta);
+	if (len < 8.0f) {
+		return;
+	}
+
+	le = CG_AllocLocalEntity();
+	re = &le->refEntity;
+
+	le->leType = LE_FADE_RGB;
+	le->startTime = cg.time;
+	le->endTime = cg.time + CG_BOTAIMDBG_RAIL_TIME;
+	le->lifeRate = 1.0f / (float)CG_BOTAIMDBG_RAIL_TIME;
+
+	re->reType = RT_RAIL_CORE;
+	re->customShader = cgs.media.railCoreShader;
+	re->shaderTime = cg.time / 1000.0f;
+	VectorCopy(start, re->origin);
+	VectorCopy(end, re->oldorigin);
+	re->shaderRGBA[0] = r;
+	re->shaderRGBA[1] = g;
+	re->shaderRGBA[2] = b;
+	re->shaderRGBA[3] = 255;
+	le->color[0] = r / 255.0f;
+	le->color[1] = g / 255.0f;
+	le->color[2] = b / 255.0f;
+	le->color[3] = 1.0f;
+	AxisClear(re->axis);
+}
+
+/*
+=================
+CG_BotAimDebugSprite
+
+Small oriented sprite at a trace impact (first-person friendly).
+=================
+*/
+static void CG_BotAimDebugSprite( const vec3_t origin, int r, int g, int b ) {
+	localEntity_t	*le;
+	refEntity_t		*re;
+
+	le = CG_AllocLocalEntity();
+	re = &le->refEntity;
+
+	le->leType = LE_FADE_RGB;
+	le->startTime = cg.time;
+	le->endTime = cg.time + CG_BOTAIMDBG_RAIL_TIME;
+	le->lifeRate = 1.0f / (float)CG_BOTAIMDBG_RAIL_TIME;
+
+	re->reType = RT_SPRITE;
+	re->customShader = cgs.media.energyMarkShader;
+	if (!re->customShader) {
+		re->customShader = cgs.media.bulletMarkShader;
+	}
+	re->shaderTime = cg.time / 1000.0f;
+	re->radius = 14;
+	VectorCopy(origin, re->origin);
+	re->shaderRGBA[0] = r;
+	re->shaderRGBA[1] = g;
+	re->shaderRGBA[2] = b;
+	re->shaderRGBA[3] = 255;
+	le->color[0] = r / 255.0f;
+	le->color[1] = g / 255.0f;
+	le->color[2] = b / 255.0f;
+	le->color[3] = 1.0f;
+	AxisClear(re->axis);
+}
+
+/*
+=================
+CG_BotAimDebugMark
+
+Decal on the first surface a debug trace hits (skipped when cg_addMarks is 0).
+=================
+*/
+static void CG_BotAimDebugMark( const vec3_t origin, const vec3_t normal,
+		int r, int g, int b ) {
+	qhandle_t mark;
+
+	if (!cg_addMarks.integer) {
+		return;
+	}
+
+	mark = cgs.media.bulletMarkShader;
+	if (!mark) {
+		mark = cgs.media.energyMarkShader;
+	}
+	if (!mark) {
+		return;
+	}
+
+	CG_ImpactMark( mark, origin, normal, random() * 360.0f,
+		r / 255.0f, g / 255.0f, b / 255.0f, 1.0f, qfalse, 14, qtrue );
+}
+
+/*
+=================
+CG_BotAimDebugDrawLine
+
+Always draw the full aim/view segment, then optionally mark the first
+world hit along that line (trace starts slightly forward to avoid self-hits).
+=================
+*/
+static void CG_BotAimDebugDrawLine( const vec3_t start, const vec3_t endPos,
+		int skipClientNum, int r, int g, int b, int a ) {
+	trace_t	tr;
+	vec3_t	dir, traceStart, traceEnd;
+	float	dist;
+
+	VectorSubtract( endPos, start, dir );
+	dist = VectorLength( dir );
+	if (dist < 8.0f) {
+		return;
+	}
+
+	CG_BotAimDebugRail( start, endPos, r, g, b );
+
+	VectorNormalize( dir );
+	VectorMA( start, dist, dir, traceEnd );
+	VectorMA( start, 12.0f, dir, traceStart );
+
+	if (dist <= 24.0f) {
+		return;
+	}
+
+	CG_Trace( &tr, traceStart, NULL, NULL, traceEnd, skipClientNum, MASK_SHOT );
+	if (tr.fraction < 1.0f) {
+		CG_BotAimDebugSprite( tr.endpos, r, g, b );
+		CG_BotAimDebugMark( tr.endpos, tr.plane.normal, r, g, b );
+	}
+}
+
+/*
+ * Player vertical offset from lerpOrigin. heightScale 1 = eye, ~0.45 = chest.
+ */
+static void CG_BotAimDebugEye( centity_t *cent, vec3_t out, float heightScale );
+
+/*
+=================
+CG_DrawBotAimFollowFirstPerson
+
+Follow spectator: rails from bot chest toward harness aim / view axes.
+=================
+*/
+void CG_DrawBotAimFollowFirstPerson( void ) {
+	int			mode;
+	centity_t	*cent;
+	vec3_t		bodyStart, aimPoint, viewEnd, forward;
+	qboolean	drawAim;
+	qboolean	drawView;
+
+	if (!cg_debugBotAim.integer || !cg.snap) {
+		return;
+	}
+	if (!(cg.snap->ps.pm_flags & PMF_FOLLOW) && !cg.demoPlayback) {
+		return;
+	}
+	if (!CG_ClientIsBot(cg.snap->ps.clientNum)) {
+		return;
+	}
+	if (!CG_BotAimDebugHasData(NULL, qtrue)) {
+		return;
+	}
+
+	mode = cg_debugBotAim.integer;
+	drawAim = qfalse;
+	drawView = qfalse;
+	if (mode & CG_BOTAIMDBG_VIEW) {
+		drawView = qtrue;
+	}
+	if ((mode & CG_BOTAIMDBG_ALL) ||
+			(mode & CG_BOTAIMDBG_FOLLOW)) {
+		drawAim = qtrue;
+	}
+	if (!drawAim && !drawView) {
+		return;
+	}
+
+	cent = &cg_entities[cg.snap->ps.clientNum];
+	CG_BotAimDebugEye( cent, bodyStart, CG_BOTAIMDBG_BODY_HEIGHT );
+
+	VectorCopy( cg.snap->ps.grapplePoint, aimPoint );
+	if (VectorLengthSquared( aimPoint ) < 64.0f ) {
+		AngleVectors( cent->lerpAngles, forward, NULL, NULL );
+		VectorMA( bodyStart, 2048.0f, forward, aimPoint );
+	}
+
+	if (drawAim) {
+		CG_BotAimDebugDrawLine( bodyStart, aimPoint,
+			cg.snap->ps.clientNum, 80, 255, 120, 220 );
+	}
+
+	if (drawView) {
+		AngleVectors( cg.refdefViewAngles, forward, NULL, NULL );
+		VectorMA( bodyStart, 4096.0f, forward, viewEnd );
+		CG_BotAimDebugDrawLine( bodyStart, viewEnd,
+			cg.snap->ps.clientNum, 255, 220, 80, 180 );
+	}
+}
+
+/*
+=================
+CG_AddBotAimDebug
+
+Draw harness aim (eye -> aim point) when server sets EF_BOT_AIM_DEBUG.
+Followed player: aim point is in snap->ps.grapplePoint; others use origin2.
+cg_debugBotAim: 1 = followed bot, 2 = all bots, 4 = also draw viewangles ray.
+=================
+*/
+/*
+ * Player vertical offset from lerpOrigin. heightScale 1 = eye, ~0.45 = chest.
+ */
+static void CG_BotAimDebugEye( centity_t *cent, vec3_t out, float heightScale ) {
+	int viewHeight;
+	int x, zd, zu;
+
+	viewHeight = 32;
+	if (cent->currentState.number == cg.predictedPlayerState.clientNum) {
+		viewHeight = cg.predictedPlayerState.viewheight;
+	} else {
+		x = (cent->currentState.solid & 255);
+		zd = ((cent->currentState.solid >> 8) & 255);
+		zu = ((cent->currentState.solid >> 16) & 255) - 32;
+		if (zu > 8) {
+			viewHeight = zu;
+		}
+		(void)zd;
+		(void)x;
+	}
+
+	VectorCopy(cent->lerpOrigin, out);
+	out[2] += (int)(viewHeight * heightScale);
+}
+
+static void CG_BotAimDebugResolveAimPoint( centity_t *cent, qboolean usePsAim,
+		vec3_t aimPoint ) {
+	vec3_t forward;
+
+	if (usePsAim) {
+		VectorCopy(cg.snap->ps.grapplePoint, aimPoint);
+	} else {
+		VectorCopy(cent->currentState.origin2, aimPoint);
+	}
+
+	if (VectorLengthSquared(aimPoint) > 64.0f) {
+		return;
+	}
+
+	AngleVectors(cent->lerpAngles, forward, NULL, NULL);
+	VectorMA(cent->lerpOrigin, 2048.0f, forward, aimPoint);
+}
+
+void CG_AddBotAimDebug( centity_t *cent ) {
+	int mode;
+	vec3_t eye, viewEnd, forward, aimPoint;
+	qboolean usePsAim;
+
+	if (!cg_debugBotAim.integer) {
+		return;
+	}
+	if (!cg.snap) {
+		return;
+	}
+	if (cent->currentState.eType != ET_PLAYER) {
+		return;
+	}
+	if (cent->currentState.eFlags & EF_DEAD) {
+		return;
+	}
+
+	mode = cg_debugBotAim.integer;
+
+	if (!CG_ClientIsBot(cent->currentState.clientNum)) {
+		return;
+	}
+
+	usePsAim = qfalse;
+	if (cent->currentState.clientNum == cg.snap->ps.clientNum) {
+		usePsAim = qtrue;
+	}
+
+	if (!CG_BotAimDebugHasData(cent, usePsAim)) {
+		return;
+	}
+
+	if (!(mode & CG_BOTAIMDBG_ALL)) {
+		if (!(cg.snap->ps.pm_flags & PMF_FOLLOW) && !cg.demoPlayback) {
+			return;
+		}
+		if (cent->currentState.clientNum != cg.snap->ps.clientNum) {
+			return;
+		}
+	}
+
+	/* Follow spectator view draws from cg.refdef in CG_DrawBotAimFollowFirstPerson. */
+	if (cent->currentState.clientNum == cg.snap->ps.clientNum &&
+			(cg.snap->ps.pm_flags & PMF_FOLLOW || cg.demoPlayback)) {
+		return;
+	}
+
+	CG_BotAimDebugEye( cent, eye, 1.0f );
+	CG_BotAimDebugResolveAimPoint(cent, usePsAim, aimPoint);
+
+	CG_BotAimDebugDrawLine( eye, aimPoint, cent->currentState.number,
+		80, 255, 120, 220 );
+
+	if (mode & CG_BOTAIMDBG_VIEW) {
+		AngleVectors(cent->lerpAngles, forward, NULL, NULL);
+		VectorMA(eye, 4096.0f, forward, viewEnd);
+		CG_BotAimDebugDrawLine( eye, viewEnd, cent->currentState.number,
+			255, 220, 80, 180 );
+	}
+}
+
 /*
 ================
 CG_Cvar_ClampInt

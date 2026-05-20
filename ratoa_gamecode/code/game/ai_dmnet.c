@@ -42,6 +42,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../botlib/be_ai_weap.h"
 //
 #include "ai_main.h"
+#include "ai_bot_enhanced.h"
+#include "ai_bot_combat.h"
+#include "ai_bot_items.h"
 #include "ai_bot_tactics.h"
 #include "ai_dmq3.h"
 #include "ai_chat.h"
@@ -231,6 +234,14 @@ BotReachedGoal
 */
 int BotReachedGoal(bot_state_t *bs, bot_goal_t *goal) {
 	if (goal->flags & GFL_ITEM) {
+		{
+			int itemReached;
+
+			itemReached = BotItems_HandleReachedGoal(bs, goal);
+			if (itemReached >= 0) {
+				return itemReached;
+			}
+		}
 		//if touching the goal
 		if (trap_BotTouchingGoal(bs->origin, goal)) {
 			if (!(goal->flags & GFL_DROPPED)) {
@@ -1700,7 +1711,7 @@ int AINode_Seek_ActivateEntity(bot_state_t *bs) {
 			bs->ideal_viewangles[2] *= 0.5;
 		}
 	}
-	else if (!(bs->flags & BFL_IDEALVIEWSET)) {
+	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs)) {
 		if (trap_BotMovementViewTarget(bs->ms, goal, bs->tfl, 300, target)) {
 			VectorSubtract(target, bs->origin, dir);
 			vectoangles(dir, bs->ideal_viewangles);
@@ -1711,8 +1722,10 @@ int AINode_Seek_ActivateEntity(bot_state_t *bs) {
 		bs->ideal_viewangles[2] *= 0.5;
 	}
 	// if the weapon is used for the bot movement
-	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON)
+	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
 		bs->weaponnum = moveresult.weapon;
+	}
+	BotAI_HandleWeaponJumpMove(bs, goal, &moveresult);
 	// if there is an enemy
 	if (BotFindEnemy(bs, -1)) {
 		if (BotWantsToRetreat(bs)) {
@@ -1835,7 +1848,7 @@ int AINode_Seek_NBG(bot_state_t *bs) {
 			bs->ideal_viewangles[2] *= 0.5;
 		}
 	}
-	else if (!(bs->flags & BFL_IDEALVIEWSET)) {
+	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs)) {
 		if (!trap_BotGetSecondGoal(bs->gs, &goal)) trap_BotGetTopGoal(bs->gs, &goal);
 		if (trap_BotMovementViewTarget(bs->ms, &goal, bs->tfl, 300, target)) {
 			VectorSubtract(target, bs->origin, dir);
@@ -1846,14 +1859,17 @@ int AINode_Seek_NBG(bot_state_t *bs) {
 		bs->ideal_viewangles[2] *= 0.5;
 	}
 	//if the weapon is used for the bot movement
-	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) bs->weaponnum = moveresult.weapon;
+	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
+		bs->weaponnum = moveresult.weapon;
+	}
+	BotAI_HandleWeaponJumpMove(bs, &goal, &moveresult);
 	//if there is an enemy
 	if (BotFindEnemy(bs, -1)) {
 		if (BotWantsToRetreat(bs)) {
 			//keep the current long term goal and retreat
 			AIEnter_Battle_NBG(bs, "seek nbg: found enemy");
 		}
-		else {
+		else if (!BotItems_ShouldPreserveGoalStack(bs)) {
 			trap_BotResetLastAvoidReach(bs->ms);
 			//empty the goal stack
 			trap_BotEmptyGoalStack(bs->gs);
@@ -1962,7 +1978,9 @@ int AINode_Seek_LTG(bot_state_t *bs)
 	if (bs->check_time < FloatTime()) {
 		bs->check_time = FloatTime() + 0.5;
 		//check if the bot wants to camp
-		BotWantsToCamp(bs);
+		if (BotEnhanced_AllowsCamping()) {
+			BotWantsToCamp(bs);
+		}
 		//
 		if (bs->ltgtype == LTG_DEFENDKEYAREA) range = 400;
 		else range = 150;
@@ -1985,6 +2003,11 @@ int AINode_Seek_LTG(bot_state_t *bs)
 		}
 		*/
 		//
+		if (BotItems_ShouldRunPickupNode(bs)) {
+			bs->nbg_time = BotItems_CommitNbgTime(bs);
+			AIEnter_Seek_NBG(bs, "items: committed pickup");
+			return qfalse;
+		}
 		if (BotNearbyGoal(bs, bs->tfl, &goal, range)) {
 			trap_BotResetLastAvoidReach(bs->ms);
 			//get the goal at the top of the stack
@@ -2028,7 +2051,7 @@ int AINode_Seek_LTG(bot_state_t *bs)
 			bs->ideal_viewangles[2] *= 0.5;
 		}
 	}
-	else if (!(bs->flags & BFL_IDEALVIEWSET)) {
+	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs)) {
 		if (trap_BotMovementViewTarget(bs->ms, &goal, bs->tfl, 300, target)) {
 			VectorSubtract(target, bs->origin, dir);
 			vectoangles(dir, bs->ideal_viewangles);
@@ -2046,7 +2069,10 @@ int AINode_Seek_LTG(bot_state_t *bs)
 		bs->ideal_viewangles[2] *= 0.5;
 	}
 	//if the weapon is used for the bot movement
-	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) bs->weaponnum = moveresult.weapon;
+	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
+		bs->weaponnum = moveresult.weapon;
+	}
+	BotAI_HandleWeaponJumpMove(bs, &goal, &moveresult);
 	//
 	return qtrue;
 }
@@ -2162,6 +2188,11 @@ int AINode_Battle_Fight(bot_state_t *bs) {
 	}
 	//update the attack inventory values
 	BotUpdateBattleInventory(bs, bs->enemy);
+	if (BotItems_ShouldRunPickupNode(bs)) {
+		bs->nbg_time = BotItems_CommitNbgTime(bs);
+		AIEnter_Battle_NBG(bs, "items: committed pickup");
+		return qfalse;
+	}
 	BotTactics_PreferCloserEnemy(bs);
 	if (BotTactics_BattleFightTryFlee(bs)) {
 		return qfalse;
@@ -2212,6 +2243,9 @@ int AINode_Battle_Fight(bot_state_t *bs) {
 	}
 	//choose the best weapon to fight with
 	BotChooseWeapon(bs);
+	if (BotEnhanced_IsActive()) {
+		BotCombat_UpdateIntent(bs);
+	}
 	//do attack movements
 	moveresult = BotAttackMove(bs, bs->tfl);
 	//if the movement failed
@@ -2229,7 +2263,7 @@ int AINode_Battle_Fight(bot_state_t *bs) {
 	BotCheckAttack(bs);
 	//if the bot wants to retreat
 	if (!(bs->flags & BFL_FIGHTSUICIDAL)) {
-		if (!BotTactics_BattleFightSuppressRetreat(bs) && BotWantsToRetreat(bs)) {
+		if (!BotEnhanced_ShouldSuppressFightRetreat(bs) && BotWantsToRetreat(bs)) {
 			AIEnter_Battle_Retreat(bs, "battle fight: wants to retreat");
 			return qtrue;
 		}
@@ -2328,6 +2362,11 @@ int AINode_Battle_Chase(bot_state_t *bs)
 		bs->check_time = FloatTime() + 1;
 		range = 150;
 		//
+		if (BotItems_ShouldRunPickupNode(bs)) {
+			bs->nbg_time = BotItems_CommitNbgTime(bs);
+			AIEnter_Battle_NBG(bs, "items: committed pickup");
+			return qfalse;
+		}
 		if (BotNearbyGoal(bs, bs->tfl, &goal, range)) {
 			//the bot gets 5 seconds to pick up the nearby goal item
 			bs->nbg_time = FloatTime() + 0.1 * range + 1;
@@ -2356,7 +2395,7 @@ int AINode_Battle_Chase(bot_state_t *bs)
 	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
 		VectorCopy(moveresult.ideal_viewangles, bs->ideal_viewangles);
 	}
-	else if (!(bs->flags & BFL_IDEALVIEWSET)) {
+	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs)) {
 		if (bs->chase_time > FloatTime() - 2) {
 			BotAimAtEnemy(bs);
 		}
@@ -2372,7 +2411,10 @@ int AINode_Battle_Chase(bot_state_t *bs)
 		bs->ideal_viewangles[2] *= 0.5;
 	}
 	//if the weapon is used for the bot movement
-	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) bs->weaponnum = moveresult.weapon;
+	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
+		bs->weaponnum = moveresult.weapon;
+	}
+	BotAI_HandleWeaponJumpMove(bs, &goal, &moveresult);
 	//if the bot is in the area the enemy was last seen in
 	if (bs->areanum == bs->lastenemyareanum) bs->chase_time = 0;
 	//if the bot wants to retreat (the bot could have been damage during the chase)
@@ -2447,6 +2489,11 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 	//update the attack inventory values
 	BotUpdateBattleInventory(bs, bs->enemy);
 	BotTactics_RetreatAfterInventory(bs);
+	if (BotCombat_ShouldEngageFromRetreat(bs)) {
+		bs->flags &= ~BFL_TACTICS_SURVIVAL_FLEE;
+		AIEnter_Battle_Fight(bs, "enhanced: close gauntlet charge");
+		return qfalse;
+	}
 	//if the bot doesn't want to retreat anymore... probably picked up some nice items
 	if (BotWantsToChase(bs)) {
 		//empty the goal stack, when chasing, only the enemy is the goal
@@ -2518,6 +2565,11 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 		}
 		*/
 		//
+		if (BotItems_ShouldRunPickupNode(bs)) {
+			bs->nbg_time = BotItems_CommitNbgTime(bs);
+			AIEnter_Battle_NBG(bs, "items: committed pickup");
+			return qfalse;
+		}
 		if (BotNearbyGoal(bs, bs->tfl, &goal, range)) {
 			trap_BotResetLastAvoidReach(bs->ms);
 			//time the bot gets to pick up the nearby goal item
@@ -2542,11 +2594,11 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 	//choose the best weapon to fight with
 	BotChooseWeapon(bs);
 	//if the view is fixed for the movement
-	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
+	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
 		VectorCopy(moveresult.ideal_viewangles, bs->ideal_viewangles);
 	}
 	else if (!(moveresult.flags & MOVERESULT_MOVEMENTVIEWSET)
-				&& !(bs->flags & BFL_IDEALVIEWSET) ) {
+				&& !(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs) ) {
 		attack_skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_ATTACK_SKILL, 0, 1);
 		//if the bot is skilled anough
 		if (attack_skill > 0.3) {
@@ -2564,7 +2616,10 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 		}
 	}
 	//if the weapon is used for the bot movement
-	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) bs->weaponnum = moveresult.weapon;
+	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
+		bs->weaponnum = moveresult.weapon;
+	}
+	BotAI_HandleWeaponJumpMove(bs, &goal, &moveresult);
 	//attack the enemy if possible
 	BotCheckAttack(bs);
 	//
@@ -2686,11 +2741,11 @@ int AINode_Battle_NBG(bot_state_t *bs) {
 	//choose the best weapon to fight with
 	BotChooseWeapon(bs);
 	//if the view is fixed for the movement
-	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
+	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
 		VectorCopy(moveresult.ideal_viewangles, bs->ideal_viewangles);
 	}
 	else if (!(moveresult.flags & MOVERESULT_MOVEMENTVIEWSET)
-				&& !(bs->flags & BFL_IDEALVIEWSET)) {
+				&& !(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs)) {
 		attack_skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_ATTACK_SKILL, 0, 1);
 		//if the bot is skilled anough and the enemy is visible
 		if (attack_skill > 0.3) {
@@ -2709,7 +2764,10 @@ int AINode_Battle_NBG(bot_state_t *bs) {
 		}
 	}
 	//if the weapon is used for the bot movement
-	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) bs->weaponnum = moveresult.weapon;
+	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
+		bs->weaponnum = moveresult.weapon;
+	}
+	BotAI_HandleWeaponJumpMove(bs, &goal, &moveresult);
 	//attack the enemy if possible
 	BotCheckAttack(bs);
 	//

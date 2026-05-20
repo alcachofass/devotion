@@ -49,6 +49,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "ai_cmd.h"
 #include "ai_dmnet.h"
 #include "ai_vcmd.h"
+#include "ai_bot_enhanced.h"
 #include "ai_aim_harness.h"
 #include "ai_weapon_select.h"
 #include "ai_bot_tactics.h"
@@ -535,7 +536,7 @@ void BotSetInfoConfigString(bot_state_t *bs) {
 		}
 		case LTG_POINTA:
 		{
-			Com_sprintf(action, sizeof(action), "going for point A");
+			Com_sprintf(action, sizeof(action), " point A");
 			break;
 		}
 		case LTG_POINTB:
@@ -943,18 +944,50 @@ BotUpdateInput
 void BotUpdateInput(bot_state_t *bs, int time, int elapsed_time) {
 	bot_input_t bi;
 	int j;
+	float thinktime;
+
+	thinktime = (float)elapsed_time / 1000.0f;
+
+	/* ENHANCED: aim — input-frame motor path */
+	if (BotEnhanced_AimActive()) {
+		if (!BotAI_GetClientState(bs->client, &bs->cur_ps)) {
+			return;
+		}
+		for (j = 0; j < 3; j++) {
+			bs->viewangles[j] = AngleMod(bs->viewangles[j] +
+				SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
+		}
+		BotAimHarness_BeginMotorFrame(bs);
+		BotChangeViewAngles(bs, thinktime);
+		if (BotAI_WeaponJumpActive(bs)) {
+			BotAI_WeaponJumpInput(bs);
+		}
+		BotAimHarness_ApplyCombatFire(bs);
+		trap_EA_GetInput(bs->client, (float)time / 1000, &bi);
+		if (bi.actionflags & ACTION_RESPAWN) {
+			if (bs->lastucmd.buttons & BUTTON_ATTACK) {
+				bi.actionflags &= ~(ACTION_RESPAWN | ACTION_ATTACK);
+			}
+		}
+		if (BotAI_WeaponJumpActive(bs) && !bs->aimh_weapon_jump_fired) {
+			if (!BotAI_WeaponJumpReadyToFire(bs)) {
+				bi.actionflags &= ~(ACTION_ATTACK | ACTION_JUMP);
+			}
+		}
+		BotInputToUserCommand(&bi, &bs->lastucmd, bs->cur_ps.delta_angles, time);
+		for (j = 0; j < 3; j++) {
+			bs->viewangles[j] = AngleMod(bs->viewangles[j] -
+				SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
+		}
+		return;
+	}
 
 	//add the delta angles to the bot's current view angles
 	for (j = 0; j < 3; j++) {
-		if (j == PITCH && BotAimHarness_IsActive()) {
-			bs->viewangles[PITCH] = BotAimHarness_ClampPitchAngle(bs->viewangles[PITCH] +
-				SHORT2ANGLE(bs->cur_ps.delta_angles[PITCH]));
-		} else {
-			bs->viewangles[j] = AngleMod(bs->viewangles[j] + SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
-		}
+		bs->viewangles[j] = AngleMod(bs->viewangles[j] + SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
 	}
 	//change the bot view angles
-	BotChangeViewAngles(bs, (float) elapsed_time / 1000);
+	BotChangeViewAngles(bs, thinktime);
 	//retrieve the bot input
 	trap_EA_GetInput(bs->client, (float) time / 1000, &bi);
 	//respawn hack
@@ -965,12 +998,7 @@ void BotUpdateInput(bot_state_t *bs, int time, int elapsed_time) {
 	BotInputToUserCommand(&bi, &bs->lastucmd, bs->cur_ps.delta_angles, time);
 	//subtract the delta angles
 	for (j = 0; j < 3; j++) {
-		if (j == PITCH && BotAimHarness_IsActive()) {
-			bs->viewangles[PITCH] = BotAimHarness_ClampPitchAngle(bs->viewangles[PITCH] -
-				SHORT2ANGLE(bs->cur_ps.delta_angles[PITCH]));
-		} else {
-			bs->viewangles[j] = AngleMod(bs->viewangles[j] - SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
-		}
+		bs->viewangles[j] = AngleMod(bs->viewangles[j] - SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
 	}
 }
 
@@ -1076,13 +1104,11 @@ int BotAI(int client, float thinktime) {
 		else if (!Q_stricmp(buf, "clientLevelShot"))
 			{ /*ignore*/ }
 	}
-	//add the delta angles to the bot's current view angles
-	for (j = 0; j < 3; j++) {
-		if (j == PITCH && BotAimHarness_IsActive()) {
-			bs->viewangles[PITCH] = BotAimHarness_ClampPitchAngle(bs->viewangles[PITCH] +
+	/* ENHANCED: aim — legacy delta-angle rebase when harness off */
+	if (!BotEnhanced_AimActive()) {
+		for (j = 0; j < 3; j++) {
+			bs->viewangles[j] = AngleMod(bs->viewangles[j] +
 				SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
-		} else {
-			bs->viewangles[j] = AngleMod(bs->viewangles[j] + SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
 		}
 	}
 	//increase the local time of the bot
@@ -1100,13 +1126,10 @@ int BotAI(int client, float thinktime) {
 	BotDeathmatchAI(bs, thinktime);
 	//set the weapon selection every AI frame
 	trap_EA_SelectWeapon(bs->client, bs->weaponnum);
-	//subtract the delta angles
-	for (j = 0; j < 3; j++) {
-		if (j == PITCH && BotAimHarness_IsActive()) {
-			bs->viewangles[PITCH] = BotAimHarness_ClampPitchAngle(bs->viewangles[PITCH] -
+	if (!BotEnhanced_AimActive()) {
+		for (j = 0; j < 3; j++) {
+			bs->viewangles[j] = AngleMod(bs->viewangles[j] -
 				SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
-		} else {
-			bs->viewangles[j] = AngleMod(bs->viewangles[j] - SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
 		}
 	}
 	//everything was ok
@@ -1308,9 +1331,8 @@ int BotAISetupClient(int client, struct bot_settings_s *settings, qboolean resta
 	if (restart) {
 		BotReadSessionData(bs);
 	}
-	BotAimHarness_Reset(bs);
-	BotWpnSelect_Reset(bs);
-	BotTactics_Reset(bs);
+	BotEnhanced_ResetBot(bs);
+	BotAimHarness_SyncClientDebug(client);
 	//bot has been setup succesfully
 	return qtrue;
 }
@@ -1413,9 +1435,7 @@ void BotResetState(bot_state_t *bs) {
 	if (bs->ws) trap_BotResetWeaponState(bs->ws);
 	if (bs->gs) trap_BotResetAvoidGoals(bs->gs);
 	if (bs->ms) trap_BotResetAvoidReach(bs->ms);
-	BotAimHarness_Reset(bs);
-	BotWpnSelect_Reset(bs);
-	BotTactics_Reset(bs);
+	BotEnhanced_ResetBot(bs);
 }
 
 /*
@@ -1496,6 +1516,7 @@ int BotAIStartFrame(int time) {
 			botstates[i]->lastucmd.buttons = 0;
 			botstates[i]->lastucmd.serverTime = time;
 			trap_BotUserCommand(botstates[i]->client, &botstates[i]->lastucmd);
+			BotAimHarness_PostInputSync(botstates[i]);
 		}
 		return qtrue;
 	}
@@ -1639,6 +1660,7 @@ int BotAIStartFrame(int time) {
 
 		BotUpdateInput(botstates[i], time, elapsed_time);
 		trap_BotUserCommand(botstates[i]->client, &botstates[i]->lastucmd);
+		BotAimHarness_PostInputSync(botstates[i]);
 	}
 
 	return qtrue;
@@ -1738,9 +1760,7 @@ int BotAISetup( int restart ) {
 	trap_Cvar_Register(&bot_interbreedbots, "bot_interbreedbots", "10", 0);
 	trap_Cvar_Register(&bot_interbreedcycle, "bot_interbreedcycle", "20", 0);
 	trap_Cvar_Register(&bot_interbreedwrite, "bot_interbreedwrite", "", 0);
-	BotAimHarness_RegisterCvars();
-	BotWpnSelect_RegisterCvars();
-	BotTactics_RegisterCvars();
+	BotEnhanced_RegisterCvars();
 
 	//if the game is restarted for a tournament
 	if (restart) {

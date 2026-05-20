@@ -1,6 +1,14 @@
+# Building Devotion on Windows (with WSL)
+
+1. Install Windows Subsystem for Linux
+2. Launch the command line or powershell
+3. Type 'wsl' to launch the WSL default shell
+4. Within the shell, navigate to the repo directory
+5. 'make'
+
 # Building Devotion on Windows (without WSL)
 
-This repo is built with GNU Make and Unix tooling. On Windows you do **not** need the Windows Subsystem for Linux (WSL). Use [**MSYS2**](https://www.msys2.org/) instead—a minimal POSIX environment alongside MinGW-w64—not a Linux distro.
+This repo is built with GNU Make and Unix tooling. On Windows you could use the Windows Subsystem for Linux (WSL) to build it but alternatively you can use [**MSYS2**](https://www.msys2.org/). It's a minimal POSIX, not a full-blown distro, and has the advantage that you don't need windows hypervisor features installed to run it, unlike WSL.
 
 ## 1. Install MSYS2
 
@@ -44,6 +52,21 @@ Artifacts:
 
 - Staged pak contents: `build/pk3/`
 - Packaged PK3: `build/devotion-<version>.pk3` (basename from the root Makefile)
+
+## 4. Build and local test install
+
+From the repo root in **PowerShell** (with MSYS2 on `PATH`, or `msys2_shell.cmd` available):
+
+```powershell
+.\build_windows.ps1              # build only
+.\build_windows.ps1 -Deploy      # build, then copy PK3 to test\devotion\
+.\build_windows.ps1 -NoBuild -Deploy   # deploy only (PK3 already built)
+.\build_windows.ps1 -Quiet       # suppress per-file compile lines and config banner (warnings/errors still print)
+```
+
+From MSYS2 MINGW64 you can pass the same flag to GNU Make: `make QUIET=1` (also applies to `make clean QUIET=1`). This uses the ioquake3-style `QUIET=1` variable in [`ratoa_gamecode/Makefile`](ratoa_gamecode/Makefile); do not confuse it with `V=1`, which prints full compiler command lines.
+
+The `test/` tree is gitignored so you'll have to build a test environment yourself in that folder: You need a minimal local Quake III install (`baseq3/`, `devotion/`, Quake3e binaries). After `-Deploy`, run the test install yourself (e.g. `test\quake3e-vulkan.x64 +set fs_game devotion`).
 
 ## 5. Troubleshooting
 

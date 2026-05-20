@@ -2,7 +2,8 @@
 ===========================================================================
 BOT SMART WEAPON SELECT (v1) — situational weapon choice.
 
-Ringfenced: logic in ai_weapon_select.c. Toggle with bot_smartWeaponChoice.
+Ringfenced: logic in ai_weapon_select.c. Toggle with bot_enhanced_weapons (requires bot_enhanced).
+Was bot_smartWeaponChoice (migrated at init if bot_enhanced_weapons is unset).
 Include after g_local.h and ai_main.h in .c files (ai_main.h has no guards).
 
 Remove: delete ai_weapon_select.c/h, Makefile/q3asm entries, revert hooks in
@@ -30,9 +31,14 @@ void BotWpnSelect_Reset(struct bot_state_s *bs);
  * trap_BotChooseBestFightWeapon (legacy).
  */
 int BotWpnSelect_Choose(struct bot_state_s *bs);
+int BotWpnSelect_ChooseRoaming(struct bot_state_s *bs);
+void BotWpnSelect_TickRoaming(struct bot_state_s *bs);
 /* Call after weaponnum is committed so fatigue/switch timers stay accurate. */
 void BotWpnSelect_NotifyWeaponCommitted(struct bot_state_s *bs, int prev_wp, int new_wp);
 /* For future item pickup / goal weighting (v1 fills when active + enemy). */
 void BotWpnSelect_GetDesire(struct bot_state_s *bs, bot_weapon_desire_t *out);
+/* When false, BotChooseWeapon keeps current weaponnum (enhanced latch / min interval). */
+int BotWpnSelect_ShouldRunChooser(struct bot_state_s *bs);
+void BotWpnSelect_OnVoluntaryGauntletAborted(struct bot_state_s *bs);
 
 #endif /* AI_WEAPON_SELECT_H */

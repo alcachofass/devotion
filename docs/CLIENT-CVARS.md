@@ -117,6 +117,7 @@ Client-side variables registered by the **cgame** module (`cg_*`, plus related n
 | `cg_drawAmmoWarning` | Vanilla | `1` | 0 or 1 | Console variable `cg_drawAmmoWarning`. Default `1`. |
 | `cg_drawAttacker` | Vanilla | `1` | 0 or 1 | Console variable `cg_drawAttacker`. Default `1`. |
 | `cg_drawBBox` | RatMod | `0` | 0 or 1 | Console variable `cg_drawBBox`. Default `0`. |
+| `cg_debugBotAim` | Devotion | `0` | 0–7 | Bot aim debug: green = motor wish (roam: `ideal_viewangles`, fight: aim point), yellow (bit `4`) = crosshair. `1` = followed bot, `2` = all bots, `5` = `1+4`, `6` = `2+4` in free spec. Needs `bot_debugAim 1` on server. `CVAR_CHEAT`. |
 | `cg_drawCrosshair` | Vanilla | `3` | integer ≥ 0 (typical) | Console variable `cg_drawCrosshair`. Default `3`. |
 | `cg_drawCrosshairNames` | Vanilla | `1` | 0 or 1 | Console variable `cg_drawCrosshairNames`. Default `1`. |
 | `cg_drawFPS` | Vanilla | `0` | 0 or 1 | Console variable `cg_drawFPS`. Default `0`. |

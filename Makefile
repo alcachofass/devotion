@@ -29,6 +29,11 @@ ASSETS_DIR := ratoa_assets
 
 GAMECODE_OPTS := WITH_MULTITOURNAMENT=0
 
+# QUIET=1: suppress make chatter and per-file compile lines (see ratoa_gamecode/Makefile).
+ifeq ($(QUIET),1)
+MAKEFLAGS += -s --no-print-directory
+endif
+
 OUTPUT_DIR := build
 PK3_DIR := $(OUTPUT_DIR)/pk3
 
@@ -44,21 +49,21 @@ release: qvm $(OUTPUT_DIR)
 	mkdir $(PK3_DIR)/vm
 	cp $(GAMECODE_QVM_DIR)/*.qvm $(PK3_DIR)/vm/
 	#cd $(PK3_DIR) && zip -r ../$(RATMOD_PK3) -- .
-	cd $(PK3_DIR) && $(CURDIR)/caca_deterministic_zip.sh \
+	cd $(PK3_DIR) && QUIET=$(QUIET) $(CURDIR)/caca_deterministic_zip.sh \
 		$(TIMESTAMP) ../$(RATMOD_PK3) .
 
 qvm:
 	$(MAKE) -C $(GAMECODE_DIR) $(GAMECODE_OPTS) \
-		BUILD_GAME_SO=0 BUILD_GAME_QVM=1
+		BUILD_GAME_SO=0 BUILD_GAME_QVM=1 QUIET=$(QUIET)
 
 $(OUTPUT_DIR):
 	mkdir -p $(OUTPUT_DIR)
 
 clean_assets:
-	$(MAKE) -C $(ASSETS_DIR) clean
+	$(MAKE) -C $(ASSETS_DIR) clean QUIET=$(QUIET)
 
 clean_gamecode:
-	$(MAKE) -C $(GAMECODE_DIR) clean
+	$(MAKE) -C $(GAMECODE_DIR) clean QUIET=$(QUIET)
 
 clean_output:
 	rm -rf $(OUTPUT_DIR)
