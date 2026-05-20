@@ -14,6 +14,8 @@ Console variables that control bot AI, navigation, chat, and fill rules. Set the
 | `bot_enhanced` | Devotion | `0` | 0 or 1 | Master switch for Devotion bot AI upgrades (aim harness, smart weapons, tactics). When `0`, sub-cvars have no effect. Saved to config. |
 | `bot_enhanced_aim` | Devotion | `0` | 0 or 1 | Smoother, more human-like bot aiming when `1` and `bot_enhanced` is `1` (`0` = classic snap aim). Independent of `bot_challenge`. Saved to config. |
 | `bot_enhanced_tactics` | Devotion | `0` | 0 or 1 | Extra combat decisions when `1` and `bot_enhanced` is `1`: gauntlet rush/flee, react to third-party damage, finish wounded targets, prefer nearer threats. Saved to config. |
+| `bot_enhanced_items` | Devotion | `1` | 0 or 1 | Visible mega/red/yellow armor pickup with committed goals when `1` and `bot_enhanced` is `1`. Saved to config. |
+| `bot_enhanced_items_debug` | Devotion | `0` | 0 or 1 | Server console lines when bots commit to or abandon major item pickups. |
 | `bot_enhanced_weapons` | Devotion | `0` | 0 or 1 | Smarter weapon picks by range and ammo when `1` and `bot_enhanced` is `1` (e.g. rail/MG at distance, rocket mid-range, shotgun up close). Saved to config. |
 | `bot_fastchat` | Vanilla | `0` | 0 or 1 | When `1`, bots are more likely to use chat lines (skips some random “stay quiet” rolls). |
 | `bot_forceclustering` | Vanilla | `0` | 0 or 1 | Forces the navigation system to rebuild area clusters for the current map (slow; map load / AAS build). |
@@ -56,6 +58,7 @@ Example (equivalent to the old `set bot_humanizeaim 1`):
 ```text
 set bot_enhanced 1
 set bot_enhanced_aim 1
+set bot_enhanced_items 1
 ```
 
 Sub-cvars alone (`bot_enhanced_aim 1` without `bot_enhanced 1`) have no effect unless the master is enabled or legacy migration runs at init.

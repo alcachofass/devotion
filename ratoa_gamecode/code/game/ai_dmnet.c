@@ -44,6 +44,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "ai_main.h"
 #include "ai_bot_enhanced.h"
 #include "ai_bot_combat.h"
+#include "ai_bot_items.h"
 #include "ai_bot_tactics.h"
 #include "ai_dmq3.h"
 #include "ai_chat.h"
@@ -233,6 +234,14 @@ BotReachedGoal
 */
 int BotReachedGoal(bot_state_t *bs, bot_goal_t *goal) {
 	if (goal->flags & GFL_ITEM) {
+		{
+			int itemReached;
+
+			itemReached = BotItems_HandleReachedGoal(bs, goal);
+			if (itemReached >= 0) {
+				return itemReached;
+			}
+		}
 		//if touching the goal
 		if (trap_BotTouchingGoal(bs->origin, goal)) {
 			if (!(goal->flags & GFL_DROPPED)) {
@@ -1855,7 +1864,7 @@ int AINode_Seek_NBG(bot_state_t *bs) {
 			//keep the current long term goal and retreat
 			AIEnter_Battle_NBG(bs, "seek nbg: found enemy");
 		}
-		else {
+		else if (!BotItems_ShouldPreserveGoalStack(bs)) {
 			trap_BotResetLastAvoidReach(bs->ms);
 			//empty the goal stack
 			trap_BotEmptyGoalStack(bs->gs);
@@ -1987,6 +1996,11 @@ int AINode_Seek_LTG(bot_state_t *bs)
 		}
 		*/
 		//
+		if (BotItems_ShouldRunPickupNode(bs)) {
+			bs->nbg_time = BotItems_CommitNbgTime(bs);
+			AIEnter_Seek_NBG(bs, "items: committed pickup");
+			return qfalse;
+		}
 		if (BotNearbyGoal(bs, bs->tfl, &goal, range)) {
 			trap_BotResetLastAvoidReach(bs->ms);
 			//get the goal at the top of the stack
@@ -2164,6 +2178,11 @@ int AINode_Battle_Fight(bot_state_t *bs) {
 	}
 	//update the attack inventory values
 	BotUpdateBattleInventory(bs, bs->enemy);
+	if (BotItems_ShouldRunPickupNode(bs)) {
+		bs->nbg_time = BotItems_CommitNbgTime(bs);
+		AIEnter_Battle_NBG(bs, "items: committed pickup");
+		return qfalse;
+	}
 	BotTactics_PreferCloserEnemy(bs);
 	if (BotTactics_BattleFightTryFlee(bs)) {
 		return qfalse;
@@ -2333,6 +2352,11 @@ int AINode_Battle_Chase(bot_state_t *bs)
 		bs->check_time = FloatTime() + 1;
 		range = 150;
 		//
+		if (BotItems_ShouldRunPickupNode(bs)) {
+			bs->nbg_time = BotItems_CommitNbgTime(bs);
+			AIEnter_Battle_NBG(bs, "items: committed pickup");
+			return qfalse;
+		}
 		if (BotNearbyGoal(bs, bs->tfl, &goal, range)) {
 			//the bot gets 5 seconds to pick up the nearby goal item
 			bs->nbg_time = FloatTime() + 0.1 * range + 1;
@@ -2528,6 +2552,11 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 		}
 		*/
 		//
+		if (BotItems_ShouldRunPickupNode(bs)) {
+			bs->nbg_time = BotItems_CommitNbgTime(bs);
+			AIEnter_Battle_NBG(bs, "items: committed pickup");
+			return qfalse;
+		}
 		if (BotNearbyGoal(bs, bs->tfl, &goal, range)) {
 			trap_BotResetLastAvoidReach(bs->ms);
 			//time the bot gets to pick up the nearby goal item

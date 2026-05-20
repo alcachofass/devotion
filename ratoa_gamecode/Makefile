@@ -1799,6 +1799,7 @@ Q3GOBJ_ = \
   $(B)/baseq3/game/ai_aim_harness.o \
   $(B)/baseq3/game/ai_weapon_select.o \
   $(B)/baseq3/game/ai_bot_tactics.o \
+  $(B)/baseq3/game/ai_bot_items.o \
   $(B)/baseq3/game/ai_main.o \
   $(B)/baseq3/game/ai_team.o \
   $(B)/baseq3/game/ai_vcmd.o \

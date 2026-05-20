@@ -34,4 +34,6 @@ int BotEnhanced_ShouldSuppressFightRetreat(struct bot_state_s *bs);
 /* bs->settings.skill (1–5): voluntary close gauntlet only at skill 4 or 5. */
 int BotEnhanced_AllowsVoluntaryCloseGauntlet(struct bot_state_s *bs);
 
+int BotEnhanced_ItemsActive(void);
+
 #endif /* AI_BOT_ENHANCED_H */

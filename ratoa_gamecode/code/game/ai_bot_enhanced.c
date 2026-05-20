@@ -20,6 +20,7 @@ BOT ENHANCED — master cvar, feature gates, centralized register/reset.
 #include "ai_bot_combat.h"
 #include "ai_bot_events.h"
 #include "ai_bot_move_harness.h"
+#include "ai_bot_items.h"
 
 vmCvar_t bot_enhanced;
 
@@ -106,6 +107,7 @@ void BotEnhanced_RegisterCvars(void) {
 	BotAimHarness_RegisterCvars();
 	BotWpnSelect_RegisterCvars();
 	BotTactics_RegisterCvars();
+	BotItems_RegisterCvars();
 	BotEnhanced_MigrateLegacyCvars();
 }
 
@@ -138,10 +140,15 @@ int BotEnhanced_TacticsActive(void) {
 	return bot_enhanced_tactics.integer != 0;
 }
 
+int BotEnhanced_ItemsActive(void) {
+	return BotItems_IsActive();
+}
+
 void BotEnhanced_OnThinkStart(bot_state_t *bs) {
 	BotEvents_Drain(bs);
 	if (BotEnhanced_IsActive()) {
 		BotCombat_UpdateIntent(bs);
+		BotItems_Tick(bs);
 	}
 }
 
@@ -172,4 +179,5 @@ void BotEnhanced_ResetBot(bot_state_t *bs) {
 	BotAimHarness_Reset(bs);
 	BotWpnSelect_Reset(bs);
 	BotTactics_Reset(bs);
+	BotItems_Reset(bs);
 }

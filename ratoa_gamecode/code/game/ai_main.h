@@ -298,6 +298,14 @@ typedef struct bot_state_s
 	int			evt_mod;
 	/* ---- end BOT ENHANCED ---- */
 
+	/* ---- BOT ITEMS: ai_bot_items.c — remove this block to revert ---- */
+	qboolean	item_commit_active;
+	int			item_commit_kind;		/* BOT_ITEM_* while committed */
+	float		item_commit_until;
+	float		item_next_scan_time;
+	bot_goal_t	item_commit_goal;
+	/* ---- end BOT ITEMS ---- */
+
 	/* ---- BOT AIM HARNESS (v1): ai_aim_harness.c — remove this block to revert ---- */
 	vec3_t		aimh_goal;
 	float		aimh_vel[2];
