@@ -145,6 +145,26 @@ void BotEnhanced_OnThinkStart(bot_state_t *bs) {
 	}
 }
 
+int BotEnhanced_ShouldSuppressFightRetreat(bot_state_t *bs) {
+	if (!bs || !BotEnhanced_IsActive()) {
+		return 0;
+	}
+	if (BotCombat_IsRushOpponent(bs)) {
+		return 1;
+	}
+	if (BotEnhanced_TacticsActive() && BotTactics_BattleFightSuppressRetreat(bs)) {
+		return 1;
+	}
+	return 0;
+}
+
+int BotEnhanced_AllowsVoluntaryCloseGauntlet(bot_state_t *bs) {
+	if (!bs || !BotEnhanced_IsActive()) {
+		return 0;
+	}
+	return bs->settings.skill >= 4.0f;
+}
+
 void BotEnhanced_ResetBot(bot_state_t *bs) {
 	BotMoveHarness_Reset(bs);
 	BotEvents_Reset(bs);

@@ -37,5 +37,8 @@ void BotWpnSelect_TickRoaming(struct bot_state_s *bs);
 void BotWpnSelect_NotifyWeaponCommitted(struct bot_state_s *bs, int prev_wp, int new_wp);
 /* For future item pickup / goal weighting (v1 fills when active + enemy). */
 void BotWpnSelect_GetDesire(struct bot_state_s *bs, bot_weapon_desire_t *out);
+/* When false, BotChooseWeapon keeps current weaponnum (enhanced latch / min interval). */
+int BotWpnSelect_ShouldRunChooser(struct bot_state_s *bs);
+void BotWpnSelect_OnVoluntaryGauntletAborted(struct bot_state_s *bs);
 
 #endif /* AI_WEAPON_SELECT_H */

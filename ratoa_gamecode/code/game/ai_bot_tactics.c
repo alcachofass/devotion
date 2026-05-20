@@ -26,7 +26,6 @@ qboolean EntityCarriesFlag(aas_entityinfo_t *entinfo);
 
 vmCvar_t bot_enhanced_tactics;
 
-#define BOT_TACTICS_GAUNTLET_RUSH_DIST	192
 #define BOT_TACTICS_FAR_ENGAGE_DIST		512
 #define BOT_TACTICS_CLOSER_MARGIN		128
 #define BOT_TACTICS_FINISH_HEALTH		40
@@ -63,7 +62,7 @@ static int BotTactics_HasUsableNonGauntletWeapon(bot_state_t *bs) {
 	return 0;
 }
 
-static int BotTactics_IsGauntletOnly(bot_state_t *bs) {
+int BotTactics_IsGauntletOnly(bot_state_t *bs) {
 	if (!(bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_GAUNTLET))) {
 		return 0;
 	}
@@ -336,7 +335,7 @@ int BotTactics_BattleFightTryFlee(bot_state_t *bs) {
 	if (bs->enemy < 0) {
 		return qfalse;
 	}
-	if (bs->inventory[ENEMY_HORIZONTAL_DIST] <= BOT_TACTICS_GAUNTLET_RUSH_DIST) {
+	if (bs->inventory[ENEMY_HORIZONTAL_DIST] <= BOT_TACTICS_GAUNTLET_FLEE_DIST) {
 		bs->flags &= ~BFL_TACTICS_SURVIVAL_FLEE;
 		return qfalse;
 	}
@@ -355,7 +354,7 @@ int BotTactics_BattleFightSuppressRetreat(bot_state_t *bs) {
 	if (bs->enemy < 0) {
 		return qfalse;
 	}
-	if (bs->inventory[ENEMY_HORIZONTAL_DIST] <= BOT_TACTICS_GAUNTLET_RUSH_DIST) {
+	if (bs->inventory[ENEMY_HORIZONTAL_DIST] <= BOT_TACTICS_GAUNTLET_FLEE_DIST) {
 		return qtrue;
 	}
 	return qfalse;
@@ -374,7 +373,7 @@ void BotTactics_RetreatAfterInventory(bot_state_t *bs) {
 		bs->flags &= ~BFL_TACTICS_SURVIVAL_FLEE;
 		return;
 	}
-	if (bs->inventory[ENEMY_HORIZONTAL_DIST] > BOT_TACTICS_GAUNTLET_RUSH_DIST) {
+	if (bs->inventory[ENEMY_HORIZONTAL_DIST] > BOT_TACTICS_GAUNTLET_FLEE_DIST) {
 		bs->flags |= BFL_TACTICS_SURVIVAL_FLEE;
 	}
 }

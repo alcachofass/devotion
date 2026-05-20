@@ -16,7 +16,11 @@ ai_main.h, ai_main.c, ai_dmq3.c, ai_dmnet.c.
 struct bot_state_s;
 
 #include "ai_bot_events.h"
+#include "ai_bot_combat.h"
 #define BOT_TACT_EVT_HURT_BY_OTHER	BOT_EVT_HURT_BY_OTHER
+
+/* Gauntlet-only: engage within last-resort rush range; flee beyond (see ai_bot_combat.h). */
+#define BOT_TACTICS_GAUNTLET_FLEE_DIST	BOT_COMBAT_GAUNTLET_LASTRESORT_RUSH_DIST
 
 void BotTactics_RegisterCvars(void);
 void BotTactics_Reset(struct bot_state_s *bs);
@@ -24,6 +28,8 @@ void BotTactics_Reset(struct bot_state_s *bs);
 /* Called from BotEvents_Drain only (world scan + pending dispatch). */
 void BotTactics_ScanEvents(struct bot_state_s *bs);
 void BotTactics_ProcessPending(struct bot_state_s *bs);
+
+int BotTactics_IsGauntletOnly(struct bot_state_s *bs);
 
 /* Gauntlet-only survival */
 int BotTactics_BattleFightTryFlee(struct bot_state_s *bs);

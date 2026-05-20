@@ -43,6 +43,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 #include "ai_main.h"
 #include "ai_bot_enhanced.h"
+#include "ai_bot_combat.h"
 #include "ai_bot_tactics.h"
 #include "ai_dmq3.h"
 #include "ai_chat.h"
@@ -2213,6 +2214,9 @@ int AINode_Battle_Fight(bot_state_t *bs) {
 	}
 	//choose the best weapon to fight with
 	BotChooseWeapon(bs);
+	if (BotEnhanced_IsActive()) {
+		BotCombat_UpdateIntent(bs);
+	}
 	//do attack movements
 	moveresult = BotAttackMove(bs, bs->tfl);
 	//if the movement failed
@@ -2230,7 +2234,7 @@ int AINode_Battle_Fight(bot_state_t *bs) {
 	BotCheckAttack(bs);
 	//if the bot wants to retreat
 	if (!(bs->flags & BFL_FIGHTSUICIDAL)) {
-		if (!BotTactics_BattleFightSuppressRetreat(bs) && BotWantsToRetreat(bs)) {
+		if (!BotEnhanced_ShouldSuppressFightRetreat(bs) && BotWantsToRetreat(bs)) {
 			AIEnter_Battle_Retreat(bs, "battle fight: wants to retreat");
 			return qtrue;
 		}
@@ -2448,6 +2452,11 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 	//update the attack inventory values
 	BotUpdateBattleInventory(bs, bs->enemy);
 	BotTactics_RetreatAfterInventory(bs);
+	if (BotCombat_ShouldEngageFromRetreat(bs)) {
+		bs->flags &= ~BFL_TACTICS_SURVIVAL_FLEE;
+		AIEnter_Battle_Fight(bs, "enhanced: close gauntlet charge");
+		return qfalse;
+	}
 	//if the bot doesn't want to retreat anymore... probably picked up some nice items
 	if (BotWantsToChase(bs)) {
 		//empty the goal stack, when chasing, only the enemy is the goal

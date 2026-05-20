@@ -28,4 +28,10 @@ int BotEnhanced_TacticsActive(void);
 
 void BotEnhanced_OnThinkStart(struct bot_state_s *bs);
 
+/* Battle fight: suppress BotWantsToRetreat when rushing or gauntlet-only tactics. */
+int BotEnhanced_ShouldSuppressFightRetreat(struct bot_state_s *bs);
+
+/* bs->settings.skill (1–5): voluntary close gauntlet only at skill 4 or 5. */
+int BotEnhanced_AllowsVoluntaryCloseGauntlet(struct bot_state_s *bs);
+
 #endif /* AI_BOT_ENHANCED_H */

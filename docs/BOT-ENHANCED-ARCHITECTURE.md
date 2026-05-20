@@ -217,6 +217,12 @@ Do not add new stance/move gameplay until:
 
 ---
 
-## First follow-up enhancement
+## Rush opponent (implemented)
 
-`BOT_STANCE_MELEE_COMMIT` + `BotAttackMove` reading `combat.move_policy` / `weaponnum` — no new cvars; implement on top of `BotCombat_UpdateIntent` and the move harness when enabled.
+- **`BOT_STANCE_RUSH_OPPONENT`** + **`BOT_MOVE_CLOSE_MELEE`** (same movement/attack path for both):
+  - **Close gauntlet** (≤ 192): gauntlet chosen/out, not gauntlet-only, not in tactics survival flee.
+  - **Last resort** (≤ 384): gauntlet-only (no other weapon ammo); rush instead of flee; tactics flee/retreat only beyond 384.
+  - Rush arms on `weaponnum` commit, not only after raise/drop finishes (`BotCombat_OnWeaponCommitted`).
+- **`BotAttackMove`**: closes on enemy (forward `MOVE_WALK`/`MOVE_RUN`), skips legacy strafe loop.
+- **`BotCheckAttack`**: rush + gauntlet attacks within 72 units without waiting on full FOV/trace path.
+- Later: same stance with `BOT_MOVE_CLOSE_TO_WEAPON_IDEAL` for LG / shotgun / plasma range bands.

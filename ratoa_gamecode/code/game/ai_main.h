@@ -326,6 +326,7 @@ typedef struct bot_state_s
 	/* ---- BOT SMART WEAPON SELECT (v1): ai_weapon_select.c — remove to revert ---- */
 	float		wps_next_eval_time;
 	float		wps_next_roam_eval_time;
+	float		wps_enhanced_latch_until;	/* no fight weapon re-eval until this time */
 	float		wps_last_switch_time;
 	int			wps_last_chosen_weapon;
 	int			wps_desired_weapon;

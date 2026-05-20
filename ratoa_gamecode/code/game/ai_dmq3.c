@@ -48,6 +48,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "ai_weapon_select.h"
 #include "ai_bot_tactics.h"
 #include "ai_bot_enhanced.h"
+#include "ai_bot_combat.h"
 #include "ai_chat.h"
 #include "ai_cmd.h"
 #include "ai_dmnet.h"
@@ -1731,6 +1732,10 @@ void BotChooseWeapon(bot_state_t *bs) {
 		trap_EA_SelectWeapon(bs->client, bs->weaponnum);
 	}
 	else {
+		if (BotEnhanced_WeaponsActive() && !BotWpnSelect_ShouldRunChooser(bs)) {
+			trap_EA_SelectWeapon(bs->client, bs->weaponnum);
+			return;
+		}
                 if(g_instantgib.integer)
                     newweaponnum = WP_RAILGUN;
                 else if(g_rockets.integer)
@@ -2884,6 +2889,18 @@ bot_moveresult_t BotAttackMove(bot_state_t *bs, int tfl) {
 		attack_dist = IDEAL_ATTACKDIST;
 		attack_range = 40;
 	}
+	/* ENHANCED: rush opponent — drive into gauntlet range, skip strafe dance */
+	if (BotCombat_IsRushOpponent(bs) &&
+			bs->combat.move_policy == BOT_MOVE_CLOSE_MELEE) {
+		movetype = MOVE_WALK;
+		if (trap_BotMoveInDirection(bs->ms, forward, 400, movetype)) {
+			return moveresult;
+		}
+		if (trap_BotMoveInDirection(bs->ms, forward, 400, MOVE_RUN)) {
+			return moveresult;
+		}
+		return moveresult;
+	}
 	//if the bot is stupid
 	if (attack_skill <= 0.4) {
 		//just walk to or away from the enemy
@@ -3814,6 +3831,14 @@ void BotCheckAttack(bot_state_t *bs) {
 	VectorSubtract(bs->aimtarget, bs->eye, dir);
 	//
 	if (bs->weaponnum == WP_GAUNTLET) {
+		if (BotCombat_IsRushOpponent(bs)) {
+			if (VectorLengthSquared(dir) > Square(BOT_COMBAT_GAUNTLET_ATTACK_DIST)) {
+				return;
+			}
+			trap_EA_Attack(bs->client);
+			bs->flags ^= BFL_ATTACKED;
+			return;
+		}
 		if (VectorLengthSquared(dir) > Square(60)) {
 			return;
 		}
