@@ -29,4 +29,9 @@ int BotItems_HandleReachedGoal(struct bot_state_s *bs, struct bot_goal_s *goal);
 int BotItems_ShouldPreserveGoalStack(struct bot_state_s *bs);
 void BotItems_AbortCommit(struct bot_state_s *bs);
 
+/* botlib item chooser wrappers: skip useless goals when bot_enhanced is on */
+int BotItems_ChooseNBGItem(struct bot_state_s *bs, int tfl, struct bot_goal_s *ltg,
+	float range);
+int BotItems_ChooseLTGItem(struct bot_state_s *bs, int tfl);
+
 #endif /* AI_BOT_ITEMS_H */

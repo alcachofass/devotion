@@ -1501,3 +1501,281 @@ void BotItems_AbortCommit(bot_state_t *bs) {
 }
 
 
+
+#define BOT_ITEMS_CHOOSER_MAX_TRIES		24
+
+#define BOT_ITEMS_USELESS_GOAL_AVOID		15.0f
+
+
+
+/* Match CG_FullAmmo / typical carry caps (not AMMO_CAPACITY 200). */
+
+static int BotItems_AmmoPracticalMax(int weapon) {
+
+	switch (weapon) {
+
+	case WP_MACHINEGUN:
+
+		return 100;
+
+	case WP_SHOTGUN:
+
+		return 10;
+
+	case WP_GRENADE_LAUNCHER:
+
+		return 10;
+
+	case WP_ROCKET_LAUNCHER:
+
+		return 10;
+
+	case WP_LIGHTNING:
+
+		return 100;
+
+	case WP_RAILGUN:
+
+		return 10;
+
+	case WP_PLASMAGUN:
+
+		return 50;
+
+	case WP_BFG:
+
+		return 10;
+
+#ifdef MISSIONPACK
+
+	case WP_NAILGUN:
+
+		return 10;
+
+	case WP_PROX_LAUNCHER:
+
+		return 5;
+
+	case WP_CHAINGUN:
+
+		return 100;
+
+#endif
+
+	default:
+
+		return AMMO_CAPACITY;
+
+	}
+
+}
+
+
+
+static qboolean BotItems_PlayerCanUsePickup(bot_state_t *bs, gentity_t *ent) {
+
+	gitem_t *item;
+
+	int weapon, qty;
+
+
+
+	if (!bs || !ent || !ent->inuse || !ent->item) {
+
+		return qfalse;
+
+	}
+
+
+
+	if (!BG_CanItemBeGrabbed(gametype, &ent->s, &bs->cur_ps)) {
+
+		return qfalse;
+
+	}
+
+
+
+	item = ent->item;
+
+	switch (item->giType) {
+
+	case IT_WEAPON:
+
+		weapon = item->giTag;
+
+		if (bs->cur_ps.stats[STAT_WEAPONS] & (1 << weapon)) {
+
+			qty = ent->count > 0 ? ent->count : item->quantity;
+
+			if (bs->cur_ps.ammo[weapon] >= qty) {
+
+				return qfalse;
+
+			}
+
+		}
+
+		return qtrue;
+
+	case IT_AMMO:
+
+		weapon = item->giTag;
+
+		if (!(bs->cur_ps.stats[STAT_WEAPONS] & (1 << weapon))) {
+
+			return qfalse;
+
+		}
+
+		if (bs->cur_ps.ammo[weapon] >= BotItems_AmmoPracticalMax(weapon)) {
+
+			return qfalse;
+
+		}
+
+		return qtrue;
+
+	default:
+
+		return qtrue;
+
+	}
+
+}
+
+
+
+static qboolean BotItems_GoalWorthPursuing(bot_state_t *bs, const bot_goal_t *goal) {
+
+	if (!bs || !goal) {
+
+		return qtrue;
+
+	}
+
+	if (!(goal->flags & GFL_ITEM)) {
+
+		return qtrue;
+
+	}
+
+	if (!BotItems_PickupEntityActive(goal->entitynum)) {
+
+		return qtrue;
+
+	}
+
+	return BotItems_PlayerCanUsePickup(bs, &g_entities[goal->entitynum]);
+
+}
+
+
+
+static qboolean BotItems_RejectTopGoal(bot_state_t *bs) {
+
+	bot_goal_t goal;
+
+
+
+	if (!trap_BotGetTopGoal(bs->gs, &goal)) {
+
+		return qfalse;
+
+	}
+
+	if (BotItems_GoalWorthPursuing(bs, &goal)) {
+
+		return qfalse;
+
+	}
+
+	trap_BotSetAvoidGoalTime(bs->gs, goal.number, BOT_ITEMS_USELESS_GOAL_AVOID);
+
+	trap_BotPopGoal(bs->gs);
+
+	return qtrue;
+
+}
+
+
+
+int BotItems_ChooseNBGItem(bot_state_t *bs, int tfl, bot_goal_t *ltg, float range) {
+
+	int tries;
+
+
+
+	if (!bs) {
+
+		return qfalse;
+
+	}
+
+	if (!BotEnhanced_IsActive()) {
+
+		return trap_BotChooseNBGItem(bs->gs, bs->origin, bs->inventory, tfl, ltg, range);
+
+	}
+
+	for (tries = 0; tries < BOT_ITEMS_CHOOSER_MAX_TRIES; tries++) {
+
+		if (!trap_BotChooseNBGItem(bs->gs, bs->origin, bs->inventory, tfl, ltg, range)) {
+
+			return qfalse;
+
+		}
+
+		if (!BotItems_RejectTopGoal(bs)) {
+
+			return qtrue;
+
+		}
+
+	}
+
+	return qfalse;
+
+}
+
+
+
+int BotItems_ChooseLTGItem(bot_state_t *bs, int tfl) {
+
+	int tries;
+
+
+
+	if (!bs) {
+
+		return qfalse;
+
+	}
+
+	if (!BotEnhanced_IsActive()) {
+
+		return trap_BotChooseLTGItem(bs->gs, bs->origin, bs->inventory, tfl);
+
+	}
+
+	for (tries = 0; tries < BOT_ITEMS_CHOOSER_MAX_TRIES; tries++) {
+
+		if (!trap_BotChooseLTGItem(bs->gs, bs->origin, bs->inventory, tfl)) {
+
+			return qfalse;
+
+		}
+
+		if (!BotItems_RejectTopGoal(bs)) {
+
+			return qtrue;
+
+		}
+
+	}
+
+	return qfalse;
+
+}
+
+

@@ -176,7 +176,7 @@ int BotGoForAir(bot_state_t *bs, int tfl, bot_goal_t *ltg, float range) {
 		}
 		else {
 			//get a nearby goal outside the water
-			while (trap_BotChooseNBGItem(bs->gs, bs->origin, bs->inventory, BotJumppad_EffectiveTfl(bs), ltg, range)) {
+			while (BotItems_ChooseNBGItem(bs, tfl, ltg, range)) {
 				trap_BotGetTopGoal(bs->gs, &goal);
 				//if the goal is not in water
 				if (!(trap_AAS_PointContents(goal.origin) & (CONTENTS_WATER|CONTENTS_SLIME|CONTENTS_LAVA))) {
@@ -214,7 +214,7 @@ int BotNearbyGoal(bot_state_t *bs, int tfl, bot_goal_t *ltg, float range) {
 		}
 	}
 	//
-	ret = trap_BotChooseNBGItem(bs->gs, bs->origin, bs->inventory, BotJumppad_EffectiveTfl(bs), ltg, range);
+	ret = BotItems_ChooseNBGItem(bs, BotJumppad_EffectiveTfl(bs), ltg, range);
 	/*
 	if (ret)
 	{
@@ -312,7 +312,7 @@ int BotGetItemLongTermGoal(bot_state_t *bs, int tfl, bot_goal_t *goal) {
 		//BotAI_Print(PRT_MESSAGE, "%s: choosing new ltg\n", ClientName(bs->client, netname, sizeof(netname)));
 		//choose a new goal
 		//BotAI_Print(PRT_MESSAGE, "%6.1f client %d: BotChooseLTGItem\n", FloatTime(), bs->client);
-		if (trap_BotChooseLTGItem(bs->gs, bs->origin, bs->inventory, BotJumppad_EffectiveTfl(bs))) {
+		if (BotItems_ChooseLTGItem(bs, BotJumppad_EffectiveTfl(bs))) {
 			/*
 			char buf[128];
 			//get the goal at the top of the stack
