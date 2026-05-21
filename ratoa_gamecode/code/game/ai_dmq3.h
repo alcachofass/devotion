@@ -128,11 +128,6 @@ void BotAimAtEnemy(bot_state_t *bs);
 void BotCheckAttack(bot_state_t *bs);
 //AI when the bot is blocked
 void BotAIBlocked(bot_state_t *bs, bot_moveresult_t *moveresult, int activate);
-/* Rocket/BFG jump: snap view + EA jump/attack when aligned (enhanced aim path). */
-int BotAI_WeaponJumpActive(bot_state_t *bs);
-qboolean BotAI_WeaponJumpReadyToFire(bot_state_t *bs);
-void BotAI_WeaponJumpInput(bot_state_t *bs);
-void BotAI_HandleWeaponJumpMove(bot_state_t *bs, bot_goal_t *goal, bot_moveresult_t *moveresult);
 //AI to predict obstacles
 int BotAIPredictObstacles(bot_state_t *bs, bot_goal_t *goal);
 //enable or disable the areas the blocking entity is in

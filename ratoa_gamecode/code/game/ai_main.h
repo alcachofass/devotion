@@ -335,14 +335,25 @@ typedef struct bot_state_s
 	float		aimh_tracked_ideal_yaw;
 	vec3_t		aimh_combat_target;
 	qboolean	aimh_hold_fire;		/* suppressive fire: +attack each input frame */
-	float		aimh_weapon_jump_until;	/* hold down-aim; bypass harness spring/PS resync */
-	vec3_t		aimh_weapon_jump_angles;
-	vec3_t		aimh_weapon_jump_spot;	/* reach start (MovementViewTarget) */
-	vec3_t		aimh_weapon_jump_dest;	/* LTG / reach end while airborne */
-	vec3_t		aimh_weapon_jump_air_dir;
-	int			aimh_weapon_jump_weapon;
-	qboolean	aimh_weapon_jump_fired;
 	/* ---- end BOT AIM HARNESS ---- */
+
+	/* ---- BOT MOVE HARNESS: ai_bot_move_harness.c ---- */
+	int			movej_moveresult_flags;	/* last think: botlib MOVERESULT_* */
+	float		movej_bypass_until;		/* brief latch after MOVEMENTVIEWSET (air) */
+	vec3_t		movej_move_viewangles;	/* last botlib movement ideal_viewangles */
+	vec3_t		movej_rj_spot;			/* rocket-jump reach start */
+	vec3_t		movej_air_dest;			/* goal origin / reach end while airborne */
+	vec3_t		movej_air_steer;		/* horizontal steer dir latched at fire */
+	vec3_t		movej_movedir;			/* last botlib horizontal movedir */
+	int			movej_travel_type;		/* TRAVEL_ROCKETJUMP / BFGJUMP while active */
+	int			movej_rj_weapon;		/* weapon botlib selected for movement */
+	qboolean	movej_rj_active;
+	qboolean	movej_on_rj_travel;		/* last think moveresult was RJ/BFG travel */
+	qboolean	movej_rj_fired;
+	qboolean	movej_rj_was_airborne;	/* true after leaving ground post-fire */
+	vec3_t		movej_rj_fire_view;		/* down-aim latched at fire; held during prep */
+	float		movej_rj_prep_view_until;	/* keep fire view + attack until RL fires */
+	/* ---- end BOT MOVE HARNESS ---- */
 
 	/* ---- BOT SMART WEAPON SELECT (v1): ai_weapon_select.c — remove to revert ---- */
 	float		wps_next_eval_time;

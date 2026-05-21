@@ -65,11 +65,12 @@ Legacy `bot_humanizeaim` / `bot_smartWeaponChoice` / `bot_tacticalAI` are migrat
 | `ai_bot_enhanced.c/h` | Master cvar, facade gates, `OnThinkStart`, register/reset orchestration |
 | `ai_bot_combat.c/h` | `bot_combat_intent_t` on `bot_state_t`; stance/move/fire policy (defaults = legacy) |
 | `ai_bot_events.c/h` | Ingress queue (`evt_*`); `BotEvents_Drain` → tactics scan/process |
-| `ai_bot_move_harness.c/h` | Stub only (`BotMoveHarness_IsActive` always false) |
+| `ai_bot_move_harness.c/h` | Botlib movement-view bypass + maneuvers (rocket jump); hooks think/input |
+| `ai_bot_move_util.c/h` | Shared horiz walk, approach speed, view actuation, goal anchors for maneuvers |
 | `ai_aim_harness.c/h` | Humanized view motor + suppressive fire |
 | `ai_weapon_select.c/h` | Range/ammo weapon picker + roam selection |
 | `ai_bot_tactics.c/h` | Gauntlet flee, hurt-by-other, closer threat, finish wounded |
-| `ai_main.h` | `combat`, `evt_*`, `aimh_*`, `wps_*`, `tact_*` blocks |
+| `ai_main.h` | `combat`, `evt_*`, `aimh_*`, `movej_*`, `wps_*`, `tact_*` blocks |
 | `ai_dmq3.c` | `BotDeathmatchAI`, aim-at-enemy, `BotChooseWeapon` (facade at boundaries) |
 | `ai_dmnet.c` | Battle/retreat node hooks into tactics |
 | `ai_main.c` | `BotUpdateInput` aim path |
@@ -89,7 +90,20 @@ Legacy `bot_humanizeaim` / `bot_smartWeaponChoice` / `bot_tacticalAI` are migrat
 
 1. Extend `bot_move_policy_t` in `ai_bot_combat.h`.
 2. Set policy in `BotCombat_UpdateIntent()`.
-3. Wire `ai_bot_move_harness.c` when ready; call from `BotAttackMove` / `BotUpdateInput` only after `BotMoveHarness_IsActive()` is implemented.
+3. Implement actuation in `ai_bot_move_harness.c` (reuse `ai_bot_move_util.c` for walk/view/helpers); call `BotMove_OnPostMoveToGoal` after `trap_BotMoveToGoal` and `BotMove_OnInputFrame` from `BotUpdateInput` when `BotMove_SuppressesAimMotor()`.
+
+### Botlib movement + enhanced aim (rocket jump)
+
+When `bot_enhanced_aim` is on, botlib `MOVERESULT_MOVEMENT*` (rocket/BFG jump, swim, activate shoot) must not be overridden by the aim harness motor.
+
+| Hook | Where | Role |
+|------|--------|------|
+| `BotMove_OnPostMoveToGoal` | `ai_dmnet.c` after each `trap_BotMoveToGoal` | Cache moveresult flags; short latch after movement view |
+| `BotMove_SuppressRoamView` | `ai_dmnet.c` roam-view branches | Skip roam ideal angles while botlib owns view |
+| `BotMove_SuppressesAimMotor` | `ai_aim_harness.c`, `BotUpdateInput` | Skip harness motor / use legacy input path |
+| `BotMove_OnInputFrame` | `BotUpdateInput` | Vanilla view smoothing + `trap_EA_GetInput` while suppressed |
+
+No rocket-jump logic in `ai_dmq3.c`; botlib handles jump/attack timing.
 
 ### New world event (next think)
 
@@ -151,6 +165,7 @@ set bot_debugAim 0
 | 6 | All enhanced **on** (`bot_enhanced 1` + all three sub-cvars `1`) | Same as pre-refactor with all three legacy features enabled together | Pass |
 | 7 | Row 3 + `bot_challenge 1` | Same as row 3 (harness stays on; legacy challenge snap path skipped) | Pass |
 | 8 | Row 3 or 6 + `bot_debugAim 1` + client `cg_debugBotAim 1` | Debug lines unchanged (green wish, yellow crosshair) | Pass |
+| 9 | Row 3 + maps with rocket jumps (`bot_rocketjump 1`) | Bots complete RJ like vanilla; no stare-down / timeout retry loop | — |
 
 **Row 1 trap (master gate):** `bot_enhanced 0` with all sub-cvars `1` must still behave as vanilla.
 
@@ -211,7 +226,7 @@ Do not add new stance/move gameplay until:
 - [x] `BotCombat_OnWeaponCommitted` called from weapon notify (stub)
 - [x] `BotEvents_*` ingress; drain only from `OnThinkStart`
 - [x] Legacy hooks use `BotEnhanced_*Active()` at boundaries
-- [x] `ai_bot_move_harness` linked (no-op)
+- [x] `ai_bot_move_harness` — botlib movement bypass for enhanced aim
 - [x] This document (architecture + parity table)
 - [x] **Parity table rows 1–8 passed** (manual sign-off)
 

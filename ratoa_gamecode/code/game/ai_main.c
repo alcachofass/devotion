@@ -51,6 +51,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "ai_vcmd.h"
 #include "ai_bot_enhanced.h"
 #include "ai_aim_harness.h"
+#include "ai_bot_move_harness.h"
 #include "ai_weapon_select.h"
 #include "ai_bot_tactics.h"
 
@@ -957,21 +958,18 @@ void BotUpdateInput(bot_state_t *bs, int time, int elapsed_time) {
 			bs->viewangles[j] = AngleMod(bs->viewangles[j] +
 				SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
 		}
+		/* Botlib rocket jump / movement view: legacy input, no aim motor */
+		if (BotMove_SuppressesAimMotor(bs)) {
+			BotMove_OnInputFrame(bs, time, thinktime);
+			return;
+		}
 		BotAimHarness_BeginMotorFrame(bs);
 		BotChangeViewAngles(bs, thinktime);
-		if (BotAI_WeaponJumpActive(bs)) {
-			BotAI_WeaponJumpInput(bs);
-		}
 		BotAimHarness_ApplyCombatFire(bs);
 		trap_EA_GetInput(bs->client, (float)time / 1000, &bi);
 		if (bi.actionflags & ACTION_RESPAWN) {
 			if (bs->lastucmd.buttons & BUTTON_ATTACK) {
 				bi.actionflags &= ~(ACTION_RESPAWN | ACTION_ATTACK);
-			}
-		}
-		if (BotAI_WeaponJumpActive(bs) && !bs->aimh_weapon_jump_fired) {
-			if (!BotAI_WeaponJumpReadyToFire(bs)) {
-				bi.actionflags &= ~(ACTION_ATTACK | ACTION_JUMP);
 			}
 		}
 		BotInputToUserCommand(&bi, &bs->lastucmd, bs->cur_ps.delta_angles, time);

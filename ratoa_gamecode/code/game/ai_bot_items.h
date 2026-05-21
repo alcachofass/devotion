@@ -27,5 +27,6 @@ float BotItems_CommitNbgTime(struct bot_state_s *bs);
 int BotItems_HandleReachedGoal(struct bot_state_s *bs, struct bot_goal_s *goal);
 
 int BotItems_ShouldPreserveGoalStack(struct bot_state_s *bs);
+void BotItems_AbortCommit(struct bot_state_s *bs);
 
 #endif /* AI_BOT_ITEMS_H */

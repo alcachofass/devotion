@@ -1023,6 +1023,22 @@ static qboolean BotItems_GoalIsPresent(bot_state_t *bs, bot_goal_t *goal) {
 
 
 
+/* Travel flags for item acquire (match Seek NBG: RJ when allowed, not only bs->tfl). */
+static int BotItems_TravelFlags(bot_state_t *bs) {
+	int tfl = TFL_DEFAULT;
+
+	if (bot_grapple.integer) {
+		tfl |= TFL_GRAPPLEHOOK;
+	}
+	if (BotInLavaOrSlime(bs)) {
+		tfl |= TFL_LAVA | TFL_SLIME;
+	}
+	if (BotCanAndWantsToRocketJump(bs)) {
+		tfl |= TFL_ROCKETJUMP;
+	}
+	return tfl;
+}
+
 /* Acquire-time AAS reachability (func_button pattern in ai_dmq3.c). */
 
 static qboolean BotItems_GoalReachable(bot_state_t *bs, bot_goal_t *goal) {
@@ -1043,7 +1059,8 @@ static qboolean BotItems_GoalReachable(bot_state_t *bs, bot_goal_t *goal) {
 
 	}
 
-	t = trap_AAS_AreaTravelTimeToGoalArea(bs->areanum, bs->origin, goal->areanum, bs->tfl);
+	t = trap_AAS_AreaTravelTimeToGoalArea(bs->areanum, bs->origin, goal->areanum,
+		BotItems_TravelFlags(bs));
 
 	return t > 0;
 
@@ -1466,6 +1483,20 @@ int BotItems_ShouldPreserveGoalStack(bot_state_t *bs) {
 	}
 
 	return 1;
+
+}
+
+
+
+void BotItems_AbortCommit(bot_state_t *bs) {
+
+	if (!BotItems_HasActiveCommit(bs)) {
+
+		return;
+
+	}
+
+	BotItems_ClearCommit(bs, BOT_ITEMS_DBG_RESET);
 
 }
 
