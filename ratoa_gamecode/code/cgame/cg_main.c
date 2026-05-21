@@ -682,16 +682,23 @@ static void CG_RegisterItemSounds( int itemNum ) {
 	}
 }
 
+/*
+===============
+CG_SupportsOggVorbis
+
+Probe whether the client engine is capable of loading OGG-format audio files.
+Note: This function is duplicated in ui_menu.c as ui_SupportsOggVorbis
+	because they're built as separate QVMs without a suitable cross-linked header
+	to put the function in
+===============
+*/
 qboolean CG_SupportsOggVorbis(void) {
 	static int supports_ogg = -1;
 
+	//We only ever test this once per game load, second attempt will just fall through this check and return
 	if (supports_ogg == -1) {
-		qhandle_t ogg = trap_S_RegisterSound("sound/testoggvorbis.ogg", qtrue);
-		if (ogg) {
-			supports_ogg = 1;
-		} else {
-			supports_ogg = 0;
-		}
+		qhandle_t ogg = trap_S_RegisterSound("music/sad_synthwave.ogg", qtrue);
+		supports_ogg = (ogg != 0) ? 1 : 0;
 	}
 
 	return (qboolean)supports_ogg;

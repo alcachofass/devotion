@@ -581,7 +581,7 @@ static void BotItems_ClearCommit(bot_state_t *bs, int endEvent) {
 
 		case BOT_ITEMS_DBG_TIMEOUT:
 
-			(bs, kind, "abandoned (timeout)");
+			BotItems_DebugLine(bs, kind, "abandoned (timeout)");
 
 			break;
 

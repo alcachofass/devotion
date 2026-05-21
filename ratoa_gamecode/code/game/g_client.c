@@ -1087,7 +1087,7 @@ void G_CreateFrozenPlayer( gentity_t *player ) {
 	body->takedamage = qtrue;
 	body->health = 1;
 
-	body->think = NULL;
+	body->think = 0;
 	body->nextthink = 0;
 
 	body->die = frozenplayer_die;

@@ -267,6 +267,10 @@ static void CG_ScoresDown_f( void ) {
 	if (cg.predictedPlayerState.pm_type == PM_INTERMISSION) {
 		cg.showScoreboardNum++;
 	}
+
+	/* Load deferred player models when the scoreboard is opened (cg_deferPlayers 1). */
+	cg.deferredPlayerLoading = 0;
+	CG_LoadDeferredPlayers();
 }
 
 static void CG_ScoresUp_f( void ) {

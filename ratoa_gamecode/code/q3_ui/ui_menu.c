@@ -288,6 +288,27 @@ static void Main_MenuDraw( void ) {
 
 /*
 ===============
+UI_SupportsOggVorbis
+
+Probe whether the client engine is capable of loading OGG-format audio files.
+Note: This function is duplicated in cg_main.c as cg_SupportsOggVorbis
+	because they're built as separate QVMs without a suitable cross-linked header
+	to put the function in
+===============
+*/
+static qboolean UI_SupportsOggVorbis( void ) {
+	static int supports_ogg = -1;
+
+	if ( supports_ogg == -1 ) {
+		qhandle_t ogg = trap_S_RegisterSound( "music/sad_synthwave.ogg", qtrue );
+		supports_ogg = ( ogg != 0 ) ? 1 : 0;
+	}
+
+	return (qboolean)supports_ogg;
+}
+
+/*
+===============
 UI_MainMenu
 
 The main menu only comes up when not in a game,
@@ -464,6 +485,8 @@ void UI_MainMenu( void ) {
 	trap_Key_SetCatcher( KEYCATCH_UI );
 	uis.menusp = 0;
 	UI_PushMenu ( &s_main.menu );
-	trap_S_StartBackgroundTrack("sound/misc/Aries_Beats_-_Sad_Synthwave.ogg", NULL);
+	if ( UI_SupportsOggVorbis() ) {
+		trap_S_StartBackgroundTrack( "music/sad_synthwave.ogg", NULL );
+	}
 		
 }
