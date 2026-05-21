@@ -176,7 +176,7 @@ int BotGoForAir(bot_state_t *bs, int tfl, bot_goal_t *ltg, float range) {
 		}
 		else {
 			//get a nearby goal outside the water
-			while(trap_BotChooseNBGItem(bs->gs, bs->origin, bs->inventory, tfl, ltg, range)) {
+			while (trap_BotChooseNBGItem(bs->gs, bs->origin, bs->inventory, BotJumppad_EffectiveTfl(bs), ltg, range)) {
 				trap_BotGetTopGoal(bs->gs, &goal);
 				//if the goal is not in water
 				if (!(trap_AAS_PointContents(goal.origin) & (CONTENTS_WATER|CONTENTS_SLIME|CONTENTS_LAVA))) {
@@ -214,7 +214,7 @@ int BotNearbyGoal(bot_state_t *bs, int tfl, bot_goal_t *ltg, float range) {
 		}
 	}
 	//
-	ret = trap_BotChooseNBGItem(bs->gs, bs->origin, bs->inventory, tfl, ltg, range);
+	ret = trap_BotChooseNBGItem(bs->gs, bs->origin, bs->inventory, BotJumppad_EffectiveTfl(bs), ltg, range);
 	/*
 	if (ret)
 	{
@@ -312,7 +312,7 @@ int BotGetItemLongTermGoal(bot_state_t *bs, int tfl, bot_goal_t *goal) {
 		//BotAI_Print(PRT_MESSAGE, "%s: choosing new ltg\n", ClientName(bs->client, netname, sizeof(netname)));
 		//choose a new goal
 		//BotAI_Print(PRT_MESSAGE, "%6.1f client %d: BotChooseLTGItem\n", FloatTime(), bs->client);
-		if (trap_BotChooseLTGItem(bs->gs, bs->origin, bs->inventory, tfl)) {
+		if (trap_BotChooseLTGItem(bs->gs, bs->origin, bs->inventory, BotJumppad_EffectiveTfl(bs))) {
 			/*
 			char buf[128];
 			//get the goal at the top of the stack
@@ -1666,7 +1666,7 @@ int AINode_Seek_ActivateEntity(bot_state_t *bs) {
 		//initialize the movement state
 		BotSetupForMovement(bs);
 		//move towards the goal
-		trap_BotMoveToGoal(&moveresult, bs->ms, goal, bs->tfl);
+		trap_BotMoveToGoal(&moveresult, bs->ms, goal, BotJumppad_EffectiveTfl(bs));
 		//if the movement failed
 		if (moveresult.failure) {
 			//reset the avoid reach, otherwise bot is stuck in current area
@@ -1713,7 +1713,7 @@ int AINode_Seek_ActivateEntity(bot_state_t *bs) {
 		}
 	}
 	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotMove_SuppressRoamView(bs)) {
-		if (trap_BotMovementViewTarget(bs->ms, goal, bs->tfl, 300, target)) {
+		if (trap_BotMovementViewTarget(bs->ms, goal, BotJumppad_EffectiveTfl(bs), 300, target)) {
 			VectorSubtract(target, bs->origin, dir);
 			vectoangles(dir, bs->ideal_viewangles);
 		}
@@ -1825,7 +1825,7 @@ int AINode_Seek_NBG(bot_state_t *bs) {
 	//initialize the movement state
 	BotSetupForMovement(bs);
 	//move towards the goal
-	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, bs->tfl);
+	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, BotJumppad_EffectiveTfl(bs));
 	//if the movement failed
 	if (moveresult.failure) {
 		if (!BotMove_ShouldSkipAvoidReachReset(bs, &moveresult)) {
@@ -1853,9 +1853,12 @@ int AINode_Seek_NBG(bot_state_t *bs) {
 	}
 	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotMove_SuppressRoamView(bs)) {
 		if (!trap_BotGetSecondGoal(bs->gs, &goal)) trap_BotGetTopGoal(bs->gs, &goal);
-		if (trap_BotMovementViewTarget(bs->ms, &goal, bs->tfl, 300, target)) {
+		if (trap_BotMovementViewTarget(bs->ms, &goal, BotJumppad_EffectiveTfl(bs), 300, target)) {
 			VectorSubtract(target, bs->origin, dir);
 			vectoangles(dir, bs->ideal_viewangles);
+			if (goal.origin[2] < bs->origin[2] - 64.0f) {
+				bs->ideal_viewangles[PITCH] = 0.0f;
+			}
 		}
 		//FIXME: look at cluster portals?
 		else vectoangles(moveresult.movedir, bs->ideal_viewangles);
@@ -2031,7 +2034,7 @@ int AINode_Seek_LTG(bot_state_t *bs)
 	//initialize the movement state
 	BotSetupForMovement(bs);
 	//move towards the goal
-	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, bs->tfl);
+	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, BotJumppad_EffectiveTfl(bs));
 	//if the movement failed
 	if (moveresult.failure) {
 		//reset the avoid reach, otherwise bot is stuck in current area
@@ -2057,9 +2060,12 @@ int AINode_Seek_LTG(bot_state_t *bs)
 		}
 	}
 	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotMove_SuppressRoamView(bs)) {
-		if (trap_BotMovementViewTarget(bs->ms, &goal, bs->tfl, 300, target)) {
+		if (trap_BotMovementViewTarget(bs->ms, &goal, BotJumppad_EffectiveTfl(bs), 300, target)) {
 			VectorSubtract(target, bs->origin, dir);
 			vectoangles(dir, bs->ideal_viewangles);
+			if (goal.origin[2] < bs->origin[2] - 64.0f) {
+				bs->ideal_viewangles[PITCH] = 0.0f;
+			}
 		}
 		//FIXME: look at cluster portals?
 		else if (VectorLengthSquared(moveresult.movedir)) {
@@ -2386,7 +2392,7 @@ int AINode_Battle_Chase(bot_state_t *bs)
 	//initialize the movement state
 	BotSetupForMovement(bs);
 	//move towards the goal
-	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, bs->tfl);
+	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, BotJumppad_EffectiveTfl(bs));
 	//if the movement failed
 	if (moveresult.failure) {
 		//reset the avoid reach, otherwise bot is stuck in current area
@@ -2405,7 +2411,7 @@ int AINode_Battle_Chase(bot_state_t *bs)
 			BotAimAtEnemy(bs);
 		}
 		else {
-			if (trap_BotMovementViewTarget(bs->ms, &goal, bs->tfl, 300, target)) {
+			if (trap_BotMovementViewTarget(bs->ms, &goal, BotJumppad_EffectiveTfl(bs), 300, target)) {
 				VectorSubtract(target, bs->origin, dir);
 				vectoangles(dir, bs->ideal_viewangles);
 			}
@@ -2586,7 +2592,7 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 	//initialize the movement state
 	BotSetupForMovement(bs);
 	//move towards the goal
-	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, bs->tfl);
+	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, BotJumppad_EffectiveTfl(bs));
 	//if the movement failed
 	if (moveresult.failure) {
 		//reset the avoid reach, otherwise bot is stuck in current area
@@ -2610,7 +2616,7 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 			BotAimAtEnemy(bs);
 		}
 		else {
-			if (trap_BotMovementViewTarget(bs->ms, &goal, bs->tfl, 300, target)) {
+			if (trap_BotMovementViewTarget(bs->ms, &goal, BotJumppad_EffectiveTfl(bs), 300, target)) {
 				VectorSubtract(target, bs->origin, dir);
 				vectoangles(dir, bs->ideal_viewangles);
 			}
@@ -2731,7 +2737,7 @@ int AINode_Battle_NBG(bot_state_t *bs) {
 	//initialize the movement state
 	BotSetupForMovement(bs);
 	//move towards the goal
-	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, bs->tfl);
+	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, BotJumppad_EffectiveTfl(bs));
 	//if the movement failed
 	if (moveresult.failure) {
 		//reset the avoid reach, otherwise bot is stuck in current area
@@ -2758,7 +2764,7 @@ int AINode_Battle_NBG(bot_state_t *bs) {
 			BotAimAtEnemy(bs);
 		}
 		else {
-			if (trap_BotMovementViewTarget(bs->ms, &goal, bs->tfl, 300, target)) {
+			if (trap_BotMovementViewTarget(bs->ms, &goal, BotJumppad_EffectiveTfl(bs), 300, target)) {
 				VectorSubtract(target, bs->origin, dir);
 				vectoangles(dir, bs->ideal_viewangles);
 			}

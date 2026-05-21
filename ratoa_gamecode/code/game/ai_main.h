@@ -202,6 +202,8 @@ typedef struct bot_state_s
 	float killedenemy_time;							//time the bot killed the enemy
 	float arrive_time;								//time arrived (at companion)
 	float lastair_time;								//last time the bot had air
+	float jumppad_avoid_until;						/* do not path via jumppads until this time */
+	int jumppad_last_ent;							/* last trigger_push entity touched */
 	float teleport_time;							//last time the bot teleported
 	float camp_time;								//last time camped
 	float camp_range;								//camp range

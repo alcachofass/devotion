@@ -1796,6 +1796,48 @@ void BotSetupForMovement(bot_state_t *bs) {
 	VectorCopy(bs->viewangles, initmove.viewangles);
 	//
 	trap_BotInitMoveState(bs->ms, &initmove);
+	BotJumppad_Update(bs);
+}
+
+#define BOT_JUMPPAD_AVOID_TIME	12.0f
+
+/*
+==================
+BotJumppad_Update
+
+Record trigger_push use via playerState and avoid re-routing through jumppads
+for a while. BotResetLastAvoidReach clears the botlib avoid timer (wrong for
+loop prevention); stripping TFL_JUMPPAD forces a walk-off or alternate path.
+==================
+*/
+void BotJumppad_Update(bot_state_t *bs) {
+	int entnum;
+
+	if (!bs) {
+		return;
+	}
+
+	entnum = bs->cur_ps.jumppad_ent;
+	if (!entnum) {
+		return;
+	}
+
+	if (bs->jumppad_last_ent == entnum && bs->jumppad_avoid_until > FloatTime()) {
+		bs->jumppad_avoid_until = FloatTime() + BOT_JUMPPAD_AVOID_TIME;
+	} else {
+		bs->jumppad_last_ent = entnum;
+		bs->jumppad_avoid_until = FloatTime() + BOT_JUMPPAD_AVOID_TIME;
+	}
+}
+
+int BotJumppad_EffectiveTfl(bot_state_t *bs) {
+	if (!bs) {
+		return TFL_DEFAULT;
+	}
+	if (bs->jumppad_avoid_until > FloatTime()) {
+		return bs->tfl & ~TFL_JUMPPAD;
+	}
+	return bs->tfl;
 }
 
 /*

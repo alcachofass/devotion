@@ -42,6 +42,9 @@ void BotFreeWaypoints(bot_waypoint_t *wp);
 void BotChooseWeapon(bot_state_t *bs);
 //setup movement stuff
 void BotSetupForMovement(bot_state_t *bs);
+//after touching a jumppad, temporarily drop TFL_JUMPPAD from routing
+void BotJumppad_Update(bot_state_t *bs);
+int BotJumppad_EffectiveTfl(bot_state_t *bs);
 //update the inventory
 void BotUpdateInventory(bot_state_t *bs);
 //update the inventory during battle
