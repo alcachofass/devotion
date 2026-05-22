@@ -17,6 +17,7 @@ bot_smartWeaponChoice, bot_tacticalAI — see BotEnhanced_RegisterCvars migratio
 #define AI_BOT_ENHANCED_H
 
 struct bot_state_s;
+struct bot_goal_s;
 
 void BotEnhanced_RegisterCvars(void);
 void BotEnhanced_ResetBot(struct bot_state_s *bs);
@@ -44,5 +45,21 @@ int BotEnhanced_CanEngageClient(struct bot_state_s *bs, int clientnum);
 
 /* Enhanced bots do not use info_camp / BotWantsToCamp roaming. */
 int BotEnhanced_AllowsCamping(void);
+
+/*
+ * Goal stack guards (botlib MAX_GOALSTACK = 8). Use before botlib choose/push
+ * paths that can overflow the heap (items, nearby goals, air goals).
+ */
+/* Headroom for botlib ChooseNBG/LTG internal pushes (heap size 8). */
+#define BOTENHANCED_GOAL_STACK_RESERVE	5
+
+int BotEnhanced_GoalStackDepth(struct bot_state_s *bs);
+int BotEnhanced_GoalStackContains(struct bot_state_s *bs, int goalNumber);
+int BotEnhanced_GoalStackHasEquivalent(struct bot_state_s *bs, struct bot_goal_s *goal);
+int BotEnhanced_PushGoalSafe(struct bot_state_s *bs, struct bot_goal_s *goal);
+void BotEnhanced_ReserveGoalStackRoom(struct bot_state_s *bs, int slotsNeeded);
+void BotEnhanced_DedupeGoalStack(struct bot_state_s *bs);
+void BotEnhanced_SanitizeGoalStack(struct bot_state_s *bs);
+void BotEnhanced_OnGoalChooseDone(struct bot_state_s *bs);
 
 #endif /* AI_BOT_ENHANCED_H */

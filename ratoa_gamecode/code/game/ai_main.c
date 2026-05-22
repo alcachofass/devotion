@@ -708,6 +708,14 @@ BotEntityInfo
 ==============
 */
 void BotEntityInfo(int entnum, aas_entityinfo_t *info) {
+	if (!info) {
+		return;
+	}
+	if (entnum < 0) {
+		memset(info, 0, sizeof(*info));
+		info->valid = qfalse;
+		return;
+	}
 	trap_AAS_EntityInfo(entnum, info);
 }
 

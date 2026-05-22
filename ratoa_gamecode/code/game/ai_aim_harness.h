@@ -12,8 +12,8 @@ Debug: bot_debugAim 1 (server, CVAR_CHEAT) publishes motor wish (ideal_viewangle
 when roaming, aimtarget when fighting) via ps.grapplePoint + EXTFL_BOT_AIM_DEBUG;
 cg_debugBotAim draws green = wish, yellow (bit 4) = crosshair.
 
-Combat fire: loose FOV + eye LOS to enemy body (not lead-only); MG/LG hold +attack
-each input frame while on target. Railgun-style (WFL_FIRERELEASED) uses think cadence.
+Combat fire: suppressive — fire when tracking unless LOS is obviously blocked; MG/LG
+hold +attack each input frame (only drop hold when blocked). Rail uses think cadence.
 
 Motor frames use legacy delta-angle rebasing in BotUpdateInput, 10 ms integration
 sub-steps (stable at low sv_fps on dedicated), resync playerState only on large desync,
@@ -42,6 +42,13 @@ void BotAimHarness_SetCombatGoal(struct bot_state_s *bs, const float idealAngles
 	float aimSkill, float aimAccuracy, float weaponVSpread, float weaponHSpread);
 void BotAimHarness_ApplyThinkHitscanOrigin(struct bot_state_s *bs, float bestorigin[3],
 	void *entinfo, float aimSkill);
+/* Overpredict final shot point along enemy travel (once per bot think); all weapons. */
+void BotAimHarness_ApplyMovementLead(struct bot_state_s *bs, float shotPoint[3],
+	float aimSkill);
+/* Splash rockets: aim at enemy feet (center Z - 28, bot_enhanced_aim). */
+void BotAimHarness_ApplyRocketFeetAim(struct bot_state_s *bs, float aimPoint[3]);
+/* Plasma: torso center mass only (never feet / splash Z). */
+void BotAimHarness_ApplyPlasmaCenterMassAim(struct bot_state_s *bs, float aimPoint[3]);
 int BotAimHarness_ChangeViewAngles(struct bot_state_s *bs, float thinktime);
 int BotAimHarness_AimTargetValid(struct bot_state_s *bs);
 /*

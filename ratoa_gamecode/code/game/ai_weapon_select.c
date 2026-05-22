@@ -48,6 +48,8 @@ float BotEntityVisible(int viewer, vec3_t eye, vec3_t viewangles, float fov, int
 #define WPNSEL_MG_DOWNGRADE_HYSTERESIS	18.0f
 #define WPNSEL_MG_OBVIOUS_GAP_BASE		8.0f
 #define WPNSEL_MG_OBVIOUS_GAP_SKILL		10.0f
+/* Rockets arc up; skip when enemy is clearly above the bot (same Z gate as splash ground aim). */
+#define WPNSEL_RL_ENEMY_ABOVE_Z		16
 #define WPNSEL_MG_LEGACY_BIAS_SCALE		0.12f
 /* Roaming: throttled ready-weapon selection, prefer silent over audible. */
 #define WPNSEL_ROAM_EVAL_MIN			0.85f
@@ -62,6 +64,8 @@ float BotEntityVisible(int viewer, vec3_t eye, vec3_t viewangles, float fov, int
 #define WPNSEL_ENHANCED_MIN_SWITCH_INTERVAL	1.0f
 #define WPNSEL_ENHANCED_GAUNTLET_LATCH		3.5f
 #define WPNSEL_ENHANCED_MIN_EVAL_INTERVAL	1.0f
+#define WPNSEL_VOLUNTARY_GAUNTLET_CHANCE	0.25f
+#define WPNSEL_VOLUNTARY_GAUNTLET_PENALTY	45.0f
 
 static int BotWpnSel_HasWeaponAndAmmo(bot_state_t *bs, int wp) {
 	if (wp <= WP_NONE || wp >= WP_NUM_WEAPONS) {
@@ -265,6 +269,16 @@ static float BotWpnSel_SwitchInCost(const weaponinfo_t *wi) {
 	return t;
 }
 
+static int BotWpnSel_RocketCombatSuitable(bot_state_t *bs) {
+	if (bs->enemy < 0) {
+		return 1;
+	}
+	if (bs->inventory[ENEMY_HEIGHT] > WPNSEL_RL_ENEMY_ABOVE_Z) {
+		return 0;
+	}
+	return 1;
+}
+
 static int BotWpnSel_EnemyHealth(bot_state_t *bs) {
 	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
 		return 999;
@@ -307,7 +321,8 @@ static int BotWpnSel_CountCombatAlternatives(bot_state_t *bs, float dist) {
 	if (dist > 200.0f && dist < 1100.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_PLASMAGUN)) {
 		n++;
 	}
-	if (dist > 96.0f && dist < 900.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_ROCKET_LAUNCHER)) {
+	if (dist > 96.0f && dist < 900.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_ROCKET_LAUNCHER) &&
+			BotWpnSel_RocketCombatSuitable(bs)) {
 		n++;
 	}
 	if (dist > 96.0f && dist < 900.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_GRENADE_LAUNCHER)) {
@@ -479,6 +494,29 @@ static float BotWpnSel_MachinegunRoamModifier(bot_state_t *bs) {
 	return WPNSEL_ROAM_MG_ONLY_BONUS;
 }
 
+static qboolean BotWpnSel_VoluntaryCloseGauntletEligible(bot_state_t *bs, float dist) {
+	if (!bs || bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		return qfalse;
+	}
+	if (BotTactics_IsGauntletOnly(bs)) {
+		return qfalse;
+	}
+	if (!BotEnhanced_AllowsVoluntaryCloseGauntlet(bs)) {
+		return qfalse;
+	}
+	if (FloatTime() < bs->combat.gauntlet_voluntary_abandon_until) {
+		return qfalse;
+	}
+	return dist <= (float)BOT_COMBAT_GAUNTLET_RUSH_DIST;
+}
+
+static qboolean BotWpnSel_RollVoluntaryCloseGauntlet(bot_state_t *bs, float dist) {
+	if (!BotWpnSel_VoluntaryCloseGauntletEligible(bs, dist)) {
+		return qfalse;
+	}
+	return random() < WPNSEL_VOLUNTARY_GAUNTLET_CHANCE;
+}
+
 static qboolean BotWpnSel_IsCloseGauntletCommit(bot_state_t *bs, int wp) {
 	float dist;
 
@@ -492,10 +530,7 @@ static qboolean BotWpnSel_IsCloseGauntletCommit(bot_state_t *bs, int wp) {
 	if (BotTactics_IsGauntletOnly(bs)) {
 		return dist <= (float)BOT_COMBAT_GAUNTLET_LASTRESORT_RUSH_DIST;
 	}
-	if (!BotEnhanced_AllowsVoluntaryCloseGauntlet(bs)) {
-		return qfalse;
-	}
-	return dist <= (float)BOT_COMBAT_GAUNTLET_RUSH_DIST;
+	return BotWpnSel_VoluntaryCloseGauntletEligible(bs, dist);
 }
 
 static void BotWpnSel_EnhancedApplyLatch(bot_state_t *bs, int prev_wp, int new_wp) {
@@ -562,7 +597,7 @@ void BotWpnSelect_GetDesire(bot_state_t *bs, bot_weapon_desire_t *out) {
 
 int BotWpnSelect_Choose(bot_state_t *bs) {
 	int wp, best_wp, legacy_best, weap_list[16], n_weaps, i;
-	int alternatives, best_non_mg_wp;
+	int alternatives, best_non_mg_wp, voluntaryGauntlet;
 	float dist, score, best_score, cur_score, skillCombat, react, eval_dt;
 	float hysteresis, noiseAmp, vis, mgMod, legacyBias;
 	float miss_score, best_miss_score, best_non_mg_score, obviousGap;
@@ -613,6 +648,11 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 	alternatives = BotWpnSel_CountCombatAlternatives(bs, dist);
 	mgMod = BotWpnSel_MachinegunModifier(bs, dist, skillCombat);
 
+	voluntaryGauntlet = 0;
+	if (BotWpnSel_VoluntaryCloseGauntletEligible(bs, dist)) {
+		voluntaryGauntlet = BotWpnSel_RollVoluntaryCloseGauntlet(bs, dist) ? 1 : -1;
+	}
+
 	n_weaps = 0;
 	weap_list[n_weaps++] = WP_GAUNTLET;
 	weap_list[n_weaps++] = WP_MACHINEGUN;
@@ -640,6 +680,9 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 		if (!BotWpnSel_HasWeaponAndAmmo(bs, wp)) {
 			continue;
 		}
+		if (wp == WP_ROCKET_LAUNCHER && !BotWpnSel_RocketCombatSuitable(bs)) {
+			continue;
+		}
 		trap_BotGetWeaponInfo(bs->ws, wp, &wi);
 		if (!wi.valid) {
 			continue;
@@ -658,8 +701,10 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 				score += 35.0f;
 			} else if (FloatTime() < bs->combat.gauntlet_voluntary_abandon_until) {
 				score -= 120.0f;
-			} else if (BotEnhanced_AllowsVoluntaryCloseGauntlet(bs)) {
+			} else if (voluntaryGauntlet > 0) {
 				score += 78.0f;
+			} else if (voluntaryGauntlet < 0) {
+				score -= WPNSEL_VOLUNTARY_GAUNTLET_PENALTY;
 			} else {
 				score -= 120.0f;
 			}
@@ -761,11 +806,8 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 	}
 
 	if (best_wp == WP_GAUNTLET && !BotTactics_IsGauntletOnly(bs) &&
-			dist <= (float)BOT_COMBAT_GAUNTLET_RUSH_DIST) {
-		if (FloatTime() < bs->combat.gauntlet_voluntary_abandon_until ||
-				!BotEnhanced_AllowsVoluntaryCloseGauntlet(bs)) {
-			best_wp = bs->weaponnum;
-		}
+			voluntaryGauntlet < 0) {
+		best_wp = bs->weaponnum;
 	}
 
 	return best_wp;

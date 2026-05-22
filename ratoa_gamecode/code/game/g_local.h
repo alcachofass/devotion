@@ -1660,6 +1660,10 @@ void	trap_BotResetGoalState(int goalstate);
 void	trap_BotRemoveFromAvoidGoals(int goalstate, int number);
 void	trap_BotResetAvoidGoals(int goalstate);
 void	trap_BotPushGoal(int goalstate, void /* struct bot_goal_s */ *goal);
+#ifndef Q3_VM
+void	Botlib_RawPushGoal(int goalstate, void /* struct bot_goal_s */ *goal);
+void	Botlib_RawPopGoal(int goalstate);
+#endif
 void	trap_BotPopGoal(int goalstate);
 void	trap_BotEmptyGoalStack(int goalstate);
 void	trap_BotDumpAvoidGoals(int goalstate);

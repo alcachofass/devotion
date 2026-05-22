@@ -298,6 +298,7 @@ typedef struct bot_state_s
 	int			evt_attacker;
 	int			evt_damage;
 	int			evt_mod;
+	float		enh_goal_last_push_time;
 	/* ---- end BOT ENHANCED ---- */
 
 	/* ---- BOT ITEMS: ai_bot_items.c — remove this block to revert ---- */
@@ -312,6 +313,8 @@ typedef struct bot_state_s
 	int			item_commit_snap_redflag;
 	int			item_commit_snap_blueflag;
 	int			item_commit_snap_weapon;
+	float		item_commit_progress_time;
+	vec3_t		item_commit_progress_origin;
 	/* ---- end BOT ITEMS ---- */
 
 	/* ---- BOT AIM HARNESS (v1): ai_aim_harness.c — remove this block to revert ---- */

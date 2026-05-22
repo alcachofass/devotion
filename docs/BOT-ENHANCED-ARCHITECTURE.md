@@ -62,7 +62,8 @@ Legacy `bot_humanizeaim` / `bot_smartWeaponChoice` / `bot_tacticalAI` are migrat
 
 | File | Role |
 |------|------|
-| `ai_bot_enhanced.c/h` | Master cvar, facade gates, `OnThinkStart`, register/reset orchestration |
+| `ai_bot_enhanced.c/h` | Master cvar, facade gates, `OnThinkStart`, register/reset orchestration, goal-stack overflow guards (`BotEnhanced_PushGoalSafe`, `BotEnhanced_ReserveGoalStackRoom`, `BotEnhanced_SanitizeGoalStack`) |
+| `ai_bot_items.c/h` | Visible pickup commits, botlib item chooser wrappers (uses enhanced goal-stack API) |
 | `ai_bot_combat.c/h` | `bot_combat_intent_t` on `bot_state_t`; stance/move/fire policy (defaults = legacy) |
 | `ai_bot_events.c/h` | Ingress queue (`evt_*`); `BotEvents_Drain` → tactics scan/process |
 | `ai_bot_move_harness.c/h` | Botlib movement-view bypass + maneuvers (rocket jump); hooks think/input |
@@ -71,8 +72,8 @@ Legacy `bot_humanizeaim` / `bot_smartWeaponChoice` / `bot_tacticalAI` are migrat
 | `ai_weapon_select.c/h` | Range/ammo weapon picker + roam selection |
 | `ai_bot_tactics.c/h` | Gauntlet flee, hurt-by-other, closer threat, finish wounded |
 | `ai_main.h` | `combat`, `evt_*`, `aimh_*`, `movej_*`, `wps_*`, `tact_*` blocks |
-| `ai_dmq3.c` | `BotDeathmatchAI`, aim-at-enemy, `BotChooseWeapon` (facade at boundaries) |
-| `ai_dmnet.c` | Battle/retreat node hooks into tactics |
+| `ai_dmq3.c` | `BotDeathmatchAI`, aim-at-enemy, `BotChooseWeapon`, jumppad routing (facade at boundaries) |
+| `ai_dmnet.c` | Battle/retreat node hooks; calls `BotEnhanced_*` goal-stack helpers before nearby/LTG item choose |
 | `ai_main.c` | `BotUpdateInput` aim path |
 
 ---

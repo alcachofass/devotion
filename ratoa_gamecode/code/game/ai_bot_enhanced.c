@@ -33,6 +33,16 @@ extern vmCvar_t bot_enhanced_tactics;
 #define BOT_ENHANCED_LEGACY_WEAPONS	"bot_smartWeaponChoice"
 #define BOT_ENHANCED_LEGACY_TACTICS	"bot_tacticalAI"
 
+#ifdef Q3_VM
+void Botlib_RawPushGoal(int goalstate, bot_goal_t *goal) {
+	trap_BotPushGoal(goalstate, goal);
+}
+
+void Botlib_RawPopGoal(int goalstate) {
+	trap_BotPopGoal(goalstate);
+}
+#endif
+
 static int BotEnhanced_LegacyCvarActive(const char *name) {
 	return trap_Cvar_VariableValue(name) != 0.0f;
 }
@@ -217,8 +227,227 @@ static void BotEnhanced_CancelCampLongTermGoal(bot_state_t *bs) {
 	bs->teamgoal_time = 0;
 }
 
+#define BOTENH_GOAL_DUP_ORIGIN_DIST	48.0f
+#define BOTENH_GOAL_PUSH_MIN_INTERVAL	0.08f
+#define BOTENH_GOAL_STACK_SOFT_MAX	6
+
+static int BotEnhanced_GoalEquivalent(const bot_goal_t *a, const bot_goal_t *b) {
+	vec3_t delta;
+
+	if (!a || !b) {
+		return 0;
+	}
+	if (a->number == b->number && a->number >= 0) {
+		return 1;
+	}
+	VectorSubtract(a->origin, b->origin, delta);
+	if (VectorLengthSquared(delta) <= Square(BOTENH_GOAL_DUP_ORIGIN_DIST)) {
+		return 1;
+	}
+	return 0;
+}
+
+static int BotEnhanced_GoalInList(const bot_goal_t *goal, const bot_goal_t *list, int count) {
+	int i;
+
+	for (i = 0; i < count; i++) {
+		if (BotEnhanced_GoalEquivalent(goal, &list[i])) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/*
+==================
+BotEnhanced_GoalStackDepth
+==================
+*/
+int BotEnhanced_GoalStackDepth(bot_state_t *bs) {
+	bot_goal_t stack[MAX_GOALSTACK];
+	int depth;
+
+	if (!bs) {
+		return 0;
+	}
+
+	depth = 0;
+	while (depth < MAX_GOALSTACK && trap_BotGetTopGoal(bs->gs, &stack[depth])) {
+		Botlib_RawPopGoal(bs->gs);
+		depth++;
+	}
+	while (depth > 0) {
+		depth--;
+		Botlib_RawPushGoal(bs->gs, &stack[depth]);
+	}
+	return depth;
+}
+
+/*
+==================
+BotEnhanced_GoalStackContains
+==================
+*/
+int BotEnhanced_GoalStackContains(bot_state_t *bs, int goalNumber) {
+	bot_goal_t stack[MAX_GOALSTACK];
+	int depth, i;
+	int found;
+
+	if (!bs) {
+		return 0;
+	}
+
+	found = 0;
+	depth = 0;
+	while (depth < MAX_GOALSTACK && trap_BotGetTopGoal(bs->gs, &stack[depth])) {
+		if (stack[depth].number == goalNumber) {
+			found = 1;
+		}
+		Botlib_RawPopGoal(bs->gs);
+		depth++;
+	}
+	for (i = depth - 1; i >= 0; i--) {
+		Botlib_RawPushGoal(bs->gs, &stack[i]);
+	}
+	return found;
+}
+
+int BotEnhanced_GoalStackHasEquivalent(bot_state_t *bs, bot_goal_t *goal) {
+	bot_goal_t stack[MAX_GOALSTACK];
+	int depth, i, found;
+
+	if (!bs || !goal) {
+		return 0;
+	}
+
+	found = 0;
+	depth = 0;
+	while (depth < MAX_GOALSTACK && trap_BotGetTopGoal(bs->gs, &stack[depth])) {
+		if (!found && BotEnhanced_GoalEquivalent(goal, &stack[depth])) {
+			found = 1;
+		}
+		Botlib_RawPopGoal(bs->gs);
+		depth++;
+	}
+	for (i = depth - 1; i >= 0; i--) {
+		Botlib_RawPushGoal(bs->gs, &stack[i]);
+	}
+	return found;
+}
+
+/*
+==================
+BotEnhanced_PushGoalSafe
+
+Returns 1 if goal is on stack (already or newly pushed), 0 if stack full / rate limited.
+==================
+*/
+int BotEnhanced_PushGoalSafe(bot_state_t *bs, bot_goal_t *goal) {
+	float now;
+
+	if (!bs || !goal) {
+		return 0;
+	}
+	if (BotEnhanced_GoalStackHasEquivalent(bs, goal)) {
+		return 1;
+	}
+	now = FloatTime();
+	if (now - bs->enh_goal_last_push_time < BOTENH_GOAL_PUSH_MIN_INTERVAL) {
+		return 0;
+	}
+	if (BotEnhanced_GoalStackDepth(bs) >= MAX_GOALSTACK) {
+		return 0;
+	}
+	Botlib_RawPushGoal(bs->gs, goal);
+	bs->enh_goal_last_push_time = now;
+	return 1;
+}
+
+/*
+==================
+BotEnhanced_ReserveGoalStackRoom
+
+Pop top goals until at least slotsNeeded slots are free (botlib may push).
+==================
+*/
+void BotEnhanced_ReserveGoalStackRoom(bot_state_t *bs, int slotsNeeded) {
+	int depth, limit;
+
+	if (!bs || slotsNeeded < 1) {
+		return;
+	}
+	if (slotsNeeded > MAX_GOALSTACK - 1) {
+		slotsNeeded = MAX_GOALSTACK - 1;
+	}
+	limit = MAX_GOALSTACK - slotsNeeded;
+	while ((depth = BotEnhanced_GoalStackDepth(bs)) > limit) {
+		Botlib_RawPopGoal(bs->gs);
+	}
+}
+
+/*
+==================
+BotEnhanced_DedupeGoalStack
+
+Remove duplicate goals (same number or same place); keep newest entries on top.
+==================
+*/
+void BotEnhanced_DedupeGoalStack(bot_state_t *bs) {
+	bot_goal_t stack[MAX_GOALSTACK];
+	bot_goal_t unique[MAX_GOALSTACK];
+	int depth, i, n, start;
+
+	if (!bs) {
+		return;
+	}
+
+	depth = 0;
+	while (depth < MAX_GOALSTACK && trap_BotGetTopGoal(bs->gs, &stack[depth])) {
+		Botlib_RawPopGoal(bs->gs);
+		depth++;
+	}
+
+	n = 0;
+	for (i = depth - 1; i >= 0; i--) {
+		if (!BotEnhanced_GoalInList(&stack[i], unique, n)) {
+			unique[n++] = stack[i];
+		}
+	}
+
+	if (n > BOTENH_GOAL_STACK_SOFT_MAX) {
+		start = n - BOTENH_GOAL_STACK_SOFT_MAX;
+	} else {
+		start = 0;
+	}
+
+	for (i = start; i < n; i++) {
+		Botlib_RawPushGoal(bs->gs, &unique[i]);
+	}
+}
+
+void BotEnhanced_OnGoalChooseDone(bot_state_t *bs) {
+	if (!bs) {
+		return;
+	}
+	BotEnhanced_SanitizeGoalStack(bs);
+	BotEnhanced_DedupeGoalStack(bs);
+}
+
+/*
+==================
+BotEnhanced_SanitizeGoalStack
+==================
+*/
+void BotEnhanced_SanitizeGoalStack(bot_state_t *bs) {
+	BotEnhanced_ReserveGoalStackRoom(bs, BOTENHANCED_GOAL_STACK_RESERVE);
+	BotEnhanced_DedupeGoalStack(bs);
+}
+
 void BotEnhanced_OnThinkStart(bot_state_t *bs) {
 	BotEvents_Drain(bs);
+	if (bs && bs->inuse) {
+		BotEnhanced_SanitizeGoalStack(bs);
+	}
 	if (BotEnhanced_IsActive()) {
 		BotEnhanced_DropChattingEnemy(bs);
 		BotEnhanced_CancelCampLongTermGoal(bs);
@@ -248,6 +477,9 @@ int BotEnhanced_AllowsVoluntaryCloseGauntlet(bot_state_t *bs) {
 }
 
 void BotEnhanced_ResetBot(bot_state_t *bs) {
+	if (bs) {
+		bs->enh_goal_last_push_time = 0.0f;
+	}
 	BotMoveHarness_Reset(bs);
 	BotEvents_Reset(bs);
 	BotCombat_Reset(bs);

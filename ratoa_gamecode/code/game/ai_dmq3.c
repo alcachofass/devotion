@@ -2908,7 +2908,8 @@ bot_moveresult_t BotAttackMove(bot_state_t *bs, int tfl) {
 	movetype = MOVE_WALK;
 	//
 	if (bs->attackcrouch_time < FloatTime() - 1) {
-		if (random() < jumper) {
+		/* Enhanced bots: no random attack jumps (reduces strafe+hop off ledges). */
+		if (!BotEnhanced_IsActive() && random() < jumper) {
 			movetype = MOVE_JUMP;
 		}
 		//wait at least one second before crouching again
@@ -3647,7 +3648,11 @@ void BotAimAtEnemy(bot_state_t *bs) {
 	if (enemyvisible) {
 		//
 		VectorCopy(entinfo.origin, bestorigin);
-		bestorigin[2] += 8;
+		if (BotEnhanced_AimActive() && wi.number == WP_PLASMAGUN) {
+			bestorigin[2] += 28;
+		} else {
+			bestorigin[2] += 8;
+		}
 		//get the start point shooting from
 		//NOTE: the x and y projectile start offsets are ignored
 		VectorCopy(bs->origin, start);
@@ -3711,7 +3716,8 @@ void BotAimAtEnemy(bot_state_t *bs) {
 			}
 		}
 		//if the projectile does radial damage
-		if (aim_skill > 0.6 && wi.proj.damagetype & DAMAGETYPE_RADIAL) {
+		if (aim_skill > 0.6 && wi.proj.damagetype & DAMAGETYPE_RADIAL &&
+				!(BotEnhanced_AimActive() && wi.number == WP_PLASMAGUN)) {
 			//if the enemy isn't standing significantly higher than the bot
 			if (entinfo.origin[2] < bs->origin[2] + 16) {
 				//try to aim at the ground in front of the enemy
@@ -3749,8 +3755,6 @@ void BotAimAtEnemy(bot_state_t *bs) {
 			bestorigin[0] += 20 * crandom() * (1 - aim_accuracy);
 			bestorigin[1] += 20 * crandom() * (1 - aim_accuracy);
 			bestorigin[2] += 10 * crandom() * (1 - aim_accuracy);
-		} else if (!wi.speed) {
-			BotAimHarness_ApplyThinkHitscanOrigin(bs, bestorigin, &entinfo, aim_skill);
 		}
 	}
 	else {
@@ -3789,8 +3793,17 @@ void BotAimAtEnemy(bot_state_t *bs) {
 	else {
 		VectorCopy(bestorigin, bs->aimtarget);
 	}
+	if (BotEnhanced_AimActive() && wi.number == WP_ROCKET_LAUNCHER) {
+		BotAimHarness_ApplyRocketFeetAim(bs, bs->aimtarget);
+	}
+	if (BotEnhanced_AimActive() && wi.number == WP_PLASMAGUN) {
+		BotAimHarness_ApplyPlasmaCenterMassAim(bs, bs->aimtarget);
+	}
+	if (BotEnhanced_AimActive()) {
+		BotAimHarness_ApplyMovementLead(bs, bs->aimtarget, aim_skill);
+	}
 	//get aim direction
-	VectorSubtract(bestorigin, bs->eye, dir);
+	VectorSubtract(bs->aimtarget, bs->eye, dir);
 	//
 	if (wi.number == WP_MACHINEGUN ||
 		wi.number == WP_SHOTGUN ||

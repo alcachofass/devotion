@@ -171,12 +171,14 @@ int BotGoForAir(bot_state_t *bs, int tfl, bot_goal_t *ltg, float range) {
 #endif //DEBUG
 		//if we can find an air goal
 		if (BotGetAirGoal(bs, &goal)) {
-			trap_BotPushGoal(bs->gs, &goal);
+			BotEnhanced_PushGoalSafe(bs, &goal);
 			return qtrue;
 		}
 		else {
+			BotEnhanced_ReserveGoalStackRoom(bs, BOTENHANCED_GOAL_STACK_RESERVE);
 			//get a nearby goal outside the water
 			while (BotItems_ChooseNBGItem(bs, tfl, ltg, range)) {
+				BotEnhanced_SanitizeGoalStack(bs);
 				trap_BotGetTopGoal(bs->gs, &goal);
 				//if the goal is not in water
 				if (!(trap_AAS_PointContents(goal.origin) & (CONTENTS_WATER|CONTENTS_SLIME|CONTENTS_LAVA))) {
@@ -214,6 +216,7 @@ int BotNearbyGoal(bot_state_t *bs, int tfl, bot_goal_t *ltg, float range) {
 		}
 	}
 	//
+	BotEnhanced_ReserveGoalStackRoom(bs, BOTENHANCED_GOAL_STACK_RESERVE);
 	ret = BotItems_ChooseNBGItem(bs, BotJumppad_EffectiveTfl(bs), ltg, range);
 	/*
 	if (ret)
@@ -251,7 +254,7 @@ int BotReachedGoal(bot_state_t *bs, bot_goal_t *goal) {
 			return qtrue;
 		}
 		//if the goal isn't there
-		if (trap_BotItemGoalInVisButNotVisible(bs->entitynum, bs->eye, bs->viewangles, goal)) {
+		if (BotItems_ItemGoalInVisButNotVisible(bs, goal)) {
 			/*
 			float avoidtime;
 			int t;
@@ -704,7 +707,7 @@ int BotGetLongTermGoal(bot_state_t *bs, int tfl, int retreat, bot_goal_t *goal) 
 			bs->ltgtype = 0;
 		}
 		//
-		if (trap_BotItemGoalInVisButNotVisible(bs->entitynum, bs->eye, bs->viewangles, goal)) {
+		if (BotItems_ItemGoalInVisButNotVisible(bs, goal)) {
 			trap_BotGoalName(bs->teamgoal.number, buf, sizeof(buf));
 			BotAI_BotInitialChat(bs, "getitem_notthere", buf, NULL);
 			trap_BotEnterChat(bs->cs, bs->decisionmaker, CHAT_TELL);
@@ -1832,6 +1835,7 @@ int AINode_Seek_NBG(bot_state_t *bs) {
 			//reset the avoid reach, otherwise bot is stuck in current area
 			trap_BotResetAvoidReach(bs->ms);
 		}
+		BotItems_OnMoveFailure(bs);
 		bs->nbg_time = 0;
 	}
 	//check if the bot is blocked
@@ -2040,6 +2044,7 @@ int AINode_Seek_LTG(bot_state_t *bs)
 		//reset the avoid reach, otherwise bot is stuck in current area
 		trap_BotResetAvoidReach(bs->ms);
 		//BotAI_Print(PRT_MESSAGE, "movement failure %d\n", moveresult.traveltype);
+		BotItems_OnMoveFailure(bs);
 		bs->ltg_time = 0;
 	}
 	//
