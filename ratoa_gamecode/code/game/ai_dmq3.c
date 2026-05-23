@@ -44,12 +44,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../botlib/be_ai_weap.h"
 //
 #include "ai_main.h"
+#include "ai_bot_enhanced.h"
 #include "ai_dmq3.h"
 #include "ai_aim_harness.h"
 #include "ai_weapon_select.h"
 #include "ai_bot_tactics.h"
-#include "ai_bot_enhanced.h"
 #include "ai_bot_combat.h"
+#include "ai_bot_move_harness.h"
 #include "ai_chat.h"
 #include "ai_cmd.h"
 #include "ai_dmnet.h"
@@ -240,21 +241,16 @@ EntityIsDead
 ==================
 */
 qboolean EntityClientIsDead(int clientNum) {
-	playerState_t ps;
+	gentity_t *ent;
 
 	if (clientNum < 0 || clientNum >= MAX_CLIENTS) {
 		return qfalse;
 	}
-	if (!BotAI_GetClientState(clientNum, &ps)) {
+	ent = &g_entities[clientNum];
+	if (!ent->inuse || !ent->client) {
 		return qtrue;
 	}
-	if (ps.pm_type != PM_NORMAL) {
-		return qtrue;
-	}
-	if (ps.stats[STAT_HEALTH] <= 0) {
-		return qtrue;
-	}
-	return qfalse;
+	return (ent->health < 1) ? qtrue : qfalse;
 }
 
 /*
@@ -1831,13 +1827,7 @@ void BotJumppad_Update(bot_state_t *bs) {
 }
 
 int BotJumppad_EffectiveTfl(bot_state_t *bs) {
-	if (!bs) {
-		return TFL_DEFAULT;
-	}
-	if (bs->jumppad_avoid_until > FloatTime()) {
-		return bs->tfl & ~TFL_JUMPPAD;
-	}
-	return bs->tfl;
+	return BotMove_EffectiveTfl(bs);
 }
 
 /*
@@ -3799,7 +3789,9 @@ void BotAimAtEnemy(bot_state_t *bs) {
 	if (BotEnhanced_AimActive() && wi.number == WP_PLASMAGUN) {
 		BotAimHarness_ApplyPlasmaCenterMassAim(bs, bs->aimtarget);
 	}
-	if (BotEnhanced_AimActive()) {
+	if (BotEnhanced_AimActive() && wi.number == WP_RAILGUN) {
+		BotAimHarness_ApplyRailInterceptAim(bs, bs->aimtarget, aim_skill, aim_accuracy);
+	} else if (BotEnhanced_AimActive()) {
 		BotAimHarness_ApplyMovementLead(bs, bs->aimtarget, aim_skill);
 	}
 	//get aim direction

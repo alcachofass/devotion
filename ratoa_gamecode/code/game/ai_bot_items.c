@@ -21,6 +21,7 @@ BOT ITEMS — visible high-value pickup with committed goal persistence.
 #include "inv.h"
 #include "ai_bot_items.h"
 #include "ai_bot_enhanced.h"
+#include "ai_bot_move_harness.h"
 #include "ai_dmq3.h"
 #include "ai_team.h"
 
@@ -50,7 +51,10 @@ vmCvar_t bot_enhanced_items_debug;
 #define BOT_ITEM_WEAPON_NAILGUN		15
 #define BOT_ITEM_WEAPON_PROX		16
 #define BOT_ITEM_WEAPON_CHAINGUN	17
-#define BOT_ITEM_WEAPON_GRAPPLE		18
+#define BOT_ITEM_HEALTH_SMALL		18
+#define BOT_ITEM_HEALTH			19
+#define BOT_ITEM_HEALTH_LARGE		20
+#define BOT_ITEM_HEALTH_SEEK_MAX	80
 #define BOT_ITEMS_DBG_GOT		1
 #define BOT_ITEMS_DBG_TIMEOUT		2
 #define BOT_ITEMS_DBG_GONE		3
@@ -66,6 +70,9 @@ static const int botItemsScanKinds[] = {
 	BOT_ITEM_MEGA_HEALTH,
 	BOT_ITEM_RED_ARMOR,
 	BOT_ITEM_YELLOW_ARMOR,
+	BOT_ITEM_HEALTH_SMALL,
+	BOT_ITEM_HEALTH,
+	BOT_ITEM_HEALTH_LARGE,
 	BOT_ITEM_WEAPON_SHOTGUN,
 	BOT_ITEM_WEAPON_GRENADE,
 	BOT_ITEM_WEAPON_ROCKET,
@@ -76,8 +83,7 @@ static const int botItemsScanKinds[] = {
 	BOT_ITEM_WEAPON_MACHINEGUN,
 	BOT_ITEM_WEAPON_NAILGUN,
 	BOT_ITEM_WEAPON_PROX,
-	BOT_ITEM_WEAPON_CHAINGUN,
-	BOT_ITEM_WEAPON_GRAPPLE
+	BOT_ITEM_WEAPON_CHAINGUN
 };
 
 #define BOT_ITEMS_SCAN_KIND_COUNT	(sizeof(botItemsScanKinds) / sizeof(botItemsScanKinds[0]))
@@ -101,8 +107,7 @@ static const botItemWeaponDef_t botItemWeaponDefs[] = {
 	{ INVENTORY_MACHINEGUN,		"Machinegun",		"Machinegun",		1.0f },
 	{ INVENTORY_NAILGUN,		"Nailgun",		"Nailgun",		1.0f },
 	{ INVENTORY_PROXLAUNCHER,		"Prox Launcher",	"Prox Launcher",	1.0f },
-	{ INVENTORY_CHAINGUN,		"Chaingun",		"Chaingun",		1.0f },
-	{ INVENTORY_GRAPPLINGHOOK,	"Grappling Hook",	"Grappling Hook",	1.0f }
+	{ INVENTORY_CHAINGUN,		"Chaingun",		"Chaingun",		1.0f }
 };
 
 static int BotItems_DebugEnabled(void) {
@@ -112,7 +117,7 @@ static int BotItems_DebugEnabled(void) {
 
 static const botItemWeaponDef_t *BotItems_WeaponDef(int kind) {
 	int index;
-	if (kind < BOT_ITEM_WEAPON_SHOTGUN || kind > BOT_ITEM_WEAPON_GRAPPLE) {
+	if (kind < BOT_ITEM_WEAPON_SHOTGUN || kind > BOT_ITEM_WEAPON_CHAINGUN) {
 		return NULL;
 	}
 	index = kind - BOT_ITEM_WEAPON_SHOTGUN;
@@ -145,6 +150,15 @@ static void BotItems_KindLabel(int kind, char *buf, int bufsize) {
 		break;
 	case BOT_ITEM_YELLOW_ARMOR:
 		Q_strncpyz(buf, "Armor", bufsize);
+		break;
+	case BOT_ITEM_HEALTH_SMALL:
+		Q_strncpyz(buf, "5 Health", bufsize);
+		break;
+	case BOT_ITEM_HEALTH:
+		Q_strncpyz(buf, "25 Health", bufsize);
+		break;
+	case BOT_ITEM_HEALTH_LARGE:
+		Q_strncpyz(buf, "50 Health", bufsize);
 		break;
 	default:
 		wdef = BotItems_WeaponDef(kind);
@@ -261,6 +275,15 @@ static void BotItems_GoalName(bot_state_t *bs, int kind, char *buf, int bufsize)
 	case BOT_ITEM_YELLOW_ARMOR:
 		Q_strncpyz(buf, "Armor", bufsize);
 		break;
+	case BOT_ITEM_HEALTH_SMALL:
+		Q_strncpyz(buf, "5 Health", bufsize);
+		break;
+	case BOT_ITEM_HEALTH:
+		Q_strncpyz(buf, "25 Health", bufsize);
+		break;
+	case BOT_ITEM_HEALTH_LARGE:
+		Q_strncpyz(buf, "50 Health", bufsize);
+		break;
 	default:
 		wdef = BotItems_WeaponDef(kind);
 		if (wdef) {
@@ -268,6 +291,13 @@ static void BotItems_GoalName(bot_state_t *bs, int kind, char *buf, int bufsize)
 		}
 		break;
 	}
+}
+
+static qboolean BotItems_NeedsHealthPickup(bot_state_t *bs) {
+	if (!bs) {
+		return qfalse;
+	}
+	return bs->inventory[INVENTORY_HEALTH] < BOT_ITEM_HEALTH_SEEK_MAX;
 }
 
 static float BotItems_PriorityScale(int kind) {
@@ -297,6 +327,18 @@ static float BotItems_PriorityScale(int kind) {
 	case BOT_ITEM_YELLOW_ARMOR:
 
 		return 0.90f;
+
+	case BOT_ITEM_HEALTH_LARGE:
+
+		return 0.92f;
+
+	case BOT_ITEM_HEALTH:
+
+		return 0.98f;
+
+	case BOT_ITEM_HEALTH_SMALL:
+
+		return 1.05f;
 
 	default:
 
@@ -379,6 +421,8 @@ void BotItems_Reset(bot_state_t *bs) {
 	bs->item_commit_progress_time = 0.0f;
 
 	VectorClear(bs->item_commit_progress_origin);
+
+	bs->item_next_scan_time = 0.0f;
 
 }
 
@@ -571,6 +615,11 @@ static qboolean BotItems_NeedsKind(bot_state_t *bs, int kind) {
 		case BOT_ITEM_QUAD:
 			return qtrue;
 
+		case BOT_ITEM_HEALTH_SMALL:
+		case BOT_ITEM_HEALTH:
+		case BOT_ITEM_HEALTH_LARGE:
+			return BotItems_NeedsHealthPickup(bs);
+
 		default:
 
 			return qfalse;
@@ -608,6 +657,11 @@ static qboolean BotItems_NeedsKind(bot_state_t *bs, int kind) {
 	case BOT_ITEM_YELLOW_ARMOR:
 
 		return bs->inventory[INVENTORY_ARMOR] < 80;
+
+	case BOT_ITEM_HEALTH_SMALL:
+	case BOT_ITEM_HEALTH:
+	case BOT_ITEM_HEALTH_LARGE:
+		return BotItems_NeedsHealthPickup(bs);
 
 	default:
 
@@ -700,6 +754,9 @@ static qboolean BotItems_CommitAchieved(bot_state_t *bs) {
 		return bs->inventory[INVENTORY_QUAD] && !bs->item_commit_snap_quad;
 
 	case BOT_ITEM_MEGA_HEALTH:
+	case BOT_ITEM_HEALTH_SMALL:
+	case BOT_ITEM_HEALTH:
+	case BOT_ITEM_HEALTH_LARGE:
 
 		return bs->inventory[INVENTORY_HEALTH] > bs->item_commit_snap_health;
 
@@ -1240,6 +1297,86 @@ static void BotItems_DebugConfigOnce(void) {
 
 
 
+static qboolean BotItems_TryAcquireHealthKinds(bot_state_t *bs, const int *kinds,
+		int nKinds) {
+	int i, kind, index, k;
+	char goalname[64];
+	vec3_t dir;
+	bot_goal_t goal, bestGoal;
+	int bestKind;
+	float dist, bestDist, effDist, scale;
+
+	if (!BotItems_CanConsider(bs)) {
+		return qfalse;
+	}
+
+	bestKind = BOT_ITEM_NONE;
+	bestDist = 999999.0f;
+
+	for (k = 0; k < nKinds; k++) {
+		kind = kinds[k];
+		if (!BotItems_NeedsKind(bs, kind)) {
+			continue;
+		}
+		BotItems_GoalName(bs, kind, goalname, sizeof(goalname));
+		if (!goalname[0]) {
+			continue;
+		}
+		index = -1;
+		while ((index = trap_BotGetLevelItemGoal(index, goalname, &goal)) >= 0) {
+			VectorSubtract(goal.origin, bs->origin, dir);
+			dist = VectorLength(dir);
+			scale = BotItems_PriorityScale(kind);
+			effDist = dist * scale;
+			if (effDist >= bestDist) {
+				continue;
+			}
+			if (!BotItems_GoalVisibleToBot(bs, &goal)) {
+				continue;
+			}
+			if (!BotItems_GoalIsPresent(bs, &goal)) {
+				continue;
+			}
+			if (!BotItems_GoalReachable(bs, &goal)) {
+				continue;
+			}
+			bestDist = effDist;
+			bestKind = kind;
+			memcpy(&bestGoal, &goal, sizeof(bot_goal_t));
+		}
+	}
+
+	if (bestKind == BOT_ITEM_NONE) {
+		return qfalse;
+	}
+	if (!BotItems_GoalHasPickupEntity(&bestGoal)) {
+		return qfalse;
+	}
+	BotItems_BeginCommit(bs, &bestGoal, bestKind);
+	return qtrue;
+}
+
+void BotItems_RequestUrgentHealth(bot_state_t *bs) {
+	static const int urgentHealthKinds[] = {
+		BOT_ITEM_MEGA_HEALTH,
+		BOT_ITEM_HEALTH_LARGE,
+		BOT_ITEM_HEALTH,
+		BOT_ITEM_HEALTH_SMALL
+	};
+
+	if (!BotItems_IsActive() || !bs) {
+		return;
+	}
+	if (!BotItems_NeedsHealthPickup(bs)) {
+		return;
+	}
+	if (bs->item_commit_active) {
+		return;
+	}
+	(void)BotItems_TryAcquireHealthKinds(bs, urgentHealthKinds,
+		sizeof(urgentHealthKinds) / sizeof(urgentHealthKinds[0]));
+}
+
 void BotItems_Tick(bot_state_t *bs) {
 
 	BotItems_DebugConfigOnce();
@@ -1259,6 +1396,21 @@ void BotItems_Tick(bot_state_t *bs) {
 	}
 
 
+
+	if (BotMove_WantsUrgentHealth(bs) &&
+			!bs->item_commit_active && BotItems_NeedsHealthPickup(bs)) {
+		static const int urgentKinds[] = {
+			BOT_ITEM_MEGA_HEALTH,
+			BOT_ITEM_HEALTH_LARGE,
+			BOT_ITEM_HEALTH,
+			BOT_ITEM_HEALTH_SMALL
+		};
+		bs->item_next_scan_time = 0.0f;
+		if (BotItems_TryAcquireHealthKinds(bs, urgentKinds,
+				sizeof(urgentKinds) / sizeof(urgentKinds[0]))) {
+			return;
+		}
+	}
 
 	if (bs->item_commit_active) {
 

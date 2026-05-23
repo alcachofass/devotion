@@ -16,6 +16,7 @@ BOT AIM HARNESS (v1) — see ai_aim_harness.h
 #include "ai_dmq3.h"
 #include "chars.h"
 #include "ai_aim_harness.h"
+#include "ai_dmq3.h"
 #include "ai_bot_enhanced.h"
 #include "ai_bot_move_harness.h"
 
@@ -41,7 +42,7 @@ extern bot_state_t *botstates[MAX_CLIENTS];
 #define AIMH_ROAM_MIN_VEL		90.0f
 #define AIMH_ROAM_MIN_ERR		3.0f
 #define AIMH_COMBAT_MIN_VEL		55.0f
-#define AIMH_COMBAT_CATCHUP_GAIN	14.0f
+#define AIMH_COMBAT_CATCHUP_GAIN	17.0f
 #define AIMH_COMBAT_VEL_SCALE	1.85f
 #define AIMH_MOTOR_NOISE_SCALE	2.0f
 #define AIMH_HITSCAN_LEAD_EXTRA	0.025f
@@ -70,7 +71,7 @@ extern bot_state_t *botstates[MAX_CLIENTS];
 #define AIMH_LEAD_DIST_MIN		96.0f
 #define AIMH_LEAD_DIST_FULL		900.0f
 #define AIMH_LEAD_MAX_DIST		36.0f
-#define AIMH_LEAD_TOTAL_MAX		70.0f
+#define AIMH_LEAD_TOTAL_MAX		52.0f
 #define AIMH_LEAD_THINK_AHEAD_BASE	0.75f
 #define AIMH_LEAD_THINK_AHEAD_SKILL	0.55f
 #define AIMH_LEAD_STRAFE_BASE		0.6f
@@ -121,12 +122,62 @@ extern bot_state_t *botstates[MAX_CLIENTS];
 #define AIMH_MOTOR_SUBSTEP_DT		0.010f
 #define AIMH_MOTOR_SUBSTEP_MAX		12
 
-/* Suppressive fire: fire unless LOS is obviously blocked or not acquiring target. */
+/* Suppressive fire: wide cone for all skills (low skill = spray, not picky trigger). */
 #define AIMH_FIRE_TRACK_FOV			100.0f
 #define AIMH_FIRE_TRACK_SLACK			30.0f
 #define AIMH_FIRE_ANY_VISIBILITY		0.06f
 #define AIMH_FIRE_BLOCKED_TRACE_FRAC	0.18f
 #define AIMH_FIRE_RL_MAX_DIST		1024.0f
+/* Think-time pursuit bias: held until next BotAimAtEnemy; close fights = larger angular error. */
+#define AIMH_PURSUIT_ERR_NEAR		4.0f
+#define AIMH_PURSUIT_ERR_FAR		0.85f
+#define AIMH_PURSUIT_ERR_DIST_NEAR	256.0f
+#define AIMH_PURSUIT_ERR_DIST_FAR	1200.0f
+#define AIMH_PURSUIT_PITCH_SCALE	0.55f
+/* End of think interval: converge on true aimtarget; underdamped band allows overshoot. */
+#define AIMH_SETTLE_THINK_FRAC		0.32f
+#define AIMH_SETTLE_THINK_FRAC_ELITE	0.54f
+#define AIMH_SETTLE_ERR_PHASE		4.0f
+#define AIMH_SETTLE_ERR_SNAP		1.25f
+#define AIMH_SETTLE_DAMP_NEAR		0.42f
+#define AIMH_SETTLE_STIFF_MULT		1.30f
+#define AIMH_SETTLE_SNAP_GAIN		10.0f
+#define AIMH_CATCHUP_ERR_MIN		0.8f
+#define AIMH_CATCHUP_ERR_MAX		26.0f
+#define AIMH_OVERSHOOT_DAMP_ACC	0.12f
+/* Rail lead-and-wait: park crosshair ahead on strafe path; fire on bbox intersection. */
+#define AIMH_RAIL_CENTER_Z			24.0f
+#define AIMH_RAIL_LEAD_SPEED_MIN	32.0f
+#define AIMH_RAIL_LEAD_SPEED_FULL	400.0f
+#define AIMH_RAIL_LEAD_BASE			56.0f
+#define AIMH_RAIL_LEAD_SKILL		100.0f
+#define AIMH_RAIL_LEAD_MAX			180.0f
+#define AIMH_RAIL_STRAFE_SEC_BASE	0.45f
+#define AIMH_RAIL_STRAFE_SEC_SKILL	0.55f
+#define AIMH_RAIL_LATERAL_SCALE		0.28f
+#define AIMH_RAIL_MOTOR_STIFF_MULT	1.22f
+#define AIMH_RAIL_MOTOR_NOISE_SCALE	0.45f
+#define AIMH_RAIL_FIRE_ANGLE_TOL		1.2f
+#define AIMH_RAIL_FIRE_ANGLE_MAX		3.5f
+/* Menu tier >= 0.6 (skill 3+): rail trace-only; lower skills get small angle slack. */
+#define AIMH_RAIL_FIRE_SLACK_SCALE		0.45f
+/* Menu skill 0-5 ladder; elite motor from skill 4+ (tier > 0.6). */
+#define AIMH_MENU_SKILL_MIN			0.0f
+#define AIMH_MENU_SKILL_MAX			5.0f
+#define AIMH_MENU_SKILL_MID_TIER		0.6f
+#define AIMH_MENU_ACC_MIN			0.30f
+#define AIMH_MENU_ACC_MAX			0.94f
+#define AIMH_MENU_AIM_SKILL_MIN		0.28f
+#define AIMH_MENU_AIM_SKILL_MAX		0.96f
+#define AIMH_MENU_CHAR_BLEND_MAX		0.30f
+#define AIMH_RAIL_FIRE_TRACE_TIER		0.6f
+/* Slow weapons: build pressure to fire after reload + grace without a shot. */
+#define AIMH_URGENCY_GRACE			0.12f
+#define AIMH_URGENCY_RAMP			0.40f
+#define AIMH_URGENCY_TRACK_FOV		40.0f
+#define AIMH_URGENCY_TRACK_SLACK		22.0f
+#define AIMH_URGENCY_ANGLE_MAX		8.0f
+#define AIMH_URGENCY_MIN_RELOAD		0.05f
 
 static int bot_enhanced_aim_last = -1;
 static int bot_debugAim_last = -1;
@@ -136,6 +187,7 @@ void BotAimHarness_SyncAllBotsDebug(void);
 static float BotAimHarness_ClampPitch(float pitch);
 static float BotAimHarness_PitchDiff(float pitch, float goal);
 static float BotAimHarness_YawDiff(float yaw, float goal);
+static void BotAimHarness_GetCombatAimAngles(bot_state_t *bs, vec3_t angles);
 
 static float BotAimHarness_Lerp(float a, float b, float t) {
 	return a + (b - a) * t;
@@ -154,6 +206,78 @@ static float BotAimHarness_Smoothstep(float edge0, float edge1, float x) {
 		t = 1.0f;
 	}
 	return t * t * (3.0f - 2.0f * t);
+}
+
+static float BotAimHarness_GetMenuSkillTier(bot_state_t *bs) {
+	float s;
+
+	if (!bs) {
+		return AIMH_MENU_SKILL_MID_TIER;
+	}
+	s = bs->settings.skill;
+	if (s < AIMH_MENU_SKILL_MIN) {
+		s = AIMH_MENU_SKILL_MIN;
+	}
+	if (s > AIMH_MENU_SKILL_MAX) {
+		s = AIMH_MENU_SKILL_MAX;
+	}
+	return (s - AIMH_MENU_SKILL_MIN) / (AIMH_MENU_SKILL_MAX - AIMH_MENU_SKILL_MIN);
+}
+
+/* 0 for menu skill <= 3; ramps 0..1 for skill 4-5 (elite motor / lead tightening). */
+static float BotAimHarness_GetEliteMotorTier(bot_state_t *bs) {
+	float t;
+
+	t = BotAimHarness_GetMenuSkillTier(bs);
+	if (t <= AIMH_MENU_SKILL_MID_TIER) {
+		return 0.0f;
+	}
+	return (t - AIMH_MENU_SKILL_MID_TIER) / (1.0f - AIMH_MENU_SKILL_MID_TIER);
+}
+
+static float BotAimHarness_GetMenuLadderAccuracy(bot_state_t *bs) {
+	float t;
+
+	if (!bs) {
+		return 0.5f;
+	}
+	t = BotAimHarness_GetMenuSkillTier(bs);
+	return BotAimHarness_Lerp(AIMH_MENU_ACC_MIN, AIMH_MENU_ACC_MAX,
+		BotAimHarness_Smoothstep(0.0f, 1.0f, t));
+}
+
+static float BotAimHarness_GetMenuLadderAimSkill(bot_state_t *bs) {
+	float t;
+
+	if (!bs) {
+		return 0.5f;
+	}
+	t = BotAimHarness_GetMenuSkillTier(bs);
+	return BotAimHarness_Lerp(AIMH_MENU_AIM_SKILL_MIN, AIMH_MENU_AIM_SKILL_MAX,
+		BotAimHarness_Smoothstep(0.0f, 1.0f, t));
+}
+
+/*
+ * Monotonic menu skill 0-5 ladder; up to 30% botlib characteristic bleed at skill 5.
+ */
+static void BotAimHarness_ApplyMenuSkillCurve(bot_state_t *bs, float *aimSkill, float *aimAccuracy) {
+	float t, ladderAcc, ladderSkill, charMix;
+
+	if (!bs || !aimSkill || !aimAccuracy) {
+		return;
+	}
+	t = BotAimHarness_GetMenuSkillTier(bs);
+	ladderAcc = BotAimHarness_GetMenuLadderAccuracy(bs);
+	ladderSkill = BotAimHarness_GetMenuLadderAimSkill(bs);
+	charMix = BotAimHarness_Smoothstep(0.15f, 1.0f, t) * AIMH_MENU_CHAR_BLEND_MAX;
+	*aimAccuracy = BotAimHarness_Lerp(ladderAcc, *aimAccuracy, charMix);
+	*aimSkill = BotAimHarness_Lerp(ladderSkill, *aimSkill, charMix);
+	if (*aimAccuracy > 0.98f) {
+		*aimAccuracy = 0.98f;
+	}
+	if (*aimSkill > 0.99f) {
+		*aimSkill = 0.99f;
+	}
 }
 
 /*
@@ -257,6 +381,63 @@ static void BotAimHarness_RefreshEye(bot_state_t *bs) {
 	bs->eye[2] += bs->cur_ps.viewheight;
 }
 
+static float BotAimHarness_GetHorizBotSpeed(bot_state_t *bs) {
+	vec3_t vel;
+
+	if (!bs) {
+		return 0.0f;
+	}
+	VectorCopy(bs->velocity, vel);
+	vel[2] = 0.0f;
+	if (VectorLengthSquared(vel) >= Square(24.0f)) {
+		return VectorLength(vel);
+	}
+	if (BotAI_GetClientState(bs->client, &bs->cur_ps)) {
+		VectorCopy(bs->cur_ps.velocity, vel);
+		vel[2] = 0.0f;
+		return VectorLength(vel);
+	}
+	return 0.0f;
+}
+
+/*
+ * Hitscan lead direction/speed in shooter frame (enemy horiz vel minus bot horiz vel).
+ */
+static qboolean BotAimHarness_GetRelativeLeadDir(bot_state_t *bs, aas_entityinfo_t *entinfo,
+		vec3_t relDir, float *relSpeed) {
+	vec3_t enemyVel, botVel;
+
+	VectorSubtract(entinfo->origin, entinfo->lastvisorigin, enemyVel);
+	enemyVel[2] = 0.0f;
+	if (entinfo->update_time > 0.001f) {
+		VectorScale(enemyVel, 1.0f / entinfo->update_time, enemyVel);
+	} else {
+		VectorClear(enemyVel);
+	}
+	if (VectorLengthSquared(enemyVel) < Square(AIMH_LEAD_SPEED_MIN) &&
+			VectorLengthSquared(bs->enemyvelocity) > Square(20.0f)) {
+		VectorCopy(bs->enemyvelocity, enemyVel);
+		enemyVel[2] = 0.0f;
+	}
+
+	VectorCopy(bs->velocity, botVel);
+	botVel[2] = 0.0f;
+	if (VectorLengthSquared(botVel) < Square(24.0f) &&
+			BotAI_GetClientState(bs->client, &bs->cur_ps)) {
+		VectorCopy(bs->cur_ps.velocity, botVel);
+		botVel[2] = 0.0f;
+	}
+
+	VectorSubtract(enemyVel, botVel, relDir);
+	relDir[2] = 0.0f;
+	*relSpeed = VectorLength(relDir);
+	if (*relSpeed < 0.001f) {
+		return qfalse;
+	}
+	VectorScale(relDir, 1.0f / *relSpeed, relDir);
+	return *relSpeed >= AIMH_LEAD_SPEED_MIN;
+}
+
 int BotAimHarness_AimTargetValid(bot_state_t *bs) {
 	if (VectorCompare(bs->aimtarget, vec3_origin)) {
 		return 0;
@@ -312,6 +493,260 @@ static float BotAimHarness_EnemyHorizDist(bot_state_t *bs, aas_entityinfo_t *ent
 	VectorSubtract(entinfo->origin, bs->origin, delta);
 	delta[2] = 0.0f;
 	return VectorLength(delta);
+}
+
+static float BotAimHarness_GetCombatPursuitDist(bot_state_t *bs) {
+	vec3_t dir;
+	aas_entityinfo_t entinfo;
+
+	if (VectorLengthSquared(bs->aimh_combat_target) > 1.0f) {
+		VectorSubtract(bs->aimh_combat_target, bs->eye, dir);
+		return VectorLength(dir);
+	}
+	if (bs->enemy >= 0 && bs->enemy < MAX_CLIENTS) {
+		BotEntityInfo(bs->enemy, &entinfo);
+		if (entinfo.valid) {
+			VectorSubtract(entinfo.origin, bs->eye, dir);
+			return VectorLength(dir);
+		}
+	}
+	return AIMH_PURSUIT_ERR_DIST_FAR;
+}
+
+/*
+ * Close target -> larger bias (degrees); far -> smaller. Scaled by (1 - aim_accuracy).
+ * Sampled once per think in SetCombatGoal; motor pursues biased smooth_goal until next think.
+ */
+static void BotAimHarness_ClearRailLead(bot_state_t *bs) {
+	VectorClear(bs->aimh_rail_lead_point);
+	bs->aimh_rail_lead_valid = qfalse;
+}
+
+static int BotAimHarness_UsingRailgun(bot_state_t *bs) {
+	if (bs->weaponnum == WP_RAILGUN) {
+		return qtrue;
+	}
+	if (bs->cur_ps.weapon == WP_RAILGUN) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+static int BotAimHarness_UsingShotgun(bot_state_t *bs) {
+	if (bs->weaponnum == WP_SHOTGUN) {
+		return qtrue;
+	}
+	if (bs->cur_ps.weapon == WP_SHOTGUN) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+static int BotAimHarness_IsSlowFireWeapon(bot_state_t *bs) {
+	return BotAimHarness_UsingRailgun(bs) ||
+		BotAimHarness_UsingRocketLauncher(bs) ||
+		BotAimHarness_UsingShotgun(bs);
+}
+
+static void BotAimHarness_ResetShotUrgency(bot_state_t *bs) {
+	bs->aimh_shot_press_since = 0.0f;
+	bs->aimh_shot_press_weapon = -1;
+}
+
+static float BotAimHarness_SlowWeaponReloadSec(bot_state_t *bs) {
+	weaponinfo_t wi;
+	float reload;
+
+	trap_BotGetWeaponInfo(bs->ws, bs->weaponnum, &wi);
+	reload = wi.reload * 0.001f;
+	if (reload < AIMH_URGENCY_MIN_RELOAD) {
+		reload = AIMH_URGENCY_MIN_RELOAD;
+	}
+	return reload;
+}
+
+/*
+ * 0 = patient (perfect-shot rules). Rises after reload+grace on target without firing.
+ */
+static float BotAimHarness_GetShotUrgency(bot_state_t *bs) {
+	float now, threshold, elapsed;
+
+	if (!BotAimHarness_IsActive() || !bs->aimh_combat_aim) {
+		BotAimHarness_ResetShotUrgency(bs);
+		return 0.0f;
+	}
+	if (!BotAimHarness_IsSlowFireWeapon(bs)) {
+		BotAimHarness_ResetShotUrgency(bs);
+		return 0.0f;
+	}
+	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		BotAimHarness_ResetShotUrgency(bs);
+		return 0.0f;
+	}
+	if (!BotEnhanced_CanEngageClient(bs, bs->enemy)) {
+		BotAimHarness_ResetShotUrgency(bs);
+		return 0.0f;
+	}
+	if (!BotAI_GetClientState(bs->client, &bs->cur_ps)) {
+		return 0.0f;
+	}
+	if (!BotAimHarness_WeaponReady(bs)) {
+		return 0.0f;
+	}
+	if (bs->cur_ps.weaponTime > 0) {
+		BotAimHarness_ResetShotUrgency(bs);
+		return 0.0f;
+	}
+	if (bs->aimh_shot_press_weapon != bs->weaponnum) {
+		BotAimHarness_ResetShotUrgency(bs);
+	}
+	now = FloatTime();
+	if (bs->aimh_shot_press_since <= 0.0f) {
+		bs->aimh_shot_press_since = now;
+		bs->aimh_shot_press_weapon = bs->weaponnum;
+		return 0.0f;
+	}
+	threshold = BotAimHarness_SlowWeaponReloadSec(bs) + AIMH_URGENCY_GRACE;
+	elapsed = now - bs->aimh_shot_press_since;
+	if (elapsed < threshold) {
+		return 0.0f;
+	}
+	elapsed -= threshold;
+	if (elapsed >= AIMH_URGENCY_RAMP) {
+		return 1.0f;
+	}
+	return elapsed / AIMH_URGENCY_RAMP;
+}
+
+static qboolean BotAimHarness_IsRailInterceptActive(bot_state_t *bs) {
+	if (!BotAimHarness_IsActive() || !bs->aimh_combat_aim) {
+		return qfalse;
+	}
+	if (!BotAimHarness_UsingRailgun(bs)) {
+		return qfalse;
+	}
+	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+static void BotAimHarness_RefreshThinkPursuitGoal(bot_state_t *bs) {
+	vec3_t trueAngles, dir;
+	float dist, closeFactor, maxErr, accScale, pitchOff, yawOff;
+
+	if (!BotAimHarness_IsActive() || !bs->aimh_combat_aim) {
+		return;
+	}
+
+	if (BotAimHarness_IsRailInterceptActive(bs) && bs->aimh_rail_lead_valid) {
+		VectorSubtract(bs->aimh_rail_lead_point, bs->eye, dir);
+		if (VectorLengthSquared(dir) < 1.0f) {
+			BotAimHarness_GetCombatAimAngles(bs, trueAngles);
+		} else {
+			vectoangles(dir, trueAngles);
+		}
+		trueAngles[PITCH] = BotAimHarness_ClampPitch(trueAngles[PITCH]);
+		trueAngles[YAW] = AngleMod(trueAngles[YAW]);
+		bs->aimh_pursuit_pitch_off = 0.0f;
+		bs->aimh_pursuit_yaw_off = 0.0f;
+		bs->aimh_true_goal_pitch = trueAngles[PITCH];
+		bs->aimh_true_goal_yaw = trueAngles[YAW];
+		bs->aimh_pursuit_set_time = FloatTime();
+		bs->aimh_smooth_goal_pitch = trueAngles[PITCH];
+		bs->aimh_smooth_goal_yaw = trueAngles[YAW];
+		return;
+	}
+
+	BotAimHarness_GetCombatAimAngles(bs, trueAngles);
+	trueAngles[PITCH] = BotAimHarness_ClampPitch(trueAngles[PITCH]);
+	trueAngles[YAW] = AngleMod(trueAngles[YAW]);
+
+	dist = BotAimHarness_GetCombatPursuitDist(bs);
+	closeFactor = 1.0f - BotAimHarness_Smoothstep(AIMH_PURSUIT_ERR_DIST_NEAR,
+		AIMH_PURSUIT_ERR_DIST_FAR, dist);
+	maxErr = BotAimHarness_Lerp(AIMH_PURSUIT_ERR_FAR, AIMH_PURSUIT_ERR_NEAR, closeFactor);
+	accScale = 0.04f + 1.08f * (1.0f - bs->aimh_aim_accuracy);
+	maxErr *= accScale;
+	maxErr *= BotAimHarness_Lerp(1.0f, 0.18f, BotAimHarness_GetEliteMotorTier(bs));
+
+	pitchOff = (crandom() + crandom()) * 0.5f * maxErr * AIMH_PURSUIT_PITCH_SCALE;
+	yawOff = (crandom() + crandom()) * 0.5f * maxErr;
+
+	bs->aimh_pursuit_pitch_off = pitchOff;
+	bs->aimh_pursuit_yaw_off = yawOff;
+	bs->aimh_true_goal_pitch = trueAngles[PITCH];
+	bs->aimh_true_goal_yaw = trueAngles[YAW];
+	bs->aimh_pursuit_set_time = FloatTime();
+	bs->aimh_smooth_goal_pitch = BotAimHarness_ClampPitch(trueAngles[PITCH] + pitchOff);
+	bs->aimh_smooth_goal_yaw = AngleMod(trueAngles[YAW] + yawOff);
+}
+
+static void BotAimHarness_GetCombatTrueAimAngles(bot_state_t *bs, vec3_t angles) {
+	BotAimHarness_GetCombatAimAngles(bs, angles);
+	angles[PITCH] = BotAimHarness_ClampPitch(angles[PITCH]);
+	angles[YAW] = AngleMod(angles[YAW]);
+	angles[ROLL] = 0.0f;
+}
+
+/* Input frames: eye moves with bot; re-aim from live eye + think-sampled pursuit offset. */
+static void BotAimHarness_GetLiveCombatMotorGoal(bot_state_t *bs, vec3_t goal) {
+	vec3_t trueAngles, dir;
+
+	if (BotAimHarness_IsRailInterceptActive(bs) && bs->aimh_rail_lead_valid) {
+		VectorSubtract(bs->aimh_rail_lead_point, bs->eye, dir);
+		if (VectorLengthSquared(dir) < 1.0f) {
+			BotAimHarness_GetCombatTrueAimAngles(bs, goal);
+			return;
+		}
+		vectoangles(dir, goal);
+		goal[PITCH] = BotAimHarness_ClampPitch(goal[PITCH]);
+		goal[YAW] = AngleMod(goal[YAW]);
+		return;
+	}
+
+	BotAimHarness_GetCombatTrueAimAngles(bs, trueAngles);
+	goal[PITCH] = BotAimHarness_ClampPitch(trueAngles[PITCH] + bs->aimh_pursuit_pitch_off);
+	goal[YAW] = AngleMod(trueAngles[YAW] + bs->aimh_pursuit_yaw_off);
+}
+
+static float BotAimHarness_GetThinkIntervalSec(void) {
+	float thinkSec;
+
+	trap_Cvar_Update(&bot_thinktime);
+	thinkSec = bot_thinktime.integer / 1000.0f;
+	if (thinkSec < 0.05f) {
+		thinkSec = 0.1f;
+	}
+	return thinkSec;
+}
+
+/*
+ * Last fraction of each bot-think cycle: motor goal = true aimtarget (not biased pursuit).
+ */
+static qboolean BotAimHarness_InThinkSettleWindow(bot_state_t *bs) {
+	float thinkSec, elapsed;
+
+	if (BotAimHarness_IsRailInterceptActive(bs)) {
+		return qfalse;
+	}
+	if (!bs->aimh_combat_aim || bs->aimh_pursuit_set_time <= 0.0f) {
+		return qfalse;
+	}
+	if (bs->aimh_acquire_until > FloatTime()) {
+		return qfalse;
+	}
+	thinkSec = BotAimHarness_GetThinkIntervalSec();
+	elapsed = FloatTime() - bs->aimh_pursuit_set_time;
+	thinkSec *= 1.0f - BotAimHarness_Lerp(AIMH_SETTLE_THINK_FRAC, AIMH_SETTLE_THINK_FRAC_ELITE,
+			BotAimHarness_GetEliteMotorTier(bs));
+	return elapsed >= thinkSec;
+}
+
+static void BotAimHarness_GetMotorPursuitAngles(bot_state_t *bs, vec3_t angles) {
+	angles[PITCH] = BotAimHarness_ClampPitch(bs->aimh_smooth_goal_pitch);
+	angles[YAW] = AngleMod(bs->aimh_smooth_goal_yaw);
+	angles[ROLL] = 0.0f;
 }
 
 static float BotAimHarness_EnemyHorizSpeed(aas_entityinfo_t *entinfo) {
@@ -379,22 +814,7 @@ void BotAimHarness_ApplyMovementLead(bot_state_t *bs, vec3_t shotPoint, float ai
 		return;
 	}
 
-	VectorSubtract(entinfo.origin, entinfo.lastvisorigin, velDir);
-	velDir[2] = 0.0f;
-	speed = VectorNormalize(velDir);
-	if (entinfo.update_time > 0.001f) {
-		speed /= entinfo.update_time;
-	} else {
-		speed = 0.0f;
-	}
-	if (speed < AIMH_LEAD_SPEED_MIN) {
-		if (VectorLengthSquared(bs->enemyvelocity) > Square(20.0f)) {
-			VectorCopy(bs->enemyvelocity, velDir);
-			velDir[2] = 0.0f;
-			speed = VectorNormalize(velDir);
-		}
-	}
-	if (speed < AIMH_LEAD_SPEED_MIN || speed < 0.001f) {
+	if (!BotAimHarness_GetRelativeLeadDir(bs, &entinfo, velDir, &speed)) {
 		return;
 	}
 
@@ -436,6 +856,8 @@ void BotAimHarness_ApplyMovementLead(bot_state_t *bs, vec3_t shotPoint, float ai
 	if (leadDist > AIMH_LEAD_TOTAL_MAX) {
 		leadDist = AIMH_LEAD_TOTAL_MAX;
 	}
+	leadDist *= BotAimHarness_Lerp(1.0f, 0.42f, BotAimHarness_GetEliteMotorTier(bs));
+	leadDist /= 1.0f + 0.0016f * BotAimHarness_GetHorizBotSpeed(bs);
 	if (leadDist < 1.0f) {
 		return;
 	}
@@ -563,6 +985,100 @@ void BotAimHarness_ApplyPlasmaCenterMassAim(bot_state_t *bs, vec3_t aimPoint) {
 	aimPoint[2] = BotAimHarness_GetEnemyCenterMassZ(&entinfo);
 }
 
+void BotAimHarness_ApplyRailInterceptAim(bot_state_t *bs, vec3_t aimPoint,
+		float aimSkill, float aimAccuracy) {
+	aas_entityinfo_t entinfo;
+	vec3_t velDir, toEnemy;
+	float speed, speedT, dist, distT, t, leadDist, thinkSec, along, lateral;
+
+	if (!BotAimHarness_IsActive() || !BotAimHarness_UsingRailgun(bs)) {
+		BotAimHarness_ClearRailLead(bs);
+		return;
+	}
+	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		BotAimHarness_ClearRailLead(bs);
+		return;
+	}
+	BotEntityInfo(bs->enemy, &entinfo);
+	if (!entinfo.valid) {
+		BotAimHarness_ClearRailLead(bs);
+		return;
+	}
+
+	aimPoint[2] = entinfo.origin[2] + AIMH_RAIL_CENTER_Z;
+
+	if (aimSkill < 0.0f) {
+		aimSkill = 0.0f;
+	}
+	if (aimSkill > 1.0f) {
+		aimSkill = 1.0f;
+	}
+	if (aimAccuracy < 0.0f) {
+		aimAccuracy = 0.0f;
+	}
+	if (aimAccuracy > 1.0f) {
+		aimAccuracy = 1.0f;
+	}
+
+	if (!BotAimHarness_GetRelativeLeadDir(bs, &entinfo, velDir, &speed)) {
+		VectorCopy(aimPoint, bs->aimh_rail_lead_point);
+		bs->aimh_rail_lead_valid = qtrue;
+		return;
+	}
+
+	VectorCopy(aimPoint, bs->aimh_rail_lead_point);
+	bs->aimh_rail_lead_valid = qtrue;
+
+	if (speed < AIMH_RAIL_LEAD_SPEED_MIN || speed < 0.001f) {
+		VectorCopy(aimPoint, bs->aimh_rail_lead_point);
+		return;
+	}
+
+	trap_Cvar_Update(&bot_thinktime);
+	thinkSec = bot_thinktime.integer / 1000.0f;
+	if (thinkSec < 0.001f) {
+		thinkSec = 0.1f;
+	}
+
+	leadDist = AIMH_RAIL_LEAD_BASE + AIMH_RAIL_LEAD_SKILL * aimSkill;
+	leadDist *= 0.4f + 0.6f * aimAccuracy;
+
+	speedT = BotAimHarness_Clamp01((speed - AIMH_RAIL_LEAD_SPEED_MIN) /
+		(AIMH_RAIL_LEAD_SPEED_FULL - AIMH_RAIL_LEAD_SPEED_MIN));
+	VectorSubtract(entinfo.origin, bs->eye, toEnemy);
+	dist = VectorLength(toEnemy);
+	distT = BotAimHarness_Clamp01((dist - AIMH_LEAD_DIST_MIN) /
+		(AIMH_LEAD_DIST_FULL - AIMH_LEAD_DIST_MIN));
+	t = speedT * distT * (0.5f + 0.5f * aimSkill);
+	leadDist += AIMH_RAIL_LEAD_MAX * 0.35f * t;
+
+	leadDist += speed * thinkSec *
+		(AIMH_RAIL_STRAFE_SEC_BASE + AIMH_RAIL_STRAFE_SEC_SKILL * aimSkill);
+
+	toEnemy[2] = 0.0f;
+	if (VectorNormalize(toEnemy) > 0.1f) {
+		along = fabs(DotProduct(velDir, toEnemy));
+		if (along > 1.0f) {
+			along = 1.0f;
+		}
+		lateral = speed * sqrt(1.0f - along * along);
+		leadDist += lateral * thinkSec * AIMH_RAIL_LATERAL_SCALE *
+			(0.5f + 0.5f * aimSkill);
+	}
+
+	if (leadDist > AIMH_RAIL_LEAD_MAX) {
+		leadDist = AIMH_RAIL_LEAD_MAX;
+	}
+	leadDist *= BotAimHarness_Lerp(1.0f, 0.50f, BotAimHarness_GetEliteMotorTier(bs));
+	leadDist /= 1.0f + 0.0016f * BotAimHarness_GetHorizBotSpeed(bs);
+	if (leadDist < 1.0f) {
+		return;
+	}
+
+	VectorMA(aimPoint, leadDist, velDir, aimPoint);
+	VectorCopy(aimPoint, bs->aimh_rail_lead_point);
+}
+
 void BotAimHarness_ApplyRocketFeetAim(bot_state_t *bs, vec3_t aimPoint) {
 	aas_entityinfo_t entinfo;
 
@@ -663,6 +1179,15 @@ static void BotAimHarness_GetCombatAimAngles(bot_state_t *bs, vec3_t angles) {
 		}
 	}
 
+	if (BotAimHarness_IsRailInterceptActive(bs) && bs->aimh_rail_lead_valid) {
+		VectorCopy(bs->aimh_rail_lead_point, aimPoint);
+		VectorSubtract(aimPoint, bs->eye, dir);
+		vectoangles(dir, angles);
+		angles[PITCH] = BotAimHarness_ClampPitch(angles[PITCH]);
+		angles[YAW] = AngleMod(angles[YAW]);
+		return;
+	}
+
 	if (BotAimHarness_AimTargetValid(bs)) {
 		VectorCopy(bs->aimtarget, aimPoint);
 		BotAimHarness_ApplyPlasmaCenterMassAim(bs, aimPoint);
@@ -679,6 +1204,21 @@ static void BotAimHarness_GetCombatAimAngles(bot_state_t *bs, vec3_t angles) {
 }
 
 static void BotAimHarness_GetAttackAimAngles(bot_state_t *bs, vec3_t angles) {
+	if (bs->aimh_combat_aim && BotAimHarness_IsActive()) {
+		if (BotAimHarness_IsRailInterceptActive(bs)) {
+			VectorCopy(bs->viewangles, angles);
+			angles[PITCH] = BotAimHarness_ClampPitch(angles[PITCH]);
+			angles[YAW] = AngleMod(angles[YAW]);
+			angles[ROLL] = 0.0f;
+			return;
+		}
+		if (BotAimHarness_InThinkSettleWindow(bs)) {
+			BotAimHarness_GetCombatTrueAimAngles(bs, angles);
+		} else {
+			BotAimHarness_GetMotorPursuitAngles(bs, angles);
+		}
+		return;
+	}
 	BotAimHarness_GetCombatAimAngles(bs, angles);
 }
 
@@ -765,7 +1305,7 @@ static qboolean BotAimHarness_ShotObviouslyBlocked(bot_state_t *bs) {
 static qboolean BotAimHarness_IsTrackingTarget(bot_state_t *bs, vec3_t firePoint) {
 	aas_entityinfo_t entinfo;
 	vec3_t dir, toEnemy, toPoint, attackAngles;
-	float vis, horizDist;
+	float vis, horizDist, trackFov, trackSlack, urgency;
 
 	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
 		return qfalse;
@@ -785,35 +1325,135 @@ static qboolean BotAimHarness_IsTrackingTarget(bot_state_t *bs, vec3_t firePoint
 		return qfalse;
 	}
 
+	trackFov = AIMH_FIRE_TRACK_FOV;
+	trackSlack = AIMH_FIRE_TRACK_SLACK;
+	if (BotAimHarness_IsSlowFireWeapon(bs)) {
+		urgency = BotAimHarness_GetShotUrgency(bs);
+		trackFov += urgency * AIMH_URGENCY_TRACK_FOV;
+		trackSlack += urgency * AIMH_URGENCY_TRACK_SLACK;
+	}
+
 	VectorSubtract(entinfo.origin, bs->eye, dir);
 	dir[2] += 16.0f;
 	if (VectorLengthSquared(dir) < 1.0f) {
 		return qtrue;
 	}
 	vectoangles(dir, toEnemy);
-	if (InFieldOfVision(bs->viewangles, AIMH_FIRE_TRACK_FOV, toEnemy)) {
+	if (InFieldOfVision(bs->viewangles, trackFov, toEnemy)) {
 		return qtrue;
 	}
 
 	VectorSubtract(firePoint, bs->eye, dir);
 	if (VectorLengthSquared(dir) > 1.0f) {
 		vectoangles(dir, toPoint);
-		if (InFieldOfVision(bs->viewangles, AIMH_FIRE_TRACK_FOV + AIMH_FIRE_TRACK_SLACK,
-				toPoint)) {
+		if (InFieldOfVision(bs->viewangles, trackFov + trackSlack, toPoint)) {
 			return qtrue;
 		}
 	}
 
 	BotAimHarness_GetAttackAimAngles(bs, attackAngles);
-	if (InFieldOfVision(bs->viewangles, AIMH_FIRE_TRACK_FOV + AIMH_FIRE_TRACK_SLACK,
-			attackAngles)) {
+	if (InFieldOfVision(bs->viewangles, trackFov + trackSlack, attackAngles)) {
 		return qtrue;
 	}
-	if (InFieldOfVision(attackAngles, AIMH_FIRE_TRACK_SLACK + 8.0f, toEnemy)) {
+	if (InFieldOfVision(attackAngles, trackSlack + 8.0f, toEnemy)) {
 		return qtrue;
 	}
 
 	return qfalse;
+}
+
+/*
+ * Legacy BotCheckAttack hit test: trace along actual viewangles from muzzle.
+ */
+static qboolean BotAimHarness_CrosshairHitsEnemy(bot_state_t *bs) {
+	aas_entityinfo_t entinfo;
+	bsp_trace_t trace;
+	vec3_t forward, right, start, end, toEnemy, enemyAngles;
+	weaponinfo_t wi;
+	vec3_t mins = {-8, -8, -8}, maxs = {8, 8, 8};
+	float tol, pitchErr, yawErr;
+
+	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		return qfalse;
+	}
+	if (!BotAI_GetClientState(bs->client, &bs->cur_ps)) {
+		return qfalse;
+	}
+
+	trap_BotGetWeaponInfo(bs->ws, bs->weaponnum, &wi);
+	VectorCopy(bs->origin, start);
+	start[2] += bs->cur_ps.viewheight;
+	AngleVectors(bs->viewangles, forward, right, NULL);
+	start[0] += forward[0] * wi.offset[0] + right[0] * wi.offset[1];
+	start[1] += forward[1] * wi.offset[0] + right[1] * wi.offset[1];
+	start[2] += forward[2] * wi.offset[0] + right[2] * wi.offset[1] + wi.offset[2];
+	VectorMA(start, 1000, forward, end);
+	VectorMA(start, -12, forward, start);
+	BotAI_Trace(&trace, start, mins, maxs, end, bs->entitynum, MASK_SHOT);
+	if (trace.ent == bs->enemy) {
+		return qtrue;
+	}
+	if (trace.ent >= 0 && trace.ent < MAX_CLIENTS && BotSameTeam(bs, trace.ent)) {
+		return qfalse;
+	}
+
+	BotEntityInfo(bs->enemy, &entinfo);
+	if (!entinfo.valid) {
+		return qfalse;
+	}
+	VectorSubtract(entinfo.origin, bs->eye, toEnemy);
+	toEnemy[2] += AIMH_RAIL_CENTER_Z;
+	if (VectorLengthSquared(toEnemy) < 1.0f) {
+		return qtrue;
+	}
+	vectoangles(toEnemy, enemyAngles);
+	pitchErr = fabs(BotAimHarness_PitchDiff(bs->viewangles[PITCH], enemyAngles[PITCH]));
+	yawErr = fabs(BotAimHarness_YawDiff(bs->viewangles[YAW], enemyAngles[YAW]));
+	tol = AIMH_RAIL_FIRE_ANGLE_TOL +
+		BotAimHarness_GetMenuSkillTier(bs) *
+		(AIMH_RAIL_FIRE_ANGLE_MAX - AIMH_RAIL_FIRE_ANGLE_TOL) * AIMH_RAIL_FIRE_SLACK_SCALE;
+	if (BotAimHarness_UsingRailgun(bs)) {
+		float urgency = BotAimHarness_GetShotUrgency(bs);
+
+		tol += urgency * AIMH_URGENCY_ANGLE_MAX;
+		if (pitchErr <= tol && yawErr <= tol) {
+			return qtrue;
+		}
+		/* High skill: trace-only until urgency builds, then accept tracking. */
+		if (BotAimHarness_GetMenuSkillTier(bs) >= AIMH_RAIL_FIRE_TRACE_TIER) {
+			if (urgency >= 0.35f) {
+				vec3_t firePoint;
+
+				BotAimHarness_GetEnemyFirePoint(bs, firePoint);
+				if (BotAimHarness_IsTrackingTarget(bs, firePoint)) {
+					return qtrue;
+				}
+			}
+			return qfalse;
+		}
+		return qfalse;
+	}
+	/* High menu skill: trace hit only (no angle slack). */
+	if (BotAimHarness_GetMenuSkillTier(bs) >= AIMH_RAIL_FIRE_TRACE_TIER) {
+		return qfalse;
+	}
+	return pitchErr <= tol && yawErr <= tol;
+}
+
+static qboolean BotAimHarness_WantsRailFire(bot_state_t *bs) {
+	vec3_t firePoint;
+
+	if (BotAimHarness_CrosshairHitsEnemy(bs)) {
+		return qtrue;
+	}
+	if (BotAimHarness_GetShotUrgency(bs) < 0.35f) {
+		return qfalse;
+	}
+	if (BotAimHarness_ShotObviouslyBlocked(bs)) {
+		return qfalse;
+	}
+	BotAimHarness_GetEnemyFirePoint(bs, firePoint);
+	return BotAimHarness_IsTrackingTarget(bs, firePoint);
 }
 
 static qboolean BotAimHarness_WeaponReady(bot_state_t *bs) {
@@ -857,6 +1497,36 @@ static qboolean BotAimHarness_PassesThinkFireGates(bot_state_t *bs) {
 		return qfalse;
 	}
 
+	return qtrue;
+}
+
+static qboolean BotAimHarness_TryRailFire(bot_state_t *bs) {
+	if (!BotAimHarness_IsRailInterceptActive(bs)) {
+		return qfalse;
+	}
+	if (!BotAI_GetClientState(bs->client, &bs->cur_ps)) {
+		return qfalse;
+	}
+	if (!BotAimHarness_WeaponReady(bs)) {
+		return qfalse;
+	}
+	if (bs->cur_ps.weaponstate != WEAPON_READY) {
+		return qfalse;
+	}
+	if (bs->cur_ps.weaponTime > 0) {
+		return qfalse;
+	}
+	if (!BotAimHarness_PassesThinkFireGates(bs)) {
+		return qfalse;
+	}
+	if (BotAimHarness_ShotObviouslyBlocked(bs)) {
+		return qfalse;
+	}
+	if (!BotAimHarness_WantsRailFire(bs)) {
+		return qfalse;
+	}
+
+	trap_EA_Attack(bs->client);
 	return qtrue;
 }
 
@@ -927,6 +1597,10 @@ void BotAimHarness_CheckAttack(bot_state_t *bs) {
 	trap_BotGetWeaponInfo(bs->ws, bs->weaponnum, &wi);
 	BotAimHarness_GetEnemyFirePoint(bs, firePoint);
 
+	if (BotAimHarness_IsRailInterceptActive(bs)) {
+		return;
+	}
+
 	if (!BotAimHarness_WantsSuppressiveFire(bs, &wi, firePoint)) {
 		return;
 	}
@@ -952,7 +1626,13 @@ void BotAimHarness_ApplyCombatFire(bot_state_t *bs) {
 	weaponinfo_t wi;
 	vec3_t firePoint;
 
-	if (!BotAimHarness_IsActive() || !bs->aimh_hold_fire) {
+	if (!BotAimHarness_IsActive()) {
+		return;
+	}
+	if (BotAimHarness_TryRailFire(bs)) {
+		return;
+	}
+	if (!bs->aimh_hold_fire) {
 		return;
 	}
 	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
@@ -1092,10 +1772,17 @@ static void BotAimHarness_OnEnemyChange(bot_state_t *bs) {
 	bs->aimh_vel[PITCH] *= 0.4f;
 	bs->aimh_vel[YAW] *= 0.4f;
 	bs->aimh_last_goal_time = 0.0f;
+	bs->aimh_pursuit_pitch_off = 0.0f;
+	bs->aimh_pursuit_yaw_off = 0.0f;
+	bs->aimh_pursuit_set_time = 0.0f;
+	bs->aimh_true_goal_pitch = bs->viewangles[PITCH];
+	bs->aimh_true_goal_yaw = bs->viewangles[YAW];
 	bs->aimh_smooth_goal_pitch = bs->viewangles[PITCH];
 	bs->aimh_smooth_goal_yaw = bs->viewangles[YAW];
 	bs->aimh_tracked_ideal_pitch = bs->viewangles[PITCH];
 	bs->aimh_tracked_ideal_yaw = bs->viewangles[YAW];
+	BotAimHarness_ClearRailLead(bs);
+	BotAimHarness_ResetShotUrgency(bs);
 }
 
 static void BotAimHarness_ClearEntityDebug(gentity_t *ent) {
@@ -1129,6 +1816,10 @@ static int BotAimHarness_GetDebugAimPoint(bot_state_t *bs, vec3_t point) {
 	vec3_t wishAngles;
 
 	if (bs->aimh_combat_aim) {
+		if (BotAimHarness_IsRailInterceptActive(bs) && bs->aimh_rail_lead_valid) {
+			VectorCopy(bs->aimh_rail_lead_point, point);
+			return qtrue;
+		}
 		if (BotAimHarness_AimTargetValid(bs)) {
 			VectorCopy(bs->aimtarget, point);
 			return qtrue;
@@ -1304,6 +1995,7 @@ void BotAimHarness_SyncMotorToView(bot_state_t *bs) {
 		return;
 	}
 	bs->aimh_combat_aim = qfalse;
+	BotAimHarness_ClearRailLead(bs);
 	bs->aimh_vel[PITCH] = 0.0f;
 	bs->aimh_vel[YAW] = 0.0f;
 	bs->aimh_tracked_ideal_pitch = BotAimHarness_ClampPitch(bs->viewangles[PITCH]);
@@ -1346,10 +2038,17 @@ void BotAimHarness_Reset(bot_state_t *bs) {
 	bs->aimh_last_goal_time = 0.0f;
 	bs->aimh_smooth_goal_pitch = bs->viewangles[PITCH];
 	bs->aimh_smooth_goal_yaw = bs->viewangles[YAW];
+	bs->aimh_pursuit_pitch_off = 0.0f;
+	bs->aimh_pursuit_yaw_off = 0.0f;
+	bs->aimh_pursuit_set_time = 0.0f;
+	bs->aimh_true_goal_pitch = bs->viewangles[PITCH];
+	bs->aimh_true_goal_yaw = bs->viewangles[YAW];
 	bs->aimh_tracked_ideal_pitch = bs->viewangles[PITCH];
 	bs->aimh_tracked_ideal_yaw = bs->viewangles[YAW];
 	VectorClear(bs->aimh_combat_target);
 	bs->aimh_hold_fire = qfalse;
+	BotAimHarness_ClearRailLead(bs);
+	BotAimHarness_ResetShotUrgency(bs);
 }
 
 void BotAimHarness_SetCombatGoal(bot_state_t *bs, const vec3_t idealAngles,
@@ -1375,11 +2074,25 @@ void BotAimHarness_SetCombatGoal(bot_state_t *bs, const vec3_t idealAngles,
 	if (aimAccuracy > 1.0f) {
 		aimAccuracy = 1.0f;
 	}
+	BotAimHarness_ApplyMenuSkillCurve(bs, &aimSkill, &aimAccuracy);
+	if (aimSkill < 0.0f) {
+		aimSkill = 0.0f;
+	}
+	if (aimSkill > 1.0f) {
+		aimSkill = 1.0f;
+	}
+	if (aimAccuracy < 0.0f) {
+		aimAccuracy = 0.0f;
+	}
+	if (aimAccuracy > 1.0f) {
+		aimAccuracy = 1.0f;
+	}
 	bs->aimh_aim_skill = aimSkill;
 	bs->aimh_aim_accuracy = aimAccuracy;
 
 	inaccuracy = 1.0f - aimAccuracy;
-	bs->aimh_motor_inaccuracy = inaccuracy * 0.7f;
+	bs->aimh_motor_inaccuracy = inaccuracy *
+		BotAimHarness_Lerp(0.62f, 0.06f, BotAimHarness_GetEliteMotorTier(bs));
 
 	bs->aimh_combat_aim = qtrue;
 	VectorCopy(bs->aimh_goal, bs->ideal_viewangles);
@@ -1388,21 +2101,15 @@ void BotAimHarness_SetCombatGoal(bot_state_t *bs, const vec3_t idealAngles,
 	} else if (bs->enemy >= 0) {
 		BotAimHarness_GetCombatTarget(bs, bs->aimh_combat_target);
 	}
-	if (VectorLengthSquared(bs->aimh_combat_target) > 1.0f) {
-		vec3_t ang;
-
-		BotAimHarness_GetCombatAimAngles(bs, ang);
-		bs->aimh_smooth_goal_pitch = ang[PITCH];
-		bs->aimh_smooth_goal_yaw = ang[YAW];
-	}
+	BotAimHarness_RefreshThinkPursuitGoal(bs);
 }
 
 /*
- * Roam: goal is movement ideal; spring + light noise humanize. Combat: live world target
- * each motor frame; spring/catch-up humanize (no extra goal slew).
+ * Roam: goal is movement ideal; spring + light noise humanize.
+ * Combat: live eye->aimtarget each input frame (+ think pursuit offset); settle uses true aim.
  */
 static void BotAimHarness_GetMotorGoal(bot_state_t *bs, vec3_t goal, float dt) {
-	vec3_t targetAngles, dir;
+	vec3_t targetAngles;
 	float pitchJump, yawJump;
 
 	if (dt <= 0.0f) {
@@ -1410,9 +2117,12 @@ static void BotAimHarness_GetMotorGoal(bot_state_t *bs, vec3_t goal, float dt) {
 	}
 
 	if (bs->aimh_combat_aim) {
-		BotAimHarness_GetCombatAimAngles(bs, targetAngles);
-		bs->aimh_smooth_goal_pitch = targetAngles[PITCH];
-		bs->aimh_smooth_goal_yaw = targetAngles[YAW];
+		if (BotAimHarness_InThinkSettleWindow(bs)) {
+			BotAimHarness_GetCombatTrueAimAngles(bs, goal);
+		} else {
+			BotAimHarness_GetLiveCombatMotorGoal(bs, goal);
+		}
+		return;
 	} else {
 		VectorCopy(bs->ideal_viewangles, targetAngles);
 		targetAngles[PITCH] = BotAimHarness_ClampPitch(targetAngles[PITCH]);
@@ -1434,11 +2144,7 @@ static void BotAimHarness_GetMotorGoal(bot_state_t *bs, vec3_t goal, float dt) {
 		goal[YAW] = targetAngles[YAW];
 		bs->aimh_smooth_goal_pitch = goal[PITCH];
 		bs->aimh_smooth_goal_yaw = goal[YAW];
-		return;
 	}
-
-	goal[PITCH] = bs->aimh_smooth_goal_pitch;
-	goal[YAW] = bs->aimh_smooth_goal_yaw;
 }
 
 static void BotAimHarness_ResyncViewFromPSIfDesynced(bot_state_t *bs) {
@@ -1488,8 +2194,9 @@ static void BotAimHarness_SaveGoalHistory(bot_state_t *bs, const vec3_t goal) {
 
 static void BotAimHarness_UpdateAxis(bot_state_t *bs, int axis, float goalAngle,
 	float dt, float stiffness, float damping, float maxVel, float motorNoise,
-	float minVel, float catchupGain) {
-	float err, accel, delta;
+	float minVel, float catchupGain, qboolean settleToTrue) {
+	float err, accel, delta, errAbs, dampScale, stiffScale, phaseT, snapBlend;
+	qboolean inSnapBand;
 
 	if (axis == PITCH) {
 		goalAngle = BotAimHarness_ClampPitch(goalAngle);
@@ -1498,7 +2205,22 @@ static void BotAimHarness_UpdateAxis(bot_state_t *bs, int axis, float goalAngle,
 		err = BotAimHarness_YawDiff(bs->viewangles[YAW], goalAngle);
 	}
 
-	accel = stiffness * err - damping * bs->aimh_vel[axis];
+	errAbs = fabs(err);
+	dampScale = 1.0f;
+	stiffScale = 1.0f;
+	if (settleToTrue) {
+		stiffScale = AIMH_SETTLE_STIFF_MULT;
+	}
+	if (errAbs < AIMH_SETTLE_ERR_PHASE) {
+		phaseT = errAbs / AIMH_SETTLE_ERR_PHASE;
+		dampScale = BotAimHarness_Lerp(AIMH_SETTLE_DAMP_NEAR, 1.0f, phaseT);
+		dampScale += bs->aimh_aim_accuracy * AIMH_OVERSHOOT_DAMP_ACC;
+		if (dampScale > 0.92f) {
+			dampScale = 0.92f;
+		}
+	}
+
+	accel = (stiffness * stiffScale) * err - (damping * dampScale) * bs->aimh_vel[axis];
 	bs->aimh_vel[axis] += accel * dt;
 
 	if (minVel > 0.0f && fabs(err) > AIMH_ROAM_MIN_ERR) {
@@ -1508,7 +2230,7 @@ static void BotAimHarness_UpdateAxis(bot_state_t *bs, int axis, float goalAngle,
 			bs->aimh_vel[axis] = -minVel;
 		}
 	}
-	if (catchupGain > 0.0f && fabs(err) > 2.5f && fabs(err) < 26.0f) {
+	if (catchupGain > 0.0f && errAbs > AIMH_CATCHUP_ERR_MIN && errAbs < AIMH_CATCHUP_ERR_MAX) {
 		bs->aimh_vel[axis] += err * catchupGain * dt;
 	}
 
@@ -1519,15 +2241,21 @@ static void BotAimHarness_UpdateAxis(bot_state_t *bs, int axis, float goalAngle,
 	}
 
 	delta = bs->aimh_vel[axis] * dt;
+	inSnapBand = settleToTrue && errAbs < AIMH_SETTLE_ERR_SNAP;
+	if (inSnapBand) {
+		snapBlend = BotAimHarness_Clamp01((AIMH_SETTLE_ERR_SNAP - errAbs) / AIMH_SETTLE_ERR_SNAP);
+		delta += err * AIMH_SETTLE_SNAP_GAIN * snapBlend * dt;
+	}
+
 	if (axis == PITCH) {
 		bs->viewangles[PITCH] = BotAimHarness_ClampPitch(bs->viewangles[PITCH] + delta);
-		if (motorNoise > 0.01f && fabs(err) > 2.5f && fabs(err) < 9.0f) {
+		if (!inSnapBand && motorNoise > 0.01f && errAbs > 2.5f && errAbs < 9.0f) {
 			bs->viewangles[PITCH] = BotAimHarness_ClampPitch(bs->viewangles[PITCH] +
 				crandom() * AIMH_MOTOR_NOISE_SCALE * motorNoise * dt * 60.0f * 0.35f);
 		}
 	} else {
 		bs->viewangles[axis] = AngleMod(bs->viewangles[axis] + delta);
-		if (motorNoise > 0.01f && fabs(err) > 2.5f && fabs(err) < 9.0f) {
+		if (!inSnapBand && motorNoise > 0.01f && errAbs > 2.5f && errAbs < 9.0f) {
 			bs->viewangles[axis] = AngleMod(bs->viewangles[axis] +
 				crandom() * AIMH_MOTOR_NOISE_SCALE * motorNoise * dt * 60.0f * 0.4f);
 		}
@@ -1539,6 +2267,9 @@ static void BotAimHarness_IntegrateMotorSubsteps(bot_state_t *bs, vec3_t goal,
 	float motorNoise, float minVel, float catchupGain, int refreshGoalEachStep) {
 	float remaining, subDt;
 	int steps;
+	qboolean settleToTrue;
+
+	settleToTrue = bs->aimh_combat_aim && BotAimHarness_InThinkSettleWindow(bs);
 
 	remaining = frameTime;
 	steps = 0;
@@ -1560,9 +2291,9 @@ static void BotAimHarness_IntegrateMotorSubsteps(bot_state_t *bs, vec3_t goal,
 		}
 
 		BotAimHarness_UpdateAxis(bs, PITCH, goal[PITCH], subDt,
-			stiffness, damping, maxVelPitch, motorNoise, minVel, catchupGain);
+			stiffness, damping, maxVelPitch, motorNoise, minVel, catchupGain, settleToTrue);
 		BotAimHarness_UpdateAxis(bs, YAW, goal[YAW], subDt,
-			stiffness, damping, maxVel, motorNoise, minVel, catchupGain);
+			stiffness, damping, maxVel, motorNoise, minVel, catchupGain, settleToTrue);
 	}
 }
 
@@ -1604,6 +2335,7 @@ int BotAimHarness_ChangeViewAngles(bot_state_t *bs, float thinktime) {
 	if (bs->enemy < 0) {
 		bs->aimh_combat_aim = qfalse;
 		bs->aimh_hold_fire = qfalse;
+		BotAimHarness_ClearRailLead(bs);
 		bs->aimh_motor_inaccuracy = 0.0f;
 		bs->aimh_last_enemy_z = 0.0f;
 		bs->aimh_last_sanity_enemy = -1;
@@ -1688,8 +2420,13 @@ int BotAimHarness_ChangeViewAngles(bot_state_t *bs, float thinktime) {
 	}
 
 	if (bs->aimh_combat_aim) {
+		float eliteTier = BotAimHarness_GetEliteMotorTier(bs);
 		stiffness *= (0.78f + 0.52f * aimSkill);
 		damping *= (0.88f + 0.32f * aimSkill);
+		stiffness *= BotAimHarness_Lerp(1.0f, 1.34f, eliteTier);
+		damping *= BotAimHarness_Lerp(1.0f, 1.12f, eliteTier);
+		maxVel *= BotAimHarness_Lerp(1.0f, 1.28f, eliteTier);
+		motorNoise *= BotAimHarness_Lerp(1.0f, 0.35f, eliteTier);
 	}
 
 	if (bs->aimh_combat_aim) {
@@ -1699,9 +2436,15 @@ int BotAimHarness_ChangeViewAngles(bot_state_t *bs, float thinktime) {
 		(void)catchupMult;
 		(void)ffDummy;
 	}
+	if (BotAimHarness_IsRailInterceptActive(bs) && bs->aimh_rail_lead_valid) {
+		float eliteTier = BotAimHarness_GetEliteMotorTier(bs);
+		stiffness *= BotAimHarness_Lerp(AIMH_RAIL_MOTOR_STIFF_MULT, 1.48f, eliteTier);
+		motorNoise *= BotAimHarness_Lerp(AIMH_RAIL_MOTOR_NOISE_SCALE, 0.22f, eliteTier);
+	}
 
 	if (bs->aimh_combat_aim && maxVel < 140.0f) {
-		maxVel = 140.0f + 80.0f * aimSkill;
+		maxVel = 140.0f + 80.0f * aimSkill +
+			40.0f * BotAimHarness_GetEliteMotorTier(bs);
 	} else if (maxVel < 90.0f) {
 		maxVel = 90.0f;
 	}
@@ -1715,8 +2458,10 @@ int BotAimHarness_ChangeViewAngles(bot_state_t *bs, float thinktime) {
 	}
 
 	if (bs->aimh_combat_aim) {
-		minVel = AIMH_COMBAT_MIN_VEL + 45.0f * aimSkill;
-		catchupGain = AIMH_COMBAT_CATCHUP_GAIN * catchupMult;
+		float eliteTier = BotAimHarness_GetEliteMotorTier(bs);
+		minVel = AIMH_COMBAT_MIN_VEL + 45.0f * aimSkill + 35.0f * eliteTier;
+		catchupGain = AIMH_COMBAT_CATCHUP_GAIN * catchupMult *
+			BotAimHarness_Lerp(1.0f, 1.55f, eliteTier);
 	} else {
 		minVel = AIMH_ROAM_MIN_VEL;
 		catchupGain = 0.0f;

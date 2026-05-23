@@ -216,6 +216,17 @@ static void BotEnhanced_DropChattingEnemy(bot_state_t *bs) {
 	bs->enemydeath_time = 0;
 }
 
+static void BotEnhanced_DropDeadEnemy(bot_state_t *bs) {
+	if (!bs || bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		return;
+	}
+	if (!EntityClientIsDead(bs->enemy)) {
+		return;
+	}
+	bs->enemy = -1;
+	bs->enemydeath_time = 0;
+}
+
 static void BotEnhanced_CancelCampLongTermGoal(bot_state_t *bs) {
 	if (!bs) {
 		return;
@@ -449,6 +460,7 @@ void BotEnhanced_OnThinkStart(bot_state_t *bs) {
 		BotEnhanced_SanitizeGoalStack(bs);
 	}
 	if (BotEnhanced_IsActive()) {
+		BotEnhanced_DropDeadEnemy(bs);
 		BotEnhanced_DropChattingEnemy(bs);
 		BotEnhanced_CancelCampLongTermGoal(bs);
 		BotCombat_UpdateIntent(bs);

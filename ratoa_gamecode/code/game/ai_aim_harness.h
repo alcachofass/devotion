@@ -13,7 +13,15 @@ when roaming, aimtarget when fighting) via ps.grapplePoint + EXTFL_BOT_AIM_DEBUG
 cg_debugBotAim draws green = wish, yellow (bit 4) = crosshair.
 
 Combat fire: suppressive — fire when tracking unless LOS is obviously blocked; MG/LG
-hold +attack each input frame (only drop hold when blocked). Rail uses think cadence.
+hold +attack each input frame (only drop hold when blocked). Rail/RL/SG shot urgency:
+after weapon reload + grace on target without firing, tracking/trace tolerances widen so
+bots take good-enough shots. Rail: lead-and-wait intercept; +attack when trace/urgency
+allows.
+
+Think-time pursuit bias (bot_enhanced_aim): each BotAimAtEnemy samples a pitch/yaw offset
+from aim_accuracy; input frames re-aim from live eye to aimtarget plus that offset (settle
+window uses true aim only). Hitscan lead uses enemy-minus-bot horizontal velocity.
+Menu skill 1-3 ~= legacy nightmare at skill 3; skill 4-5 tighten motor and fire.
 
 Motor frames use legacy delta-angle rebasing in BotUpdateInput, 10 ms integration
 sub-steps (stable at low sv_fps on dedicated), resync playerState only on large desync,
@@ -49,6 +57,9 @@ void BotAimHarness_ApplyMovementLead(struct bot_state_s *bs, float shotPoint[3],
 void BotAimHarness_ApplyRocketFeetAim(struct bot_state_s *bs, float aimPoint[3]);
 /* Plasma: torso center mass only (never feet / splash Z). */
 void BotAimHarness_ApplyPlasmaCenterMassAim(struct bot_state_s *bs, float aimPoint[3]);
+/* Rail: aim ahead along enemy travel; fire when view trace hits bbox (not suppressive). */
+void BotAimHarness_ApplyRailInterceptAim(struct bot_state_s *bs, float aimPoint[3],
+	float aimSkill, float aimAccuracy);
 int BotAimHarness_ChangeViewAngles(struct bot_state_s *bs, float thinktime);
 int BotAimHarness_AimTargetValid(struct bot_state_s *bs);
 /*

@@ -2157,6 +2157,12 @@ int AINode_Battle_Fight(bot_state_t *bs) {
 	//
 	BotEntityInfo(bs->enemy, &entinfo);
 	//if the enemy is dead
+	if (BotEnhanced_IsActive() && EntityClientIsDead(bs->enemy)) {
+		bs->enemy = -1;
+		bs->enemydeath_time = 0;
+		AIEnter_Seek_LTG(bs, "battle fight: enemy dead");
+		return qfalse;
+	}
 	if (bs->enemydeath_time) {
 		if (bs->enemydeath_time < FloatTime() - 1.0) {
 			bs->enemydeath_time = 0;

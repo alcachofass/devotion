@@ -481,7 +481,7 @@ static float BotWpnSel_RoamAudiblePenalty(int wp, float stealth, float skillComb
 	} else {
 		return 0.0f;
 	}
-	return pen * stealth * (0.4f + 0.6f * skillCombat);
+	return pen * stealth * (0.4f + 0.6f * (1.0f - skillCombat));
 }
 
 static float BotWpnSel_MachinegunRoamModifier(bot_state_t *bs) {

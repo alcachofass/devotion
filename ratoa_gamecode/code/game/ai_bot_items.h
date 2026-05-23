@@ -2,8 +2,9 @@
 ===========================================================================
 BOT ITEMS — visible high-value pickup + committed goal (bot_enhanced).
 
-Visible pickups: quad, enemy CTF flag at base (red/blue by team), mega/armor, weapons missing
-from inventory (not gauntlet). Commit to level item goal with AAS acquire check.
+Visible pickups: quad, enemy CTF flag at base (red/blue by team), mega/armor, health
+(5/25/50 when health < 80), weapons missing from inventory (not gauntlet or grapple).
+Commit to level item goal with AAS acquire check.
 ===========================================================================
 */
 
@@ -28,6 +29,8 @@ int BotItems_HandleReachedGoal(struct bot_state_s *bs, struct bot_goal_s *goal);
 
 int BotItems_ShouldPreserveGoalStack(struct bot_state_s *bs);
 void BotItems_AbortCommit(struct bot_state_s *bs);
+/* After risky movement (e.g. ledge abort): commit nearest visible health if needed. */
+void BotItems_RequestUrgentHealth(struct bot_state_s *bs);
 /* Drop commit when pathing to the pickup fails (Seek NBG/LTG). */
 void BotItems_OnMoveFailure(struct bot_state_s *bs);
 

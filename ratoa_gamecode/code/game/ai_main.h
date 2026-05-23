@@ -336,10 +336,19 @@ typedef struct bot_state_s
 	float		aimh_last_goal_time;
 	float		aimh_smooth_goal_pitch;
 	float		aimh_smooth_goal_yaw;
+	float		aimh_pursuit_pitch_off;
+	float		aimh_pursuit_yaw_off;
+	float		aimh_pursuit_set_time;
+	float		aimh_true_goal_pitch;
+	float		aimh_true_goal_yaw;
 	float		aimh_tracked_ideal_pitch;
 	float		aimh_tracked_ideal_yaw;
 	vec3_t		aimh_combat_target;
 	qboolean	aimh_hold_fire;		/* suppressive fire: +attack each input frame */
+	vec3_t		aimh_rail_lead_point;	/* lead-and-wait intercept aim (rail) */
+	qboolean	aimh_rail_lead_valid;
+	float		aimh_shot_press_since;	/* slow weapons: engage without firing (shot urgency) */
+	int			aimh_shot_press_weapon;
 	/* ---- end BOT AIM HARNESS ---- */
 
 	/* ---- BOT MOVE HARNESS: ai_bot_move_harness.c ---- */
@@ -358,6 +367,8 @@ typedef struct bot_state_s
 	qboolean	movej_rj_was_airborne;	/* true after leaving ground post-fire */
 	vec3_t		movej_rj_fire_view;		/* down-aim latched at fire; held during prep */
 	float		movej_rj_prep_view_until;	/* keep fire view + attack until RL fires */
+	float		movej_no_walkoff_until;		/* strip TFL_WALKOFFLEDGE from routing */
+	float		movej_urgent_health_until;	/* prioritize health pickups */
 	/* ---- end BOT MOVE HARNESS ---- */
 
 	/* ---- BOT SMART WEAPON SELECT (v1): ai_weapon_select.c — remove to revert ---- */

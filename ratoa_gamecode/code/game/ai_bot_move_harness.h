@@ -26,6 +26,10 @@ int BotMoveHarness_IsActive(void);
 void BotMove_OnPostMoveToGoal(struct bot_state_s *bs, struct bot_moveresult_s *moveresult);
 void BotMove_CancelBypass(struct bot_state_s *bs);
 
+/* Travel flags for routing/move (jumppad avoid, walk-off block). */
+int BotMove_EffectiveTfl(struct bot_state_s *bs);
+int BotMove_WantsUrgentHealth(struct bot_state_s *bs);
+
 int BotMove_SuppressesAimMotor(struct bot_state_s *bs);
 int BotMove_SuppressRoamView(struct bot_state_s *bs);
 

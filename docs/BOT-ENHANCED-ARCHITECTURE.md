@@ -66,13 +66,13 @@ Legacy `bot_humanizeaim` / `bot_smartWeaponChoice` / `bot_tacticalAI` are migrat
 | `ai_bot_items.c/h` | Visible pickup commits, botlib item chooser wrappers (uses enhanced goal-stack API) |
 | `ai_bot_combat.c/h` | `bot_combat_intent_t` on `bot_state_t`; stance/move/fire policy (defaults = legacy) |
 | `ai_bot_events.c/h` | Ingress queue (`evt_*`); `BotEvents_Drain` → tactics scan/process |
-| `ai_bot_move_harness.c/h` | Botlib movement-view bypass + maneuvers (rocket jump); hooks think/input |
+| `ai_bot_move_harness.c/h` | Botlib movement-view bypass + maneuvers (rocket jump); `BotMove_EffectiveTfl`; walk-off ledge fall-damage check; hooks think/input |
 | `ai_bot_move_util.c/h` | Shared horiz walk, approach speed, view actuation, goal anchors for maneuvers |
-| `ai_aim_harness.c/h` | Humanized view motor + suppressive fire |
+| `ai_aim_harness.c/h` | Humanized view motor; monotonic menu skill 0–5 accuracy ladder; suppressive fire (wide cone, all skills); rail/RL/SG shot urgency (reload+grace without firing widens track/trace tolerances); rail lead-and-wait + trace/urgency fire |
 | `ai_weapon_select.c/h` | Range/ammo weapon picker + roam selection |
 | `ai_bot_tactics.c/h` | Gauntlet flee, hurt-by-other, closer threat, finish wounded |
 | `ai_main.h` | `combat`, `evt_*`, `aimh_*`, `movej_*`, `wps_*`, `tact_*` blocks |
-| `ai_dmq3.c` | `BotDeathmatchAI`, aim-at-enemy, `BotChooseWeapon`, jumppad routing (facade at boundaries) |
+| `ai_dmq3.c` | `BotDeathmatchAI`, aim-at-enemy, `BotChooseWeapon`, `BotJumppad_Update` (thin `BotJumppad_EffectiveTfl` → harness) |
 | `ai_dmnet.c` | Battle/retreat node hooks; calls `BotEnhanced_*` goal-stack helpers before nearby/LTG item choose |
 | `ai_main.c` | `BotUpdateInput` aim path |
 
@@ -105,6 +105,8 @@ When `bot_enhanced_aim` is on, botlib `MOVERESULT_MOVEMENT*` (rocket/BFG jump, s
 | `BotMove_OnInputFrame` | `BotUpdateInput` | Vanilla view smoothing + `trap_EA_GetInput` while suppressed |
 
 No rocket-jump logic in `ai_dmq3.c`; botlib handles jump/attack timing.
+
+**Walk-off ledge:** after `trap_BotMoveToGoal`, if `traveltype == TRAVEL_WALKOFFLEDGE`, `trap_AAS_PredictClientMovement` with `SE_HITGROUNDDAMAGE` estimates fall damage; if damage ≥ half current health, the reach is avoided (`TFL_WALKOFFLEDGE` stripped, `BotResetAvoidReach`) and `BotItems_RequestUrgentHealth` commits a visible health pickup when possible.
 
 ### New world event (next think)
 
@@ -160,7 +162,7 @@ set bot_debugAim 0
 |---|--------|----------|------|
 | 1 | All enhanced **off** (defaults) | Vanilla bot aim, weapon pick, combat decisions | Pass |
 | 2 | `bot_enhanced 1`; all sub-cvars **0** | Same as row 1 (master on, features off) | Pass |
-| 3 | `bot_enhanced 1`; `bot_enhanced_aim 1` only | Smooth humanized aim; MG/LG hold fire; no snap-aim jitter | Pass |
+| 3 | `bot_enhanced 1`; `bot_enhanced_aim 1` only | Humanized aim by menu skill 0–5 ladder; skill 5 ~0.94 harness accuracy; MG/LG suppressive fire wide cone; rail trace at skill 3+ | Pass |
 | 4 | `bot_enhanced 1`; `bot_enhanced_weapons 1` only | Range/ammo-aware switches; roaming silent weapon bias | Pass |
 | 5 | `bot_enhanced 1`; `bot_enhanced_tactics 1` only | Gauntlet flee/rush, third-party hurt switch, nearer threat, finish wounded | Pass |
 | 6 | All enhanced **on** (`bot_enhanced 1` + all three sub-cvars `1`) | Same as pre-refactor with all three legacy features enabled together | Pass |
@@ -210,7 +212,7 @@ set bot_enhanced_tactics 1
 
 While running rows 3–6, watch for regressions vs. known pre-refactor behavior:
 
-- **Weapon switching cadence** — no rapid flip-flop; MG not primary at long range when rail/RL available.
+- **Weapon switching cadence** — no rapid flip-flop; MG not primary at long range when rail/RL available; low combat-skill bots penalized more for audible rail/LG while roaming.
 - **Gauntlet-only survival** — bot flees when far with only gauntlet; rushes when close (tactics).
 - **MG + humanize aim** — sustained fire on target with smooth view tracking, not single-tap snap shots.
 - **Third-party damage** — bot fighting A switches toward B when B chips them (tactics, row 5/6).

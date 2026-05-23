@@ -59,7 +59,7 @@ qboolean BotIsObserver(bot_state_t *bs);
 qboolean BotIntermission(bot_state_t *bs);
 //returns true if the bot is in lava or slime
 qboolean BotInLavaOrSlime(bot_state_t *bs);
-//returns true if the client is dead (use clientNum, not entinfo fields alone)
+//returns true if the client is dead (g_entities[clientNum].health < 1)
 qboolean EntityClientIsDead(int clientNum);
 //returns true if the entity is dead
 qboolean EntityIsDead(aas_entityinfo_t *entinfo);
