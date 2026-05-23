@@ -52,6 +52,7 @@ flowchart TB
 | Aim harness | `bot_enhanced` + `bot_enhanced_aim` | Facade: `BotEnhanced_AimActive()` (`bot_challenge` ignored) |
 | Smart weapons | `bot_enhanced` + `bot_enhanced_weapons` | Facade: `BotEnhanced_WeaponsActive()` |
 | Tactical AI | `bot_enhanced` + `bot_enhanced_tactics` | Facade: `BotEnhanced_TacticsActive()` |
+| Movement | `bot_enhanced` + `bot_enhanced_movement` | Facade: `BotEnhanced_MovementActive()`. Gates: enhanced RJ maneuver prep/fire; walk-off ledge fall-damage avoidance. Enhanced RJ also requires `bot_enhanced_aim` (view bypass). |
 | Debug (cheat) | `bot_debugAim` | Independent of master; client `cg_debugBotAim` |
 
 Legacy `bot_humanizeaim` / `bot_smartWeaponChoice` / `bot_tacticalAI` are migrated once at init if new cvars are still default (see BOT-CVARS.md).
@@ -66,7 +67,7 @@ Legacy `bot_humanizeaim` / `bot_smartWeaponChoice` / `bot_tacticalAI` are migrat
 | `ai_bot_items.c/h` | Visible pickup commits, botlib item chooser wrappers (uses enhanced goal-stack API) |
 | `ai_bot_combat.c/h` | `bot_combat_intent_t` on `bot_state_t`; stance/move/fire policy (defaults = legacy) |
 | `ai_bot_events.c/h` | Ingress queue (`evt_*`); `BotEvents_Drain` → tactics scan/process |
-| `ai_bot_move_harness.c/h` | Botlib movement-view bypass + maneuvers (rocket jump); `BotMove_EffectiveTfl`; walk-off ledge fall-damage check; hooks think/input |
+| `ai_bot_move_harness.c/h` | Botlib movement-view bypass (`bot_enhanced_aim`); `bot_enhanced_movement` cvar + `BotEnhanced_MovementActive()` gate; enhanced RJ maneuver prep/fire (requires both aim + movement); walk-off ledge fall-damage avoidance; `BotMove_EffectiveTfl`; hooks think/input |
 | `ai_bot_move_util.c/h` | Shared horiz walk, approach speed, view actuation, goal anchors for maneuvers |
 | `ai_aim_harness.c/h` | Humanized view motor; monotonic menu skill 0–5 accuracy ladder; suppressive fire (wide cone, all skills); rail/RL/SG shot urgency (reload+grace without firing widens track/trace tolerances); rail lead-and-wait + trace/urgency fire |
 | `ai_weapon_select.c/h` | Range/ammo weapon picker + roam selection; voluntary close combat (25%: SG > plasma > gauntlet) |
@@ -106,7 +107,9 @@ When `bot_enhanced_aim` is on, botlib `MOVERESULT_MOVEMENT*` (rocket/BFG jump, s
 
 No rocket-jump logic in `ai_dmq3.c`; botlib handles jump/attack timing.
 
-**Walk-off ledge:** after `trap_BotMoveToGoal`, if `traveltype == TRAVEL_WALKOFFLEDGE`, `trap_AAS_PredictClientMovement` with `SE_HITGROUNDDAMAGE` estimates fall damage; if damage ≥ half current health, the reach is avoided (`TFL_WALKOFFLEDGE` stripped, `BotResetAvoidReach`) and `BotItems_RequestUrgentHealth` commits a visible health pickup when possible.
+**Enhanced RJ maneuver** (active prep/fire coordination) requires **both** `bot_enhanced_aim` (view-motor bypass) and `bot_enhanced_movement`. With only `bot_enhanced_aim` on, the aim motor still yields to botlib view during native RJ travel but the harness does not actively prepare or fire the jump. The standard `bot_rocketjump` botlib path is unaffected by either cvar.
+
+**Walk-off ledge:** after `trap_BotMoveToGoal`, if `traveltype == TRAVEL_WALKOFFLEDGE` and `bot_enhanced_movement` is on, `trap_AAS_PredictClientMovement` with `SE_HITGROUNDDAMAGE` estimates fall damage; if damage ≥ half current health, the reach is avoided (`TFL_WALKOFFLEDGE` stripped, `BotResetAvoidReach`) and `BotItems_RequestUrgentHealth` commits a visible health pickup when possible.
 
 ### New world event (next think)
 
@@ -152,6 +155,7 @@ set bot_enhanced 0
 set bot_enhanced_aim 0
 set bot_enhanced_weapons 0
 set bot_enhanced_tactics 0
+set bot_enhanced_movement 0
 set bot_challenge 0
 set bot_debugAim 0
 ```
@@ -162,15 +166,17 @@ set bot_debugAim 0
 |---|--------|----------|------|
 | 1 | All enhanced **off** (defaults) | Vanilla bot aim, weapon pick, combat decisions | Pass |
 | 2 | `bot_enhanced 1`; all sub-cvars **0** | Same as row 1 (master on, features off) | Pass |
-| 3 | `bot_enhanced 1`; `bot_enhanced_aim 1` only | Humanized aim by menu skill 0–5 ladder; skill 5 ~0.94 harness accuracy; MG/LG suppressive fire wide cone; rail trace at skill 3+ | Pass |
+| 3 | `bot_enhanced 1`; `bot_enhanced_aim 1` only | Humanized aim by menu skill 0–5 ladder; skill 5 ~0.94 harness accuracy; MG/LG suppressive fire wide cone; rail trace at skill 3+; view yields to botlib during native RJ travel | Pass |
 | 4 | `bot_enhanced 1`; `bot_enhanced_weapons 1` only | Range/ammo-aware switches; roaming silent weapon bias | Pass |
 | 5 | `bot_enhanced 1`; `bot_enhanced_tactics 1` only | Gauntlet flee/rush, third-party hurt switch, nearer threat, finish wounded | Pass |
-| 6 | All enhanced **on** (`bot_enhanced 1` + all three sub-cvars `1`) | Same as pre-refactor with all three legacy features enabled together | Pass |
+| 6 | `bot_enhanced 1` + aim + weapons + tactics (`1`) | Same as pre-refactor with all three legacy features enabled together | Pass |
 | 7 | Row 3 + `bot_challenge 1` | Same as row 3 (harness stays on; legacy challenge snap path skipped) | Pass |
 | 8 | Row 3 or 6 + `bot_debugAim 1` + client `cg_debugBotAim 1` | Debug lines unchanged (green wish, yellow crosshair) | Pass |
-| 9 | Row 3 + maps with rocket jumps (`bot_rocketjump 1`) | Bots complete RJ like vanilla; no stare-down / timeout retry loop | — |
+| 9 | Row 3 + maps with rocket jumps (`bot_rocketjump 1`) | Bots complete RJ via vanilla botlib; no stare-down / timeout retry loop; enhanced maneuver **off** | — |
+| 10 | `bot_enhanced 1`; `bot_enhanced_aim 1`; `bot_enhanced_movement 1`; maps with RJ (`bot_rocketjump 1`) | Enhanced RJ maneuver active: bots approach spot, aim down, fire+jump; no retry stare-down | — |
+| 11 | `bot_enhanced 1`; `bot_enhanced_movement 1` only (aim **off**); maps with ledge drops | Walk-off avoidance active (no enhanced RJ — requires aim too); bots reroute away from lethal drops; standard RJ via botlib unaffected | — |
 
-**Row 1 trap (master gate):** `bot_enhanced 0` with all sub-cvars `1` must still behave as vanilla.
+**Row 1 trap (master gate):** `bot_enhanced 0` with all sub-cvars `1` (including `bot_enhanced_movement`) must still behave as vanilla.
 
 **Legacy migration (optional):** `bot_enhanced 0`, `set bot_humanizeaim 1` only in `server.cfg`, restart map → server prints deprecation line; aim matches row 3 after migration.
 
@@ -182,30 +188,49 @@ set bot_enhanced 0
 set bot_enhanced_aim 0
 set bot_enhanced_weapons 0
 set bot_enhanced_tactics 0
+set bot_enhanced_movement 0
 
 // Row 3 — aim only
 set bot_enhanced 1
 set bot_enhanced_aim 1
 set bot_enhanced_weapons 0
 set bot_enhanced_tactics 0
+set bot_enhanced_movement 0
 
 // Row 4 — weapons only
 set bot_enhanced 1
 set bot_enhanced_aim 0
 set bot_enhanced_weapons 1
 set bot_enhanced_tactics 0
+set bot_enhanced_movement 0
 
 // Row 5 — tactics only
 set bot_enhanced 1
 set bot_enhanced_aim 0
 set bot_enhanced_weapons 0
 set bot_enhanced_tactics 1
+set bot_enhanced_movement 0
 
-// Row 6 — all on
+// Row 6 — aim + weapons + tactics (no movement)
 set bot_enhanced 1
 set bot_enhanced_aim 1
 set bot_enhanced_weapons 1
 set bot_enhanced_tactics 1
+set bot_enhanced_movement 0
+
+// Row 10 — aim + movement (enhanced RJ maneuver + ledge avoidance)
+set bot_enhanced 1
+set bot_enhanced_aim 1
+set bot_enhanced_weapons 0
+set bot_enhanced_tactics 0
+set bot_enhanced_movement 1
+
+// Row 11 — movement only (ledge avoidance; no enhanced RJ without aim)
+set bot_enhanced 1
+set bot_enhanced_aim 0
+set bot_enhanced_weapons 0
+set bot_enhanced_tactics 0
+set bot_enhanced_movement 1
 ```
 
 ### Regression focus

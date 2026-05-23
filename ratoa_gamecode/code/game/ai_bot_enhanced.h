@@ -26,6 +26,7 @@ int BotEnhanced_IsActive(void);
 int BotEnhanced_AimActive(void);
 int BotEnhanced_WeaponsActive(void);
 int BotEnhanced_TacticsActive(void);
+int BotEnhanced_MovementActive(void);
 
 void BotEnhanced_OnThinkStart(struct bot_state_s *bs);
 

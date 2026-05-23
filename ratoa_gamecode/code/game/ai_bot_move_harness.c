@@ -1,6 +1,12 @@
 /*
 ===========================================================================
-BOT MOVE HARNESS — botlib movement bypass for enhanced aim; rocket jump maneuver.
+BOT MOVE HARNESS — botlib movement bypass for enhanced aim; rocket jump maneuver;
+walk-off ledge fall-damage avoidance.
+
+bot_enhanced_movement gates the enhanced rocket-jump maneuver and the walk-off
+ledge fall-damage check.  The aim-motor bypass (BotMoveHarness_IsActive) still
+follows bot_enhanced_aim so botlib can own view during native RJ travel even when
+movement enhancements are off.
 ===========================================================================
 */
 
@@ -21,11 +27,15 @@ BOT MOVE HARNESS — botlib movement bypass for enhanced aim; rocket jump maneuv
 #include "ai_bot_move_harness.h"
 #include "ai_bot_items.h"
 
+vmCvar_t bot_enhanced_movement;
+
 #define BOTMOVE_BYPASS_LATCH_SEC	2.5f
 #define BOTMOVE_WALKOFF_BLOCK_SEC	10.0f
 #define BOTMOVE_URGENT_HEALTH_SEC	14.0f
 #define BOTMOVE_WALKOFF_PRED_FRAMES	24
 #define BOTMOVE_WALKOFF_PRED_FRAMETIME	0.1f
+/* Abort a walkoff when the landing Z would be this far below a committed item goal. */
+#define BOTMOVE_COMMIT_ABOVE_THRESHOLD	96.0f
 
 /* ---- Rocket jump tuning ---- */
 #define BOTMOVE_RJ_VIEWTARGET_DIST	300.0f
@@ -105,6 +115,11 @@ static int BotMove_SuppressEnhancedView(bot_state_t *bs) {
 
 /* ======================== Harness lifecycle ======================== */
 
+void BotMoveHarness_RegisterCvars(void) {
+	trap_Cvar_Register(&bot_enhanced_movement, "bot_enhanced_movement", "0", CVAR_ARCHIVE);
+	trap_Cvar_Update(&bot_enhanced_movement);
+}
+
 void BotMoveHarness_Reset(bot_state_t *bs) {
 	if (!bs) {
 		return;
@@ -123,8 +138,14 @@ void BotMoveHarness_Reset(bot_state_t *bs) {
 	BotMove_ClearRJ(bs);
 }
 
+/* Aim-motor bypass gate: follows bot_enhanced_aim so botlib can own view. */
 int BotMoveHarness_IsActive(void) {
 	return BotEnhanced_AimActive();
+}
+
+/* Movement-enhancement gate: rocket-jump maneuver and walk-off avoidance. */
+static int BotMoveHarness_MovementActive(void) {
+	return BotEnhanced_MovementActive();
 }
 
 void BotMove_CancelBypass(bot_state_t *bs) {
@@ -143,7 +164,7 @@ int BotMove_SuppressRoamView(bot_state_t *bs) {
 }
 
 int BotMove_ShouldSkipAvoidReachReset(bot_state_t *bs, bot_moveresult_t *moveresult) {
-	if (!bs || !moveresult || !BotMoveHarness_IsActive()) {
+	if (!bs || !moveresult || !BotMoveHarness_IsActive() || !BotMoveHarness_MovementActive()) {
 		return 0;
 	}
 	if (!bs->movej_rj_active || bs->movej_rj_fired) {
@@ -560,12 +581,16 @@ static int BotMove_EstimatePredictedFallDamage(const aas_clientmove_t *move,
 	return BotMove_FallDamageFromDelta(delta);
 }
 
-static int BotMove_PredictWalkoffFallDamage(bot_state_t *bs, const vec3_t movedir) {
-	aas_clientmove_t move;
+/*
+ * Run the AAS walkoff prediction.  Fills *moveOut and returns 1 on success.
+ * Separated so TryAbortRiskyWalkoff can inspect endpos without a second call.
+ */
+static int BotMove_RunWalkoffPredict(bot_state_t *bs, const vec3_t movedir,
+		aas_clientmove_t *moveOut) {
 	vec3_t origin, velocity, cmdmove, hordir;
 	int presencetype, onground;
 
-	if (!bs || VectorLengthSquared(movedir) < 0.01f) {
+	if (!bs || !moveOut || VectorLengthSquared(movedir) < 0.01f) {
 		return 0;
 	}
 	if (!BotAI_GetClientState(bs->client, &bs->cur_ps)) {
@@ -587,13 +612,12 @@ static int BotMove_PredictWalkoffFallDamage(bot_state_t *bs, const vec3_t movedi
 	VectorScale(hordir, 400.0f, cmdmove);
 	cmdmove[2] = 0.0f;
 
-	memset(&move, 0, sizeof(move));
-	trap_AAS_PredictClientMovement(&move, bs->entitynum, origin, presencetype, onground,
+	memset(moveOut, 0, sizeof(*moveOut));
+	trap_AAS_PredictClientMovement(moveOut, bs->entitynum, origin, presencetype, onground,
 		velocity, cmdmove, 2, BOTMOVE_WALKOFF_PRED_FRAMES, BOTMOVE_WALKOFF_PRED_FRAMETIME,
 		SE_HITGROUNDDAMAGE | SE_GAP | SE_ENTERWATER | SE_ENTERSLIME | SE_ENTERLAVA,
 		0, qfalse);
-
-	return BotMove_EstimatePredictedFallDamage(&move, origin);
+	return 1;
 }
 
 static void BotMove_CancelWalkoffMoveresult(bot_state_t *bs, bot_moveresult_t *mr) {
@@ -610,9 +634,12 @@ static void BotMove_CancelWalkoffMoveresult(bot_state_t *bs, bot_moveresult_t *m
 
 static qboolean BotMove_TryAbortRiskyWalkoff(bot_state_t *bs, bot_moveresult_t *mr,
 		int travel) {
+	aas_clientmove_t move;
 	int health, fallDamage;
+	qboolean abortForDamage, abortForItemZ;
+	float itemGoalZ;
 
-	if (!BotEnhanced_IsActive() || !bs || !mr) {
+	if (!BotMoveHarness_MovementActive() || !bs || !mr) {
 		return qfalse;
 	}
 	if ((g_dmflags.integer & DF_NO_FALLING) ||
@@ -623,27 +650,49 @@ static qboolean BotMove_TryAbortRiskyWalkoff(bot_state_t *bs, bot_moveresult_t *
 		return qfalse;
 	}
 
-	fallDamage = BotMove_PredictWalkoffFallDamage(bs, mr->movedir);
+	if (!BotMove_RunWalkoffPredict(bs, mr->movedir, &move)) {
+		return qfalse;
+	}
+
+	fallDamage = BotMove_EstimatePredictedFallDamage(&move, bs->origin);
 	health = bs->inventory[INVENTORY_HEALTH];
 	if (health <= 0) {
 		health = bs->cur_ps.stats[STAT_HEALTH];
 	}
-	/* Abort when predicted fall damage is at least half current health. */
-	if (fallDamage <= 0 || (float)fallDamage < health * 0.5f) {
+	/* Primary: abort when fall damage is at least half current health. */
+	abortForDamage = (fallDamage > 0 && (float)fallDamage >= (float)health * 0.5f);
+
+	/*
+	 * Secondary: abort when the bot has an active item commit and the predicted
+	 * landing Z would be significantly below the item goal's Z.  Prevents the bot
+	 * from dropping off a ledge to reach a lower area when its committed goal is
+	 * above the landing point (common when jump-pad avoidance reroutes through a
+	 * WALKOFFLEDGE reach).
+	 */
+	abortForItemZ = qfalse;
+	if (!abortForDamage && BotItems_HasActiveCommit(bs)) {
+		itemGoalZ = BotItems_GetCommitGoalOriginZ(bs);
+		abortForItemZ = (itemGoalZ > move.endpos[2] + BOTMOVE_COMMIT_ABOVE_THRESHOLD);
+	}
+
+	if (!abortForDamage && !abortForItemZ) {
 		return qfalse;
 	}
 
 	BotMove_CancelWalkoffMoveresult(bs, mr);
 	bs->movej_no_walkoff_until = FloatTime() + BOTMOVE_WALKOFF_BLOCK_SEC;
-	bs->movej_urgent_health_until = FloatTime() + BOTMOVE_URGENT_HEALTH_SEC;
 	bs->nbg_time = 0.0f;
 	bs->ltg_time = 0.0f;
-	BotItems_RequestUrgentHealth(bs);
+	if (abortForDamage) {
+		/* Health-threatening fall: also keep urgent-health seek active. */
+		bs->movej_urgent_health_until = FloatTime() + BOTMOVE_URGENT_HEALTH_SEC;
+		BotItems_RequestUrgentHealth(bs);
+	}
 	return qtrue;
 }
 
 static int BotMove_ShouldAvoidWalkoffLedges(bot_state_t *bs) {
-	if (!bs || !BotEnhanced_IsActive()) {
+	if (!bs || !BotMoveHarness_MovementActive()) {
 		return 0;
 	}
 	return bs->movej_no_walkoff_until > FloatTime();
@@ -694,7 +743,7 @@ void BotMove_OnPostMoveToGoal(bot_state_t *bs, bot_moveresult_t *mr) {
 	bs->movej_on_rj_travel = BotMoveUtil_IsWeaponJumpTravel(travel);
 	BotMoveUtil_CacheHorizMovedir(bs, mr);
 
-	if (!BotMoveHarness_IsActive()) {
+	if (!BotMoveHarness_IsActive() || !BotMoveHarness_MovementActive()) {
 		return;
 	}
 	BotMove_RJ_OnPostMove(bs, mr, travel);

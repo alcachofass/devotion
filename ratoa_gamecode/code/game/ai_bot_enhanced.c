@@ -28,6 +28,7 @@ vmCvar_t bot_enhanced;
 extern vmCvar_t bot_enhanced_aim;
 extern vmCvar_t bot_enhanced_weapons;
 extern vmCvar_t bot_enhanced_tactics;
+extern vmCvar_t bot_enhanced_movement;
 
 #define BOT_ENHANCED_LEGACY_AIM		"bot_humanizeaim"
 #define BOT_ENHANCED_LEGACY_WEAPONS	"bot_smartWeaponChoice"
@@ -119,6 +120,7 @@ void BotEnhanced_RegisterCvars(void) {
 	BotWpnSelect_RegisterCvars();
 	BotTactics_RegisterCvars();
 	BotItems_RegisterCvars();
+	BotMoveHarness_RegisterCvars();
 	BotEnhanced_MigrateLegacyCvars();
 }
 
@@ -149,6 +151,14 @@ int BotEnhanced_TacticsActive(void) {
 	}
 	trap_Cvar_Update(&bot_enhanced_tactics);
 	return bot_enhanced_tactics.integer != 0;
+}
+
+int BotEnhanced_MovementActive(void) {
+	if (!BotEnhanced_IsActive()) {
+		return 0;
+	}
+	trap_Cvar_Update(&bot_enhanced_movement);
+	return bot_enhanced_movement.integer != 0;
 }
 
 int BotEnhanced_ItemsActive(void) {

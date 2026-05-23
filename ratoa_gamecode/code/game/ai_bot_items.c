@@ -981,6 +981,15 @@ static int BotItems_TravelFlags(bot_state_t *bs) {
 	if (bs->jumppad_avoid_until > FloatTime()) {
 		tfl &= ~TFL_JUMPPAD;
 	}
+	/*
+	 * Mirror the movement harness walkoff-avoid flag so that acquisition
+	 * reachability checks stay consistent with what BotMove_EffectiveTfl
+	 * will allow during actual movement (avoids committing to a goal whose
+	 * only route is through a currently-blocked walkoff ledge).
+	 */
+	if (bs->movej_no_walkoff_until > FloatTime()) {
+		tfl &= ~TFL_WALKOFFLEDGE;
+	}
 	return tfl;
 }
 
@@ -1088,6 +1097,21 @@ static void BotItems_CheckStuck(bot_state_t *bs) {
 
 
 	if (!bs || !bs->item_commit_active) {
+
+		return;
+
+	}
+
+	/*
+	 * While airborne (jump pad, fall) the bot cannot steer and movement failures
+	 * are expected.  Slide the progress window forward so the stuck timer starts
+	 * fresh on landing rather than counting flight time as idle.
+	 */
+	if (bs->cur_ps.groundEntityNum == ENTITYNUM_NONE) {
+
+		bs->item_commit_progress_time = FloatTime();
+
+		VectorCopy(bs->origin, bs->item_commit_progress_origin);
 
 		return;
 
@@ -1606,7 +1630,33 @@ void BotItems_OnMoveFailure(bot_state_t *bs) {
 
 	}
 
+	/*
+	 * Don't abandon the commit while the bot is airborne (e.g. immediately after
+	 * a jump pad triggers).  The movement failure is expected because TFL_JUMPPAD
+	 * has just been stripped and botlib can't re-route in mid-air.  The stuck check
+	 * will handle genuine inability to progress once the bot lands.
+	 */
+	if (bs->cur_ps.groundEntityNum == ENTITYNUM_NONE) {
+
+		return;
+
+	}
+
 	BotItems_ClearCommit(bs, BOT_ITEMS_DBG_STUCK);
+
+}
+
+
+
+float BotItems_GetCommitGoalOriginZ(const bot_state_t *bs) {
+
+	if (!bs || !bs->item_commit_active) {
+
+		return -99999.0f;
+
+	}
+
+	return bs->item_commit_goal.origin[2];
 
 }
 

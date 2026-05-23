@@ -33,6 +33,8 @@ void BotItems_AbortCommit(struct bot_state_s *bs);
 void BotItems_RequestUrgentHealth(struct bot_state_s *bs);
 /* Drop commit when pathing to the pickup fails (Seek NBG/LTG). */
 void BotItems_OnMoveFailure(struct bot_state_s *bs);
+/* Z coordinate of the committed item goal origin, or -99999 if no active commit. */
+float BotItems_GetCommitGoalOriginZ(const struct bot_state_s *bs);
 
 /* botlib item chooser wrappers: skip useless goals when bot_enhanced is on */
 int BotItems_ChooseNBGItem(struct bot_state_s *bs, int tfl, struct bot_goal_s *ltg,

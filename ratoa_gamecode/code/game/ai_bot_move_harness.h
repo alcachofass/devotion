@@ -1,16 +1,17 @@
 /*
 ===========================================================================
-BOT MOVE HARNESS — botlib movement view/weapon compatibility for enhanced aim.
+BOT MOVE HARNESS — botlib movement view/weapon compatibility for enhanced aim;
+enhanced rocket-jump maneuver; walk-off ledge fall-damage avoidance.
 
-When botlib sets MOVERESULT_MOVEMENT* (rocket jump, swim, activate shoot), the aim
-harness must not override view or strip botlib jump/attack. Think nodes call
-BotMove_OnPostMoveToGoal after trap_BotMoveToGoal; BotUpdateInput uses the cached
-flags to run the legacy input path for that frame window.
+BotMoveHarness_IsActive() follows bot_enhanced_aim: aim-motor bypass so botlib
+owns view during native MOVERESULT_MOVEMENT* travel (rocket jump, swim, etc.).
 
-Shared geometry/view helpers: ai_bot_move_util.c. Maneuvers (rocket jump today) live
-in ai_bot_move_harness.c; add new ones via OnPostMoveToGoal / OnInputFrame hooks.
+bot_enhanced_movement gates the enhanced RJ maneuver prep/fire and the walk-off
+ledge fall-damage check (BotEnhanced_MovementActive).  Both gates must be true for
+the enhanced RJ path; walk-off avoidance only needs movement.
 
-Active with bot_enhanced + bot_enhanced_aim (no separate cvar yet).
+Shared geometry/view helpers: ai_bot_move_util.c.  Maneuvers (rocket jump today)
+live in ai_bot_move_harness.c; add new ones via OnPostMoveToGoal / OnInputFrame.
 ===========================================================================
 */
 
@@ -20,6 +21,7 @@ Active with bot_enhanced + bot_enhanced_aim (no separate cvar yet).
 struct bot_state_s;
 struct bot_moveresult_s;
 
+void BotMoveHarness_RegisterCvars(void);
 void BotMoveHarness_Reset(struct bot_state_s *bs);
 int BotMoveHarness_IsActive(void);
 
