@@ -2513,7 +2513,7 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 	BotTactics_RetreatAfterInventory(bs);
 	if (BotCombat_ShouldEngageFromRetreat(bs)) {
 		bs->flags &= ~BFL_TACTICS_SURVIVAL_FLEE;
-		AIEnter_Battle_Fight(bs, "enhanced: close gauntlet charge");
+		AIEnter_Battle_Fight(bs, "enhanced: close combat charge");
 		return qfalse;
 	}
 	//if the bot doesn't want to retreat anymore... probably picked up some nice items

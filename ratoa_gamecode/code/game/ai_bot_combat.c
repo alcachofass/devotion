@@ -29,14 +29,31 @@ static int BotCombat_HorizontalDistToEnemy(bot_state_t *bs) {
 	dir[2] = 0;
 	return (int)VectorLength(dir);
 }
+static qboolean BotCombat_IsVoluntaryCloseCombatWeapon(int wp) {
+	return (wp == WP_GAUNTLET || wp == WP_SHOTGUN || wp == WP_PLASMAGUN);
+}
 static qboolean BotCombat_GauntletChosen(bot_state_t *bs) {
 	return (bs->weaponnum == WP_GAUNTLET || bs->cur_ps.weapon == WP_GAUNTLET);
+}
+static qboolean BotCombat_VoluntaryCloseCombatChosen(bot_state_t *bs) {
+	int wp;
+
+	wp = bs->weaponnum;
+	if (!BotCombat_IsVoluntaryCloseCombatWeapon(wp)) {
+		wp = bs->cur_ps.weapon;
+	}
+	return BotCombat_IsVoluntaryCloseCombatWeapon(wp);
 }
 static qboolean BotCombat_HasGauntlet(bot_state_t *bs) {
 	return (bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_GAUNTLET)) != 0;
 }
-static qboolean BotCombat_CloseVoluntaryGauntlet(bot_state_t *bs) {
-	if (!BotCombat_GauntletChosen(bs)) {
+static qboolean BotCombat_HasCloseCombatWeapon(bot_state_t *bs) {
+	return BotCombat_HasGauntlet(bs) ||
+		(bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_SHOTGUN)) != 0 ||
+		(bs->cur_ps.stats[STAT_WEAPONS] & (1 << WP_PLASMAGUN)) != 0;
+}
+static qboolean BotCombat_CloseVoluntaryCloseCombat(bot_state_t *bs) {
+	if (!BotCombat_VoluntaryCloseCombatChosen(bs)) {
 		return qfalse;
 	}
 	if (BotTactics_IsGauntletOnly(bs)) {
@@ -109,7 +126,7 @@ static qboolean BotCombat_UpdateVoluntaryGauntletAbort(bot_state_t *bs) {
 	if (!BotCombat_VoluntaryGauntletPursuitActive(bs)) {
 		return qfalse;
 	}
-	if (!BotCombat_GauntletChosen(bs) || BotTactics_IsGauntletOnly(bs)) {
+	if (!BotCombat_VoluntaryCloseCombatChosen(bs) || BotTactics_IsGauntletOnly(bs)) {
 		BotCombat_ClearVoluntaryPursuit(bs);
 		return qfalse;
 	}
@@ -134,18 +151,18 @@ static qboolean BotCombat_UpdateVoluntaryGauntletAbort(bot_state_t *bs) {
 	BotWpnSelect_OnVoluntaryGauntletAborted(bs);
 	return qtrue;
 }
-static qboolean BotCombat_GauntletRushAllowed(bot_state_t *bs) {
+static qboolean BotCombat_CloseCombatRushAllowed(bot_state_t *bs) {
 	int horiz;
-	if (!BotCombat_GauntletChosen(bs)) {
-		return qfalse;
-	}
+
 	horiz = BotCombat_HorizontalDistToEnemy(bs);
 	/* Out of ammo: last-resort gauntlet — rush out to 384; flee only beyond (tactics). */
 	if (BotTactics_IsGauntletOnly(bs)) {
-		return horiz <= BOT_COMBAT_GAUNTLET_LASTRESORT_RUSH_DIST;
+		return BotCombat_GauntletChosen(bs) &&
+			horiz <= BOT_COMBAT_GAUNTLET_LASTRESORT_RUSH_DIST;
 	}
-	/* Voluntary close gauntlet (skill 4–5) overrides stale survival-flee. */
-	if (horiz <= BOT_COMBAT_GAUNTLET_RUSH_DIST &&
+	/* Voluntary close combat (skill 4–5): SG/plasma/gauntlet charge. */
+	if (BotCombat_VoluntaryCloseCombatChosen(bs) &&
+			horiz <= BOT_COMBAT_GAUNTLET_RUSH_DIST &&
 			BotEnhanced_AllowsVoluntaryCloseGauntlet(bs)) {
 		if (FloatTime() < bs->combat.gauntlet_voluntary_abandon_until) {
 			return qfalse;
@@ -157,20 +174,20 @@ static qboolean BotCombat_GauntletRushAllowed(bot_state_t *bs) {
 	}
 	return qfalse;
 }
-static void BotCombat_ApplyGauntletRush(bot_state_t *bs) {
+static void BotCombat_ApplyCloseCombatRush(bot_state_t *bs) {
 	bs->combat.stance = BOT_STANCE_RUSH_OPPONENT;
 	bs->combat.move_policy = BOT_MOVE_CLOSE_MELEE;
-	if (BotCombat_CloseVoluntaryGauntlet(bs) ||
+	if (BotCombat_CloseVoluntaryCloseCombat(bs) ||
 			(BotTactics_IsGauntletOnly(bs) &&
 			 BotCombat_InGauntletEngageRange(bs))) {
 		bs->flags &= ~BFL_TACTICS_SURVIVAL_FLEE;
 	}
 }
-static void BotCombat_UpdateGauntletRush(bot_state_t *bs) {
-	if (!BotCombat_GauntletRushAllowed(bs)) {
+static void BotCombat_UpdateCloseCombatRush(bot_state_t *bs) {
+	if (!BotCombat_CloseCombatRushAllowed(bs)) {
 		return;
 	}
-	BotCombat_ApplyGauntletRush(bs);
+	BotCombat_ApplyCloseCombatRush(bs);
 }
 static void BotCombat_ResetStance(bot_state_t *bs) {
 	bs->combat.stance = BOT_STANCE_NORMAL;
@@ -209,7 +226,7 @@ void BotCombat_UpdateIntent(bot_state_t *bs) {
 	if (BotCombat_UpdateVoluntaryGauntletAbort(bs)) {
 		return;
 	}
-	BotCombat_UpdateGauntletRush(bs);
+	BotCombat_UpdateCloseCombatRush(bs);
 }
 int BotCombat_IsRushOpponent(const bot_state_t *bs) {
 	if (!bs) {
@@ -224,7 +241,7 @@ int BotCombat_ShouldEngageFromRetreat(bot_state_t *bs) {
 	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
 		return 0;
 	}
-	if (!BotCombat_HasGauntlet(bs)) {
+	if (!BotCombat_HasCloseCombatWeapon(bs)) {
 		return 0;
 	}
 	if (FloatTime() < bs->combat.gauntlet_voluntary_abandon_until) {
@@ -242,22 +259,22 @@ void BotCombat_OnWeaponCommitted(bot_state_t *bs, int prev_wp, int new_wp) {
 	if (!bs || !BotEnhanced_IsActive()) {
 		return;
 	}
-	if (new_wp != WP_GAUNTLET) {
-		if (prev_wp == WP_GAUNTLET) {
+	if (!BotCombat_IsVoluntaryCloseCombatWeapon(new_wp)) {
+		if (BotCombat_IsVoluntaryCloseCombatWeapon(prev_wp)) {
 			BotCombat_ClearVoluntaryPursuit(bs);
 		}
 		return;
 	}
-	if (prev_wp == WP_GAUNTLET) {
+	if (prev_wp == new_wp) {
 		return;
 	}
 	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
 		return;
 	}
 	BotCombat_StartVoluntaryPursuit(bs);
-	if (!BotCombat_GauntletRushAllowed(bs)) {
+	if (!BotCombat_CloseCombatRushAllowed(bs)) {
 		return;
 	}
-	BotCombat_ApplyGauntletRush(bs);
+	BotCombat_ApplyCloseCombatRush(bs);
 }
 

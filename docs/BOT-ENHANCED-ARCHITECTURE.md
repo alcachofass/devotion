@@ -69,8 +69,8 @@ Legacy `bot_humanizeaim` / `bot_smartWeaponChoice` / `bot_tacticalAI` are migrat
 | `ai_bot_move_harness.c/h` | Botlib movement-view bypass + maneuvers (rocket jump); `BotMove_EffectiveTfl`; walk-off ledge fall-damage check; hooks think/input |
 | `ai_bot_move_util.c/h` | Shared horiz walk, approach speed, view actuation, goal anchors for maneuvers |
 | `ai_aim_harness.c/h` | Humanized view motor; monotonic menu skill 0–5 accuracy ladder; suppressive fire (wide cone, all skills); rail/RL/SG shot urgency (reload+grace without firing widens track/trace tolerances); rail lead-and-wait + trace/urgency fire |
-| `ai_weapon_select.c/h` | Range/ammo weapon picker + roam selection |
-| `ai_bot_tactics.c/h` | Gauntlet flee, hurt-by-other, closer threat, finish wounded |
+| `ai_weapon_select.c/h` | Range/ammo weapon picker + roam selection; voluntary close combat (25%: SG > plasma > gauntlet) |
+| `ai_bot_tactics.c/h` | Gauntlet flee, hurt-by-other, closer threat (skill + distance-scaled swap chance), finish wounded |
 | `ai_main.h` | `combat`, `evt_*`, `aimh_*`, `movej_*`, `wps_*`, `tact_*` blocks |
 | `ai_dmq3.c` | `BotDeathmatchAI`, aim-at-enemy, `BotChooseWeapon`, `BotJumppad_Update` (thin `BotJumppad_EffectiveTfl` → harness) |
 | `ai_dmnet.c` | Battle/retreat node hooks; calls `BotEnhanced_*` goal-stack helpers before nearby/LTG item choose |

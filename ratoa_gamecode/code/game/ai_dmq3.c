@@ -2926,7 +2926,7 @@ bot_moveresult_t BotAttackMove(bot_state_t *bs, int tfl) {
 		attack_dist = IDEAL_ATTACKDIST;
 		attack_range = 40;
 	}
-	/* ENHANCED: rush opponent — drive into gauntlet range, skip strafe dance */
+	/* ENHANCED: rush opponent — charge in (gauntlet / voluntary SG / plasma) */
 	if (BotCombat_IsRushOpponent(bs) &&
 			bs->combat.move_policy == BOT_MOVE_CLOSE_MELEE) {
 		movetype = MOVE_WALK;
