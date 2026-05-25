@@ -42,6 +42,9 @@ void BotFreeWaypoints(bot_waypoint_t *wp);
 void BotChooseWeapon(bot_state_t *bs);
 //setup movement stuff
 void BotSetupForMovement(bot_state_t *bs);
+//after touching a jumppad, temporarily drop TFL_JUMPPAD from routing
+void BotJumppad_Update(bot_state_t *bs);
+int BotJumppad_EffectiveTfl(bot_state_t *bs);
 //update the inventory
 void BotUpdateInventory(bot_state_t *bs);
 //update the inventory during battle
@@ -56,7 +59,7 @@ qboolean BotIsObserver(bot_state_t *bs);
 qboolean BotIntermission(bot_state_t *bs);
 //returns true if the bot is in lava or slime
 qboolean BotInLavaOrSlime(bot_state_t *bs);
-//returns true if the client is dead (use clientNum, not entinfo fields alone)
+//returns true if the client is dead (g_entities[clientNum].health < 1)
 qboolean EntityClientIsDead(int clientNum);
 //returns true if the entity is dead
 qboolean EntityIsDead(aas_entityinfo_t *entinfo);
@@ -128,11 +131,6 @@ void BotAimAtEnemy(bot_state_t *bs);
 void BotCheckAttack(bot_state_t *bs);
 //AI when the bot is blocked
 void BotAIBlocked(bot_state_t *bs, bot_moveresult_t *moveresult, int activate);
-/* Rocket/BFG jump: snap view + EA jump/attack when aligned (enhanced aim path). */
-int BotAI_WeaponJumpActive(bot_state_t *bs);
-qboolean BotAI_WeaponJumpReadyToFire(bot_state_t *bs);
-void BotAI_WeaponJumpInput(bot_state_t *bs);
-void BotAI_HandleWeaponJumpMove(bot_state_t *bs, bot_goal_t *goal, bot_moveresult_t *moveresult);
 //AI to predict obstacles
 int BotAIPredictObstacles(bot_state_t *bs, bot_goal_t *goal);
 //enable or disable the areas the blocking entity is in

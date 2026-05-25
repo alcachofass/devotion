@@ -21,6 +21,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 //
 #include "g_local.h"
+#include "ai_main.h"
+#include "ai_bot_enhanced.h"
+
+extern bot_state_t *botstates[MAX_CLIENTS];
 
 // this file is only included when building a dll
 // g_syscalls.asm is included instead when building a qvm
@@ -592,12 +596,47 @@ void trap_BotRemoveFromAvoidGoals(int goalstate, int number) {
 	syscall( BOTLIB_AI_REMOVE_FROM_AVOID_GOALS, goalstate, number);
 }
 
+static bot_state_t *BotEnhanced_FindBotByGoalState(int goalstate) {
+	int i;
+
+	for (i = 0; i < MAX_CLIENTS; i++) {
+		if (botstates[i] && botstates[i]->inuse && botstates[i]->gs == goalstate) {
+			return botstates[i];
+		}
+	}
+	return NULL;
+}
+
+#ifndef Q3_VM
+void Botlib_RawPushGoal(int goalstate, void /* struct bot_goal_s */ *goal) {
+	syscall( BOTLIB_AI_PUSH_GOAL, goalstate, goal );
+}
+
+void Botlib_RawPopGoal(int goalstate) {
+	syscall( BOTLIB_AI_POP_GOAL, goalstate );
+}
+#endif
+
 void trap_BotPushGoal(int goalstate, void /* struct bot_goal_s */ *goal) {
+	bot_state_t *bs;
+
+	bs = BotEnhanced_FindBotByGoalState(goalstate);
+	if (bs) {
+		if (BotEnhanced_PushGoalSafe(bs, (bot_goal_t *)goal)) {
+			return;
+		}
+		/* Stack full — drop push instead of overflowing botlib heap. */
+		return;
+	}
 	syscall( BOTLIB_AI_PUSH_GOAL, goalstate, goal );
 }
 
 void trap_BotPopGoal(int goalstate) {
+#ifndef Q3_VM
+	Botlib_RawPopGoal(goalstate);
+#else
 	syscall( BOTLIB_AI_POP_GOAL, goalstate );
+#endif
 }
 
 void trap_BotEmptyGoalStack(int goalstate) {
@@ -625,11 +664,34 @@ int trap_BotGetSecondGoal(int goalstate, void /* struct bot_goal_s */ *goal) {
 }
 
 int trap_BotChooseLTGItem(int goalstate, vec3_t origin, int *inventory, int travelflags) {
-	return syscall( BOTLIB_AI_CHOOSE_LTG_ITEM, goalstate, origin, inventory, travelflags );
+	bot_state_t *bs;
+	int ret;
+
+	bs = BotEnhanced_FindBotByGoalState(goalstate);
+	if (bs) {
+		BotEnhanced_ReserveGoalStackRoom(bs, BOTENHANCED_GOAL_STACK_RESERVE);
+	}
+	ret = syscall( BOTLIB_AI_CHOOSE_LTG_ITEM, goalstate, origin, inventory, travelflags );
+	if (bs) {
+		BotEnhanced_OnGoalChooseDone(bs);
+	}
+	return ret;
 }
 
 int trap_BotChooseNBGItem(int goalstate, vec3_t origin, int *inventory, int travelflags, void /* struct bot_goal_s */ *ltg, float maxtime) {
-	return syscall( BOTLIB_AI_CHOOSE_NBG_ITEM, goalstate, origin, inventory, travelflags, ltg, PASSFLOAT(maxtime) );
+	bot_state_t *bs;
+	int ret;
+
+	bs = BotEnhanced_FindBotByGoalState(goalstate);
+	if (bs) {
+		BotEnhanced_ReserveGoalStackRoom(bs, BOTENHANCED_GOAL_STACK_RESERVE);
+	}
+	ret = syscall( BOTLIB_AI_CHOOSE_NBG_ITEM, goalstate, origin, inventory, travelflags, ltg,
+		PASSFLOAT(maxtime) );
+	if (bs) {
+		BotEnhanced_OnGoalChooseDone(bs);
+	}
+	return ret;
 }
 
 int trap_BotTouchingGoal(vec3_t origin, void /* struct bot_goal_s */ *goal) {

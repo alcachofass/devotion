@@ -1540,15 +1540,17 @@ static void CG_ConfigStringModified( void ) {
 			cgs.gameSounds[ num-CS_SOUNDS] = trap_S_RegisterSound( str, qfalse );
 		}
 	} else if ( num >= CS_PLAYERS && num < CS_PLAYERS+MAX_CLIENTS ) {
-		CG_NewClientInfo( num - CS_PLAYERS );
-		if (num - CS_PLAYERS == cg.clientNum) {
-			// make sure to update all other player models in case we switched teams
+		int		clientNum;
+
+		clientNum = num - CS_PLAYERS;
+		CG_NewClientInfo( clientNum );
+		if ( clientNum == cg.clientNum ) {
+			/* Local team/userinfo change: refresh all clients (team/enemy model rules). */
 			CG_ForceModelChange();
 			CG_ParseForcedColors();
 		}
+		/* Other slots: CG_NewClientInfo only (defer 0 loads there; defer 1 waits for scoreboard). */
 		CG_BuildSpectatorString();
-		CG_ForceModelChange();        //duffman91 - for bugs w/ quake 3 pm models.
-		CG_ParseForcedColors();
 	} else if ( num == CS_FLAGSTATUS ) {
 		// if( cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION || cgs.gametype == GT_DOUBLE_D) {
 		if( cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION ) {

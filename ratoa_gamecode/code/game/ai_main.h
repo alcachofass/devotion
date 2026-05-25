@@ -202,6 +202,8 @@ typedef struct bot_state_s
 	float killedenemy_time;							//time the bot killed the enemy
 	float arrive_time;								//time arrived (at companion)
 	float lastair_time;								//last time the bot had air
+	float jumppad_avoid_until;						/* do not path via jumppads until this time */
+	int jumppad_last_ent;							/* last trigger_push entity touched */
 	float teleport_time;							//last time the bot teleported
 	float camp_time;								//last time camped
 	float camp_range;								//camp range
@@ -296,6 +298,7 @@ typedef struct bot_state_s
 	int			evt_attacker;
 	int			evt_damage;
 	int			evt_mod;
+	float		enh_goal_last_push_time;
 	/* ---- end BOT ENHANCED ---- */
 
 	/* ---- BOT ITEMS: ai_bot_items.c — remove this block to revert ---- */
@@ -310,6 +313,8 @@ typedef struct bot_state_s
 	int			item_commit_snap_redflag;
 	int			item_commit_snap_blueflag;
 	int			item_commit_snap_weapon;
+	float		item_commit_progress_time;
+	vec3_t		item_commit_progress_origin;
 	/* ---- end BOT ITEMS ---- */
 
 	/* ---- BOT AIM HARNESS (v1): ai_aim_harness.c — remove this block to revert ---- */
@@ -331,18 +336,40 @@ typedef struct bot_state_s
 	float		aimh_last_goal_time;
 	float		aimh_smooth_goal_pitch;
 	float		aimh_smooth_goal_yaw;
+	float		aimh_pursuit_pitch_off;
+	float		aimh_pursuit_yaw_off;
+	float		aimh_pursuit_set_time;
+	float		aimh_true_goal_pitch;
+	float		aimh_true_goal_yaw;
 	float		aimh_tracked_ideal_pitch;
 	float		aimh_tracked_ideal_yaw;
 	vec3_t		aimh_combat_target;
 	qboolean	aimh_hold_fire;		/* suppressive fire: +attack each input frame */
-	float		aimh_weapon_jump_until;	/* hold down-aim; bypass harness spring/PS resync */
-	vec3_t		aimh_weapon_jump_angles;
-	vec3_t		aimh_weapon_jump_spot;	/* reach start (MovementViewTarget) */
-	vec3_t		aimh_weapon_jump_dest;	/* LTG / reach end while airborne */
-	vec3_t		aimh_weapon_jump_air_dir;
-	int			aimh_weapon_jump_weapon;
-	qboolean	aimh_weapon_jump_fired;
+	vec3_t		aimh_rail_lead_point;	/* lead-and-wait intercept aim (rail) */
+	qboolean	aimh_rail_lead_valid;
+	float		aimh_shot_press_since;	/* slow weapons: engage without firing (shot urgency) */
+	int			aimh_shot_press_weapon;
 	/* ---- end BOT AIM HARNESS ---- */
+
+	/* ---- BOT MOVE HARNESS: ai_bot_move_harness.c ---- */
+	int			movej_moveresult_flags;	/* last think: botlib MOVERESULT_* */
+	float		movej_bypass_until;		/* brief latch after MOVEMENTVIEWSET (air) */
+	vec3_t		movej_move_viewangles;	/* last botlib movement ideal_viewangles */
+	vec3_t		movej_rj_spot;			/* rocket-jump reach start */
+	vec3_t		movej_air_dest;			/* goal origin / reach end while airborne */
+	vec3_t		movej_air_steer;		/* horizontal steer dir latched at fire */
+	vec3_t		movej_movedir;			/* last botlib horizontal movedir */
+	int			movej_travel_type;		/* TRAVEL_ROCKETJUMP / BFGJUMP while active */
+	int			movej_rj_weapon;		/* weapon botlib selected for movement */
+	qboolean	movej_rj_active;
+	qboolean	movej_on_rj_travel;		/* last think moveresult was RJ/BFG travel */
+	qboolean	movej_rj_fired;
+	qboolean	movej_rj_was_airborne;	/* true after leaving ground post-fire */
+	vec3_t		movej_rj_fire_view;		/* down-aim latched at fire; held during prep */
+	float		movej_rj_prep_view_until;	/* keep fire view + attack until RL fires */
+	float		movej_no_walkoff_until;		/* strip TFL_WALKOFFLEDGE from routing */
+	float		movej_urgent_health_until;	/* prioritize health pickups */
+	/* ---- end BOT MOVE HARNESS ---- */
 
 	/* ---- BOT SMART WEAPON SELECT (v1): ai_weapon_select.c — remove to revert ---- */
 	float		wps_next_eval_time;

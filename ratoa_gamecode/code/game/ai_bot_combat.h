@@ -17,15 +17,14 @@ typedef enum {
 
 typedef enum {
 	BOT_MOVE_POLICY_LEGACY = 0,
-	BOT_MOVE_CLOSE_MELEE	/* close to contact (gauntlet first consumer) */
-	/* BOT_MOVE_CLOSE_TO_WEAPON_IDEAL — reserved (LG, shotgun, plasma) */
+	BOT_MOVE_CLOSE_MELEE	/* charge opponent (gauntlet / voluntary SG / plasma) */
 } bot_move_policy_t;
 
 typedef enum {
 	BOT_FIRE_POLICY_LEGACY = 0
 } bot_fire_policy_t;
 
-/* Close gauntlet rush (voluntary switch while other weapons may have ammo). */
+/* Close combat rush (voluntary SG/plasma/gauntlet at skill 4–5). */
 #define BOT_COMBAT_GAUNTLET_RUSH_DIST		192
 /* Gauntlet-only last resort: rush/fight out to this range (tactics flee beyond). */
 #define BOT_COMBAT_GAUNTLET_LASTRESORT_RUSH_DIST	384

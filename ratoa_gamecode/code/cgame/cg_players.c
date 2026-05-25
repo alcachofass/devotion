@@ -1001,10 +1001,10 @@ static void CG_SetDeferredClientInfo( int clientNum, clientInfo_t *ci ) {
 		}
 	}
 
-	// find the first valid clientinfo and grab its stuff
+	// find the first valid, fully-loaded clientinfo and grab its stuff
 	for ( i = 0 ; i < cgs.maxclients ; i++ ) {
 		match = &cgs.clientinfo[ i ];
-		if ( !match->infoValid ) {
+		if ( !match->infoValid || match->deferred ) {
 			continue;
 		}
 
@@ -1321,6 +1321,8 @@ clientInfo_t *ci;
 	clientInfo_t newInfo;
 	const char	*configstring;
 	const char	*v;
+	const char	*modelConfig;
+	const char	*headModelConfig;
 	char		*slash;
 	const char	*local_config;
 	int 	local_team;
@@ -1436,18 +1438,20 @@ clientInfo_t *ci;
 	Q_strncpyz(newInfo.blueTeam, v, MAX_TEAMNAME);
 
 	// model
-	v = Info_ValueForKey( configstring, "model" );
-	
-	CG_SetSkinAndModel( &newInfo, v, allowNativeModel, viewerTeam, clientNum, qtrue, 
-		newInfo.modelName, sizeof( newInfo.modelName ),	newInfo.skinName, sizeof( newInfo.skinName ) );	
+	modelConfig = Info_ValueForKey( configstring, "model" );
+
+	CG_SetSkinAndModel( &newInfo, modelConfig, allowNativeModel, viewerTeam, clientNum, qtrue,
+		newInfo.modelName, sizeof( newInfo.modelName ),	newInfo.skinName, sizeof( newInfo.skinName ) );
 
 	if ( cg_teamColor.string[0] && team != TEAM_SPECTATOR ) {
-		v = CG_GetTeamColorsOSP( cg_teamColor.string );
-		len = strlen( v );
+		const char *ospColors;
+
+		ospColors = CG_GetTeamColorsOSP( cg_teamColor.string );
+		len = strlen( ospColors );
 		if ( len >= 4 )
-			CG_ColorFromChar( v[3], newInfo.color1 );
+			CG_ColorFromChar( ospColors[3], newInfo.color1 );
 		if ( len >= 5 )
-			CG_ColorFromChar( v[4], newInfo.color2 );
+			CG_ColorFromChar( ospColors[4], newInfo.color2 );
 	}
 
 	if (CG_IsTeamGametype()) {
@@ -1522,14 +1526,14 @@ clientInfo_t *ci;
 		}
 
 		if (CG_IsTeamGametype()) {
-			// keep skin name
-			slash = strchr( v, '/' );
+			// keep skin name from this player's configstring model
+			slash = strchr( modelConfig, '/' );
 			if ( slash ) {
 				Q_strncpyz( newInfo.skinName, slash + 1, sizeof( newInfo.skinName ) );
 			}
 		}
 	} else {
-		Q_strncpyz( newInfo.modelName, v, sizeof( newInfo.modelName ) );
+		Q_strncpyz( newInfo.modelName, modelConfig, sizeof( newInfo.modelName ) );
 
 		slash = strchr( newInfo.modelName, '/' );
 		if ( !slash ) {
@@ -1543,9 +1547,9 @@ clientInfo_t *ci;
 	}
 
 	// head model
-	v = Info_ValueForKey( configstring, "hmodel" );
+	headModelConfig = Info_ValueForKey( configstring, "hmodel" );
 
-	CG_SetSkinAndModel( &newInfo, v, allowNativeModel, viewerTeam, clientNum, qtrue, 
+	CG_SetSkinAndModel( &newInfo, headModelConfig, allowNativeModel, viewerTeam, clientNum, qtrue,
 		newInfo.headModelName, sizeof( newInfo.headModelName ),	newInfo.headSkinName, sizeof( newInfo.headSkinName ) );
 
 	if (cgs.ratFlags & RAT_ALLOWFORCEDMODELS && 
@@ -1606,14 +1610,14 @@ clientInfo_t *ci;
 		}
 
 		if (CG_IsTeamGametype()) {
-			// keep skin name
-			slash = strchr( v, '/' );
+			// keep skin name from this player's configstring head model
+			slash = strchr( headModelConfig, '/' );
 			if ( slash ) {
 				Q_strncpyz( newInfo.headSkinName, slash + 1, sizeof( newInfo.headSkinName ) );
 			}
 		}
 	} else {
-		Q_strncpyz( newInfo.headModelName, v, sizeof( newInfo.headModelName ) );
+		Q_strncpyz( newInfo.headModelName, headModelConfig, sizeof( newInfo.headModelName ) );
 
 		slash = strchr( newInfo.headModelName, '/' );
 		if ( !slash ) {

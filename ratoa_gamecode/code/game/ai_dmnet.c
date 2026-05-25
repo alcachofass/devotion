@@ -47,6 +47,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "ai_bot_items.h"
 #include "ai_bot_tactics.h"
 #include "ai_dmq3.h"
+#include "ai_bot_move_harness.h"
 #include "ai_chat.h"
 #include "ai_cmd.h"
 #include "ai_dmnet.h"
@@ -170,12 +171,14 @@ int BotGoForAir(bot_state_t *bs, int tfl, bot_goal_t *ltg, float range) {
 #endif //DEBUG
 		//if we can find an air goal
 		if (BotGetAirGoal(bs, &goal)) {
-			trap_BotPushGoal(bs->gs, &goal);
+			BotEnhanced_PushGoalSafe(bs, &goal);
 			return qtrue;
 		}
 		else {
+			BotEnhanced_ReserveGoalStackRoom(bs, BOTENHANCED_GOAL_STACK_RESERVE);
 			//get a nearby goal outside the water
-			while(trap_BotChooseNBGItem(bs->gs, bs->origin, bs->inventory, tfl, ltg, range)) {
+			while (BotItems_ChooseNBGItem(bs, tfl, ltg, range)) {
+				BotEnhanced_SanitizeGoalStack(bs);
 				trap_BotGetTopGoal(bs->gs, &goal);
 				//if the goal is not in water
 				if (!(trap_AAS_PointContents(goal.origin) & (CONTENTS_WATER|CONTENTS_SLIME|CONTENTS_LAVA))) {
@@ -213,7 +216,8 @@ int BotNearbyGoal(bot_state_t *bs, int tfl, bot_goal_t *ltg, float range) {
 		}
 	}
 	//
-	ret = trap_BotChooseNBGItem(bs->gs, bs->origin, bs->inventory, tfl, ltg, range);
+	BotEnhanced_ReserveGoalStackRoom(bs, BOTENHANCED_GOAL_STACK_RESERVE);
+	ret = BotItems_ChooseNBGItem(bs, BotJumppad_EffectiveTfl(bs), ltg, range);
 	/*
 	if (ret)
 	{
@@ -250,7 +254,7 @@ int BotReachedGoal(bot_state_t *bs, bot_goal_t *goal) {
 			return qtrue;
 		}
 		//if the goal isn't there
-		if (trap_BotItemGoalInVisButNotVisible(bs->entitynum, bs->eye, bs->viewangles, goal)) {
+		if (BotItems_ItemGoalInVisButNotVisible(bs, goal)) {
 			/*
 			float avoidtime;
 			int t;
@@ -311,7 +315,7 @@ int BotGetItemLongTermGoal(bot_state_t *bs, int tfl, bot_goal_t *goal) {
 		//BotAI_Print(PRT_MESSAGE, "%s: choosing new ltg\n", ClientName(bs->client, netname, sizeof(netname)));
 		//choose a new goal
 		//BotAI_Print(PRT_MESSAGE, "%6.1f client %d: BotChooseLTGItem\n", FloatTime(), bs->client);
-		if (trap_BotChooseLTGItem(bs->gs, bs->origin, bs->inventory, tfl)) {
+		if (BotItems_ChooseLTGItem(bs, BotJumppad_EffectiveTfl(bs))) {
 			/*
 			char buf[128];
 			//get the goal at the top of the stack
@@ -703,7 +707,7 @@ int BotGetLongTermGoal(bot_state_t *bs, int tfl, int retreat, bot_goal_t *goal) 
 			bs->ltgtype = 0;
 		}
 		//
-		if (trap_BotItemGoalInVisButNotVisible(bs->entitynum, bs->eye, bs->viewangles, goal)) {
+		if (BotItems_ItemGoalInVisButNotVisible(bs, goal)) {
 			trap_BotGoalName(bs->teamgoal.number, buf, sizeof(buf));
 			BotAI_BotInitialChat(bs, "getitem_notthere", buf, NULL);
 			trap_BotEnterChat(bs->cs, bs->decisionmaker, CHAT_TELL);
@@ -1665,7 +1669,7 @@ int AINode_Seek_ActivateEntity(bot_state_t *bs) {
 		//initialize the movement state
 		BotSetupForMovement(bs);
 		//move towards the goal
-		trap_BotMoveToGoal(&moveresult, bs->ms, goal, bs->tfl);
+		trap_BotMoveToGoal(&moveresult, bs->ms, goal, BotJumppad_EffectiveTfl(bs));
 		//if the movement failed
 		if (moveresult.failure) {
 			//reset the avoid reach, otherwise bot is stuck in current area
@@ -1711,8 +1715,8 @@ int AINode_Seek_ActivateEntity(bot_state_t *bs) {
 			bs->ideal_viewangles[2] *= 0.5;
 		}
 	}
-	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs)) {
-		if (trap_BotMovementViewTarget(bs->ms, goal, bs->tfl, 300, target)) {
+	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotMove_SuppressRoamView(bs)) {
+		if (trap_BotMovementViewTarget(bs->ms, goal, BotJumppad_EffectiveTfl(bs), 300, target)) {
 			VectorSubtract(target, bs->origin, dir);
 			vectoangles(dir, bs->ideal_viewangles);
 		}
@@ -1725,7 +1729,7 @@ int AINode_Seek_ActivateEntity(bot_state_t *bs) {
 	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
 		bs->weaponnum = moveresult.weapon;
 	}
-	BotAI_HandleWeaponJumpMove(bs, goal, &moveresult);
+	BotMove_OnPostMoveToGoal(bs, &moveresult);
 	// if there is an enemy
 	if (BotFindEnemy(bs, -1)) {
 		if (BotWantsToRetreat(bs)) {
@@ -1824,11 +1828,14 @@ int AINode_Seek_NBG(bot_state_t *bs) {
 	//initialize the movement state
 	BotSetupForMovement(bs);
 	//move towards the goal
-	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, bs->tfl);
+	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, BotJumppad_EffectiveTfl(bs));
 	//if the movement failed
 	if (moveresult.failure) {
-		//reset the avoid reach, otherwise bot is stuck in current area
-		trap_BotResetAvoidReach(bs->ms);
+		if (!BotMove_ShouldSkipAvoidReachReset(bs, &moveresult)) {
+			//reset the avoid reach, otherwise bot is stuck in current area
+			trap_BotResetAvoidReach(bs->ms);
+		}
+		BotItems_OnMoveFailure(bs);
 		bs->nbg_time = 0;
 	}
 	//check if the bot is blocked
@@ -1848,11 +1855,14 @@ int AINode_Seek_NBG(bot_state_t *bs) {
 			bs->ideal_viewangles[2] *= 0.5;
 		}
 	}
-	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs)) {
+	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotMove_SuppressRoamView(bs)) {
 		if (!trap_BotGetSecondGoal(bs->gs, &goal)) trap_BotGetTopGoal(bs->gs, &goal);
-		if (trap_BotMovementViewTarget(bs->ms, &goal, bs->tfl, 300, target)) {
+		if (trap_BotMovementViewTarget(bs->ms, &goal, BotJumppad_EffectiveTfl(bs), 300, target)) {
 			VectorSubtract(target, bs->origin, dir);
 			vectoangles(dir, bs->ideal_viewangles);
+			if (goal.origin[2] < bs->origin[2] - 64.0f) {
+				bs->ideal_viewangles[PITCH] = 0.0f;
+			}
 		}
 		//FIXME: look at cluster portals?
 		else vectoangles(moveresult.movedir, bs->ideal_viewangles);
@@ -1862,14 +1872,16 @@ int AINode_Seek_NBG(bot_state_t *bs) {
 	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
 		bs->weaponnum = moveresult.weapon;
 	}
-	BotAI_HandleWeaponJumpMove(bs, &goal, &moveresult);
+	BotMove_OnPostMoveToGoal(bs, &moveresult);
 	//if there is an enemy
 	if (BotFindEnemy(bs, -1)) {
+		BotMove_CancelBypass(bs);
 		if (BotWantsToRetreat(bs)) {
 			//keep the current long term goal and retreat
 			AIEnter_Battle_NBG(bs, "seek nbg: found enemy");
 		}
-		else if (!BotItems_ShouldPreserveGoalStack(bs)) {
+		else {
+			BotItems_AbortCommit(bs);
 			trap_BotResetLastAvoidReach(bs->ms);
 			//empty the goal stack
 			trap_BotEmptyGoalStack(bs->gs);
@@ -2026,12 +2038,13 @@ int AINode_Seek_LTG(bot_state_t *bs)
 	//initialize the movement state
 	BotSetupForMovement(bs);
 	//move towards the goal
-	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, bs->tfl);
+	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, BotJumppad_EffectiveTfl(bs));
 	//if the movement failed
 	if (moveresult.failure) {
 		//reset the avoid reach, otherwise bot is stuck in current area
 		trap_BotResetAvoidReach(bs->ms);
 		//BotAI_Print(PRT_MESSAGE, "movement failure %d\n", moveresult.traveltype);
+		BotItems_OnMoveFailure(bs);
 		bs->ltg_time = 0;
 	}
 	//
@@ -2051,10 +2064,13 @@ int AINode_Seek_LTG(bot_state_t *bs)
 			bs->ideal_viewangles[2] *= 0.5;
 		}
 	}
-	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs)) {
-		if (trap_BotMovementViewTarget(bs->ms, &goal, bs->tfl, 300, target)) {
+	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotMove_SuppressRoamView(bs)) {
+		if (trap_BotMovementViewTarget(bs->ms, &goal, BotJumppad_EffectiveTfl(bs), 300, target)) {
 			VectorSubtract(target, bs->origin, dir);
 			vectoangles(dir, bs->ideal_viewangles);
+			if (goal.origin[2] < bs->origin[2] - 64.0f) {
+				bs->ideal_viewangles[PITCH] = 0.0f;
+			}
 		}
 		//FIXME: look at cluster portals?
 		else if (VectorLengthSquared(moveresult.movedir)) {
@@ -2072,7 +2088,7 @@ int AINode_Seek_LTG(bot_state_t *bs)
 	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
 		bs->weaponnum = moveresult.weapon;
 	}
-	BotAI_HandleWeaponJumpMove(bs, &goal, &moveresult);
+	BotMove_OnPostMoveToGoal(bs, &moveresult);
 	//
 	return qtrue;
 }
@@ -2141,6 +2157,12 @@ int AINode_Battle_Fight(bot_state_t *bs) {
 	//
 	BotEntityInfo(bs->enemy, &entinfo);
 	//if the enemy is dead
+	if (BotEnhanced_IsActive() && EntityClientIsDead(bs->enemy)) {
+		bs->enemy = -1;
+		bs->enemydeath_time = 0;
+		AIEnter_Seek_LTG(bs, "battle fight: enemy dead");
+		return qfalse;
+	}
 	if (bs->enemydeath_time) {
 		if (bs->enemydeath_time < FloatTime() - 1.0) {
 			bs->enemydeath_time = 0;
@@ -2381,7 +2403,7 @@ int AINode_Battle_Chase(bot_state_t *bs)
 	//initialize the movement state
 	BotSetupForMovement(bs);
 	//move towards the goal
-	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, bs->tfl);
+	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, BotJumppad_EffectiveTfl(bs));
 	//if the movement failed
 	if (moveresult.failure) {
 		//reset the avoid reach, otherwise bot is stuck in current area
@@ -2395,12 +2417,12 @@ int AINode_Battle_Chase(bot_state_t *bs)
 	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
 		VectorCopy(moveresult.ideal_viewangles, bs->ideal_viewangles);
 	}
-	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs)) {
+	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotMove_SuppressRoamView(bs)) {
 		if (bs->chase_time > FloatTime() - 2) {
 			BotAimAtEnemy(bs);
 		}
 		else {
-			if (trap_BotMovementViewTarget(bs->ms, &goal, bs->tfl, 300, target)) {
+			if (trap_BotMovementViewTarget(bs->ms, &goal, BotJumppad_EffectiveTfl(bs), 300, target)) {
 				VectorSubtract(target, bs->origin, dir);
 				vectoangles(dir, bs->ideal_viewangles);
 			}
@@ -2414,7 +2436,7 @@ int AINode_Battle_Chase(bot_state_t *bs)
 	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
 		bs->weaponnum = moveresult.weapon;
 	}
-	BotAI_HandleWeaponJumpMove(bs, &goal, &moveresult);
+	BotMove_OnPostMoveToGoal(bs, &moveresult);
 	//if the bot is in the area the enemy was last seen in
 	if (bs->areanum == bs->lastenemyareanum) bs->chase_time = 0;
 	//if the bot wants to retreat (the bot could have been damage during the chase)
@@ -2491,7 +2513,7 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 	BotTactics_RetreatAfterInventory(bs);
 	if (BotCombat_ShouldEngageFromRetreat(bs)) {
 		bs->flags &= ~BFL_TACTICS_SURVIVAL_FLEE;
-		AIEnter_Battle_Fight(bs, "enhanced: close gauntlet charge");
+		AIEnter_Battle_Fight(bs, "enhanced: close combat charge");
 		return qfalse;
 	}
 	//if the bot doesn't want to retreat anymore... probably picked up some nice items
@@ -2581,7 +2603,7 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 	//initialize the movement state
 	BotSetupForMovement(bs);
 	//move towards the goal
-	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, bs->tfl);
+	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, BotJumppad_EffectiveTfl(bs));
 	//if the movement failed
 	if (moveresult.failure) {
 		//reset the avoid reach, otherwise bot is stuck in current area
@@ -2598,14 +2620,14 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 		VectorCopy(moveresult.ideal_viewangles, bs->ideal_viewangles);
 	}
 	else if (!(moveresult.flags & MOVERESULT_MOVEMENTVIEWSET)
-				&& !(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs) ) {
+				&& !(bs->flags & BFL_IDEALVIEWSET) && !BotMove_SuppressRoamView(bs) ) {
 		attack_skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_ATTACK_SKILL, 0, 1);
 		//if the bot is skilled anough
 		if (attack_skill > 0.3) {
 			BotAimAtEnemy(bs);
 		}
 		else {
-			if (trap_BotMovementViewTarget(bs->ms, &goal, bs->tfl, 300, target)) {
+			if (trap_BotMovementViewTarget(bs->ms, &goal, BotJumppad_EffectiveTfl(bs), 300, target)) {
 				VectorSubtract(target, bs->origin, dir);
 				vectoangles(dir, bs->ideal_viewangles);
 			}
@@ -2619,7 +2641,7 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
 		bs->weaponnum = moveresult.weapon;
 	}
-	BotAI_HandleWeaponJumpMove(bs, &goal, &moveresult);
+	BotMove_OnPostMoveToGoal(bs, &moveresult);
 	//attack the enemy if possible
 	BotCheckAttack(bs);
 	//
@@ -2726,7 +2748,7 @@ int AINode_Battle_NBG(bot_state_t *bs) {
 	//initialize the movement state
 	BotSetupForMovement(bs);
 	//move towards the goal
-	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, bs->tfl);
+	trap_BotMoveToGoal(&moveresult, bs->ms, &goal, BotJumppad_EffectiveTfl(bs));
 	//if the movement failed
 	if (moveresult.failure) {
 		//reset the avoid reach, otherwise bot is stuck in current area
@@ -2745,7 +2767,7 @@ int AINode_Battle_NBG(bot_state_t *bs) {
 		VectorCopy(moveresult.ideal_viewangles, bs->ideal_viewangles);
 	}
 	else if (!(moveresult.flags & MOVERESULT_MOVEMENTVIEWSET)
-				&& !(bs->flags & BFL_IDEALVIEWSET) && !BotAI_WeaponJumpActive(bs)) {
+				&& !(bs->flags & BFL_IDEALVIEWSET) && !BotMove_SuppressRoamView(bs)) {
 		attack_skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_ATTACK_SKILL, 0, 1);
 		//if the bot is skilled anough and the enemy is visible
 		if (attack_skill > 0.3) {
@@ -2753,7 +2775,7 @@ int AINode_Battle_NBG(bot_state_t *bs) {
 			BotAimAtEnemy(bs);
 		}
 		else {
-			if (trap_BotMovementViewTarget(bs->ms, &goal, bs->tfl, 300, target)) {
+			if (trap_BotMovementViewTarget(bs->ms, &goal, BotJumppad_EffectiveTfl(bs), 300, target)) {
 				VectorSubtract(target, bs->origin, dir);
 				vectoangles(dir, bs->ideal_viewangles);
 			}
@@ -2767,7 +2789,7 @@ int AINode_Battle_NBG(bot_state_t *bs) {
 	if (moveresult.flags & MOVERESULT_MOVEMENTWEAPON) {
 		bs->weaponnum = moveresult.weapon;
 	}
-	BotAI_HandleWeaponJumpMove(bs, &goal, &moveresult);
+	BotMove_OnPostMoveToGoal(bs, &moveresult);
 	//attack the enemy if possible
 	BotCheckAttack(bs);
 	//

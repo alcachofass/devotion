@@ -44,12 +44,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../botlib/be_ai_weap.h"
 //
 #include "ai_main.h"
+#include "ai_bot_enhanced.h"
 #include "ai_dmq3.h"
 #include "ai_aim_harness.h"
 #include "ai_weapon_select.h"
 #include "ai_bot_tactics.h"
-#include "ai_bot_enhanced.h"
 #include "ai_bot_combat.h"
+#include "ai_bot_move_harness.h"
 #include "ai_chat.h"
 #include "ai_cmd.h"
 #include "ai_dmnet.h"
@@ -240,21 +241,16 @@ EntityIsDead
 ==================
 */
 qboolean EntityClientIsDead(int clientNum) {
-	playerState_t ps;
+	gentity_t *ent;
 
 	if (clientNum < 0 || clientNum >= MAX_CLIENTS) {
 		return qfalse;
 	}
-	if (!BotAI_GetClientState(clientNum, &ps)) {
+	ent = &g_entities[clientNum];
+	if (!ent->inuse || !ent->client) {
 		return qtrue;
 	}
-	if (ps.pm_type != PM_NORMAL) {
-		return qtrue;
-	}
-	if (ps.stats[STAT_HEALTH] <= 0) {
-		return qtrue;
-	}
-	return qfalse;
+	return (ent->health < 1) ? qtrue : qfalse;
 }
 
 /*
@@ -1796,6 +1792,42 @@ void BotSetupForMovement(bot_state_t *bs) {
 	VectorCopy(bs->viewangles, initmove.viewangles);
 	//
 	trap_BotInitMoveState(bs->ms, &initmove);
+	BotJumppad_Update(bs);
+}
+
+#define BOT_JUMPPAD_AVOID_TIME	12.0f
+
+/*
+==================
+BotJumppad_Update
+
+Record trigger_push use via playerState and avoid re-routing through jumppads
+for a while. BotResetLastAvoidReach clears the botlib avoid timer (wrong for
+loop prevention); stripping TFL_JUMPPAD forces a walk-off or alternate path.
+==================
+*/
+void BotJumppad_Update(bot_state_t *bs) {
+	int entnum;
+
+	if (!bs) {
+		return;
+	}
+
+	entnum = bs->cur_ps.jumppad_ent;
+	if (!entnum) {
+		return;
+	}
+
+	if (bs->jumppad_last_ent == entnum && bs->jumppad_avoid_until > FloatTime()) {
+		bs->jumppad_avoid_until = FloatTime() + BOT_JUMPPAD_AVOID_TIME;
+	} else {
+		bs->jumppad_last_ent = entnum;
+		bs->jumppad_avoid_until = FloatTime() + BOT_JUMPPAD_AVOID_TIME;
+	}
+}
+
+int BotJumppad_EffectiveTfl(bot_state_t *bs) {
+	return BotMove_EffectiveTfl(bs);
 }
 
 /*
@@ -2866,7 +2898,8 @@ bot_moveresult_t BotAttackMove(bot_state_t *bs, int tfl) {
 	movetype = MOVE_WALK;
 	//
 	if (bs->attackcrouch_time < FloatTime() - 1) {
-		if (random() < jumper) {
+		/* Enhanced bots: no random attack jumps (reduces strafe+hop off ledges). */
+		if (!BotEnhanced_IsActive() && random() < jumper) {
 			movetype = MOVE_JUMP;
 		}
 		//wait at least one second before crouching again
@@ -2893,7 +2926,7 @@ bot_moveresult_t BotAttackMove(bot_state_t *bs, int tfl) {
 		attack_dist = IDEAL_ATTACKDIST;
 		attack_range = 40;
 	}
-	/* ENHANCED: rush opponent — drive into gauntlet range, skip strafe dance */
+	/* ENHANCED: rush opponent — charge in (gauntlet / voluntary SG / plasma) */
 	if (BotCombat_IsRushOpponent(bs) &&
 			bs->combat.move_policy == BOT_MOVE_CLOSE_MELEE) {
 		movetype = MOVE_WALK;
@@ -2987,330 +3020,6 @@ int BotSameTeam(bot_state_t *bs, int entnum) {
                 if(level.clients[bs->client].sess.sessionTeam==level.clients[entnum].sess.sessionTeam) return qtrue;
 	}
 	return qfalse;
-}
-
-#define BOT_WEAPONJUMP_MAX_DIST		4.0f
-#define BOT_WEAPONJUMP_MAX_HVEL		48.0f
-#define BOT_WEAPONJUMP_FOV			5.0f
-#define BOT_WEAPONJUMP_MIN_PITCH	45.0f
-/* 5 degrees above straight down (90); face away from dest so blast pushes toward ledge */
-#define BOT_WEAPONJUMP_AIM_PITCH	85.0f
-
-/*
-==================
-BotAI_WeaponJumpActive
-==================
-*/
-int BotAI_WeaponJumpActive(bot_state_t *bs) {
-	if (!bs) {
-		return 0;
-	}
-	return bs->aimh_weapon_jump_until > FloatTime();
-}
-
-/*
-==================
-BotAI_WeaponJumpHorizSpeed
-==================
-*/
-static float BotAI_WeaponJumpHorizSpeed(bot_state_t *bs) {
-	vec3_t vel;
-
-	VectorCopy(bs->cur_ps.velocity, vel);
-	vel[2] = 0.0f;
-	return VectorLength(vel);
-}
-
-/*
-==================
-BotAI_WeaponJumpUpdateSpot
-==================
-*/
-static void BotAI_WeaponJumpUpdateSpot(bot_state_t *bs, bot_goal_t *goal) {
-	vec3_t target;
-
-	if (!goal || !trap_BotMovementViewTarget(bs->ms, goal, bs->tfl, 80, target)) {
-		return;
-	}
-	VectorCopy(target, bs->aimh_weapon_jump_spot);
-}
-
-/*
-==================
-BotAI_WeaponJumpUpdateDest
-==================
-*/
-static void BotAI_WeaponJumpUpdateDest(bot_state_t *bs, bot_goal_t *goal) {
-	if (!goal) {
-		return;
-	}
-	VectorCopy(goal->origin, bs->aimh_weapon_jump_dest);
-}
-
-/*
-==================
-BotAI_WeaponJumpSetAimAngles
-
-Pitch slightly above nadir; yaw 180 from goal so the rocket kicks toward dest.
-==================
-*/
-static void BotAI_WeaponJumpSetAimAngles(bot_state_t *bs) {
-	vec3_t toDest, faceAngles;
-
-	VectorSubtract(bs->aimh_weapon_jump_dest, bs->cur_ps.origin, toDest);
-	toDest[2] = 0.0f;
-	if (VectorLength(toDest) < 1.0f) {
-		bs->aimh_weapon_jump_angles[PITCH] = AngleMod(BOT_WEAPONJUMP_AIM_PITCH);
-		bs->aimh_weapon_jump_angles[ROLL] = 0.0f;
-		return;
-	}
-	VectorNormalize(toDest);
-	vectoangles(toDest, faceAngles);
-	bs->aimh_weapon_jump_angles[PITCH] = AngleMod(BOT_WEAPONJUMP_AIM_PITCH);
-	bs->aimh_weapon_jump_angles[YAW] = AngleMod(faceAngles[YAW] + 180.0f);
-	bs->aimh_weapon_jump_angles[ROLL] = 0.0f;
-}
-
-/*
-==================
-BotAI_WeaponJumpHorizDirToDest
-==================
-*/
-static qboolean BotAI_WeaponJumpHorizDirToDest(bot_state_t *bs, vec3_t dir) {
-	vec3_t toDest;
-
-	VectorSubtract(bs->aimh_weapon_jump_dest, bs->cur_ps.origin, toDest);
-	toDest[2] = 0.0f;
-	if (VectorNormalize(toDest) < 0.1f) {
-		return qfalse;
-	}
-	VectorCopy(toDest, dir);
-	return qtrue;
-}
-
-/*
-==================
-BotAI_WeaponJumpAirMove
-==================
-*/
-static void BotAI_WeaponJumpAirMove(bot_state_t *bs) {
-	vec3_t hordir;
-
-	if (!bs->aimh_weapon_jump_fired) {
-		return;
-	}
-	if (bs->cur_ps.groundEntityNum != ENTITYNUM_NONE) {
-		return;
-	}
-
-	bs->aimh_weapon_jump_until = FloatTime() + 2.0f;
-
-	VectorSubtract(bs->aimh_weapon_jump_dest, bs->cur_ps.origin, hordir);
-	hordir[2] = 0.0f;
-	if (VectorNormalize(hordir) < 0.1f) {
-		VectorCopy(bs->aimh_weapon_jump_air_dir, hordir);
-		if (VectorNormalize(hordir) < 0.1f) {
-			return;
-		}
-	}
-	trap_EA_Move(bs->client, hordir, 800);
-}
-
-/*
-==================
-BotAI_WeaponJumpDistToSpot
-==================
-*/
-static float BotAI_WeaponJumpDistToSpot(bot_state_t *bs) {
-	vec3_t delta;
-
-	VectorSubtract(bs->aimh_weapon_jump_spot, bs->cur_ps.origin, delta);
-	delta[2] = 0.0f;
-	return VectorLength(delta);
-}
-
-/*
-==================
-BotAI_WeaponJumpReadyToFire
-==================
-*/
-qboolean BotAI_WeaponJumpReadyToFire(bot_state_t *bs) {
-	float pitch, dist;
-
-	if (bs->aimh_weapon_jump_fired) {
-		return qfalse;
-	}
-
-	pitch = bs->aimh_weapon_jump_angles[PITCH];
-	if (pitch > 180.0f) {
-		pitch -= 360.0f;
-	}
-	if (pitch < BOT_WEAPONJUMP_MIN_PITCH) {
-		return qfalse;
-	}
-
-	dist = BotAI_WeaponJumpDistToSpot(bs);
-	if (dist > BOT_WEAPONJUMP_MAX_DIST) {
-		return qfalse;
-	}
-
-	if (BotAI_WeaponJumpHorizSpeed(bs) > BOT_WEAPONJUMP_MAX_HVEL) {
-		return qfalse;
-	}
-
-	if (!InFieldOfVision(bs->viewangles, BOT_WEAPONJUMP_FOV, bs->aimh_weapon_jump_angles)) {
-		return qfalse;
-	}
-
-	if (bs->aimh_weapon_jump_weapon > 0) {
-		if (bs->cur_ps.weapon != bs->aimh_weapon_jump_weapon) {
-			return qfalse;
-		}
-		if (bs->cur_ps.weaponstate == WEAPON_RAISING ||
-				bs->cur_ps.weaponstate == WEAPON_DROPPING) {
-			return qfalse;
-		}
-	}
-
-	return qtrue;
-}
-
-/*
-==================
-BotAI_WeaponJumpFire
-==================
-*/
-static void BotAI_WeaponJumpFire(bot_state_t *bs) {
-	vec3_t moveDir;
-
-	bs->aimh_weapon_jump_fired = qtrue;
-
-	BotAI_WeaponJumpSetAimAngles(bs);
-	trap_EA_View(bs->client, bs->aimh_weapon_jump_angles);
-
-	trap_EA_Jump(bs->client);
-	trap_EA_Attack(bs->client);
-
-	if (BotAI_WeaponJumpHorizDirToDest(bs, moveDir)) {
-		VectorCopy(moveDir, bs->aimh_weapon_jump_air_dir);
-		trap_EA_Move(bs->client, moveDir, 800);
-	}
-}
-
-/*
-==================
-BotAI_WeaponJumpInput
-
-Approach reach start between thinks (botlib speed curve). No jump until
-BotAI_HandleWeaponJumpMove confirms stopped at the spot.
-==================
-*/
-void BotAI_WeaponJumpInput(bot_state_t *bs) {
-	vec3_t toSpot;
-	float dist, speed;
-
-	if (!bs) {
-		return;
-	}
-
-	if (bs->aimh_weapon_jump_fired) {
-		BotAI_WeaponJumpAirMove(bs);
-		return;
-	}
-
-	if (BotAI_WeaponJumpReadyToFire(bs)) {
-		BotAI_WeaponJumpFire(bs);
-		BotAI_WeaponJumpAirMove(bs);
-		return;
-	}
-
-	VectorSubtract(bs->aimh_weapon_jump_spot, bs->cur_ps.origin, toSpot);
-	toSpot[2] = 0.0f;
-	dist = VectorLength(toSpot);
-	if (dist <= BOT_WEAPONJUMP_MAX_DIST) {
-		return;
-	}
-
-	if (dist > 80.0f) {
-		dist = 80.0f;
-	}
-	speed = 400.0f - (400.0f - 5.0f * dist);
-	VectorNormalize(toSpot);
-	trap_EA_Move(bs->client, toSpot, speed);
-}
-
-/*
-==================
-BotAI_HandleWeaponJumpMove
-==================
-*/
-void BotAI_HandleWeaponJumpMove(bot_state_t *bs, bot_goal_t *goal, bot_moveresult_t *moveresult) {
-	int travel;
-	vec3_t movedir;
-
-	if (!bs || !moveresult || !goal) {
-		return;
-	}
-
-	if (BotAI_WeaponJumpActive(bs) || bs->aimh_weapon_jump_fired) {
-		BotAI_WeaponJumpUpdateDest(bs, goal);
-		if (!bs->aimh_weapon_jump_fired) {
-			BotAI_WeaponJumpSetAimAngles(bs);
-		}
-	}
-
-	if (bs->aimh_weapon_jump_fired) {
-		if (VectorLengthSquared(moveresult->movedir) > 0.01f) {
-			VectorCopy(moveresult->movedir, movedir);
-			movedir[2] = 0.0f;
-			if (VectorNormalize(movedir) > 0.1f) {
-				VectorCopy(movedir, bs->aimh_weapon_jump_air_dir);
-			}
-		}
-		BotAI_WeaponJumpAirMove(bs);
-	}
-
-	travel = moveresult->traveltype & TRAVELTYPE_MASK;
-	if (travel != TRAVEL_ROCKETJUMP && travel != TRAVEL_BFGJUMP) {
-		if (BotAI_WeaponJumpActive(bs)) {
-			if (bs->aimh_weapon_jump_fired &&
-					bs->cur_ps.groundEntityNum == ENTITYNUM_NONE) {
-				bs->aimh_weapon_jump_until = FloatTime() + 2.0f;
-			} else {
-				bs->aimh_weapon_jump_until = 0.0f;
-				bs->aimh_weapon_jump_fired = qfalse;
-				bs->aimh_weapon_jump_weapon = 0;
-			}
-		}
-		return;
-	}
-
-	if (moveresult->flags & MOVERESULT_MOVEMENTVIEWSET) {
-		bs->aimh_weapon_jump_until = FloatTime() + 5.0f;
-		BotAI_WeaponJumpUpdateSpot(bs, goal);
-		BotAI_WeaponJumpUpdateDest(bs, goal);
-		BotAI_WeaponJumpSetAimAngles(bs);
-		if (moveresult->flags & MOVERESULT_MOVEMENTWEAPON) {
-			bs->aimh_weapon_jump_weapon = moveresult->weapon;
-			bs->weaponnum = moveresult->weapon;
-			trap_EA_SelectWeapon(bs->client, bs->weaponnum);
-		}
-	} else if (!BotAI_WeaponJumpActive(bs)) {
-		return;
-	} else if (!bs->aimh_weapon_jump_fired) {
-		BotAI_WeaponJumpSetAimAngles(bs);
-	}
-
-	VectorCopy(bs->aimh_weapon_jump_angles, bs->ideal_viewangles);
-	VectorCopy(bs->aimh_weapon_jump_angles, bs->viewangles);
-	trap_EA_View(bs->client, bs->viewangles);
-	if (BotEnhanced_AimActive()) {
-		BotAimHarness_SyncMotorToView(bs);
-	}
-
-	if (!bs->aimh_weapon_jump_fired && BotAI_WeaponJumpReadyToFire(bs)) {
-		BotAI_WeaponJumpFire(bs);
-	}
 }
 
 /*
@@ -3929,7 +3638,11 @@ void BotAimAtEnemy(bot_state_t *bs) {
 	if (enemyvisible) {
 		//
 		VectorCopy(entinfo.origin, bestorigin);
-		bestorigin[2] += 8;
+		if (BotEnhanced_AimActive() && wi.number == WP_PLASMAGUN) {
+			bestorigin[2] += 28;
+		} else {
+			bestorigin[2] += 8;
+		}
 		//get the start point shooting from
 		//NOTE: the x and y projectile start offsets are ignored
 		VectorCopy(bs->origin, start);
@@ -3993,7 +3706,8 @@ void BotAimAtEnemy(bot_state_t *bs) {
 			}
 		}
 		//if the projectile does radial damage
-		if (aim_skill > 0.6 && wi.proj.damagetype & DAMAGETYPE_RADIAL) {
+		if (aim_skill > 0.6 && wi.proj.damagetype & DAMAGETYPE_RADIAL &&
+				!(BotEnhanced_AimActive() && wi.number == WP_PLASMAGUN)) {
 			//if the enemy isn't standing significantly higher than the bot
 			if (entinfo.origin[2] < bs->origin[2] + 16) {
 				//try to aim at the ground in front of the enemy
@@ -4031,8 +3745,6 @@ void BotAimAtEnemy(bot_state_t *bs) {
 			bestorigin[0] += 20 * crandom() * (1 - aim_accuracy);
 			bestorigin[1] += 20 * crandom() * (1 - aim_accuracy);
 			bestorigin[2] += 10 * crandom() * (1 - aim_accuracy);
-		} else if (!wi.speed) {
-			BotAimHarness_ApplyThinkHitscanOrigin(bs, bestorigin, &entinfo, aim_skill);
 		}
 	}
 	else {
@@ -4071,8 +3783,19 @@ void BotAimAtEnemy(bot_state_t *bs) {
 	else {
 		VectorCopy(bestorigin, bs->aimtarget);
 	}
+	if (BotEnhanced_AimActive() && wi.number == WP_ROCKET_LAUNCHER) {
+		BotAimHarness_ApplyRocketFeetAim(bs, bs->aimtarget);
+	}
+	if (BotEnhanced_AimActive() && wi.number == WP_PLASMAGUN) {
+		BotAimHarness_ApplyPlasmaCenterMassAim(bs, bs->aimtarget);
+	}
+	if (BotEnhanced_AimActive() && wi.number == WP_RAILGUN) {
+		BotAimHarness_ApplyRailInterceptAim(bs, bs->aimtarget, aim_skill, aim_accuracy);
+	} else if (BotEnhanced_AimActive()) {
+		BotAimHarness_ApplyMovementLead(bs, bs->aimtarget, aim_skill);
+	}
 	//get aim direction
-	VectorSubtract(bestorigin, bs->eye, dir);
+	VectorSubtract(bs->aimtarget, bs->eye, dir);
 	//
 	if (wi.number == WP_MACHINEGUN ||
 		wi.number == WP_SHOTGUN ||

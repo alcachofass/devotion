@@ -16,6 +16,7 @@ Console variables that control bot AI, navigation, chat, and fill rules. Set the
 | `bot_enhanced_tactics` | Devotion | `0` | 0 or 1 | Extra combat decisions when `1` and `bot_enhanced` is `1`: gauntlet rush/flee, react to third-party damage, finish wounded targets, prefer nearer threats. Saved to config. |
 | `bot_enhanced_items` | Devotion | `1` | 0 or 1 | Visible mega/red/yellow armor pickup with committed goals when `1` and `bot_enhanced` is `1`. Saved to config. |
 | `bot_enhanced_items_debug` | Devotion | `0` | 0 or 1 | Server console lines when bots commit to or abandon major item pickups. |
+| `bot_enhanced_movement` | Devotion | `0` | 0 or 1 | Human-like movement behaviors when `1` and `bot_enhanced` is `1`: active rocket-jump maneuver prep/fire and walk-off ledge fall-damage avoidance. Saved to config. |
 | `bot_enhanced_weapons` | Devotion | `0` | 0 or 1 | Smarter weapon picks by range and ammo when `1` and `bot_enhanced` is `1` (e.g. rail/MG at distance, rocket mid-range, shotgun up close). Saved to config. |
 | `bot_fastchat` | Vanilla | `0` | 0 or 1 | When `1`, bots are more likely to use chat lines (skips some random “stay quiet” rolls). |
 | `bot_forceclustering` | Vanilla | `0` | 0 or 1 | Forces the navigation system to rebuild area clusters for the current map (slow; map load / AAS build). |
