@@ -28,6 +28,7 @@ Here's an exhaustive listing of valid client console commands for the Devotion m
 | `dropweapon` | Server | Devotion | — | Drop current weapon. |
 | `follow` | Server | Vanilla | <name\|slot> | Spectate a player by id or name. |
 | `followauto` | Server | RatMod | — | Auto-follow killer/action. |
+| `getgtmappage` | Server | RatMod | — | Fetch gametype-filtered map list page (used by `maplist` and vote UI). |
 | `getmappage` | Server | RatMod | — | Fetch map list page for vote UI. |
 | `getrecmappage` | Server | RatMod | — | Fetch recommended maps page for vote UI. |
 | `give` | Server | Vanilla | — | Give items (cheat; requires cheats enabled). |
@@ -38,6 +39,7 @@ Here's an exhaustive listing of valid client console commands for the Devotion m
 | `levelshot` | Server | Vanilla | — | Capture levelshot (cheat). |
 | `loaddeferred` | Local | Vanilla | — | Load deferred player models. |
 | `loaddefered` | Server | Devotion | — | Misspelled alias still registered for demos; loads deferred models on server path. |
+| `maplist` | Local | RatMod | [all] | Outputs a list of server-side maps; by default shows only maps valid for current gametype; `maplist all` lists all maps for any gametype. |
 | `motd` | Server | RatMod | — | Show MOTD/help text. |
 | `mv` | Local | RatMod | [filter] | Open map vote menu; optional `mv <filter>`. |
 | `nextframe` | Local | Vanilla | — | Advance test model frame. |

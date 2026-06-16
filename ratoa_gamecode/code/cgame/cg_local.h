@@ -2108,6 +2108,7 @@ void addChallenge(int challenge);
 qboolean CG_ConsoleCommand( void );
 void CG_InitConsoleCommands( void );
 void CG_Randomcolors_f( void );
+qboolean CG_Maplist_HandleMappage( void );
 
 //
 // cg_servercmds.c

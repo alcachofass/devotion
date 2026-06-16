@@ -857,6 +857,10 @@ static void CG_ParseMappage( void ) {
     int cvarNum;
     int cvarMaps;
 
+    if ( CG_Maplist_HandleMappage() ) {
+        return;
+    }
+
     temp = CG_Argv( 1 );
     for( c = temp; *c; ++c) {
 	    if (!(isalnum(*c) 
