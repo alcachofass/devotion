@@ -110,6 +110,567 @@ void CG_Randomcolors_f( void ) {
 	trap_Cvar_Set("color2", va("H%i", (int)(Q_random(&seed)*360.0)));	
 }
 
+#define CG_MAPLIST_MAPS_PER_PAGE	30
+#define CG_MAPLIST_MAX_MAPS		1024
+#define CG_MAPLIST_MAPNAME_LEN		34
+#define CG_MAPLIST_CONSOLE_WIDTH	80
+#define CG_MAPLIST_COL_PAD		2
+#define CG_MAPLIST_ARENA_POOL_SIZE	(128 * 1024)
+#define CG_MAPLIST_ARENA_FILE_SIZE	MAX_ARENAS_TEXT
+
+typedef struct {
+	qboolean	active;
+	qboolean	allMaps;
+	qboolean	loaded_all;
+	int		num_cmds;
+	int		num_maps;
+	char		mapname[CG_MAPLIST_MAX_MAPS][CG_MAPLIST_MAPNAME_LEN];
+} cg_maplist_t;
+
+static cg_maplist_t cg_maplist;
+
+static char				cg_maplist_arenaPool[CG_MAPLIST_ARENA_POOL_SIZE];
+static int				cg_maplist_arenaPoolUsed;
+static int				cg_maplist_numArenas;
+static char				*cg_maplist_arenaInfos[MAX_ARENAS];
+static qboolean			cg_maplist_arenasLoaded;
+
+static void *CG_Maplist_PoolAlloc( int size ) {
+	char *ptr;
+
+	size = ( size + 31 ) & ~31;
+	if ( cg_maplist_arenaPoolUsed + size > CG_MAPLIST_ARENA_POOL_SIZE ) {
+		return NULL;
+	}
+	ptr = &cg_maplist_arenaPool[cg_maplist_arenaPoolUsed];
+	cg_maplist_arenaPoolUsed += size;
+	return ptr;
+}
+
+static int CG_Maplist_ParseInfos( char *buf, int max, char *infos[] ) {
+	char	*token;
+	int		count;
+	char	key[MAX_TOKEN_CHARS];
+	char	info[MAX_INFO_STRING];
+
+	count = 0;
+
+	while ( 1 ) {
+		token = COM_Parse( &buf );
+		if ( !token[0] ) {
+			break;
+		}
+		if ( strcmp( token, "{" ) ) {
+			break;
+		}
+
+		if ( count == max ) {
+			break;
+		}
+
+		info[0] = '\0';
+		while ( 1 ) {
+			token = COM_ParseExt( &buf, qtrue );
+			if ( !token[0] ) {
+				break;
+			}
+			if ( !strcmp( token, "}" ) ) {
+				break;
+			}
+			Q_strncpyz( key, token, sizeof( key ) );
+
+			token = COM_ParseExt( &buf, qfalse );
+			if ( !token[0] ) {
+				strcpy( token, "<NULL>" );
+			}
+			Info_SetValueForKey( info, key, token );
+		}
+		infos[count] = CG_Maplist_PoolAlloc( strlen( info ) + 1 );
+		if ( infos[count] ) {
+			strcpy( infos[count], info );
+			count++;
+		}
+	}
+	return count;
+}
+
+static void CG_Maplist_LoadArenasFromFile( char *filename ) {
+	int				len;
+	fileHandle_t	f;
+	char			buf[CG_MAPLIST_ARENA_FILE_SIZE];
+
+	len = trap_FS_FOpenFile( filename, &f, FS_READ );
+	if ( !f ) {
+		return;
+	}
+	if ( len >= (int)sizeof( buf ) ) {
+		len = sizeof( buf ) - 1;
+	}
+	if ( len < 1 ) {
+		trap_FS_FCloseFile( f );
+		return;
+	}
+
+	trap_FS_Read( buf, len, f );
+	buf[len] = 0;
+	trap_FS_FCloseFile( f );
+
+	cg_maplist_numArenas += CG_Maplist_ParseInfos( buf, MAX_ARENAS - cg_maplist_numArenas,
+		&cg_maplist_arenaInfos[cg_maplist_numArenas] );
+}
+
+static qboolean CG_Maplist_ParseArenaFile( const char *filename, char *info, int infoSize ) {
+	fileHandle_t	f;
+	char			buf[CG_MAPLIST_ARENA_FILE_SIZE];
+	char			*parse;
+	char			*token;
+	char			key[MAX_TOKEN_CHARS];
+	int				len;
+
+	len = trap_FS_FOpenFile( filename, &f, FS_READ );
+	if ( !f ) {
+		return qfalse;
+	}
+	if ( len >= (int)sizeof( buf ) ) {
+		len = sizeof( buf ) - 1;
+	}
+	if ( len < 1 ) {
+		trap_FS_FCloseFile( f );
+		return qfalse;
+	}
+
+	trap_FS_Read( buf, len, f );
+	buf[len] = 0;
+	trap_FS_FCloseFile( f );
+
+	parse = buf;
+	token = COM_Parse( &parse );
+	if ( !token[0] || strcmp( token, "{" ) ) {
+		return qfalse;
+	}
+
+	info[0] = '\0';
+	while ( 1 ) {
+		token = COM_ParseExt( &parse, qtrue );
+		if ( !token[0] ) {
+			return qfalse;
+		}
+		if ( !strcmp( token, "}" ) ) {
+			return qtrue;
+		}
+		Q_strncpyz( key, token, sizeof( key ) );
+
+		token = COM_ParseExt( &parse, qfalse );
+		if ( !token[0] ) {
+			strcpy( token, "<NULL>" );
+		}
+		Info_SetValueForKey( info, key, token );
+		if ( strlen( info ) >= (unsigned)infoSize - 1 ) {
+			return qfalse;
+		}
+	}
+
+	return qfalse;
+}
+
+static void CG_Maplist_EnsureArenasLoaded( void ) {
+	if ( cg_maplist_arenasLoaded ) {
+		return;
+	}
+
+	cg_maplist_arenaPoolUsed = 0;
+	cg_maplist_numArenas = 0;
+	CG_Maplist_LoadArenasFromFile( "scripts/arenas.txt" );
+	cg_maplist_arenasLoaded = qtrue;
+}
+
+static const char *CG_Maplist_GetArenaInfoByMap( const char *map ) {
+	int n;
+
+	for ( n = 0; n < cg_maplist_numArenas; n++ ) {
+		if ( !Q_stricmp( Info_ValueForKey( cg_maplist_arenaInfos[n], "map" ), map ) ) {
+			return cg_maplist_arenaInfos[n];
+		}
+	}
+	return NULL;
+}
+
+static int CG_Maplist_GametypeBits( const char *string ) {
+	char	buf[256];
+	char	*p;
+	char	*token;
+	int		bits;
+
+	bits = 0;
+	Q_strncpyz( buf, string, sizeof( buf ) );
+	p = buf;
+	while ( 1 ) {
+		token = COM_ParseExt( &p, qfalse );
+		if ( token[0] == 0 ) {
+			break;
+		}
+
+		if ( Q_stricmp( token, "ffa" ) == 0 ) {
+			bits |= 1 << GT_FFA;
+			continue;
+		}
+		if ( Q_stricmp( token, "tourney" ) == 0 ) {
+			bits |= 1 << GT_TOURNAMENT;
+			continue;
+		}
+		if ( Q_stricmp( token, "team" ) == 0 ) {
+			bits |= 1 << GT_TEAM;
+			continue;
+		}
+		if ( Q_stricmp( token, "ctf" ) == 0 ) {
+			bits |= 1 << GT_CTF;
+			continue;
+		}
+		if ( Q_stricmp( token, "ctfelimination" ) == 0 ) {
+			bits |= 1 << GT_CTF_ELIMINATION;
+			continue;
+		}
+#ifdef WITH_MULTITOURNAMENT
+		if ( Q_stricmp( token, "multitournament" ) == 0 ) {
+			bits |= 1 << GT_MULTITOURNAMENT;
+			continue;
+		}
+#endif
+	}
+
+	return bits;
+}
+
+static int CG_Maplist_MapGametypeBits( const char *mapname ) {
+	const char *arenaInfo;
+	const char *type;
+	char		arenaFile[MAX_QPATH];
+	char		info[MAX_INFO_STRING];
+
+	arenaInfo = CG_Maplist_GetArenaInfoByMap( mapname );
+	if ( arenaInfo ) {
+		type = Info_ValueForKey( arenaInfo, "type" );
+		if ( type[0] ) {
+			return CG_Maplist_GametypeBits( type );
+		}
+		return 0;
+	}
+
+	Com_sprintf( arenaFile, sizeof( arenaFile ), "scripts/%s.arena", mapname );
+	if ( CG_Maplist_ParseArenaFile( arenaFile, info, sizeof( info ) ) ) {
+		type = Info_ValueForKey( info, "type" );
+		if ( type[0] ) {
+			return CG_Maplist_GametypeBits( type );
+		}
+	}
+
+	return 0;
+}
+
+static const char *CG_Maplist_ColorForMap( const char *mapname ) {
+	int bits;
+
+	bits = CG_Maplist_MapGametypeBits( mapname );
+	if ( bits & ( ( 1 << GT_CTF ) | ( 1 << GT_CTF_ELIMINATION ) ) ) {
+		return S_COLOR_GREEN;
+	}
+	if ( bits & ( 1 << GT_TOURNAMENT ) ) {
+		return S_COLOR_CYAN;
+	}
+#ifdef WITH_MULTITOURNAMENT
+	if ( bits & ( 1 << GT_MULTITOURNAMENT ) ) {
+		return S_COLOR_CYAN;
+	}
+#endif
+	if ( bits & ( 1 << GT_TEAM ) ) {
+		return S_COLOR_YELLOW;
+	}
+
+	return S_COLOR_WHITE;
+}
+
+static void CG_Maplist_CurrentGametypeLabel( const char **name, const char **color ) {
+	switch ( cgs.gametype ) {
+	case GT_FFA:
+		*name = "FFA";
+		*color = S_COLOR_WHITE;
+		return;
+	case GT_SINGLE_PLAYER:
+		*name = "Single Player";
+		*color = S_COLOR_WHITE;
+		return;
+	case GT_TOURNAMENT:
+#ifdef WITH_MULTITOURNAMENT
+	case GT_MULTITOURNAMENT:
+#endif
+		*name = "Duel";
+		*color = S_COLOR_CYAN;
+		return;
+	case GT_TEAM:
+		*name = "TDM";
+		*color = S_COLOR_YELLOW;
+		return;
+	case GT_CTF:
+		*name = "CTF";
+		*color = S_COLOR_GREEN;
+		return;
+#ifdef MISSIONPACK
+	case GT_1FCTF:
+		*name = "1FCTF";
+		*color = S_COLOR_GREEN;
+		return;
+	case GT_OBELISK:
+		*name = "Overload";
+		*color = S_COLOR_GREEN;
+		return;
+	case GT_HARVESTER:
+		*name = "Harvester";
+		*color = S_COLOR_GREEN;
+		return;
+#endif
+	case GT_ELIMINATION:
+		*name = "Elimination";
+		*color = S_COLOR_YELLOW;
+		return;
+	case GT_CTF_ELIMINATION:
+		*name = "CTF Elim";
+		*color = S_COLOR_GREEN;
+		return;
+	case GT_LMS:
+		*name = "LMS";
+		*color = S_COLOR_YELLOW;
+		return;
+#ifdef WITH_DOM_GAMETYPE
+	case GT_DOMINATION:
+		*name = "Domination";
+		*color = S_COLOR_YELLOW;
+		return;
+#endif
+#ifdef WITH_DOUBLED_GAMETYPE
+	case GT_DOUBLE_D:
+		*name = "DD";
+		*color = S_COLOR_YELLOW;
+		return;
+#endif
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+	case GT_TREASURE_HUNTER:
+		*name = "TH";
+		*color = S_COLOR_YELLOW;
+		return;
+#endif
+	default:
+		*name = "Unknown";
+		*color = S_COLOR_WHITE;
+		return;
+	}
+}
+
+static void CG_Maplist_Reset( void ) {
+	memset( &cg_maplist, 0, sizeof( cg_maplist ) );
+}
+
+static int CG_Maplist_CountPageMaps( void ) {
+	int i;
+	const char *name;
+
+	for ( i = 0; i < CG_MAPLIST_MAPS_PER_PAGE; i++ ) {
+		name = CG_Argv( i + 2 );
+		if ( !name[0] || !Q_stricmp( name, "---" ) ) {
+			break;
+		}
+	}
+	return i;
+}
+
+static void CG_Maplist_RequestNextPage( void ) {
+	int page;
+
+	page = ( cg_maplist.num_maps / CG_MAPLIST_MAPS_PER_PAGE )
+		+ ( ( cg_maplist.num_maps % CG_MAPLIST_MAPS_PER_PAGE == 0 ) ? 0 : 1 );
+	if ( cg_maplist.allMaps ) {
+		trap_SendClientCommand( va( "getmappage %i\n", page ) );
+	} else {
+		trap_SendClientCommand( va( "getgtmappage %i\n", page ) );
+	}
+}
+
+static void CG_Maplist_Print( void ) {
+	int		i;
+	int		row;
+	int		col;
+	int		maxLen;
+	int		colWidth;
+	int		numCols;
+	int		numRows;
+	char	line[MAX_STRING_CHARS];
+	char	cell[CG_MAPLIST_MAPNAME_LEN + 16];
+
+	if ( cg_maplist.num_maps < 1 ) {
+		CG_Printf( "maplist: no maps found\n" );
+		return;
+	}
+
+	maxLen = 0;
+	for ( i = 0; i < cg_maplist.num_maps; i++ ) {
+		int len = (int)strlen( cg_maplist.mapname[i] );
+		if ( len > maxLen ) {
+			maxLen = len;
+		}
+	}
+
+	colWidth = maxLen + CG_MAPLIST_COL_PAD;
+	if ( colWidth < 10 ) {
+		colWidth = 10;
+	}
+	numCols = CG_MAPLIST_CONSOLE_WIDTH / colWidth;
+	if ( numCols < 1 ) {
+		numCols = 1;
+	}
+	if ( numCols > 6 ) {
+		numCols = 6;
+	}
+	if ( numCols > cg_maplist.num_maps ) {
+		numCols = cg_maplist.num_maps;
+	}
+	numRows = ( cg_maplist.num_maps + numCols - 1 ) / numCols;
+
+	CG_Maplist_EnsureArenasLoaded();
+
+	if ( cg_maplist.allMaps ) {
+		CG_Printf( "List of maps from server for gametype: All\n" );
+	} else {
+		const char *gtName;
+		const char *gtColor;
+
+		CG_Maplist_CurrentGametypeLabel( &gtName, &gtColor );
+		CG_Printf( "List of maps from server for gametype: %s%s%s\n",
+			gtColor, gtName, S_COLOR_WHITE );
+	}
+	CG_Printf( "%i Maps\n", cg_maplist.num_maps );
+	CG_Printf( "Key: FFA " S_COLOR_CYAN "Tourney " S_COLOR_GREEN "CTF "
+		S_COLOR_YELLOW "TDM\n" );
+
+	for ( row = 0; row < numRows; row++ ) {
+		line[0] = '\0';
+		for ( col = 0; col < numCols; col++ ) {
+			i = row * numCols + col;
+			if ( i >= cg_maplist.num_maps ) {
+				break;
+			}
+			Com_sprintf( cell, sizeof( cell ), "%s%s%*s",
+				CG_Maplist_ColorForMap( cg_maplist.mapname[i] ),
+				cg_maplist.mapname[i],
+				colWidth - (int)strlen( cg_maplist.mapname[i] ), "" );
+			Q_strcat( line, sizeof( line ), cell );
+		}
+		CG_Printf( "%s\n", line );
+	}
+}
+
+qboolean CG_Maplist_HandleMappage( void ) {
+	const char *temp;
+	const char *c;
+	int i;
+	int pagenum;
+	int count;
+
+	if ( !cg_maplist.active ) {
+		return qfalse;
+	}
+
+	temp = CG_Argv( 1 );
+	for ( c = temp; *c; ++c ) {
+		if ( !( isalnum( *c )
+			|| *c == '-'
+			|| *c == '_'
+			|| *c == '+' ) ) {
+			CG_Printf( "maplist: illegal character %c in server response\n", *c );
+			CG_Maplist_Reset();
+			return qtrue;
+		}
+	}
+	pagenum = atoi( temp );
+	if ( pagenum < 0 ) {
+		pagenum = 0;
+	}
+
+	for ( i = 2; i < CG_MAPLIST_MAPS_PER_PAGE + 2; i++ ) {
+		temp = CG_Argv( i );
+		for ( c = temp; *c; ++c ) {
+			if ( !( isalnum( *c )
+				|| *c == '-'
+				|| *c == '_'
+				|| *c == '+' ) ) {
+				CG_Printf( "maplist: illegal character %c in server response\n", *c );
+				CG_Maplist_Reset();
+				return qtrue;
+			}
+		}
+	}
+
+	if ( cg_maplist.num_cmds > 0 && pagenum == 0 ) {
+		cg_maplist.loaded_all = qtrue;
+	}
+	cg_maplist.num_cmds++;
+
+	if ( !cg_maplist.loaded_all ) {
+		count = CG_Maplist_CountPageMaps();
+		for ( i = 0; i < count; i++ ) {
+			if ( cg_maplist.num_maps >= CG_MAPLIST_MAX_MAPS ) {
+				CG_Printf( "maplist: server map list truncated at %i maps\n",
+					CG_MAPLIST_MAX_MAPS );
+				cg_maplist.loaded_all = qtrue;
+				break;
+			}
+			Q_strncpyz( cg_maplist.mapname[cg_maplist.num_maps],
+				CG_Argv( i + 2 ), CG_MAPLIST_MAPNAME_LEN );
+			cg_maplist.num_maps++;
+		}
+		if ( !cg_maplist.loaded_all ) {
+			CG_Maplist_RequestNextPage();
+			return qtrue;
+		}
+	}
+
+	CG_Maplist_Print();
+	CG_Maplist_Reset();
+	return qtrue;
+}
+
+static void CG_Maplist_f( void ) {
+	int argc;
+	char arg[MAX_STRING_CHARS];
+
+	if ( !cg.snap ) {
+		CG_Printf( "maplist: not connected to a server\n" );
+		return;
+	}
+
+	argc = trap_Argc();
+	if ( argc > 2 ) {
+		CG_Printf( "usage: maplist [all]\n" );
+		return;
+	}
+	if ( argc > 1 ) {
+		trap_Argv( 1, arg, sizeof( arg ) );
+		if ( Q_stricmp( arg, "all" ) ) {
+			CG_Printf( "usage: maplist [all]\n" );
+			return;
+		}
+	}
+
+	if ( cg_maplist.active ) {
+		CG_Printf( "maplist: request already in progress\n" );
+		return;
+	}
+
+	memset( &cg_maplist, 0, sizeof( cg_maplist ) );
+	cg_maplist.active = qtrue;
+	cg_maplist.allMaps = ( argc > 1 );
+
+	CG_Maplist_RequestNextPage();
+}
+
 void CG_Mapvote_f( void ) {
 	int n = trap_Argc();
 
@@ -915,6 +1476,7 @@ static consoleCommand_t	commands[] = {
 	{ "cecho", CG_Echo_f },
 	{ "randomcolors", CG_Randomcolors_f },
 	{ "cgconfig", CG_CGConfig_f },
+	{ "maplist", CG_Maplist_f },
 	{ "mv", CG_Mapvote_f },
 	{ "taunt", CG_Taunt_f },
 #ifdef MISSIONPACK
@@ -1025,7 +1587,9 @@ void CG_InitConsoleCommands( void ) {
 	trap_AddCommand ("setviewpos");
 	trap_AddCommand ("callvote");
 	trap_AddCommand ("getmappage");
+	trap_AddCommand ("getgtmappage");
 	trap_AddCommand ("getrecmappage");
+	trap_AddCommand ("maplist");
 	trap_AddCommand ("vote");
 	trap_AddCommand ("callteamvote");
 	trap_AddCommand ("teamvote");
