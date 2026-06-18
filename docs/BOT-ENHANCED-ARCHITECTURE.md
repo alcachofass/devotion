@@ -40,22 +40,19 @@ flowchart TB
   think -.->|sets ideal_viewangles aimh_hold_fire| input
 ```
 
-**North-facing include for hooks:** `ai_bot_enhanced.h` (`BotEnhanced_*Active`, `BotEnhanced_OnThinkStart`, register/reset).
+**North-facing include for hooks:** `ai_bot_enhanced.h` (`BotEnhanced_IsActive`, `BotEnhanced_DebugActive`, `BotEnhanced_OnThinkStart`, register/reset).
 
 ---
 
 ## Cvar matrix
 
-| Active when | Cvar | Notes |
-|-------------|------|--------|
-| Master | `bot_enhanced` | Default `0`. Sub-cvars ignored if off. |
-| Aim harness | `bot_enhanced` + `bot_enhanced_aim` | Facade: `BotEnhanced_AimActive()` (`bot_challenge` ignored) |
-| Smart weapons | `bot_enhanced` + `bot_enhanced_weapons` | Facade: `BotEnhanced_WeaponsActive()` |
-| Tactical AI | `bot_enhanced` + `bot_enhanced_tactics` | Facade: `BotEnhanced_TacticsActive()` |
-| Movement | `bot_enhanced` + `bot_enhanced_movement` | Facade: `BotEnhanced_MovementActive()`. Gates: enhanced RJ maneuver prep/fire; walk-off ledge fall-damage avoidance. Enhanced RJ also requires `bot_enhanced_aim` (view bypass). |
-| Debug (cheat) | `bot_debugAim` | Independent of master; client `cg_debugBotAim` |
+| Cvar | Role |
+|------|------|
+| `bot_enhanced` | Master gate (default `0`). When `1`, all enhanced features are on: aim harness, weapons, tactics, items, item timing (FFA/Duel/TDM), movement (RJ + walkoff), position, opponent (1v1), nav guard, combat intent. |
+| `bot_enhanced_debug` | Server-side debug logging for enhanced subsystems (item commits, nav guard, opponent inference). Requires `bot_enhanced 1`. |
+| `bot_debugAim` | Client cheat debug (independent); see BOT-CVARS.md |
 
-Legacy `bot_humanizeaim` / `bot_smartWeaponChoice` / `bot_tacticalAI` are migrated once at init if new cvars are still default (see BOT-CVARS.md).
+Deprecated `bot_enhanced_*` sub-cvars and legacy `bot_humanizeaim` / `bot_smartWeaponChoice` / `bot_tacticalAI` are read once at init for migration (see BOT-CVARS.md).
 
 ---
 
@@ -63,12 +60,12 @@ Legacy `bot_humanizeaim` / `bot_smartWeaponChoice` / `bot_tacticalAI` are migrat
 
 | File | Role |
 |------|------|
-| `ai_bot_enhanced.c/h` | Master cvar, facade gates, `OnThinkStart`, register/reset orchestration, goal-stack overflow guards (`BotEnhanced_PushGoalSafe`, `BotEnhanced_ReserveGoalStackRoom`, `BotEnhanced_SanitizeGoalStack`) |
-| `ai_bot_items.c/h` | Visible pickup commits, botlib item chooser wrappers (uses enhanced goal-stack API) |
-| `ai_bot_combat.c/h` | `bot_combat_intent_t` on `bot_state_t`; stance/move/fire policy (defaults = legacy) |
-| `ai_bot_events.c/h` | Ingress queue (`evt_*`); `BotEvents_Drain` → tactics scan/process |
-| `ai_bot_move_harness.c/h` | Botlib movement-view bypass (`bot_enhanced_aim`); `bot_enhanced_movement` cvar + `BotEnhanced_MovementActive()` gate; enhanced RJ maneuver prep/fire (requires both aim + movement); walk-off ledge fall-damage avoidance; `BotMove_EffectiveTfl`; hooks think/input |
-| `ai_bot_move_util.c/h` | Shared horiz walk, approach speed, view actuation, goal anchors for maneuvers |
+| `ai_bot_enhanced.c/h` | Master cvar, `BotEnhanced_IsActive` / `BotEnhanced_DebugActive`, `OnThinkStart`, register/reset orchestration, goal-stack guards |
+| `ai_bot_items.c/h` | Visible pickup commits, item timing (merged), botlib item chooser wrappers |
+| `ai_bot_combat.c/h` | `bot_combat_intent_t`; stance/move/fire policy |
+| `ai_bot_events.h` | Ingress API (`BotEvents_Push`); implementation in `ai_bot_tactics.c` |
+| `ai_bot_move_harness.c/h` | Movement-view bypass, RJ maneuver, walk-off avoidance, `BotMove_BuildTravelFlags` / `BotMove_EffectiveTfl`, move util helpers |
+| `ai_bot_move_util.h` | Shared geometry/view helper declarations (implemented in harness) |
 | `ai_aim_harness.c/h` | Humanized view motor; monotonic menu skill 0–5 accuracy ladder; suppressive fire (wide cone, all skills); rail/RL/SG shot urgency (reload+grace without firing widens track/trace tolerances); rail lead-and-wait + trace/urgency fire |
 | `ai_weapon_select.c/h` | Range/ammo weapon picker + roam selection; voluntary close combat (25%: SG > plasma > gauntlet) |
 | `ai_bot_tactics.c/h` | Gauntlet flee, hurt-by-other, closer threat (skill + distance-scaled swap chance), finish wounded |

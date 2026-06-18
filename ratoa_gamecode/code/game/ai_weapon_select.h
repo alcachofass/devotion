@@ -40,5 +40,17 @@ void BotWpnSelect_GetDesire(struct bot_state_s *bs, bot_weapon_desire_t *out);
 /* When false, BotChooseWeapon keeps current weaponnum (enhanced latch / min interval). */
 int BotWpnSelect_ShouldRunChooser(struct bot_state_s *bs);
 void BotWpnSelect_OnVoluntaryGauntletAborted(struct bot_state_s *bs);
+/*
+ * True when gauntlet rush/charge is appropriate: out of good weapons, spawn
+ * loadout, or tactics gauntlet-only — not merely because the enemy is close.
+ */
+int BotWpnSelect_VoluntaryGauntletWarranted(struct bot_state_s *bs, float dist);
+/* Loadout / engage-range helpers (ai_bot_combat opponent gating). */
+int BotWpnSelect_HasWeaponAndAmmo(const struct bot_state_s *bs, int wp);
+int BotWpnSelect_HasStrongCombatOption(const struct bot_state_s *bs, float dist);
+int BotWpnSelect_CountCombatAlternatives(const struct bot_state_s *bs, float dist);
+/* Botlib travel weapon — ignored when bot_enhanced_weapons is on. */
+void BotWpnSelect_ApplyMovementWeapon(struct bot_state_s *bs, int weapon,
+	int apply);
 
 #endif /* AI_WEAPON_SELECT_H */

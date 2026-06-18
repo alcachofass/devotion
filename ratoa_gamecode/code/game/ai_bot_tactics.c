@@ -17,6 +17,8 @@ BOT TACTICAL AI — see ai_bot_tactics.h
 #include "ai_dmq3.h"
 #include "ai_bot_tactics.h"
 #include "ai_bot_enhanced.h"
+#include "ai_bot_events.h"
+#include "ai_dmq3.h"
 
 void AIEnter_Battle_Retreat(bot_state_t *bs, char *s);
 void AIEnter_Battle_Fight(bot_state_t *bs, char *s);
@@ -24,13 +26,6 @@ int AINode_Battle_Fight(bot_state_t *bs);
 
 qboolean EntityCarriesFlag(aas_entityinfo_t *entinfo);
 
-vmCvar_t bot_enhanced_tactics;
-
-#define BOT_TACTICS_CLOSER_MARGIN		128
-#define BOT_TACTICS_SWAP_NEAR_DIST		280.0f
-#define BOT_TACTICS_SWAP_FAR_DIST		720.0f
-#define BOT_TACTICS_SWAP_BOTH_FAR_MIN	680
-#define BOT_TACTICS_SWAP_MIN_ADV		64.0f
 #define BOT_TACTICS_FINISH_HEALTH		40
 #define BOT_TACTICS_HURT_MIN_DAMAGE		8
 #define BOT_TACTICS_FLEE_HEALTH			50
@@ -45,7 +40,7 @@ typedef enum {
 } tact_action_t;
 
 static int BotTactics_IsActive(void) {
-	return BotEnhanced_TacticsActive();
+	return BotEnhanced_IsActive();
 }
 
 static int BotTactics_HasUsableNonGauntletWeapon(bot_state_t *bs) {
@@ -108,87 +103,6 @@ static int BotTactics_IsValidEnemyClient(bot_state_t *bs, int clientnum) {
 	return 1;
 }
 
-static float BotTactics_NormalizedSkill(bot_state_t *bs) {
-	float s;
-
-	if (!bs) {
-		return 0.0f;
-	}
-	s = bs->settings.skill;
-	if (s < 1.0f) {
-		s = 1.0f;
-	}
-	if (s > 5.0f) {
-		s = 5.0f;
-	}
-	return (s - 1.0f) / 4.0f;
-}
-
-/*
- * Chance to swap from curhoriz target to a nearer candhoriz enemy (0..1).
- * High skill + close threat -> near certain; both far -> unlikely.
- */
-static float BotTactics_CloserSwapChance(bot_state_t *bs, int curhoriz, int candhoriz) {
-	float skillNorm, adv, advRatio, candNear, farScale, merit, chance;
-	int minDist;
-
-	if (!bs || candhoriz >= curhoriz) {
-		return 0.0f;
-	}
-	adv = (float)(curhoriz - candhoriz);
-	if (adv < BOT_TACTICS_SWAP_MIN_ADV) {
-		return 0.0f;
-	}
-
-	skillNorm = BotTactics_NormalizedSkill(bs);
-	advRatio = adv / ((float)curhoriz + 64.0f);
-	if (advRatio > 1.0f) {
-		advRatio = 1.0f;
-	}
-
-	candNear = 1.0f - (float)candhoriz / BOT_TACTICS_SWAP_NEAR_DIST;
-	if (candNear < 0.0f) {
-		candNear = 0.0f;
-	} else if (candNear > 1.0f) {
-		candNear = 1.0f;
-	}
-
-	minDist = curhoriz;
-	if (candhoriz < minDist) {
-		minDist = candhoriz;
-	}
-	farScale = 1.0f;
-	if (minDist > BOT_TACTICS_SWAP_BOTH_FAR_MIN) {
-		farScale = 1.0f - ((float)minDist - (float)BOT_TACTICS_SWAP_BOTH_FAR_MIN) /
-			(BOT_TACTICS_SWAP_FAR_DIST - (float)BOT_TACTICS_SWAP_BOTH_FAR_MIN + 1.0f);
-		if (farScale < 0.06f) {
-			farScale = 0.06f;
-		}
-	}
-	if (curhoriz > (int)BOT_TACTICS_SWAP_FAR_DIST &&
-			candhoriz > (int)BOT_TACTICS_SWAP_NEAR_DIST) {
-		farScale *= 0.3f;
-	}
-
-	merit = advRatio * 0.45f + candNear * 0.55f;
-	merit *= farScale;
-
-	chance = (0.08f + skillNorm * 0.27f) + (0.42f + skillNorm * 0.58f) * merit;
-	if (chance > 1.0f) {
-		chance = 1.0f;
-	}
-
-	if (skillNorm >= 0.75f && candhoriz <= (int)BOT_TACTICS_SWAP_NEAR_DIST &&
-			adv >= 160.0f && advRatio >= 0.22f && chance < 0.92f) {
-		chance = 0.92f;
-	}
-	if (skillNorm >= 0.99f && candhoriz <= 192 && curhoriz >= 320 && adv >= 200.0f) {
-		chance = 1.0f;
-	}
-
-	return chance;
-}
-
 static int BotTactics_HorizontalDist(bot_state_t *bs, int clientnum) {
 	vec3_t dir;
 	aas_entityinfo_t entinfo;
@@ -236,9 +150,15 @@ static float BotTactics_ThreatScore(bot_state_t *bs, int clientnum, int damage, 
 		score += (float)damage * 2.5f;
 	}
 	score += BotTactics_ModThreatBonus(mod);
-	vis = BotEntityVisible(bs->entitynum, bs->eye, bs->viewangles, 360, clientnum);
-	if (vis > 0) {
-		score += 40.0f * vis;
+	if (BotEnhanced_IsActive()) {
+		if (BotCombat_HasFightLOS(bs, clientnum)) {
+			score += 40.0f;
+		}
+	} else {
+		vis = BotEntityVisible(bs->entitynum, bs->eye, bs->viewangles, 360, clientnum);
+		if (vis > 0) {
+			score += 40.0f * vis;
+		}
 	}
 	if (EntityIsShooting(&entinfo)) {
 		score += 35.0f;
@@ -393,9 +313,6 @@ void BotTactics_ProcessPending(bot_state_t *bs) {
 }
 
 void BotTactics_RegisterCvars(void) {
-	trap_Cvar_Register(&bot_enhanced_tactics, "bot_enhanced_tactics", "0",
-		CVAR_ARCHIVE);
-	trap_Cvar_Update(&bot_enhanced_tactics);
 }
 
 void BotTactics_Reset(bot_state_t *bs) {
@@ -478,88 +395,57 @@ int BotTactics_SkipAimAtEnemy(bot_state_t *bs) {
 	return qtrue;
 }
 
-void BotTactics_PreferCloserEnemy(bot_state_t *bs) {
-	int i, curenemy, bestenemy, curhoriz, candhoriz, besthoriz, minMargin;
-	float vis, swapChance;
-	vec3_t dir;
-	aas_entityinfo_t entinfo, cureinfo;
+/*
+===========================================================================
+BOT EVENTS — ingress queue; drain delegates scan/process to tactics.
+===========================================================================
+*/
 
-	if (!BotTactics_IsActive()) {
+void BotEvents_Reset(bot_state_t *bs) {
+	if (!bs) {
 		return;
 	}
-	curenemy = bs->enemy;
-	if (curenemy < 0 || curenemy >= MAX_CLIENTS) {
-		return;
-	}
-	if (EntityClientIsDead(curenemy)) {
-		return;
-	}
-	curhoriz = bs->inventory[ENEMY_HORIZONTAL_DIST];
-	if (curhoriz <= 0) {
-		curhoriz = BotTactics_HorizontalDist(bs, curenemy);
-	}
-	if (g_entities[curenemy].health > 0 &&
-			g_entities[curenemy].health <= BOT_TACTICS_FINISH_HEALTH) {
-		return;
-	}
-	BotEntityInfo(curenemy, &cureinfo);
-	if (EntityCarriesFlag(&cureinfo)) {
-		return;
-	}
+	bs->evt_pending = 0;
+	bs->evt_attacker = -1;
+	bs->evt_damage = 0;
+	bs->evt_mod = MOD_UNKNOWN;
+}
 
-	minMargin = (int)(BOT_TACTICS_CLOSER_MARGIN +
-		(1.0f - BotTactics_NormalizedSkill(bs)) * 96.0f);
-
-	bestenemy = -1;
-	besthoriz = 999999;
-	for (i = 0; i < maxclients && i < MAX_CLIENTS; i++) {
-		if (i == bs->client || i == curenemy) {
-			continue;
-		}
-		BotEntityInfo(i, &entinfo);
-		if (!entinfo.valid) {
-			continue;
-		}
-		if (EntityClientIsDead(i) || entinfo.number == bs->entitynum) {
-			continue;
-		}
-		if (EntityIsInvisible(&entinfo) && !EntityIsShooting(&entinfo)) {
-			continue;
-		}
-		if (g_entities[i].flags & FL_NOTARGET) {
-			continue;
-		}
-		if (BotSameTeam(bs, i)) {
-			continue;
-		}
-		if (BotEnhanced_IsActive() && BotEnhanced_ClientIsChatting(i)) {
-			continue;
-		}
-		VectorSubtract(entinfo.origin, bs->origin, dir);
-		dir[2] = 0;
-		candhoriz = (int)VectorLength(dir);
-		if (candhoriz + minMargin >= curhoriz) {
-			continue;
-		}
-		vis = BotEntityVisible(bs->entitynum, bs->eye, bs->viewangles, 360, i);
-		if (vis <= 0) {
-			continue;
-		}
-		if (bestenemy < 0 || candhoriz < besthoriz) {
-			bestenemy = i;
-			besthoriz = candhoriz;
-		}
+void BotEvents_Push(bot_state_t *bs, int evt_bits, int ent, int parm) {
+	if (!bs || !evt_bits) {
+		return;
 	}
+	bs->evt_pending |= evt_bits;
+	if (evt_bits & BOT_EVT_HURT_BY_OTHER) {
+		bs->evt_attacker = ent;
+		bs->evt_damage = parm;
+	}
+}
 
-	if (bestenemy < 0 || bestenemy == curenemy) {
+static void BotEvents_FlushToTactics(bot_state_t *bs) {
+	if (!bs->evt_pending) {
+		return;
+	}
+	bs->tact_pending |= bs->evt_pending;
+	if (bs->evt_pending & BOT_EVT_HURT_BY_OTHER) {
+		bs->tact_evt_attacker = bs->evt_attacker;
+		bs->tact_evt_damage = bs->evt_damage;
+		bs->tact_evt_mod = bs->evt_mod;
+	}
+	BotEvents_Reset(bs);
+}
+
+void BotEvents_Drain(bot_state_t *bs) {
+	if (!bs) {
+		return;
+	}
+	if (!BotEnhanced_IsActive() || BotIsObserver(bs) || BotIsDead(bs)) {
+		bs->tact_pending = 0;
+		BotEvents_Reset(bs);
 		return;
 	}
 
-	swapChance = BotTactics_CloserSwapChance(bs, curhoriz, besthoriz);
-	if (swapChance <= 0.0f || random() >= swapChance) {
-		return;
-	}
-
-	BotTactics_AssignEnemy(bs, bestenemy);
-	BotUpdateBattleInventory(bs, bestenemy);
+	BotTactics_ScanEvents(bs);
+	BotEvents_FlushToTactics(bs);
+	BotTactics_ProcessPending(bs);
 }

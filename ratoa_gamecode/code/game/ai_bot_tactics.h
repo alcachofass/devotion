@@ -37,7 +37,4 @@ int BotTactics_BattleFightSuppressRetreat(struct bot_state_s *bs);
 void BotTactics_RetreatAfterInventory(struct bot_state_s *bs);
 int BotTactics_SkipAimAtEnemy(struct bot_state_s *bs);
 
-/* Prefer a nearer visible threat; swap chance scales with skill and distance gap */
-void BotTactics_PreferCloserEnemy(struct bot_state_s *bs);
-
 #endif

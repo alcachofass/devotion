@@ -7,6 +7,7 @@ Contract:
     inside tactics during drain until damage scan moves here).
   - BotEvents_Drain runs once per think from BotEnhanced_OnThinkStart only.
   - Pending bits and payload fields live on bot_state_t (evt_*); cleared on drain.
+  - Major item pickups use BotEnhanced_OnObservedItemPickup at snapshot time instead.
 
 BOT_EVT_* bits match BOT_TACT_EVT_* while tactics still owns handlers.
 ===========================================================================

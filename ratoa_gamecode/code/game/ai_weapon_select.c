@@ -20,10 +20,22 @@ BOT SMART WEAPON SELECT (v1) — see ai_weapon_select.h
 #include "ai_bot_combat.h"
 #include "ai_bot_tactics.h"
 
-vmCvar_t bot_enhanced_weapons;
-
 /* Forward — defined in ai_dmq3.c */
 float BotEntityVisible(int viewer, vec3_t eye, vec3_t viewangles, float fov, int ent);
+
+static float BotWpnSel_SkillCombat(bot_state_t *bs) {
+	if (BotEnhanced_IsActive()) {
+		return BotEnhanced_GetAimSkill(bs);
+	}
+	return trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_SKILL, 0.0f, 1.0f);
+}
+
+static float BotWpnSel_ReactionTime(bot_state_t *bs) {
+	if (BotEnhanced_IsActive()) {
+		return BotEnhanced_GetReactionTime(bs);
+	}
+	return trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_REACTIONTIME, 0.0f, 1.0f);
+}
 
 #define WPNSEL_LEGACY_BIAS		28.0f
 #define WPNSEL_HYSTERESIS_BASE	12.0f
@@ -60,6 +72,9 @@ float BotEntityVisible(int viewer, vec3_t eye, vec3_t viewangles, float fov, int
 #define WPNSEL_ROAM_MG_LASTRESORT_PEN	48.0f
 #define WPNSEL_ROAM_MG_ONLY_BONUS		22.0f
 #define WPNSEL_ROAM_NOISE_MAX			18.0f
+#define WPNSEL_ROAM_RL_BONUS			30.0f
+#define WPNSEL_GL_LASTRESORT_PEN		68.0f
+#define WPNSEL_GL_ROAM_LASTRESORT_PEN	60.0f
 /* Enhanced fight select: min 1s between swaps; longer latch after close combat commit. */
 #define WPNSEL_ENHANCED_MIN_SWITCH_INTERVAL	1.0f
 #define WPNSEL_ENHANCED_CLOSE_COMBAT_LATCH	3.5f
@@ -67,10 +82,8 @@ float BotEntityVisible(int viewer, vec3_t eye, vec3_t viewangles, float fov, int
 #define WPNSEL_VOLUNTARY_CLOSE_COMBAT_CHANCE	0.25f
 #define WPNSEL_VOLUNTARY_CLOSE_COMBAT_BONUS	78.0f
 #define WPNSEL_VOLUNTARY_CLOSE_COMBAT_PENALTY	45.0f
-#define WPNSEL_VOLUNTARY_SG_CLOSE_DIST		256.0f
-#define WPNSEL_VOLUNTARY_PLASMA_CLOSE_DIST	700.0f
 
-static int BotWpnSel_HasWeaponAndAmmo(bot_state_t *bs, int wp) {
+int BotWpnSelect_HasWeaponAndAmmo(const bot_state_t *bs, int wp) {
 	if (wp <= WP_NONE || wp >= WP_NUM_WEAPONS) {
 		return 0;
 	}
@@ -141,11 +154,11 @@ static float BotWpnSel_RangeScore(int wp, float dist) {
 		if (d < 1600.0f) return 10.0f;
 		return 4.0f;
 	case WP_GRENADE_LAUNCHER:
-		if (d < 96.0f) return 38.0f;
-		if (d < 400.0f) return 76.0f;
-		if (d < 640.0f) return 52.0f;
-		if (d < 900.0f) return 26.0f;
-		return 8.0f;
+		if (d < 96.0f) return 22.0f;
+		if (d < 400.0f) return 48.0f;
+		if (d < 640.0f) return 36.0f;
+		if (d < 900.0f) return 18.0f;
+		return 6.0f;
 	case WP_PLASMAGUN:
 		if (d < 200.0f) return 76.0f;
 		if (d < 700.0f) return 80.0f;
@@ -272,7 +285,7 @@ static float BotWpnSel_SwitchInCost(const weaponinfo_t *wi) {
 	return t;
 }
 
-static int BotWpnSel_RocketCombatSuitable(bot_state_t *bs) {
+static int BotWpnSel_RocketCombatSuitable(const bot_state_t *bs) {
 	if (bs->enemy < 0) {
 		return 1;
 	}
@@ -294,11 +307,11 @@ static int BotWpnSel_EnemyHealth(bot_state_t *bs) {
 
 static int BotWpnSel_HasLongRangeHitscan(bot_state_t *bs, float dist) {
 	(void)dist;
-	if (BotWpnSel_HasWeaponAndAmmo(bs, WP_RAILGUN)) {
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_RAILGUN)) {
 		return 1;
 	}
 #ifdef MISSIONPACK
-	if (dist > 800.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_CHAINGUN)) {
+	if (dist > 800.0f && BotWpnSelect_HasWeaponAndAmmo(bs, WP_CHAINGUN)) {
 		return 1;
 	}
 #endif
@@ -308,35 +321,88 @@ static int BotWpnSel_HasLongRangeHitscan(bot_state_t *bs, float dist) {
 /*
  * Weapons clearly better than MG at this distance (for fallback / overshadow logic).
  */
-static int BotWpnSel_CountCombatAlternatives(bot_state_t *bs, float dist) {
+int BotWpnSelect_CountCombatAlternatives(const bot_state_t *bs, float dist) {
 	int n;
 
 	n = 0;
-	if (dist < 200.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_SHOTGUN)) {
+	if (dist < 200.0f && BotWpnSelect_HasWeaponAndAmmo(bs, WP_SHOTGUN)) {
 		n++;
 	}
-	if (dist < 650.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_LIGHTNING)) {
+	if (dist < 650.0f && BotWpnSelect_HasWeaponAndAmmo(bs, WP_LIGHTNING)) {
 		n++;
 	}
-	if (dist > 350.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_RAILGUN)) {
+	if (dist > 350.0f && BotWpnSelect_HasWeaponAndAmmo(bs, WP_RAILGUN)) {
 		n++;
 	}
-	if (dist > 200.0f && dist < 1100.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_PLASMAGUN)) {
+	if (dist > 200.0f && dist < 1100.0f && BotWpnSelect_HasWeaponAndAmmo(bs, WP_PLASMAGUN)) {
 		n++;
 	}
-	if (dist > 96.0f && dist < 900.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_ROCKET_LAUNCHER) &&
+	if (dist > 96.0f && dist < 900.0f && BotWpnSelect_HasWeaponAndAmmo(bs, WP_ROCKET_LAUNCHER) &&
 			BotWpnSel_RocketCombatSuitable(bs)) {
 		n++;
 	}
-	if (dist > 96.0f && dist < 900.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_GRENADE_LAUNCHER)) {
-		n++;
-	}
 #ifdef MISSIONPACK
-	if (dist > 600.0f && BotWpnSel_HasWeaponAndAmmo(bs, WP_CHAINGUN)) {
+	if (dist > 600.0f && BotWpnSelect_HasWeaponAndAmmo(bs, WP_CHAINGUN)) {
 		n++;
 	}
 #endif
 	return n;
+}
+
+/*
+ * Weapons that make a voluntary gauntlet charge unnecessary at this range.
+ */
+int BotWpnSelect_HasStrongCombatOption(const bot_state_t *bs, float dist) {
+	if (!bs) {
+		return 0;
+	}
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_SHOTGUN) && dist <= 256.0f) {
+		return 1;
+	}
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_LIGHTNING) && dist <= 650.0f) {
+		return 1;
+	}
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_PLASMAGUN) &&
+			dist >= (float)BOT_COMBAT_CLOSE_WEAPON_MIN_DIST &&
+			dist <= 400.0f) {
+		return 1;
+	}
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_ROCKET_LAUNCHER) &&
+			dist > 96.0f && dist < 900.0f &&
+			BotWpnSel_RocketCombatSuitable(bs)) {
+		return 1;
+	}
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_RAILGUN)) {
+		return 1;
+	}
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_BFG)) {
+		return 1;
+	}
+#ifdef MISSIONPACK
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_CHAINGUN) && dist > 400.0f) {
+		return 1;
+	}
+#endif
+	return 0;
+}
+
+int BotWpnSelect_VoluntaryGauntletWarranted(bot_state_t *bs, float dist) {
+	if (!bs) {
+		return 0;
+	}
+	if (!BotWpnSelect_HasWeaponAndAmmo(bs, WP_GAUNTLET)) {
+		return 0;
+	}
+	if (BotTactics_IsGauntletOnly(bs)) {
+		return 1;
+	}
+	if (BotWpnSelect_HasStrongCombatOption(bs, dist)) {
+		return 0;
+	}
+	if (BotWpnSelect_CountCombatAlternatives(bs, dist) > 0) {
+		return 0;
+	}
+	return 1;
 }
 
 static float BotWpnSel_MachinegunModifier(bot_state_t *bs, float dist,
@@ -344,7 +410,7 @@ static float BotWpnSel_MachinegunModifier(bot_state_t *bs, float dist,
 	int alternatives, enemyHealth;
 	float mod, penScale, chipBonus, plinkBonus;
 
-	alternatives = BotWpnSel_CountCombatAlternatives(bs, dist);
+	alternatives = BotWpnSelect_CountCombatAlternatives(bs, dist);
 	if (alternatives <= 0) {
 		return WPNSEL_MG_FALLBACK_BONUS;
 	}
@@ -393,13 +459,10 @@ static float BotWpnSel_SwitchFatigue(bot_state_t *bs, float skillCombat) {
 }
 
 void BotWpnSelect_RegisterCvars(void) {
-	trap_Cvar_Register(&bot_enhanced_weapons, "bot_enhanced_weapons", "0",
-		CVAR_ARCHIVE);
-	trap_Cvar_Update(&bot_enhanced_weapons);
 }
 
 int BotWpnSelect_IsActive(void) {
-	return BotEnhanced_WeaponsActive();
+	return BotEnhanced_IsActive();
 }
 
 static float BotWpnSel_RoamStealth(bot_state_t *bs) {
@@ -416,28 +479,65 @@ static float BotWpnSel_RoamStealth(bot_state_t *bs) {
 	return stealth;
 }
 
-static int BotWpnSel_HasBetterSilentRoamer(bot_state_t *bs) {
-	if (BotWpnSel_HasWeaponAndAmmo(bs, WP_ROCKET_LAUNCHER)) {
+static int BotWpnSel_HasBetterThanGrenade(bot_state_t *bs) {
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_ROCKET_LAUNCHER)) {
 		return 1;
 	}
-	if (BotWpnSel_HasWeaponAndAmmo(bs, WP_SHOTGUN)) {
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_SHOTGUN)) {
 		return 1;
 	}
-	if (BotWpnSel_HasWeaponAndAmmo(bs, WP_PLASMAGUN)) {
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_PLASMAGUN)) {
 		return 1;
 	}
-	if (BotWpnSel_HasWeaponAndAmmo(bs, WP_GRENADE_LAUNCHER)) {
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_LIGHTNING)) {
+		return 1;
+	}
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_RAILGUN)) {
+		return 1;
+	}
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_MACHINEGUN)) {
+		return 1;
+	}
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_BFG)) {
 		return 1;
 	}
 #ifdef MISSIONPACK
-	if (BotWpnSel_HasWeaponAndAmmo(bs, WP_NAILGUN)) {
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_CHAINGUN)) {
 		return 1;
 	}
-	if (BotWpnSel_HasWeaponAndAmmo(bs, WP_PROX_LAUNCHER)) {
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_NAILGUN)) {
+		return 1;
+	}
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_PROX_LAUNCHER)) {
 		return 1;
 	}
 #endif
 	return 0;
+}
+
+static int BotWpnSel_BestSilentRoamer(bot_state_t *bs) {
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_ROCKET_LAUNCHER)) {
+		return WP_ROCKET_LAUNCHER;
+	}
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_SHOTGUN)) {
+		return WP_SHOTGUN;
+	}
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_PLASMAGUN)) {
+		return WP_PLASMAGUN;
+	}
+#ifdef MISSIONPACK
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_NAILGUN)) {
+		return WP_NAILGUN;
+	}
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_PROX_LAUNCHER)) {
+		return WP_PROX_LAUNCHER;
+	}
+#endif
+	return WP_NONE;
+}
+
+static int BotWpnSel_HasBetterSilentRoamer(bot_state_t *bs) {
+	return BotWpnSel_BestSilentRoamer(bs) != WP_NONE;
 }
 
 static float BotWpnSel_RoamArsenalTier(int wp) {
@@ -451,9 +551,9 @@ static float BotWpnSel_RoamArsenalTier(int wp) {
 	case WP_PLASMAGUN:
 		return 82.0f;
 	case WP_ROCKET_LAUNCHER:
-		return 80.0f;
+		return 88.0f;
 	case WP_GRENADE_LAUNCHER:
-		return 72.0f;
+		return 28.0f;
 	case WP_SHOTGUN:
 		return 68.0f;
 #ifdef MISSIONPACK
@@ -488,7 +588,7 @@ static float BotWpnSel_RoamAudiblePenalty(int wp, float stealth, float skillComb
 }
 
 static float BotWpnSel_MachinegunRoamModifier(bot_state_t *bs) {
-	if (!BotWpnSel_HasWeaponAndAmmo(bs, WP_MACHINEGUN)) {
+	if (!BotWpnSelect_HasWeaponAndAmmo(bs, WP_MACHINEGUN)) {
 		return 0.0f;
 	}
 	if (BotWpnSel_HasBetterSilentRoamer(bs)) {
@@ -510,6 +610,9 @@ static qboolean BotWpnSel_VoluntaryCloseCombatEligible(bot_state_t *bs, float di
 	if (FloatTime() < bs->combat.gauntlet_voluntary_abandon_until) {
 		return qfalse;
 	}
+	if (!BotWpnSelect_VoluntaryGauntletWarranted(bs, dist)) {
+		return qfalse;
+	}
 	return dist <= (float)BOT_COMBAT_GAUNTLET_RUSH_DIST;
 }
 
@@ -521,29 +624,18 @@ static qboolean BotWpnSel_RollVoluntaryCloseCombat(bot_state_t *bs, float dist) 
 }
 
 static int BotWpnSel_PreferredVoluntaryCloseWeapon(bot_state_t *bs, float dist) {
-	if (!bs || dist > (float)BOT_COMBAT_GAUNTLET_RUSH_DIST) {
+	(void)dist;
+	if (!bs) {
 		return WP_NONE;
 	}
-	if (dist <= WPNSEL_VOLUNTARY_SG_CLOSE_DIST &&
-			BotWpnSel_HasWeaponAndAmmo(bs, WP_SHOTGUN)) {
-		return WP_SHOTGUN;
-	}
-	if (dist <= (float)BOT_COMBAT_GAUNTLET_RUSH_DIST &&
-			BotWpnSel_HasWeaponAndAmmo(bs, WP_SHOTGUN)) {
-		return WP_SHOTGUN;
-	}
-	if (dist <= WPNSEL_VOLUNTARY_PLASMA_CLOSE_DIST &&
-			BotWpnSel_HasWeaponAndAmmo(bs, WP_PLASMAGUN)) {
-		return WP_PLASMAGUN;
-	}
-	if (BotWpnSel_HasWeaponAndAmmo(bs, WP_GAUNTLET)) {
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_GAUNTLET)) {
 		return WP_GAUNTLET;
 	}
 	return WP_NONE;
 }
 
 static qboolean BotWpnSel_IsVoluntaryCloseCombatWeapon(int wp) {
-	return (wp == WP_GAUNTLET || wp == WP_SHOTGUN || wp == WP_PLASMAGUN);
+	return (wp == WP_GAUNTLET);
 }
 
 static qboolean BotWpnSel_IsCloseCombatCommit(bot_state_t *bs, int wp) {
@@ -569,7 +661,7 @@ static qboolean BotWpnSel_IsCloseCombatCommit(bot_state_t *bs, int wp) {
 static void BotWpnSel_EnhancedApplyLatch(bot_state_t *bs, int prev_wp, int new_wp) {
 	float now, latch;
 
-	if (!BotEnhanced_WeaponsActive() || prev_wp == new_wp) {
+	if (!BotEnhanced_IsActive() || prev_wp == new_wp) {
 		return;
 	}
 	now = FloatTime();
@@ -584,7 +676,7 @@ static void BotWpnSel_EnhancedApplyLatch(bot_state_t *bs, int prev_wp, int new_w
 }
 
 int BotWpnSelect_ShouldRunChooser(bot_state_t *bs) {
-	if (!bs || !BotEnhanced_WeaponsActive()) {
+	if (!bs || !BotEnhanced_IsActive()) {
 		return 1;
 	}
 	if (FloatTime() < bs->wps_enhanced_latch_until) {
@@ -599,6 +691,19 @@ void BotWpnSelect_OnVoluntaryGauntletAborted(bot_state_t *bs) {
 	}
 	bs->wps_enhanced_latch_until = 0.0f;
 	bs->wps_next_eval_time = 0.0f;
+}
+
+void BotWpnSelect_ApplyMovementWeapon(bot_state_t *bs, int weapon, int apply) {
+	if (!bs || !apply) {
+		return;
+	}
+	if (BotEnhanced_IsActive()) {
+		if (bs->activatestack && bs->activatestack->shoot) {
+			bs->weaponnum = weapon;
+		}
+		return;
+	}
+	bs->weaponnum = weapon;
 }
 
 void BotWpnSelect_Reset(bot_state_t *bs) {
@@ -646,14 +751,12 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 		return -1;
 	}
 
-	skillCombat = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_SKILL,
-		0.0f, 1.0f);
-	react = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_REACTIONTIME,
-		0.0f, 1.0f);
+	skillCombat = BotWpnSel_SkillCombat(bs);
+	react = BotWpnSel_ReactionTime(bs);
 
 	eval_dt = WPNSEL_EVAL_MIN + (WPNSEL_EVAL_MAX - WPNSEL_EVAL_MIN) *
 		(0.35f + 0.4f * react + 0.25f * (1.0f - skillCombat));
-	if (BotEnhanced_WeaponsActive()) {
+	if (BotEnhanced_IsActive()) {
 		if (eval_dt < WPNSEL_ENHANCED_MIN_EVAL_INTERVAL) {
 			eval_dt = WPNSEL_ENHANCED_MIN_EVAL_INTERVAL;
 		}
@@ -673,12 +776,18 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 	}
 
 	dist = BotWpnSel_EnemyDistance(bs);
-	vis = BotEntityVisible(bs->entitynum, bs->eye, bs->viewangles, 360.0f, bs->enemy);
-	if (vis <= 0.0f) {
-		dist *= 1.15f;
+	if (BotEnhanced_IsActive()) {
+		if (!BotCombat_HasFightLOS(bs, bs->enemy)) {
+			dist *= 1.15f;
+		}
+	} else {
+		vis = BotEntityVisible(bs->entitynum, bs->eye, bs->viewangles, 360.0f, bs->enemy);
+		if (vis <= 0.0f) {
+			dist *= 1.15f;
+		}
 	}
 
-	alternatives = BotWpnSel_CountCombatAlternatives(bs, dist);
+	alternatives = BotWpnSelect_CountCombatAlternatives(bs, dist);
 	mgMod = BotWpnSel_MachinegunModifier(bs, dist, skillCombat);
 
 	voluntaryCloseCombat = 0;
@@ -714,7 +823,7 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 
 	for (i = 0; i < n_weaps; i++) {
 		wp = weap_list[i];
-		if (!BotWpnSel_HasWeaponAndAmmo(bs, wp)) {
+		if (!BotWpnSelect_HasWeaponAndAmmo(bs, wp)) {
 			continue;
 		}
 		if (wp == WP_ROCKET_LAUNCHER && !BotWpnSel_RocketCombatSuitable(bs)) {
@@ -732,12 +841,19 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 		if (wp == WP_MACHINEGUN) {
 			score += mgMod;
 		}
+		if (wp == WP_GRENADE_LAUNCHER && BotWpnSel_HasBetterThanGrenade(bs)) {
+			score -= WPNSEL_GL_LASTRESORT_PEN;
+		}
 
 		if (dist <= (float)BOT_COMBAT_GAUNTLET_RUSH_DIST &&
 				BotWpnSel_IsVoluntaryCloseCombatWeapon(wp)) {
 			if (BotTactics_IsGauntletOnly(bs)) {
 				if (wp == WP_GAUNTLET) {
 					score += 35.0f;
+				}
+			} else if (!BotWpnSelect_VoluntaryGauntletWarranted(bs, dist)) {
+				if (wp == WP_GAUNTLET) {
+					score -= 120.0f;
 				}
 			} else if (FloatTime() < bs->combat.gauntlet_voluntary_abandon_until) {
 				if (wp == WP_GAUNTLET) {
@@ -847,7 +963,7 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 			(best_miss_score - best_score) / 85.0f);
 	}
 
-	if (BotEnhanced_WeaponsActive() && best_wp != bs->weaponnum) {
+	if (BotEnhanced_IsActive() && best_wp != bs->weaponnum) {
 		if (FloatTime() - bs->wps_last_switch_time < WPNSEL_ENHANCED_MIN_SWITCH_INTERVAL) {
 			best_wp = bs->weaponnum;
 		}
@@ -860,7 +976,7 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 	}
 	if (voluntaryCloseCombat > 0 && preferredCloseWp >= 0 &&
 			best_wp != preferredCloseWp &&
-			BotWpnSel_HasWeaponAndAmmo(bs, preferredCloseWp)) {
+			BotWpnSelect_HasWeaponAndAmmo(bs, preferredCloseWp)) {
 		best_wp = preferredCloseWp;
 	}
 
@@ -880,10 +996,8 @@ int BotWpnSelect_ChooseRoaming(bot_state_t *bs) {
 		return -1;
 	}
 
-	skillCombat = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_SKILL,
-		0.0f, 1.0f);
-	react = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_REACTIONTIME,
-		0.0f, 1.0f);
+	skillCombat = BotWpnSel_SkillCombat(bs);
+	react = BotWpnSel_ReactionTime(bs);
 
 	eval_dt = WPNSEL_ROAM_EVAL_MIN + (WPNSEL_ROAM_EVAL_MAX - WPNSEL_ROAM_EVAL_MIN) *
 		(0.3f + 0.35f * react + 0.35f * (1.0f - skillCombat));
@@ -920,7 +1034,7 @@ int BotWpnSelect_ChooseRoaming(bot_state_t *bs) {
 		if (wp == WP_GAUNTLET) {
 			continue;
 		}
-		if (!BotWpnSel_HasWeaponAndAmmo(bs, wp)) {
+		if (!BotWpnSelect_HasWeaponAndAmmo(bs, wp)) {
 			continue;
 		}
 		trap_BotGetWeaponInfo(bs->ws, wp, &wi);
@@ -933,6 +1047,12 @@ int BotWpnSelect_ChooseRoaming(bot_state_t *bs) {
 		score -= BotWpnSel_RoamAudiblePenalty(wp, stealth, skillCombat);
 		if (wp == WP_MACHINEGUN) {
 			score += BotWpnSel_MachinegunRoamModifier(bs);
+		}
+		if (wp == WP_ROCKET_LAUNCHER) {
+			score += WPNSEL_ROAM_RL_BONUS;
+		}
+		if (wp == WP_GRENADE_LAUNCHER && BotWpnSel_HasBetterThanGrenade(bs)) {
+			score -= WPNSEL_GL_ROAM_LASTRESORT_PEN;
 		}
 
 		if (wp != bs->weaponnum) {
@@ -962,22 +1082,12 @@ int BotWpnSelect_ChooseRoaming(bot_state_t *bs) {
 		}
 	}
 
-	if (best_wp == WP_MACHINEGUN && BotWpnSel_HasBetterSilentRoamer(bs) &&
-			skillCombat > 0.4f) {
-		for (i = 0; i < n_weaps; i++) {
-			wp = weap_list[i];
-			if (wp == WP_MACHINEGUN || wp == WP_GAUNTLET) {
-				continue;
-			}
-			if (!BotWpnSel_HasWeaponAndAmmo(bs, wp)) {
-				continue;
-			}
-			if (BotWpnSel_RoamArsenalTier(wp) + BotWpnSel_MachinegunRoamModifier(bs) >
-					best_score - 6.0f) {
-				best_wp = wp;
-				break;
-			}
-		}
+	if (best_wp == WP_MACHINEGUN && BotWpnSel_HasBetterSilentRoamer(bs)) {
+		best_wp = BotWpnSel_BestSilentRoamer(bs);
+	}
+	if (BotWpnSelect_HasWeaponAndAmmo(bs, WP_ROCKET_LAUNCHER) &&
+			(best_wp == WP_GRENADE_LAUNCHER || best_wp == WP_MACHINEGUN)) {
+		best_wp = WP_ROCKET_LAUNCHER;
 	}
 
 	return best_wp;
@@ -1009,4 +1119,5 @@ void BotWpnSelect_TickRoaming(bot_state_t *bs) {
 	bs->weaponchange_time = FloatTime();
 	bs->weaponnum = new_wp;
 	BotWpnSelect_NotifyWeaponCommitted(bs, prev_wp, new_wp);
+	trap_EA_SelectWeapon(bs->client, bs->weaponnum);
 }

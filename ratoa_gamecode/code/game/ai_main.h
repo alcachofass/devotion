@@ -129,6 +129,9 @@ typedef struct bot_activategoal_s
 } bot_activategoal_t;
 
 #include "ai_bot_combat.h"
+#include "ai_bot_item_timing.h"
+#include "ai_bot_opponent.h"
+#include "ai_bot_nav_guard.h"
 
 //bot state
 typedef struct bot_state_s
@@ -299,14 +302,30 @@ typedef struct bot_state_s
 	int			evt_damage;
 	int			evt_mod;
 	float		enh_goal_last_push_time;
+	int		enh_cached_active;
+	int		enh_cached_debug;
+	int		enh_travel_tfl;
+	qboolean	enh_travel_tfl_valid;
 	/* ---- end BOT ENHANCED ---- */
 
 	/* ---- BOT ITEMS: ai_bot_items.c — remove this block to revert ---- */
 	qboolean	item_commit_active;
+	qboolean	item_commit_timing;		/* pre-spawn / timing pursuit commit */
+	qboolean	item_commit_detour;		/* brief snag while primary suspended */
+	qboolean	item_commit_opportune;	/* health/armor snag while primary suspended */
+	qboolean	item_commit_suspended;	/* primary timing commit saved */
 	int			item_commit_kind;		/* BOT_ITEM_* while committed */
 	float		item_commit_until;
 	float		item_next_scan_time;
+	float		item_opportune_next_scan_time;
+	float		item_opportune_block_until;
 	bot_goal_t	item_commit_goal;
+	bot_goal_t	item_commit_suspended_goal;
+	int			item_commit_suspended_kind;
+	float		item_commit_suspended_until;
+	qboolean	item_commit_suspended_timing;
+	float		item_commit_suspended_progress_time;
+	vec3_t		item_commit_suspended_progress_origin;
 	int			item_commit_snap_health;
 	int			item_commit_snap_armor;
 	int			item_commit_snap_quad;
@@ -315,7 +334,23 @@ typedef struct bot_state_s
 	int			item_commit_snap_weapon;
 	float		item_commit_progress_time;
 	vec3_t		item_commit_progress_origin;
+	int			item_lj_attempts;
+	float		item_lj_lip_since;
+	float		item_lj_jump_until;
 	/* ---- end BOT ITEMS ---- */
+
+	/* ---- BOT ITEM TIMING: ai_bot_item_timing.c — remove this block to revert ---- */
+	timing_belief_t	timing_track[BOT_TIMING_TRACK_COUNT];
+	int				timing_pursue_track;	/* latched slot 0..2, else -1 */
+	int				timing_detour_track;	/* opportunistic snag slot, else -1 */
+	float			timing_next_plan_time;	/* next random track evaluation */
+	float			timing_next_detour_time;/* next on-route detour scan */
+	float			timing_detour_block_until; /* global detour cooldown */
+	float			timing_spawn_due_at;	/* expected spawn while pursuing (0 = none) */
+	float			timing_far_pursue_since;	/* 0 = at pad; else far-pursue stall clock */
+	float			timing_next_preempt_time; /* next higher-item preempt scan */
+	float			timing_preempt_block_until; /* global preempt cooldown */
+	/* ---- end BOT ITEM TIMING ---- */
 
 	/* ---- BOT AIM HARNESS (v1): ai_aim_harness.c — remove this block to revert ---- */
 	vec3_t		aimh_goal;
@@ -347,8 +382,22 @@ typedef struct bot_state_s
 	qboolean	aimh_hold_fire;		/* suppressive fire: +attack each input frame */
 	vec3_t		aimh_rail_lead_point;	/* lead-and-wait intercept aim (rail) */
 	qboolean	aimh_rail_lead_valid;
+	vec3_t		aimh_rail_smooth_vel;	/* world horiz vel (smoothed, rail intercept) */
+	vec3_t		aimh_rail_last_origin;
+	float		aimh_rail_vel_sample_time;
+	qboolean	aimh_rail_vel_valid;
 	float		aimh_shot_press_since;	/* slow weapons: engage without firing (shot urgency) */
 	int			aimh_shot_press_weapon;
+	vec3_t		aimh_prev_aimtarget;	/* prior think aimtarget (MG/LG vel estimate) */
+	vec3_t		aimh_track_vel;		/* blended travel vel (MG/LG lead) */
+	vec3_t		aimh_track_offset;	/* aimtarget minus enemy origin at last think */
+	float		aimh_prev_aimtarget_time;
+	float		aimh_aimtarget_sample_time;
+	qboolean	aimh_prev_aimtarget_valid;
+	float		aimh_recal_lead_scale;	/* MG/LG hit-feedback lead trim (1.0 = nominal) */
+	float		aimh_recal_next_time;	/* next observe/adjust window */
+	float		aimh_recal_fire_since;	/* when current suppressive burst started */
+	int			aimh_recal_last_hits;	/* PERS_HITS latch at last recal window */
 	/* ---- end BOT AIM HARNESS ---- */
 
 	/* ---- BOT MOVE HARNESS: ai_bot_move_harness.c ---- */
@@ -368,6 +417,10 @@ typedef struct bot_state_s
 	vec3_t		movej_rj_fire_view;		/* down-aim latched at fire; held during prep */
 	float		movej_rj_prep_view_until;	/* keep fire view + attack until RL fires */
 	float		movej_no_walkoff_until;		/* strip TFL_WALKOFFLEDGE from routing */
+	float		movej_walkoff_allow_until;	/* escape: temporarily allow walkoff routing */
+	vec3_t		movej_walkoff_abort_origin;	/* last risky walkoff abort position */
+	int			movej_walkoff_abort_count;	/* aborts near origin within window */
+	float		movej_walkoff_abort_window;	/* start of abort count window */
 	float		movej_urgent_health_until;	/* prioritize health pickups */
 	/* ---- end BOT MOVE HARNESS ---- */
 
@@ -388,6 +441,34 @@ typedef struct bot_state_s
 	int			tact_evt_mod;
 	float		tact_last_hurt_time;
 	/* ---- end BOT TACTICAL AI ---- */
+
+	/* ---- BOT OPPONENT: ai_bot_opponent.c — remove this block to revert ---- */
+	opponent_belief_t	opponent_belief;
+	/* ---- end BOT OPPONENT ---- */
+
+	/* ---- BOT POSITION: ai_bot_position.c — remove this block to revert ---- */
+	float		pos_enemy_z_delta;    /* bot.z minus last-known enemy.z (0 = no enemy) */
+	float		pos_last_high_z;      /* highest Z reached in recent BOTPOS_HIGH_DECAY_SEC */
+	float		pos_high_sampled_at;  /* FloatTime() of last pos_last_high_z update */
+	float		pos_ledge_peek_until; /* next stand/crouch toggle while ledge-holding */
+	qboolean	pos_ledge_peek_crouch; /* current peek phase: crouched behind cover */
+	qboolean	pos_item_harass_active; /* timing pursuit suspended for overlook fight */
+	float		pos_route_audit_time; /* next mid-route elevation audit */
+	qboolean	pos_uplift_active;    /* short uplift waypoint on goal stack */
+	float		pos_uplift_until;
+	bot_goal_t	pos_uplift_goal;
+	/* ---- end BOT POSITION ---- */
+
+	/* ---- BOT NAV GUARD: ai_bot_nav_guard.c ---- */
+	float		nav_progress_time;
+	vec3_t		nav_progress_origin;
+	int			nav_ring_count;
+	int			nav_ring_pos;
+	int			nav_ring_areanum[BOTNAV_RING_SAMPLES];
+	vec3_t		nav_ring_origin[BOTNAV_RING_SAMPLES];
+	float		nav_next_ring_sample;
+	float		nav_breakout_cooldown_until;
+	/* ---- end BOT NAV GUARD ---- */
 } bot_state_t;
 
 //resets the whole bot state
