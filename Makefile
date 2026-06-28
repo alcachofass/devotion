@@ -37,7 +37,7 @@ endif
 OUTPUT_DIR := build
 PK3_DIR := $(OUTPUT_DIR)/pk3
 
-RATMOD_PK3 = devotion-v0.2.3-RELEASE.pk3
+RATMOD_PK3 = devotion-v0.2.4-RELEASE.pk3
 
 TIMESTAMP := $(shell cd $(GAMECODE_DIR) && git show -s --format=%ct)
 

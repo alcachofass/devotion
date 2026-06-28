@@ -213,7 +213,7 @@ RATMOD_VERSION=$(shell LANG=C git describe --tags --abbrev --dirty)
 # Value is written to $(Q3UIDIR)/compile_version.h (not via -D) so MinGW q3lcc
 # does not see shell-dependent -D quoting. Avoid '"' and backslashes in the string.
 ifndef COMPILE_VERSION
-COMPILE_VERSION := v0.2.3-RELEASE-ATALHOS
+COMPILE_VERSION := v0.2.4-RELEASE-BACALHAU
 endif
 
 USE_SVN=
