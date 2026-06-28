@@ -804,8 +804,8 @@ void BotChangeViewAngles(bot_state_t *bs, float thinktime) {
 	if (bs->ideal_viewangles[PITCH] > 180) bs->ideal_viewangles[PITCH] -= 360;
 	//
 	if (bs->enemy >= 0) {
-		factor = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_VIEW_FACTOR, 0.01f, 1);
-		maxchange = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_VIEW_MAXCHANGE, 1, 1800);
+		factor = BotEnhanced_GetViewFactor(bs);
+		maxchange = BotEnhanced_GetViewMaxChange(bs);
 	}
 	else {
 		factor = 0.05f;
@@ -958,7 +958,7 @@ void BotUpdateInput(bot_state_t *bs, int time, int elapsed_time) {
 	thinktime = (float)elapsed_time / 1000.0f;
 
 	/* ENHANCED: aim — input-frame motor path */
-	if (BotEnhanced_AimActive()) {
+	if (BotEnhanced_IsActive()) {
 		if (!BotAI_GetClientState(bs->client, &bs->cur_ps)) {
 			return;
 		}
@@ -1111,7 +1111,7 @@ int BotAI(int client, float thinktime) {
 			{ /*ignore*/ }
 	}
 	/* ENHANCED: aim — legacy delta-angle rebase when harness off */
-	if (!BotEnhanced_AimActive()) {
+	if (!BotEnhanced_IsActive()) {
 		for (j = 0; j < 3; j++) {
 			bs->viewangles[j] = AngleMod(bs->viewangles[j] +
 				SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
@@ -1132,7 +1132,7 @@ int BotAI(int client, float thinktime) {
 	BotDeathmatchAI(bs, thinktime);
 	//set the weapon selection every AI frame
 	trap_EA_SelectWeapon(bs->client, bs->weaponnum);
-	if (!BotEnhanced_AimActive()) {
+	if (!BotEnhanced_IsActive()) {
 		for (j = 0; j < 3; j++) {
 			bs->viewangles[j] = AngleMod(bs->viewangles[j] -
 				SHORT2ANGLE(bs->cur_ps.delta_angles[j]));

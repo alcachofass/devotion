@@ -121,6 +121,10 @@ void BotVisibleTeamMatesAndEnemies(bot_state_t *bs, int *teammates, int *enemies
 qboolean InFieldOfVision(vec3_t viewangles, float fov, vec3_t angles);
 //returns true and sets the .enemy field when an enemy is found
 int BotFindEnemy(bot_state_t *bs, int curenemy);
+int BotGetAirGoal(bot_state_t *bs, bot_goal_t *goal);
+int BotAI_IsOriginNearRecentTeleport(const vec3_t origin);
+/* Client that raised an EV_ITEM_PICKUP / noise event (snapshot-safe). */
+int BotAI_EventPickerClient(const entityState_t *state);
 //returns a roam goal
 void BotRoamGoal(bot_state_t *bs, vec3_t goal);
 //returns entity visibility in the range [0, 1]

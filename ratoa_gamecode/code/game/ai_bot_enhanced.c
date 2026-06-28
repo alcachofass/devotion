@@ -14,25 +14,48 @@ BOT ENHANCED — master cvar, feature gates, centralized register/reset.
 #include "../botlib/be_ai_weap.h"
 #include "ai_main.h"
 #include "ai_dmq3.h"
+#include "chars.h"
 #include "ai_bot_enhanced.h"
 #include "ai_aim_harness.h"
 #include "ai_weapon_select.h"
 #include "ai_bot_tactics.h"
 #include "ai_bot_combat.h"
+#include "ai_bot_opponent.h"
 #include "ai_bot_events.h"
 #include "ai_bot_move_harness.h"
 #include "ai_bot_items.h"
+#include "ai_bot_item_timing.h"
+#include "ai_bot_position.h"
+#include "ai_bot_opponent.h"
+#include "ai_bot_nav_guard.h"
+#include "ai_dmq3.h"
+
+extern bot_state_t *botstates[MAX_CLIENTS];
 
 vmCvar_t bot_enhanced;
+vmCvar_t bot_enhanced_debug;
 
-extern vmCvar_t bot_enhanced_aim;
-extern vmCvar_t bot_enhanced_weapons;
-extern vmCvar_t bot_enhanced_tactics;
-extern vmCvar_t bot_enhanced_movement;
+extern vmCvar_t bot_debugAim;
+
+static bot_state_t *botenh_think_bs;
 
 #define BOT_ENHANCED_LEGACY_AIM		"bot_humanizeaim"
 #define BOT_ENHANCED_LEGACY_WEAPONS	"bot_smartWeaponChoice"
 #define BOT_ENHANCED_LEGACY_TACTICS	"bot_tacticalAI"
+
+/* Deprecated sub-cvars — read once at init via trap_Cvar_VariableValue. */
+static const char *botenh_deprecated_subcvars[] = {
+	"bot_enhanced_aim",
+	"bot_enhanced_weapons",
+	"bot_enhanced_tactics",
+	"bot_enhanced_items",
+	"bot_enhanced_items_debug",
+	"bot_enhanced_items_timing",
+	"bot_enhanced_movement",
+	"bot_enhanced_position",
+	"bot_enhanced_opponent",
+	NULL
+};
 
 #ifdef Q3_VM
 void Botlib_RawPushGoal(int goalstate, bot_goal_t *goal) {
@@ -54,43 +77,31 @@ static int BotEnhanced_LegacyCvarActive(const char *name) {
  * sub-cvar is migrated so pre-refactor configs keep working.
  */
 static void BotEnhanced_MigrateLegacyCvars(void) {
+	int i;
 	int migrated;
 	int legacy_used;
 
 	migrated = 0;
 	legacy_used = 0;
 
-	trap_Cvar_Update(&bot_enhanced_aim);
-	if (!bot_enhanced_aim.integer) {
-		if (BotEnhanced_LegacyCvarActive(BOT_ENHANCED_LEGACY_AIM)) {
-			trap_Cvar_Set("bot_enhanced_aim", "1");
-			migrated = 1;
-			legacy_used = 1;
-		}
-	} else if (BotEnhanced_LegacyCvarActive(BOT_ENHANCED_LEGACY_AIM)) {
+	if (BotEnhanced_LegacyCvarActive(BOT_ENHANCED_LEGACY_AIM)) {
+		migrated = 1;
+		legacy_used = 1;
+	}
+	if (BotEnhanced_LegacyCvarActive(BOT_ENHANCED_LEGACY_WEAPONS)) {
+		migrated = 1;
+		legacy_used = 1;
+	}
+	if (BotEnhanced_LegacyCvarActive(BOT_ENHANCED_LEGACY_TACTICS)) {
+		migrated = 1;
 		legacy_used = 1;
 	}
 
-	trap_Cvar_Update(&bot_enhanced_weapons);
-	if (!bot_enhanced_weapons.integer) {
-		if (BotEnhanced_LegacyCvarActive(BOT_ENHANCED_LEGACY_WEAPONS)) {
-			trap_Cvar_Set("bot_enhanced_weapons", "1");
+	for (i = 0; botenh_deprecated_subcvars[i]; i++) {
+		if (BotEnhanced_LegacyCvarActive(botenh_deprecated_subcvars[i])) {
 			migrated = 1;
 			legacy_used = 1;
 		}
-	} else if (BotEnhanced_LegacyCvarActive(BOT_ENHANCED_LEGACY_WEAPONS)) {
-		legacy_used = 1;
-	}
-
-	trap_Cvar_Update(&bot_enhanced_tactics);
-	if (!bot_enhanced_tactics.integer) {
-		if (BotEnhanced_LegacyCvarActive(BOT_ENHANCED_LEGACY_TACTICS)) {
-			trap_Cvar_Set("bot_enhanced_tactics", "1");
-			migrated = 1;
-			legacy_used = 1;
-		}
-	} else if (BotEnhanced_LegacyCvarActive(BOT_ENHANCED_LEGACY_TACTICS)) {
-		legacy_used = 1;
 	}
 
 	trap_Cvar_Update(&bot_enhanced);
@@ -100,69 +111,109 @@ static void BotEnhanced_MigrateLegacyCvars(void) {
 
 	if (legacy_used) {
 		G_Printf(
-			"Bot enhanced: deprecated cvars %s / %s / %s detected; "
-			"use bot_enhanced and bot_enhanced_aim|weapons|tactics.\n",
-			BOT_ENHANCED_LEGACY_AIM,
-			BOT_ENHANCED_LEGACY_WEAPONS,
-			BOT_ENHANCED_LEGACY_TACTICS);
+			"Bot enhanced: deprecated bot_enhanced_* / bot_humanizeaim / "
+			"bot_smartWeaponChoice / bot_tacticalAI detected in config; "
+			"use bot_enhanced 1 (and bot_enhanced_debug for logging).\n");
 	}
 
 	trap_Cvar_Update(&bot_enhanced);
-	trap_Cvar_Update(&bot_enhanced_aim);
-	trap_Cvar_Update(&bot_enhanced_weapons);
-	trap_Cvar_Update(&bot_enhanced_tactics);
 }
 
 void BotEnhanced_RegisterCvars(void) {
+	static qboolean registered;
+
+	if (registered) {
+		return;
+	}
+	registered = qtrue;
+
 	trap_Cvar_Register(&bot_enhanced, "bot_enhanced", "0", CVAR_ARCHIVE);
+	trap_Cvar_Register(&bot_enhanced_debug, "bot_enhanced_debug", "0", 0);
+	trap_Cvar_Register(&bot_debugAim, "bot_debugAim", "0", CVAR_CHEAT);
+
 	trap_Cvar_Update(&bot_enhanced);
-	BotAimHarness_RegisterCvars();
-	BotWpnSelect_RegisterCvars();
-	BotTactics_RegisterCvars();
-	BotItems_RegisterCvars();
-	BotMoveHarness_RegisterCvars();
+	trap_Cvar_Update(&bot_enhanced_debug);
+	trap_Cvar_Update(&bot_debugAim);
+
+	BotPosition_RegisterCvars();
+	BotOpponent_RegisterCvars();
+
 	BotEnhanced_MigrateLegacyCvars();
 }
 
 int BotEnhanced_IsActive(void) {
+	if (botenh_think_bs && botenh_think_bs->inuse) {
+		return botenh_think_bs->enh_cached_active;
+	}
 	trap_Cvar_Update(&bot_enhanced);
 	return bot_enhanced.integer != 0;
 }
 
-int BotEnhanced_AimActive(void) {
+int BotEnhanced_DebugActive(void) {
 	if (!BotEnhanced_IsActive()) {
 		return 0;
 	}
-	trap_Cvar_Update(&bot_enhanced_aim);
-	return bot_enhanced_aim.integer != 0;
+	if (botenh_think_bs && botenh_think_bs->inuse) {
+		return botenh_think_bs->enh_cached_debug;
+	}
+	trap_Cvar_Update(&bot_enhanced_debug);
+	return bot_enhanced_debug.integer != 0;
 }
 
-int BotEnhanced_WeaponsActive(void) {
-	if (!BotEnhanced_IsActive()) {
+static int BotEnhanced_WantsOpponentThink(bot_state_t *bs) {
+	opponent_belief_t *ob;
+
+	if (!bs || !BotEnhanced_IsActive()) {
 		return 0;
 	}
-	trap_Cvar_Update(&bot_enhanced_weapons);
-	return bot_enhanced_weapons.integer != 0;
+	ob = &bs->opponent_belief;
+	return ob->tracking && ob->client >= 0;
 }
 
-int BotEnhanced_TacticsActive(void) {
-	if (!BotEnhanced_IsActive()) {
+static int BotEnhanced_WantsNavGuardThink(bot_state_t *bs) {
+	if (!bs || !BotEnhanced_IsActive()) {
 		return 0;
 	}
-	trap_Cvar_Update(&bot_enhanced_tactics);
-	return bot_enhanced_tactics.integer != 0;
-}
-
-int BotEnhanced_MovementActive(void) {
-	if (!BotEnhanced_IsActive()) {
-		return 0;
+	if (BotItems_HasActiveCommit(bs)) {
+		return 1;
 	}
-	trap_Cvar_Update(&bot_enhanced_movement);
-	return bot_enhanced_movement.integer != 0;
+	if (bs->timing_pursue_track >= 0) {
+		return 1;
+	}
+	if (BotEnhanced_GoalStackDepth(bs) > 0 && bs->enemy < 0) {
+		return 1;
+	}
+	return 0;
 }
 
-int BotEnhanced_ItemsActive(void) {
-	return BotItems_IsActive();
+void BotEnhanced_OnObservedItemPickup(bot_state_t *bs, int pickerClient,
+	int itemIndex, const vec3_t eventOrigin) {
+	gentity_t *ent;
+	opponent_belief_t *ob;
+
+	if (!bs || itemIndex < 0) {
+		return;
+	}
+
+	if (BotEnhanced_IsActive() && pickerClient >= 0 &&
+			pickerClient < level.maxclients) {
+		ent = &g_entities[pickerClient];
+		ob = &bs->opponent_belief;
+		if (ent->inuse && pickerClient != bs->client &&
+				pickerClient != bs->entitynum &&
+				pickerClient == ob->heard_pickup_event_picker &&
+				itemIndex == ob->heard_pickup_event_parm &&
+				ent->eventTime == ob->heard_pickup_event_time) {
+			return;
+		}
+		ob->heard_pickup_event_picker = pickerClient;
+		ob->heard_pickup_event_parm = itemIndex;
+		ob->heard_pickup_event_time = ent->inuse ? ent->eventTime : 0;
+	}
+
+	if (BotItemTiming_IsActive()) {
+		BotItemTiming_OnEntityPickup(bs, pickerClient, itemIndex, eventOrigin);
+	}
 }
 
 int BotEnhanced_ClientIsChatting(int clientnum) {
@@ -465,17 +516,137 @@ void BotEnhanced_SanitizeGoalStack(bot_state_t *bs) {
 }
 
 void BotEnhanced_OnThinkStart(bot_state_t *bs) {
+	if (!bs || !bs->inuse || BotIsObserver(bs) || BotIsDead(bs)) {
+		if (bs) {
+			bs->tact_pending = 0;
+			BotEvents_Reset(bs);
+		}
+		botenh_think_bs = NULL;
+		return;
+	}
+
+	trap_Cvar_Update(&bot_enhanced);
+	trap_Cvar_Update(&bot_enhanced_debug);
+	bs->enh_cached_active = bot_enhanced.integer != 0;
+	bs->enh_cached_debug = bot_enhanced_debug.integer != 0;
+	botenh_think_bs = bs;
+
+	if (!bs->enh_cached_active) {
+		return;
+	}
+
+	bs->enh_travel_tfl = BotMove_BuildTravelFlags(bs);
+	bs->enh_travel_tfl_valid = qtrue;
+
 	BotEvents_Drain(bs);
-	if (bs && bs->inuse) {
-		BotEnhanced_SanitizeGoalStack(bs);
+	BotEnhanced_SanitizeGoalStack(bs);
+
+	bs->firethrottlewait_time = 0.0f;
+	bs->firethrottleshoot_time = 0.0f;
+	BotEnhanced_DropDeadEnemy(bs);
+	BotEnhanced_DropChattingEnemy(bs);
+	BotEnhanced_CancelCampLongTermGoal(bs);
+	BotPosition_OnThinkStart(bs);
+	BotCombat_TickEngagement(bs);
+	if (BotEnhanced_WantsOpponentThink(bs)) {
+		BotOpponent_OnThinkStart(bs);
+		BotOpponent_TickFleeEngagement(bs);
+	}
+	BotCombat_UpdateIntent(bs);
+	BotPosition_TickItemHarass(bs);
+	BotPosition_UpdateCombat(bs);
+	BotItems_Tick(bs);
+	if (BotEnhanced_WantsNavGuardThink(bs)) {
+		BotNavGuard_OnThinkStart(bs);
+	}
+	if (BotOpponent_IsTracking(bs) && BotOpponent_WantsAvoidEngagement(bs) &&
+			bs->enemy >= 0 && BotItems_HasActiveCommit(bs) &&
+			!BotCombat_HasEnemyCombatContact(bs) &&
+			!BotOpponent_WantsFleeEngaged(bs) &&
+			!BotOpponent_WantsDuelCommit(bs)) {
+		BotCombat_ReleaseEnemy(bs);
+	}
+}
+
+void BotEnhanced_AfterCheckSnapshot(bot_state_t *bs) {
+	if (!bs) {
+		return;
+	}
+	if (BotEnhanced_IsActive() && bs->enemy < 0 && !BotIsObserver(bs)) {
+		BotWpnSelect_TickRoaming(bs);
 	}
 	if (BotEnhanced_IsActive()) {
-		BotEnhanced_DropDeadEnemy(bs);
-		BotEnhanced_DropChattingEnemy(bs);
-		BotEnhanced_CancelCampLongTermGoal(bs);
-		BotCombat_UpdateIntent(bs);
-		BotItems_Tick(bs);
+		BotItemTiming_PostSnapshot(bs);
 	}
+}
+
+void BotEnhanced_OnSnapshotClientEvent(bot_state_t *bs, struct entityState_s *state,
+		int event) {
+	if (!bs || !state) {
+		return;
+	}
+	switch (event) {
+	case EV_ITEM_PICKUP:
+		BotEnhanced_OnObservedItemPickup(bs, BotAI_EventPickerClient((entityState_t *)state),
+			state->eventParm, state->origin);
+		break;
+	case EV_GLOBAL_ITEM_PICKUP:
+		BotItemTiming_OnGlobalItemPickup(bs, state->eventParm, state->origin);
+		break;
+	case EV_ITEM_RESPAWN:
+		BotItemTiming_OnItemRespawn(bs, state->modelindex, state->origin);
+		break;
+	default:
+		break;
+	}
+}
+
+void BotEnhanced_OnPowerupRespawnSound(bot_state_t *bs, const vec3_t origin) {
+	if (BotEnhanced_IsActive()) {
+		BotItemTiming_OnPowerupSpawnSound(bs, origin);
+	}
+}
+
+int BotEnhanced_SuppressBlockedAvoid(bot_state_t *bs) {
+	if (!BotEnhanced_IsActive()) {
+		return 0;
+	}
+	return BotItems_SuppressBlockedAvoid(bs);
+}
+
+int BotEnhanced_OnSeekCombatContact(bot_state_t *bs) {
+	if (!bs || !BotEnhanced_IsActive()) {
+		return 0;
+	}
+
+	if (bs->enemy >= 0 && bs->enemy < MAX_CLIENTS) {
+		if (!BotEnhanced_CanEngageClient(bs, bs->enemy) ||
+				EntityClientIsDead(bs->enemy)) {
+			BotCombat_ReleaseEnemy(bs);
+		}
+	}
+
+	if (BotOpponent_IsTracking(bs)) {
+		BotOpponent_TryLatchCombatEnemy(bs);
+	}
+
+	if (BotFindEnemy(bs, -1)) {
+		return 1;
+	}
+
+	if (bs->enemy >= 0 && bs->enemy < MAX_CLIENTS) {
+		if (BotOpponent_IsTracking(bs) &&
+				bs->enemy == bs->opponent_belief.client) {
+			if (BotOpponent_HasCombatSight(bs, bs->enemy)) {
+				return 1;
+			}
+		} else if (BotCombat_HasEnemyCombatContact(bs)) {
+			return 1;
+		}
+		BotCombat_ReleaseEnemy(bs);
+	}
+
+	return 0;
 }
 
 int BotEnhanced_ShouldSuppressFightRetreat(bot_state_t *bs) {
@@ -485,22 +656,94 @@ int BotEnhanced_ShouldSuppressFightRetreat(bot_state_t *bs) {
 	if (BotCombat_IsRushOpponent(bs)) {
 		return 1;
 	}
-	if (BotEnhanced_TacticsActive() && BotTactics_BattleFightSuppressRetreat(bs)) {
+	if (BotPosition_IsItemHarassActive(bs)) {
+		return 1;
+	}
+	if (BotEnhanced_IsActive() && BotTactics_BattleFightSuppressRetreat(bs)) {
+		return 1;
+	}
+	if (BotOpponent_IsTracking(bs) && BotOpponent_WantsDuelCommit(bs)) {
 		return 1;
 	}
 	return 0;
+}
+
+float BotEnhanced_SkillScale(bot_state_t *bs) {
+	(void)bs;
+	return 1.0f;
+}
+
+static float BotEnhanced_EliteScaled(bot_state_t *bs, float elite) {
+	return elite * BotEnhanced_SkillScale(bs);
+}
+
+static float BotEnhanced_GetEliteOrChar(bot_state_t *bs, float elite,
+	int charId, float minVal, float maxVal) {
+	if (BotEnhanced_IsActive()) {
+		return BotEnhanced_EliteScaled(bs, elite);
+	}
+	return trap_Characteristic_BFloat(bs->character, charId, minVal, maxVal);
+}
+
+float BotEnhanced_GetReactionTime(bot_state_t *bs) {
+	return BotEnhanced_GetEliteOrChar(bs, BOTENH_ELITE_REACTION_TIME,
+		CHARACTERISTIC_REACTIONTIME, 0, 1);
+}
+
+float BotEnhanced_GetViewFactor(bot_state_t *bs) {
+	return BotEnhanced_GetEliteOrChar(bs, BOTENH_ELITE_VIEW_FACTOR,
+		CHARACTERISTIC_VIEW_FACTOR, 0.01f, 1.0f);
+}
+
+float BotEnhanced_GetViewMaxChange(bot_state_t *bs) {
+	return BotEnhanced_GetEliteOrChar(bs, BOTENH_ELITE_VIEW_MAXCHANGE,
+		CHARACTERISTIC_VIEW_MAXCHANGE, 1.0f, 1800.0f);
+}
+
+float BotEnhanced_GetAimSkill(bot_state_t *bs) {
+	return BotEnhanced_GetEliteOrChar(bs, BOTENH_ELITE_AIM_SKILL,
+		CHARACTERISTIC_AIM_SKILL, 0, 1);
+}
+
+float BotEnhanced_GetAimAccuracy(bot_state_t *bs) {
+	return BotEnhanced_GetEliteOrChar(bs, BOTENH_ELITE_AIM_ACCURACY,
+		CHARACTERISTIC_AIM_ACCURACY, 0, 1);
+}
+
+float BotEnhanced_GetAttackSkill(bot_state_t *bs) {
+	return BotEnhanced_GetEliteOrChar(bs, BOTENH_ELITE_ATTACK_SKILL,
+		CHARACTERISTIC_ATTACK_SKILL, 0, 1);
+}
+
+float BotEnhanced_GetFireThrottle(bot_state_t *bs) {
+	return BotEnhanced_GetEliteOrChar(bs, BOTENH_ELITE_FIRE_THROTTLE,
+		CHARACTERISTIC_FIRETHROTTLE, 0, 1);
+}
+
+float BotEnhanced_GetAlertness(bot_state_t *bs) {
+	return BotEnhanced_GetEliteOrChar(bs, BOTENH_ELITE_ALERTNESS,
+		CHARACTERISTIC_ALERTNESS, 0, 1);
+}
+
+float BotEnhanced_GetEasyFragger(bot_state_t *bs) {
+	return BotEnhanced_GetEliteOrChar(bs, BOTENH_ELITE_EASY_FRAGGER,
+		CHARACTERISTIC_EASY_FRAGGER, 0, 1);
 }
 
 int BotEnhanced_AllowsVoluntaryCloseGauntlet(bot_state_t *bs) {
 	if (!bs || !BotEnhanced_IsActive()) {
 		return 0;
 	}
-	return bs->settings.skill >= 4.0f;
+	return BotEnhanced_SkillScale(bs) >= 0.75f;
 }
 
 void BotEnhanced_ResetBot(bot_state_t *bs) {
 	if (bs) {
 		bs->enh_goal_last_push_time = 0.0f;
+		bs->enh_cached_active = 0;
+		bs->enh_cached_debug = 0;
+		bs->enh_travel_tfl = 0;
+		bs->enh_travel_tfl_valid = qfalse;
 	}
 	BotMoveHarness_Reset(bs);
 	BotEvents_Reset(bs);
@@ -509,4 +752,29 @@ void BotEnhanced_ResetBot(bot_state_t *bs) {
 	BotWpnSelect_Reset(bs);
 	BotTactics_Reset(bs);
 	BotItems_Reset(bs);
+	BotItemTiming_Reset(bs);
+	BotPosition_Reset(bs);
+	BotOpponent_Reset(bs);
+	BotNavGuard_Reset(bs);
+}
+
+void BotEnhanced_OnArenaEntry(int clientNum) {
+	bot_state_t *bs;
+
+	if (clientNum < 0 || clientNum >= MAX_CLIENTS) {
+		return;
+	}
+	bs = botstates[clientNum];
+	if (!bs || !bs->inuse) {
+		return;
+	}
+	bs->entergame_time = FloatTime();
+	bs->entergamechat = qfalse;
+	BotEnhanced_ResetBot(bs);
+	if (BotItemTiming_IsActive()) {
+		BotItemTiming_OnSpawn(bs);
+	}
+	if (BotEnhanced_IsActive()) {
+		BotOpponent_OnSpawn(bs);
+	}
 }

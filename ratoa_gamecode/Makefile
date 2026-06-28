@@ -1794,13 +1794,15 @@ Q3GOBJ_ = \
   $(B)/baseq3/game/ai_dmq3.o \
   $(B)/baseq3/game/ai_bot_enhanced.o \
   $(B)/baseq3/game/ai_bot_combat.o \
-  $(B)/baseq3/game/ai_bot_events.o \
-  $(B)/baseq3/game/ai_bot_move_util.o \
   $(B)/baseq3/game/ai_bot_move_harness.o \
   $(B)/baseq3/game/ai_aim_harness.o \
   $(B)/baseq3/game/ai_weapon_select.o \
   $(B)/baseq3/game/ai_bot_tactics.o \
   $(B)/baseq3/game/ai_bot_items.o \
+  $(B)/baseq3/game/ai_bot_position.o \
+  $(B)/baseq3/game/ai_bot_opponent.o \
+  $(B)/baseq3/game/ai_bot_nav_guard.o \
+  $(B)/baseq3/game/ai_bot_dmnet.o \
   $(B)/baseq3/game/ai_main.o \
   $(B)/baseq3/game/ai_team.o \
   $(B)/baseq3/game/ai_vcmd.o \
@@ -1863,12 +1865,15 @@ MPGOBJ_ = \
   $(B)/missionpack/game/ai_dmq3.o \
   $(B)/missionpack/game/ai_bot_enhanced.o \
   $(B)/missionpack/game/ai_bot_combat.o \
-  $(B)/missionpack/game/ai_bot_events.o \
-  $(B)/missionpack/game/ai_bot_move_util.o \
   $(B)/missionpack/game/ai_bot_move_harness.o \
   $(B)/missionpack/game/ai_aim_harness.o \
   $(B)/missionpack/game/ai_weapon_select.o \
   $(B)/missionpack/game/ai_bot_tactics.o \
+  $(B)/missionpack/game/ai_bot_items.o \
+  $(B)/missionpack/game/ai_bot_position.o \
+  $(B)/missionpack/game/ai_bot_opponent.o \
+  $(B)/missionpack/game/ai_bot_nav_guard.o \
+  $(B)/missionpack/game/ai_bot_dmnet.o \
   $(B)/missionpack/game/ai_main.o \
   $(B)/missionpack/game/ai_team.o \
   $(B)/missionpack/game/ai_vcmd.o \

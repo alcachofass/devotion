@@ -1821,7 +1821,9 @@ void CG_DrawBotAimFollowFirstPerson( void ) {
 	}
 
 	cent = &cg_entities[cg.snap->ps.clientNum];
-	CG_BotAimDebugEye( cent, bodyStart, CG_BOTAIMDBG_BODY_HEIGHT );
+	/* Chest height — eye origin hides rails under the follow crosshair. */
+	VectorCopy(cg.snap->ps.origin, bodyStart);
+	bodyStart[2] += cg.snap->ps.viewheight * CG_BOTAIMDBG_BODY_HEIGHT;
 
 	VectorCopy( cg.snap->ps.grapplePoint, aimPoint );
 	if (VectorLengthSquared( aimPoint ) < 64.0f ) {

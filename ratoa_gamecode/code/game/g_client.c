@@ -3126,6 +3126,9 @@ void ClientBegin( int clientNum ) {
 
 	if (ent->r.svFlags & SVF_BOT) {
 		BotAimHarness_SyncClientDebug(clientNum);
+		if (client->sess.sessionTeam != TEAM_SPECTATOR) {
+			BotEnhanced_OnArenaEntry(clientNum);
+		}
 	}
 
 	if( ( client->sess.sessionTeam != TEAM_SPECTATOR ) &&

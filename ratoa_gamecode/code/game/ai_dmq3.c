@@ -45,11 +45,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 #include "ai_main.h"
 #include "ai_bot_enhanced.h"
+#include "ai_bot_opponent.h"
+#include "ai_bot_combat.h"
 #include "ai_dmq3.h"
 #include "ai_aim_harness.h"
 #include "ai_weapon_select.h"
 #include "ai_bot_tactics.h"
-#include "ai_bot_combat.h"
 #include "ai_bot_move_harness.h"
 #include "ai_chat.h"
 #include "ai_cmd.h"
@@ -1729,7 +1730,7 @@ void BotChooseWeapon(bot_state_t *bs) {
 		trap_EA_SelectWeapon(bs->client, bs->weaponnum);
 	}
 	else {
-		if (BotEnhanced_WeaponsActive() && !BotWpnSelect_ShouldRunChooser(bs)) {
+		if (BotEnhanced_IsActive() && !BotWpnSelect_ShouldRunChooser(bs)) {
 			trap_EA_SelectWeapon(bs->client, bs->weaponnum);
 			return;
 		}
@@ -1740,7 +1741,7 @@ void BotChooseWeapon(bot_state_t *bs) {
                 else {
 			if (bs->enemy >= 0) {
 				newweaponnum = BotWpnSelect_Choose(bs);
-			} else if (BotEnhanced_WeaponsActive()) {
+			} else if (BotEnhanced_IsActive()) {
 				newweaponnum = BotWpnSelect_ChooseRoaming(bs);
 			} else {
 				newweaponnum = -1;
@@ -2408,47 +2409,88 @@ int TeamPlayIsOn(void) {
 BotAggression
 ==================
 */
+static float BotAggression_WithOpponentBias(bot_state_t *bs, float agg) {
+	float bias;
+
+	if (!BotOpponent_IsTracking(bs)) {
+		return agg;
+	}
+	bias = BotOpponent_GetEngageBias(bs);
+	if (bias < 0.0f) {
+		agg += bias * 55.0f;
+		if (agg < 0.0f) {
+			agg = 0.0f;
+		}
+	} else if (bias > 0.0f) {
+		agg += bias * 45.0f;
+		if (agg > 100.0f) {
+			agg = 100.0f;
+		}
+	}
+	return agg;
+}
+
 float BotAggression(bot_state_t *bs) {
 	//if the bot has quad
 	if (bs->inventory[INVENTORY_QUAD]) {
 		//if the bot is not holding the gauntlet or the enemy is really nearby
 		if (bs->weaponnum != WP_GAUNTLET ||
 			bs->inventory[ENEMY_HORIZONTAL_DIST] < 80) {
-			return 70;
+			return BotAggression_WithOpponentBias(bs, 70.0f);
 		}
 	}
 	//if the enemy is located way higher than the bot
-	if (bs->inventory[ENEMY_HEIGHT] > 200) return 0;
+	if (bs->inventory[ENEMY_HEIGHT] > 200) {
+		return BotAggression_WithOpponentBias(bs, 0.0f);
+	}
 	//if the bot is very low on health
-	if (bs->inventory[INVENTORY_HEALTH] < 60) return 0;
+	if (bs->inventory[INVENTORY_HEALTH] < 60) {
+		return BotAggression_WithOpponentBias(bs, 0.0f);
+	}
 	//if the bot is low on health
 	if (bs->inventory[INVENTORY_HEALTH] < 80) {
 		//if the bot has insufficient armor
-		if (bs->inventory[INVENTORY_ARMOR] < 40) return 0;
+		if (bs->inventory[INVENTORY_ARMOR] < 40) {
+			return BotAggression_WithOpponentBias(bs, 0.0f);
+		}
 	}
 	//if the bot can use the bfg
 	if (bs->inventory[INVENTORY_BFG10K] > 0 &&
-			bs->inventory[INVENTORY_BFGAMMO] > 7) return 100;
+			bs->inventory[INVENTORY_BFGAMMO] > 7) {
+		return BotAggression_WithOpponentBias(bs, 100.0f);
+	}
 	//if the bot can use the railgun
 	if (bs->inventory[INVENTORY_RAILGUN] > 0 &&
-			bs->inventory[INVENTORY_SLUGS] > 5) return 95;
+			bs->inventory[INVENTORY_SLUGS] > 5) {
+		return BotAggression_WithOpponentBias(bs, 95.0f);
+	}
 	//if the bot can use the lightning gun
 	if (bs->inventory[INVENTORY_LIGHTNING] > 0 &&
-			bs->inventory[INVENTORY_LIGHTNINGAMMO] > 50) return 90;
+			bs->inventory[INVENTORY_LIGHTNINGAMMO] > 50) {
+		return BotAggression_WithOpponentBias(bs, 90.0f);
+	}
 	//if the bot can use the rocketlauncher
 	if (bs->inventory[INVENTORY_ROCKETLAUNCHER] > 0 &&
-			bs->inventory[INVENTORY_ROCKETS] > 5) return 90;
+			bs->inventory[INVENTORY_ROCKETS] > 5) {
+		return BotAggression_WithOpponentBias(bs, 90.0f);
+	}
 	//if the bot can use the plasmagun
 	if (bs->inventory[INVENTORY_PLASMAGUN] > 0 &&
-			bs->inventory[INVENTORY_CELLS] > 40) return 85;
+			bs->inventory[INVENTORY_CELLS] > 40) {
+		return BotAggression_WithOpponentBias(bs, 85.0f);
+	}
 	//if the bot can use the grenade launcher
 	if (bs->inventory[INVENTORY_GRENADELAUNCHER] > 0 &&
-			bs->inventory[INVENTORY_GRENADES] > 10) return 80;
+			bs->inventory[INVENTORY_GRENADES] > 10) {
+		return BotAggression_WithOpponentBias(bs, 80.0f);
+	}
 	//if the bot can use the shotgun
 	if (bs->inventory[INVENTORY_SHOTGUN] > 0 &&
-			bs->inventory[INVENTORY_SHELLS] > 10) return 50;
+			bs->inventory[INVENTORY_SHELLS] > 10) {
+		return BotAggression_WithOpponentBias(bs, 50.0f);
+	}
 	//otherwise the bot is not feeling too good
-	return 0;
+	return BotAggression_WithOpponentBias(bs, 0.0f);
 }
 
 /*
@@ -2524,8 +2566,16 @@ int BotWantsToRetreat(bot_state_t *bs) {
 	if (bs->ltgtype == LTG_GETFLAG)
 		return qtrue;
 	//
-	if (BotAggression(bs) < 50)
+	if (BotAggression(bs) < 50) {
+		if (BotOpponent_IsActive() && BotOpponent_WantsDuelCommit(bs) &&
+				bs->enemy >= 0 && BotFeelingBad(bs) < 50) {
+			return qfalse;
+		}
 		return qtrue;
+	}
+	if (BotOpponent_IsActive() && BotOpponent_WantsAvoidEngagement(bs)) {
+		return qtrue;
+	}
 	return qfalse;
 }
 
@@ -2578,6 +2628,12 @@ int BotWantsToChase(bot_state_t *bs) {
 	if (bs->ltgtype == LTG_GETFLAG)
 		return qfalse;
 	//
+	if (BotOpponent_IsActive() && BotOpponent_WantsDuelCommit(bs)) {
+		return qtrue;
+	}
+	if (BotOpponent_IsActive() && BotOpponent_WantsAvoidEngagement(bs)) {
+		return qfalse;
+	}
 	if (BotAggression(bs) > 50)
 		return qtrue;
 	return qfalse;
@@ -2854,7 +2910,7 @@ BotAttackMove
 ==================
 */
 bot_moveresult_t BotAttackMove(bot_state_t *bs, int tfl) {
-	int movetype, i, attackentity;
+	int movetype, i, attackentity, holdHighGround;
 	float attack_skill, jumper, croucher, dist, strafechange_time;
 	float attack_dist, attack_range;
 	vec3_t forward, backward, sideward, hordir, up = {0, 0, 1};
@@ -2863,6 +2919,7 @@ bot_moveresult_t BotAttackMove(bot_state_t *bs, int tfl) {
 	bot_goal_t goal;
 
 	attackentity = bs->enemy;
+	holdHighGround = 0;
 	//
 	if (bs->attackchase_time > FloatTime()) {
 		//create the chase goal
@@ -2880,11 +2937,14 @@ bot_moveresult_t BotAttackMove(bot_state_t *bs, int tfl) {
 	//
 	memset(&moveresult, 0, sizeof(bot_moveresult_t));
 	//
-	attack_skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_ATTACK_SKILL, 0, 1);
+	attack_skill = BotEnhanced_GetAttackSkill(bs);
 	jumper = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_JUMPER, 0, 1);
 	croucher = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_CROUCHER, 0, 1);
 	//if the bot is really stupid
-	if (attack_skill < 0.2) return moveresult;
+	if (!BotEnhanced_IsActive() && attack_skill < 0.2) return moveresult;
+	if (BotEnhanced_IsActive()) {
+		return BotCombat_AttackMove(bs, tfl);
+	}
 	//initialize the movement state
 	BotSetupForMovement(bs);
 	//get the enemy entity info
@@ -2926,22 +2986,10 @@ bot_moveresult_t BotAttackMove(bot_state_t *bs, int tfl) {
 		attack_dist = IDEAL_ATTACKDIST;
 		attack_range = 40;
 	}
-	/* ENHANCED: rush opponent — charge in (gauntlet / voluntary SG / plasma) */
-	if (BotCombat_IsRushOpponent(bs) &&
-			bs->combat.move_policy == BOT_MOVE_CLOSE_MELEE) {
-		movetype = MOVE_WALK;
-		if (trap_BotMoveInDirection(bs->ms, forward, 400, movetype)) {
-			return moveresult;
-		}
-		if (trap_BotMoveInDirection(bs->ms, forward, 400, MOVE_RUN)) {
-			return moveresult;
-		}
-		return moveresult;
-	}
 	//if the bot is stupid
 	if (attack_skill <= 0.4) {
 		//just walk to or away from the enemy
-		if (dist > attack_dist + attack_range) {
+		if (dist > attack_dist + attack_range && !holdHighGround) {
 			if (trap_BotMoveInDirection(bs->ms, forward, 400, movetype)) return moveresult;
 		}
 		if (dist < attack_dist - attack_range) {
@@ -2975,15 +3023,15 @@ bot_moveresult_t BotAttackMove(bot_state_t *bs, int tfl) {
 		//reverse the vector depending on the strafe direction
 		if (bs->flags & BFL_STRAFERIGHT) VectorNegate(sideward, sideward);
 		//randomly go back a little
-		if (random() > 0.9) {
+		if (!holdHighGround && random() > 0.9) {
 			VectorAdd(sideward, backward, sideward);
 		}
 		else {
 			//walk forward or backward to get at the ideal attack distance
-			if (dist > attack_dist + attack_range) {
+			if (dist > attack_dist + attack_range && !holdHighGround) {
 				VectorAdd(sideward, forward, sideward);
 			}
-			else if (dist < attack_dist - attack_range) {
+			else if (dist < attack_dist - attack_range && !holdHighGround) {
 				VectorAdd(sideward, backward, sideward);
 			}
 		}
@@ -3163,6 +3211,19 @@ float BotEntityVisible(int viewer, vec3_t eye, vec3_t viewangles, float fov, int
 BotFindEnemy
 ==================
 */
+int BotAI_IsOriginNearRecentTeleport(const vec3_t origin) {
+	vec3_t dir;
+
+	if (!origin) {
+		return 0;
+	}
+	if (lastteleport_time <= FloatTime() - 3) {
+		return 0;
+	}
+	VectorSubtract(origin, lastteleport_origin, dir);
+	return VectorLengthSquared(dir) < Square(70);
+}
+
 int BotFindEnemy(bot_state_t *bs, int curenemy) {
 	int i, healthdecrease;
 	float f, alertness, easyfragger, vis;
@@ -3170,8 +3231,8 @@ int BotFindEnemy(bot_state_t *bs, int curenemy) {
 	aas_entityinfo_t entinfo, curenemyinfo;
 	vec3_t dir, angles;
 
-	alertness = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_ALERTNESS, 0, 1);
-	easyfragger = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_EASY_FRAGGER, 0, 1);
+	alertness = BotEnhanced_GetAlertness(bs);
+	easyfragger = BotEnhanced_GetEasyFragger(bs);
 	//check if the health decreased
 	healthdecrease = bs->lasthealth > bs->inventory[INVENTORY_HEALTH];
 	//remember the current health value
@@ -3189,6 +3250,11 @@ int BotFindEnemy(bot_state_t *bs, int curenemy) {
 	if (curenemy >= 0) {
 		BotEntityInfo(curenemy, &curenemyinfo);
 		if (EntityCarriesFlag(&curenemyinfo)) return qfalse;
+	}
+	if (BotEnhanced_IsActive()) {
+		return BotCombat_FindEnemy(bs, curenemy);
+	}
+	if (curenemy >= 0) {
 		VectorSubtract(curenemyinfo.origin, bs->origin, dir);
 		cursquaredist = VectorLengthSquared(dir);
 	}
@@ -3561,12 +3627,12 @@ void BotAimAtEnemy(bot_state_t *bs) {
 	//
 	//BotAI_Print(PRT_MESSAGE, "client %d: aiming at client %d\n", bs->entitynum, bs->enemy);
 	//
-	aim_skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_SKILL, 0, 1);
-	aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY, 0, 1);
+	aim_skill = BotEnhanced_GetAimSkill(bs);
+	aim_accuracy = BotEnhanced_GetAimAccuracy(bs);
 	//
-	if (aim_skill > 0.95) {
+	if (!BotEnhanced_IsActive() && aim_skill > 0.95) {
 		//don't aim too early
-		reactiontime = 0.5 * trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_REACTIONTIME, 0, 1);
+		reactiontime = 0.5f * BotEnhanced_GetReactionTime(bs);
 		if (bs->enemysight_time > FloatTime() - reactiontime) return;
 		if (bs->teleport_time > FloatTime() - reactiontime) return;
 	}
@@ -3574,40 +3640,42 @@ void BotAimAtEnemy(bot_state_t *bs) {
 	//get the weapon information
 	trap_BotGetWeaponInfo(bs->ws, bs->weaponnum, &wi);
 	//get the weapon specific aim accuracy and or aim skill
-	if (wi.number == WP_MACHINEGUN) {
-		aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY_MACHINEGUN, 0, 1);
-	}
-	else if (wi.number == WP_SHOTGUN) {
-		aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY_SHOTGUN, 0, 1);
-	}
-	else if (wi.number == WP_GRENADE_LAUNCHER) {
-		aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY_GRENADELAUNCHER, 0, 1);
-		aim_skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_SKILL_GRENADELAUNCHER, 0, 1);
-	}
-	else if (wi.number == WP_ROCKET_LAUNCHER) {
-		aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY_ROCKETLAUNCHER, 0, 1);
-		aim_skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_SKILL_ROCKETLAUNCHER, 0, 1);
-	}
-	else if (wi.number == WP_LIGHTNING) {
-		aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY_LIGHTNING, 0, 1);
-	}
-	else if (wi.number == WP_RAILGUN) {
-		aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY_RAILGUN, 0, 1);
-	}
-	else if (wi.number == WP_PLASMAGUN) {
-		aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY_PLASMAGUN, 0, 1);
-		aim_skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_SKILL_PLASMAGUN, 0, 1);
-	}
-	else if (wi.number == WP_BFG) {
-		aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY_BFG10K, 0, 1);
-		aim_skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_SKILL_BFG10K, 0, 1);
+	if (!BotEnhanced_IsActive()) {
+		if (wi.number == WP_MACHINEGUN) {
+			aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY_MACHINEGUN, 0, 1);
+		}
+		else if (wi.number == WP_SHOTGUN) {
+			aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY_SHOTGUN, 0, 1);
+		}
+		else if (wi.number == WP_GRENADE_LAUNCHER) {
+			aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY_GRENADELAUNCHER, 0, 1);
+			aim_skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_SKILL_GRENADELAUNCHER, 0, 1);
+		}
+		else if (wi.number == WP_ROCKET_LAUNCHER) {
+			aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY_ROCKETLAUNCHER, 0, 1);
+			aim_skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_SKILL_ROCKETLAUNCHER, 0, 1);
+		}
+		else if (wi.number == WP_LIGHTNING) {
+			aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY_LIGHTNING, 0, 1);
+		}
+		else if (wi.number == WP_RAILGUN) {
+			aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY_RAILGUN, 0, 1);
+		}
+		else if (wi.number == WP_PLASMAGUN) {
+			aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY_PLASMAGUN, 0, 1);
+			aim_skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_SKILL_PLASMAGUN, 0, 1);
+		}
+		else if (wi.number == WP_BFG) {
+			aim_accuracy = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_ACCURACY_BFG10K, 0, 1);
+			aim_skill = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_AIM_SKILL_BFG10K, 0, 1);
+		}
 	}
 	//
 	if (aim_accuracy <= 0) aim_accuracy = 0.0001f;
 	//get the enemy entity information
 	BotEntityInfo(bs->enemy, &entinfo);
 	//if the enemy is invisible then shoot crappy most of the time
-	if (EntityIsInvisible(&entinfo)) {
+	if (!BotEnhanced_IsActive() && EntityIsInvisible(&entinfo)) {
 		if (random() > 0.1) aim_accuracy *= 0.4f;
 	}
 	//
@@ -3621,7 +3689,7 @@ void BotAimAtEnemy(bot_state_t *bs) {
 		VectorCopy(entinfo.origin, bs->enemyorigin);
 	}
 	//if not extremely skilled
-	if (aim_skill < 0.9) {
+	if (!BotEnhanced_IsActive() && aim_skill < 0.9) {
 		VectorSubtract(entinfo.origin, bs->enemyorigin, dir);
 		//if the enemy moved a bit
 		if (VectorLengthSquared(dir) > Square(48)) {
@@ -3633,12 +3701,15 @@ void BotAimAtEnemy(bot_state_t *bs) {
 		}
 	}
 	//check visibility of enemy
+	if (BotEnhanced_IsActive()) {
+		BotAimHarness_PreserveAimTargetSample(bs);
+	}
 	enemyvisible = BotEntityVisible(bs->entitynum, bs->eye, bs->viewangles, 360, bs->enemy);
 	//if the enemy is visible
 	if (enemyvisible) {
 		//
 		VectorCopy(entinfo.origin, bestorigin);
-		if (BotEnhanced_AimActive() && wi.number == WP_PLASMAGUN) {
+		if (BotEnhanced_IsActive() && wi.number == WP_PLASMAGUN) {
 			bestorigin[2] += 28;
 		} else {
 			bestorigin[2] += 8;
@@ -3707,7 +3778,7 @@ void BotAimAtEnemy(bot_state_t *bs) {
 		}
 		//if the projectile does radial damage
 		if (aim_skill > 0.6 && wi.proj.damagetype & DAMAGETYPE_RADIAL &&
-				!(BotEnhanced_AimActive() && wi.number == WP_PLASMAGUN)) {
+				!(BotEnhanced_IsActive() && wi.number == WP_PLASMAGUN)) {
 			//if the enemy isn't standing significantly higher than the bot
 			if (entinfo.origin[2] < bs->origin[2] + 16) {
 				//try to aim at the ground in front of the enemy
@@ -3741,7 +3812,7 @@ void BotAimAtEnemy(bot_state_t *bs) {
 			}
 		}
 		/* ENHANCED: aim — combat origin jitter when harness off */
-		if (!BotEnhanced_AimActive()) {
+		if (!BotEnhanced_IsActive()) {
 			bestorigin[0] += 20 * crandom() * (1 - aim_accuracy);
 			bestorigin[1] += 20 * crandom() * (1 - aim_accuracy);
 			bestorigin[2] += 10 * crandom() * (1 - aim_accuracy);
@@ -3756,7 +3827,8 @@ void BotAimAtEnemy(bot_state_t *bs) {
 			//do prediction shots around corners
 			if (wi.number == WP_BFG ||
 				wi.number == WP_ROCKET_LAUNCHER ||
-				wi.number == WP_GRENADE_LAUNCHER) {
+				wi.number == WP_GRENADE_LAUNCHER ||
+				wi.number == WP_PLASMAGUN) {
 				//create the chase goal
 				goal.entitynum = bs->client;
 				goal.areanum = bs->areanum;
@@ -3783,16 +3855,19 @@ void BotAimAtEnemy(bot_state_t *bs) {
 	else {
 		VectorCopy(bestorigin, bs->aimtarget);
 	}
-	if (BotEnhanced_AimActive() && wi.number == WP_ROCKET_LAUNCHER) {
+	if (BotEnhanced_IsActive() && wi.number == WP_ROCKET_LAUNCHER) {
 		BotAimHarness_ApplyRocketFeetAim(bs, bs->aimtarget);
 	}
-	if (BotEnhanced_AimActive() && wi.number == WP_PLASMAGUN) {
+	if (BotEnhanced_IsActive() && wi.number == WP_PLASMAGUN) {
 		BotAimHarness_ApplyPlasmaCenterMassAim(bs, bs->aimtarget);
 	}
-	if (BotEnhanced_AimActive() && wi.number == WP_RAILGUN) {
+	if (BotEnhanced_IsActive() && wi.number == WP_RAILGUN) {
 		BotAimHarness_ApplyRailInterceptAim(bs, bs->aimtarget, aim_skill, aim_accuracy);
-	} else if (BotEnhanced_AimActive()) {
+	} else if (BotEnhanced_IsActive() && !BotAimHarness_UsingTrackingHitscan(bs)) {
 		BotAimHarness_ApplyMovementLead(bs, bs->aimtarget, aim_skill);
+	}
+	if (BotEnhanced_IsActive()) {
+		BotAimHarness_CommitAimTargetSample(bs);
 	}
 	//get aim direction
 	VectorSubtract(bs->aimtarget, bs->eye, dir);
@@ -3807,14 +3882,14 @@ void BotAimAtEnemy(bot_state_t *bs) {
 		f = 0.6 + dist / 150 * 0.4;
 		aim_accuracy *= f;
 	}
-	if (!BotEnhanced_AimActive()) {
+	if (!BotEnhanced_IsActive()) {
 		if (aim_accuracy < 0.8) {
 			VectorNormalize(dir);
 			for (i = 0; i < 3; i++) dir[i] += 0.3 * crandom() * (1 - aim_accuracy);
 		}
 	}
 	vectoangles(dir, bs->ideal_viewangles);
-	if (!BotEnhanced_AimActive()) {
+	if (!BotEnhanced_IsActive()) {
 		bs->ideal_viewangles[PITCH] += 6 * wi.vspread * crandom() * (1 - aim_accuracy);
 		bs->ideal_viewangles[PITCH] = AngleMod(bs->ideal_viewangles[PITCH]);
 		bs->ideal_viewangles[YAW] += 6 * wi.hspread * crandom() * (1 - aim_accuracy);
@@ -3824,7 +3899,7 @@ void BotAimAtEnemy(bot_state_t *bs) {
 			wi.vspread, wi.hspread);
 	}
 	/* Legacy challenge snap-aim; skipped when enhanced aim harness is active */
-	if (bot_challenge.integer && !BotEnhanced_AimActive()) {
+	if (bot_challenge.integer && !BotEnhanced_IsActive()) {
 		//if the bot is really accurate and has the enemy in view for some time
 		if (aim_accuracy > 0.9 && bs->enemysight_time < FloatTime() - 1) {
 			//set the view angles directly
@@ -3841,7 +3916,7 @@ BotCheckAttack
 ==================
 */
 void BotCheckAttack(bot_state_t *bs) {
-	float points, reactiontime, fov, firethrottle;
+	float points, reactiontime, fov;
 	int attackentity;
 	bsp_trace_t bsptrace;
 	//float selfpreservation;
@@ -3873,22 +3948,28 @@ void BotCheckAttack(bot_state_t *bs) {
 		}
 	}
 	//
-	reactiontime = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_REACTIONTIME, 0, 1);
+	reactiontime = BotEnhanced_IsActive() ?
+		BotEnhanced_GetReactionTime(bs) :
+		trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_REACTIONTIME, 0, 1);
 	if (bs->enemysight_time > FloatTime() - reactiontime) return;
 	if (bs->teleport_time > FloatTime() - reactiontime) return;
 	//if changing weapons
 	if (bs->weaponchange_time > FloatTime() - 0.1) return;
-	//check fire throttle characteristic
-	if (bs->firethrottlewait_time > FloatTime()) return;
-	firethrottle = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_FIRETHROTTLE, 0, 1);
-	if (bs->firethrottleshoot_time < FloatTime()) {
-		if (random() > firethrottle) {
-			bs->firethrottlewait_time = FloatTime() + firethrottle;
-			bs->firethrottleshoot_time = 0;
-		}
-		else {
-			bs->firethrottleshoot_time = FloatTime() + 1 - firethrottle;
-			bs->firethrottlewait_time = 0;
+	//check fire throttle characteristic (legacy bots only; enhanced resets each think)
+	if (!BotEnhanced_IsActive()) {
+		float firethrottle;
+
+		if (bs->firethrottlewait_time > FloatTime()) return;
+		firethrottle = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_FIRETHROTTLE, 0, 1);
+		if (bs->firethrottleshoot_time < FloatTime()) {
+			if (random() > firethrottle) {
+				bs->firethrottlewait_time = FloatTime() + firethrottle;
+				bs->firethrottleshoot_time = 0;
+			}
+			else {
+				bs->firethrottleshoot_time = FloatTime() + 1 - firethrottle;
+				bs->firethrottlewait_time = 0;
+			}
 		}
 	}
 	//
@@ -3909,7 +3990,7 @@ void BotCheckAttack(bot_state_t *bs) {
 		}
 	}
 	/* ENHANCED: aim — suppressive fire (loose aim + per-frame hold for hitscan) */
-	if (BotEnhanced_AimActive() && bs->enemy >= 0 && bs->enemy < MAX_CLIENTS) {
+	if (BotEnhanced_IsActive() && bs->enemy >= 0 && bs->enemy < MAX_CLIENTS) {
 		BotAimHarness_CheckAttack(bs);
 		return;
 	}
@@ -4744,6 +4825,9 @@ void BotAIBlocked(bot_state_t *bs, bot_moveresult_t *moveresult, int activate) {
 		bs->notblocked_time = FloatTime();
 		return;
 	}
+	if (BotEnhanced_SuppressBlockedAvoid(bs)) {
+		return;
+	}
 	// weapon jump uses fixed view/weapon; sidestep avoidance breaks alignment
 	if (moveresult->flags & (MOVERESULT_MOVEMENTVIEWSET | MOVERESULT_MOVEMENTVIEW |
 			MOVERESULT_MOVEMENTWEAPON | MOVERESULT_SWIMVIEW)) {
@@ -5074,6 +5158,27 @@ void BotCheckForKamikazeBody(bot_state_t *bs, entityState_t *state) {
 
 /*
 ==================
+BotAI_EventPickerClient
+==================
+*/
+int BotAI_EventPickerClient(const entityState_t *state) {
+	int picker;
+
+	if (!state) {
+		return -1;
+	}
+	if (state->eType > ET_EVENTS) {
+		picker = state->otherEntityNum;
+	} else if (state->clientNum >= 0 && state->clientNum < MAX_CLIENTS) {
+		picker = state->clientNum;
+	} else {
+		picker = state->number;
+	}
+	return picker;
+}
+
+/*
+==================
 BotCheckEvents
 ==================
 */
@@ -5169,6 +5274,7 @@ void BotCheckEvents(bot_state_t *bs, entityState_t *state) {
 				if (!strcmp(buf, "sound/items/poweruprespawn.wav")) {
 				//powerup respawned... go get it
 				BotGoForPowerups(bs);
+				BotEnhanced_OnPowerupRespawnSound(bs, state->origin);
 			}
 			break;
 		}
@@ -5290,6 +5396,9 @@ void BotCheckEvents(bot_state_t *bs, entityState_t *state) {
 		case EV_WATER_CLEAR:
 		case EV_ITEM_PICKUP:
 		case EV_GLOBAL_ITEM_PICKUP:
+		case EV_ITEM_RESPAWN:
+			BotEnhanced_OnSnapshotClientEvent(bs, state, event);
+			break;
 		case EV_NOAMMO:
 		case EV_CHANGE_WEAPON:
 		case EV_FIRE_WEAPON:
@@ -5312,6 +5421,7 @@ void BotCheckEvents(bot_state_t *bs, entityState_t *state) {
 		case EV_USE_ITEM14:
 			break;
 	}
+	BotOpponent_OnClientEvent(bs, state, event);
 }
 
 /*
@@ -5344,12 +5454,22 @@ void BotCheckSnapshot(bot_state_t *bs) {
 		BotCheckForKamikazeBody(bs, &state);
 	}
 	//check the player state for events
-	BotAI_GetEntityState(bs->client, &state);
-	//copy the player state events to the entity state
-	state.event = bs->cur_ps.externalEvent;
-	state.eventParm = bs->cur_ps.externalEventParm;
-	//
-	BotCheckEvents(bs, &state);
+	if (BotAI_GetEntityState(bs->client, &state)) {
+		/* externalEvent is only on playerState; stamp picker identity. */
+		state.number = bs->client;
+		state.clientNum = bs->client;
+		state.event = bs->cur_ps.externalEvent;
+		state.eventParm = bs->cur_ps.externalEventParm;
+		BotCheckEvents(bs, &state);
+	} else if (bs->cur_ps.externalEvent) {
+		memset(&state, 0, sizeof(state));
+		state.number = bs->client;
+		state.clientNum = bs->client;
+		VectorCopy(bs->origin, state.origin);
+		state.event = bs->cur_ps.externalEvent;
+		state.eventParm = bs->cur_ps.externalEventParm;
+		BotCheckEvents(bs, &state);
+	}
 }
 
 /*
@@ -5560,11 +5680,9 @@ void BotDeathmatchAI(bot_state_t *bs, float thinktime) {
 		//update some inventory values
 		BotUpdateInventory(bs);
 		BotEnhanced_OnThinkStart(bs);
-		if (BotEnhanced_WeaponsActive() && bs->enemy < 0 && !BotIsObserver(bs)) {
-			BotWpnSelect_TickRoaming(bs);
-		}
 		//check out the snapshot
 		BotCheckSnapshot(bs);
+		BotEnhanced_AfterCheckSnapshot(bs);
 		//check for air
 		BotCheckAir(bs);
 	}

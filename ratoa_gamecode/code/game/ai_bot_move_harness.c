@@ -4,9 +4,9 @@ BOT MOVE HARNESS — botlib movement bypass for enhanced aim; rocket jump maneuv
 walk-off ledge fall-damage avoidance.
 
 bot_enhanced_movement gates the enhanced rocket-jump maneuver and the walk-off
-ledge fall-damage check.  The aim-motor bypass (BotMoveHarness_IsActive) still
-follows bot_enhanced_aim so botlib can own view during native RJ travel even when
-movement enhancements are off.
+ledge fall-damage check when bot_enhanced is on.  The aim-motor bypass
+(BotMoveHarness_IsActive) follows bot_enhanced so botlib can own view during
+native RJ travel.
 ===========================================================================
 */
 
@@ -26,16 +26,29 @@ movement enhancements are off.
 #include "ai_bot_move_util.h"
 #include "ai_bot_move_harness.h"
 #include "ai_bot_items.h"
+#include "ai_bot_position.h"
+#include "ai_dmq3.h"
 
-vmCvar_t bot_enhanced_movement;
+extern vmCvar_t bot_grapple;
 
 #define BOTMOVE_BYPASS_LATCH_SEC	2.5f
-#define BOTMOVE_WALKOFF_BLOCK_SEC	10.0f
+/* Short routing ban after repeated/damage walkoff aborts (not every single step). */
+#define BOTMOVE_WALKOFF_BLOCK_SEC	2.5f
+#define BOTMOVE_WALKOFF_BLOCK_DAMAGE_SEC	4.0f
+#define BOTMOVE_WALKOFF_OSCILLATE_RADIUS	128.0f
+#define BOTMOVE_WALKOFF_OSCILLATE_WINDOW	6.0f
+#define BOTMOVE_WALKOFF_OSCILLATE_ABORTS	2
+#define BOTMOVE_WALKOFF_ALLOW_SEC		5.0f
+#define BOTMOVE_WALKOFF_REQUIRED_SLACK	1.5f
 #define BOTMOVE_URGENT_HEALTH_SEC	14.0f
 #define BOTMOVE_WALKOFF_PRED_FRAMES	24
 #define BOTMOVE_WALKOFF_PRED_FRAMETIME	0.1f
-/* Abort a walkoff when the landing Z would be this far below a committed item goal. */
-#define BOTMOVE_COMMIT_ABOVE_THRESHOLD	96.0f
+/* Max vertical drop (uu) before walk-off steps may be vetoed. */
+#define BOTMOVE_MAX_SAFE_WALKOFF_DROP	128.0f
+/* Item goal Z vs landing Z (large drops only); same threshold as safe drop. */
+#define BOTMOVE_COMMIT_ABOVE_THRESHOLD	BOTMOVE_MAX_SAFE_WALKOFF_DROP
+
+void BotMove_ClearWalkoffBlock(bot_state_t *bs);
 
 /* ---- Rocket jump tuning ---- */
 #define BOTMOVE_RJ_VIEWTARGET_DIST	300.0f
@@ -116,15 +129,13 @@ static int BotMove_SuppressEnhancedView(bot_state_t *bs) {
 /* ======================== Harness lifecycle ======================== */
 
 void BotMoveHarness_RegisterCvars(void) {
-	trap_Cvar_Register(&bot_enhanced_movement, "bot_enhanced_movement", "0", CVAR_ARCHIVE);
-	trap_Cvar_Update(&bot_enhanced_movement);
 }
 
 void BotMoveHarness_Reset(bot_state_t *bs) {
 	if (!bs) {
 		return;
 	}
-	bs->movej_no_walkoff_until = 0.0f;
+	BotMove_ClearWalkoffBlock(bs);
 	bs->movej_urgent_health_until = 0.0f;
 	bs->movej_moveresult_flags = 0;
 	bs->movej_bypass_until = 0.0f;
@@ -138,14 +149,14 @@ void BotMoveHarness_Reset(bot_state_t *bs) {
 	BotMove_ClearRJ(bs);
 }
 
-/* Aim-motor bypass gate: follows bot_enhanced_aim so botlib can own view. */
+/* Aim-motor bypass gate: active when bot_enhanced is on. */
 int BotMoveHarness_IsActive(void) {
-	return BotEnhanced_AimActive();
+	return BotEnhanced_IsActive();
 }
 
 /* Movement-enhancement gate: rocket-jump maneuver and walk-off avoidance. */
 static int BotMoveHarness_MovementActive(void) {
-	return BotEnhanced_MovementActive();
+	return BotEnhanced_IsActive();
 }
 
 void BotMove_CancelBypass(bot_state_t *bs) {
@@ -632,14 +643,198 @@ static void BotMove_CancelWalkoffMoveresult(bot_state_t *bs, bot_moveresult_t *m
 	trap_BotResetAvoidReach(bs->ms);
 }
 
+int BotMove_WalkoffEscapeActive(bot_state_t *bs) {
+	if (!bs) {
+		return 0;
+	}
+	return bs->movej_walkoff_allow_until > FloatTime();
+}
+
+int BotMove_HasRecentWalkoffAbort(bot_state_t *bs) {
+	if (!bs || bs->movej_walkoff_abort_count <= 0) {
+		return 0;
+	}
+	return FloatTime() - bs->movej_walkoff_abort_window <= BOTMOVE_WALKOFF_OSCILLATE_WINDOW;
+}
+
+void BotMove_TriggerWalkoffEscape(bot_state_t *bs) {
+	float now;
+
+	if (!bs) {
+		return;
+	}
+	now = FloatTime();
+	bs->movej_walkoff_allow_until = now + BOTMOVE_WALKOFF_ALLOW_SEC;
+	bs->movej_no_walkoff_until = 0.0f;
+	bs->movej_walkoff_abort_count = 0;
+	bs->movej_walkoff_abort_window = 0.0f;
+	VectorClear(bs->movej_walkoff_abort_origin);
+}
+
+void BotMove_ClearWalkoffBlock(bot_state_t *bs) {
+	if (!bs) {
+		return;
+	}
+	bs->movej_no_walkoff_until = 0.0f;
+	bs->movej_walkoff_allow_until = 0.0f;
+	bs->movej_walkoff_abort_count = 0;
+	bs->movej_walkoff_abort_window = 0.0f;
+	VectorClear(bs->movej_walkoff_abort_origin);
+}
+
+static int BotMove_GoalAreaForWalkoffCheck(bot_state_t *bs) {
+	bot_goal_t goal;
+
+	if (!bs) {
+		return 0;
+	}
+	if (BotItems_HasActiveCommit(bs) && bs->item_commit_goal.areanum) {
+		return bs->item_commit_goal.areanum;
+	}
+	if (trap_BotGetTopGoal(bs->gs, &goal) && goal.areanum) {
+		return goal.areanum;
+	}
+	return 0;
+}
+
+int BotMove_WalkoffRequiredForGoal(bot_state_t *bs, int routingTfl) {
+	int goalArea;
+	int travelFull;
+	int travelNoWalk;
+	int tflNoWalk;
+
+	if (!bs || !BotMoveHarness_MovementActive()) {
+		return 0;
+	}
+	if (!(routingTfl & TFL_WALKOFFLEDGE)) {
+		return 0;
+	}
+	if (!bs->areanum || !trap_AAS_AreaReachability(bs->areanum)) {
+		return 0;
+	}
+
+	goalArea = BotMove_GoalAreaForWalkoffCheck(bs);
+	if (!goalArea) {
+		return 0;
+	}
+
+	tflNoWalk = routingTfl & ~TFL_WALKOFFLEDGE;
+	travelFull = trap_AAS_AreaTravelTimeToGoalArea(bs->areanum, bs->origin,
+		goalArea, routingTfl);
+	if (travelFull <= 0) {
+		return 0;
+	}
+
+	travelNoWalk = trap_AAS_AreaTravelTimeToGoalArea(bs->areanum, bs->origin,
+		goalArea, tflNoWalk);
+	if (travelNoWalk <= 0) {
+		return 1;
+	}
+	if ((float)travelNoWalk > (float)travelFull * BOTMOVE_WALKOFF_REQUIRED_SLACK) {
+		return 1;
+	}
+	return 0;
+}
+
+int BotMove_ShouldDeferCommitMoveFailure(bot_state_t *bs, bot_moveresult_t *mr) {
+	int routingTfl;
+	int tfl;
+	aas_clientmove_t move;
+	float drop;
+	int fallDamage;
+	int health;
+
+	if (!bs || !BotMoveHarness_MovementActive()) {
+		return 0;
+	}
+	if (!BotItems_HasActiveCommit(bs)) {
+		return 0;
+	}
+
+	tfl = bs->enh_travel_tfl_valid ? bs->enh_travel_tfl : BotMove_BuildTravelFlags(bs);
+	if (!(tfl & TFL_WALKOFFLEDGE)) {
+		BotMove_TriggerWalkoffEscape(bs);
+		bs->enh_travel_tfl = BotMove_BuildTravelFlags(bs);
+		bs->enh_travel_tfl_valid = qtrue;
+		return 1;
+	}
+
+	if (mr && (mr->traveltype & TRAVELTYPE_MASK) == TRAVEL_WALKOFFLEDGE &&
+			BotMove_RunWalkoffPredict(bs, mr->movedir, &move)) {
+		drop = bs->origin[2] - move.endpos[2];
+		fallDamage = BotMove_EstimatePredictedFallDamage(&move, bs->origin);
+		health = bs->inventory[INVENTORY_HEALTH];
+		if (health <= 0) {
+			health = bs->cur_ps.stats[STAT_HEALTH];
+		}
+		if (drop > 0.0f && drop <= BOTMOVE_MAX_SAFE_WALKOFF_DROP &&
+				(fallDamage <= 0 || (float)fallDamage < (float)health * 0.5f)) {
+			BotMove_TriggerWalkoffEscape(bs);
+			bs->enh_travel_tfl = BotMove_BuildTravelFlags(bs);
+			bs->enh_travel_tfl_valid = qtrue;
+			return 1;
+		}
+	}
+
+	routingTfl = tfl | TFL_WALKOFFLEDGE;
+	if (BotMove_WalkoffRequiredForGoal(bs, routingTfl)) {
+		BotMove_TriggerWalkoffEscape(bs);
+		bs->enh_travel_tfl = BotMove_BuildTravelFlags(bs);
+		bs->enh_travel_tfl_valid = qtrue;
+		return 1;
+	}
+	return 0;
+}
+
+static void BotMove_RecordWalkoffAbort(bot_state_t *bs, qboolean applyRoutingBan,
+		qboolean damageAbort) {
+	float now;
+	vec3_t delta;
+
+	if (!bs) {
+		return;
+	}
+	now = FloatTime();
+
+	if (bs->movej_walkoff_abort_window <= 0.0f ||
+			now - bs->movej_walkoff_abort_window > BOTMOVE_WALKOFF_OSCILLATE_WINDOW) {
+		bs->movej_walkoff_abort_window = now;
+		bs->movej_walkoff_abort_count = 0;
+		VectorCopy(bs->origin, bs->movej_walkoff_abort_origin);
+	}
+
+	VectorSubtract(bs->origin, bs->movej_walkoff_abort_origin, delta);
+	delta[2] = 0.0f;
+	if (VectorLength(delta) > BOTMOVE_WALKOFF_OSCILLATE_RADIUS) {
+		bs->movej_walkoff_abort_window = now;
+		bs->movej_walkoff_abort_count = 0;
+		VectorCopy(bs->origin, bs->movej_walkoff_abort_origin);
+	}
+
+	bs->movej_walkoff_abort_count++;
+
+	if (bs->movej_walkoff_abort_count >= BOTMOVE_WALKOFF_OSCILLATE_ABORTS) {
+		BotMove_TriggerWalkoffEscape(bs);
+		return;
+	}
+
+	if (applyRoutingBan && bs->movej_no_walkoff_until <= now) {
+		bs->movej_no_walkoff_until = now + (damageAbort ?
+			BOTMOVE_WALKOFF_BLOCK_DAMAGE_SEC : BOTMOVE_WALKOFF_BLOCK_SEC);
+	}
+}
+
 static qboolean BotMove_TryAbortRiskyWalkoff(bot_state_t *bs, bot_moveresult_t *mr,
 		int travel) {
 	aas_clientmove_t move;
 	int health, fallDamage;
 	qboolean abortForDamage, abortForItemZ;
-	float itemGoalZ;
+	float itemGoalZ, drop;
 
 	if (!BotMoveHarness_MovementActive() || !bs || !mr) {
+		return qfalse;
+	}
+	if (BotMove_WalkoffEscapeActive(bs)) {
 		return qfalse;
 	}
 	if ((g_dmflags.integer & DF_NO_FALLING) ||
@@ -654,23 +849,25 @@ static qboolean BotMove_TryAbortRiskyWalkoff(bot_state_t *bs, bot_moveresult_t *
 		return qfalse;
 	}
 
+	drop = bs->origin[2] - move.endpos[2];
 	fallDamage = BotMove_EstimatePredictedFallDamage(&move, bs->origin);
 	health = bs->inventory[INVENTORY_HEALTH];
 	if (health <= 0) {
 		health = bs->cur_ps.stats[STAT_HEALTH];
 	}
-	/* Primary: abort when fall damage is at least half current health. */
+
+	/* Drops up to BOTMOVE_MAX_SAFE_WALKOFF_DROP are always allowed unless lethal. */
+	if (drop <= BOTMOVE_MAX_SAFE_WALKOFF_DROP) {
+		if (fallDamage <= 0 || (float)fallDamage < (float)health * 0.5f) {
+			return qfalse;
+		}
+	}
+
 	abortForDamage = (fallDamage > 0 && (float)fallDamage >= (float)health * 0.5f);
 
-	/*
-	 * Secondary: abort when the bot has an active item commit and the predicted
-	 * landing Z would be significantly below the item goal's Z.  Prevents the bot
-	 * from dropping off a ledge to reach a lower area when its committed goal is
-	 * above the landing point (common when jump-pad avoidance reroutes through a
-	 * WALKOFFLEDGE reach).
-	 */
 	abortForItemZ = qfalse;
-	if (!abortForDamage && BotItems_HasActiveCommit(bs)) {
+	if (!abortForDamage && drop > BOTMOVE_MAX_SAFE_WALKOFF_DROP &&
+			BotItems_HasActiveCommit(bs)) {
 		itemGoalZ = BotItems_GetCommitGoalOriginZ(bs);
 		abortForItemZ = (itemGoalZ > move.endpos[2] + BOTMOVE_COMMIT_ABOVE_THRESHOLD);
 	}
@@ -680,22 +877,96 @@ static qboolean BotMove_TryAbortRiskyWalkoff(bot_state_t *bs, bot_moveresult_t *
 	}
 
 	BotMove_CancelWalkoffMoveresult(bs, mr);
-	bs->movej_no_walkoff_until = FloatTime() + BOTMOVE_WALKOFF_BLOCK_SEC;
-	bs->nbg_time = 0.0f;
-	bs->ltg_time = 0.0f;
+
 	if (abortForDamage) {
-		/* Health-threatening fall: also keep urgent-health seek active. */
+		bs->nbg_time = 0.0f;
+		bs->ltg_time = 0.0f;
 		bs->movej_urgent_health_until = FloatTime() + BOTMOVE_URGENT_HEALTH_SEC;
 		BotItems_RequestUrgentHealth(bs);
+		BotMove_RecordWalkoffAbort(bs, qtrue, qtrue);
+	} else {
+		BotMove_RecordWalkoffAbort(bs, qfalse, qfalse);
 	}
 	return qtrue;
 }
 
 static int BotMove_ShouldAvoidWalkoffLedges(bot_state_t *bs) {
+	int routingTfl;
+
 	if (!bs || !BotMoveHarness_MovementActive()) {
 		return 0;
 	}
-	return bs->movej_no_walkoff_until > FloatTime();
+	if (BotMove_WalkoffEscapeActive(bs)) {
+		return 0;
+	}
+	if (bs->movej_no_walkoff_until <= FloatTime()) {
+		return 0;
+	}
+
+	routingTfl = TFL_DEFAULT;
+	if (bot_grapple.integer) {
+		routingTfl |= TFL_GRAPPLEHOOK;
+	}
+	if (BotInLavaOrSlime(bs)) {
+		routingTfl |= TFL_LAVA | TFL_SLIME;
+	}
+	if (BotCanAndWantsToRocketJump(bs)) {
+		routingTfl |= TFL_ROCKETJUMP;
+	}
+	if (BotMove_WalkoffRequiredForGoal(bs, routingTfl)) {
+		return 0;
+	}
+	return 1;
+}
+
+int BotMove_BuildTravelFlags(bot_state_t *bs) {
+	int tfl;
+
+	if (!bs) {
+		return TFL_DEFAULT;
+	}
+	tfl = bs->tfl;
+	if (!tfl) {
+		tfl = TFL_DEFAULT;
+	}
+	if (bot_grapple.integer) {
+		tfl |= TFL_GRAPPLEHOOK;
+	}
+	if (BotInLavaOrSlime(bs)) {
+		tfl |= TFL_LAVA | TFL_SLIME;
+	}
+	if (BotCanAndWantsToRocketJump(bs)) {
+		tfl |= TFL_ROCKETJUMP;
+	}
+	if (bs->jumppad_avoid_until > FloatTime()) {
+		tfl &= ~TFL_JUMPPAD;
+	}
+	if (BotMove_ShouldAvoidWalkoffLedges(bs)) {
+		tfl &= ~TFL_WALKOFFLEDGE;
+	}
+	tfl = BotPosition_AdjustTravelFlags(bs, tfl);
+	return tfl;
+}
+
+int BotMove_IsAtLedgeEdge(bot_state_t *bs) {
+	aas_clientmove_t move;
+
+	if (!bs) {
+		return 0;
+	}
+	if (bs->movej_travel_type == TRAVEL_WALKOFFLEDGE) {
+		return 1;
+	}
+	if (bs->movej_no_walkoff_until > FloatTime()) {
+		return 1;
+	}
+	if (VectorLengthSquared(bs->movej_movedir) > 0.01f &&
+			BotMove_RunWalkoffPredict(bs, bs->movej_movedir, &move)) {
+		if (bs->origin[2] - move.endpos[2] > 48.0f) {
+			return 1;
+		}
+	}
+	return 0;
 }
 
 int BotMove_WantsUrgentHealth(bot_state_t *bs) {
@@ -706,22 +977,13 @@ int BotMove_WantsUrgentHealth(bot_state_t *bs) {
 }
 
 int BotMove_EffectiveTfl(bot_state_t *bs) {
-	int tfl;
-
 	if (!bs) {
 		return TFL_DEFAULT;
 	}
-	tfl = bs->tfl;
-	if (!tfl) {
-		tfl = TFL_DEFAULT;
+	if (bs->enh_travel_tfl_valid) {
+		return bs->enh_travel_tfl;
 	}
-	if (bs->jumppad_avoid_until > FloatTime()) {
-		tfl &= ~TFL_JUMPPAD;
-	}
-	if (BotMove_ShouldAvoidWalkoffLedges(bs)) {
-		tfl &= ~TFL_WALKOFFLEDGE;
-	}
-	return tfl;
+	return BotMove_BuildTravelFlags(bs);
 }
 
 /* ======================== Think / input hooks ======================== */
@@ -747,6 +1009,7 @@ void BotMove_OnPostMoveToGoal(bot_state_t *bs, bot_moveresult_t *mr) {
 		return;
 	}
 	BotMove_RJ_OnPostMove(bs, mr, travel);
+	BotItems_OnPostMoveToGoal(bs, mr);
 }
 
 void BotMove_OnInputFrame(bot_state_t *bs, int time, float thinktime) {
@@ -771,6 +1034,8 @@ void BotMove_OnInputFrame(bot_state_t *bs, int time, float thinktime) {
 	BotMove_RJ_UpdateView(bs, worldView);
 	BotMove_RJ_TryFire(bs, &bi);
 
+	BotItems_OnInputFrame(bs, &bi);
+
 	if (bs->movej_rj_fired && bs->movej_rj_prep_view_until > FloatTime()) {
 		BotMove_RJ_ApplyFireView(bs, worldView);
 		bi.actionflags |= ACTION_ATTACK | ACTION_JUMP;
@@ -780,4 +1045,189 @@ void BotMove_OnInputFrame(bot_state_t *bs, int time, float thinktime) {
 
 	VectorCopy(worldView, bi.viewangles);
 	BotInputToUserCommand(&bi, &bs->lastucmd, bs->cur_ps.delta_angles, time);
+}
+
+/*
+===========================================================================
+BOT MOVE UTIL — shared helpers for movement harness maneuvers.
+===========================================================================
+*/
+
+float BotMoveUtil_HorizDist(const vec3_t a, const vec3_t b) {
+	vec3_t delta;
+
+	VectorSubtract(b, a, delta);
+	delta[2] = 0.0f;
+	return VectorLength(delta);
+}
+
+float BotMoveUtil_HorizSpeed(bot_state_t *bs) {
+	vec3_t vel;
+
+	VectorCopy(bs->cur_ps.velocity, vel);
+	vel[2] = 0.0f;
+	return VectorLength(vel);
+}
+
+int BotMoveUtil_HorizDir(const vec3_t from, const vec3_t to, vec3_t dir) {
+	VectorSubtract(to, from, dir);
+	dir[2] = 0.0f;
+	return VectorNormalize(dir) > 0.1f;
+}
+
+float BotMoveUtil_ApproachSpeed(float dist, float hold, float slowRadius, float cap,
+		float minSpd) {
+	float speed, range;
+
+	if (dist <= hold) {
+		return 0.0f;
+	}
+	if (dist >= slowRadius) {
+		return cap;
+	}
+	range = slowRadius - hold;
+	if (range < 1.0f) {
+		range = 1.0f;
+	}
+	speed = cap * (dist - hold) / range;
+	if (speed < minSpd) {
+		speed = minSpd;
+	}
+	return speed;
+}
+
+float BotMoveUtil_ApproachSpeedVel(float dist, float hold, float slowRadius, float cap,
+		float minSpd, float hvel, float maxHvelNear) {
+	float speed, velCap;
+
+	speed = BotMoveUtil_ApproachSpeed(dist, hold, slowRadius, cap, minSpd);
+	if (dist >= slowRadius || hvel <= maxHvelNear) {
+		return speed;
+	}
+
+	velCap = maxHvelNear;
+	if (dist > hold) {
+		velCap = maxHvelNear * (dist - hold) / (slowRadius - hold);
+	}
+	if (velCap < 8.0f) {
+		velCap = 8.0f;
+	}
+	if (speed > velCap) {
+		speed = velCap;
+	}
+	if (dist <= hold + 8.0f && hvel > maxHvelNear * 0.9f) {
+		speed = 0.0f;
+	}
+	return speed;
+}
+
+void BotMoveUtil_BiWalk(bot_input_t *bi, const vec3_t dir, float speed) {
+	bi->actionflags &= ~(ACTION_MOVEFORWARD | ACTION_MOVEBACK |
+		ACTION_MOVELEFT | ACTION_MOVERIGHT);
+	VectorCopy(dir, bi->dir);
+	bi->speed = speed;
+}
+
+void BotMoveUtil_BiStopWalk(bot_input_t *bi) {
+	bi->actionflags &= ~(ACTION_MOVEFORWARD | ACTION_MOVEBACK |
+		ACTION_MOVELEFT | ACTION_MOVERIGHT);
+	VectorClear(bi->dir);
+	bi->speed = 0;
+}
+
+static void BotMoveView_ResetSpeed(bot_state_t *bs) {
+	bs->viewanglespeed[0] = 0.0f;
+	bs->viewanglespeed[1] = 0.0f;
+}
+
+void BotMoveView_WorldToStored(bot_state_t *bs, const vec3_t world, vec3_t stored) {
+	int j;
+
+	VectorCopy(world, stored);
+	if (!BotEnhanced_IsActive()) {
+		return;
+	}
+	for (j = 0; j < 3; j++) {
+		stored[j] = AngleMod(stored[j] - SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
+	}
+}
+
+void BotMoveView_StoredToWorld(bot_state_t *bs, const vec3_t stored, vec3_t world) {
+	int j;
+
+	VectorCopy(stored, world);
+	if (!BotEnhanced_IsActive()) {
+		return;
+	}
+	for (j = 0; j < 3; j++) {
+		world[j] = AngleMod(world[j] + SHORT2ANGLE(bs->cur_ps.delta_angles[j]));
+	}
+}
+
+void BotMoveView_SetWorld(bot_state_t *bs, const vec3_t worldViewIn) {
+	vec3_t worldView, stored;
+
+	VectorCopy(worldViewIn, worldView);
+	worldView[PITCH] = AngleMod(worldView[PITCH]);
+	worldView[YAW] = AngleMod(worldView[YAW]);
+	worldView[ROLL] = 0.0f;
+
+	trap_EA_View(bs->client, worldView);
+	BotMoveView_WorldToStored(bs, worldView, stored);
+	VectorCopy(stored, bs->viewangles);
+	BotMoveView_ResetSpeed(bs);
+}
+
+void BotMoveView_ApplyIdeal(bot_state_t *bs, const vec3_t ideal) {
+	VectorCopy(ideal, bs->ideal_viewangles);
+	VectorCopy(ideal, bs->movej_move_viewangles);
+	BotMoveView_SetWorld(bs, ideal);
+}
+
+void BotMoveUtil_LatchBypass(bot_state_t *bs, float seconds) {
+	bs->movej_bypass_until = FloatTime() + seconds;
+}
+
+int BotMoveUtil_BypassActive(bot_state_t *bs) {
+	return bs && bs->movej_bypass_until > FloatTime();
+}
+
+int BotMoveUtil_HasMovementView(int flags) {
+	return (flags & BOTMOVE_VIEW_FLAGS) != 0;
+}
+
+int BotMoveUtil_IsWeaponJumpTravel(int travel) {
+	return travel == TRAVEL_ROCKETJUMP || travel == TRAVEL_BFGJUMP;
+}
+
+void BotMoveUtil_CacheHorizMovedir(bot_state_t *bs, bot_moveresult_t *mr) {
+	vec3_t hordir;
+
+	if (!mr || VectorLengthSquared(mr->movedir) < 0.01f) {
+		return;
+	}
+	VectorCopy(mr->movedir, hordir);
+	hordir[2] = 0.0f;
+	if (VectorNormalize(hordir) > 0.1f) {
+		VectorCopy(hordir, bs->movej_movedir);
+	}
+}
+
+int BotMoveUtil_GetTopGoalOrigin(bot_state_t *bs, vec3_t origin) {
+	bot_goal_t goal;
+
+	if (!bs || !trap_BotGetTopGoal(bs->gs, &goal)) {
+		return 0;
+	}
+	VectorCopy(goal.origin, origin);
+	return 1;
+}
+
+int BotMoveUtil_MovementViewTarget(bot_state_t *bs, float maxDist, vec3_t target) {
+	bot_goal_t goal;
+
+	if (!bs || !trap_BotGetTopGoal(bs->gs, &goal)) {
+		return 0;
+	}
+	return trap_BotMovementViewTarget(bs->ms, &goal, bs->tfl, maxDist, target);
 }
