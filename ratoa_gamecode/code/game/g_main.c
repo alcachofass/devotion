@@ -1076,6 +1076,8 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	level.time = levelTime;
 	level.startTime = levelTime;
 
+	G_BuildMaplistCache();
+
 	level.snd_fry = G_SoundIndex("sound/player/fry.wav");	// FIXME standing in lava / slime
 	level.snd_thaw = G_FreezeThawSound();
 

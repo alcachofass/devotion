@@ -55,121 +55,9 @@ int allowedVote(char *commandStr) {
 
 /*
 ==================
-getMappage
+MapFilter
 ==================
  */
-
-t_mappage getMappage(int page, qboolean largepage, qboolean recommenedonly) {
-	t_mappage result;
-	fileHandle_t	file;
-	char *token,*pointer;
-	char *buffer;
-	int i, nummaps,maplen;
-	int maps_in_page = largepage ? MAPS_PER_LARGEPAGE : MAPS_PER_PAGE;
-
-	buffer = BG_Alloc(MAX_MAPNAME_BUFFER);
-
-	memset(&result,0,sizeof(result));
-        memset(buffer,0, MAX_MAPNAME_BUFFER);
-
-	//Check if there is a votemaps.cfg
-	trap_FS_FOpenFile(g_votemaps.string,&file,FS_READ);
-	if (!file && recommenedonly) {
-		// if no votemaps.cfg and we only want recommened maps, try recommenedmaps.cfg
-		trap_FS_FOpenFile(g_recommendedMapsFile.string,&file,FS_READ);
-	}
-	if(file)
-	{
-		//there is a votemaps.cfg file, take allowed maps from there
-		trap_FS_Read(buffer,MAX_MAPNAME_BUFFER-1,file);
-		pointer = buffer;
-		token = COM_Parse(&pointer);
-		if(token[0]==0 && page == 0) {
-			//First page empty
-			result.pagenumber = -1;
-                        trap_FS_FCloseFile(file);
-			goto out;
-		}
-		//Skip the first pages
-		for(i=0;i<maps_in_page*page;i++) {
-			token = COM_Parse(&pointer);
-		}
-		if(!token || token[0]==0) {
-			//Page empty, return to first page
-                        trap_FS_FCloseFile(file);
-			result = getMappage(0, largepage, recommenedonly);
-			goto out;
-		}
-		//There is an actual page:
-                result.pagenumber = page;
-		for(i=0;i<maps_in_page && token;i++) {
-			Q_strncpyz(result.mapname[i],token,MAX_MAPNAME);
-			token = COM_Parse(&pointer);
-		}
-                trap_FS_FCloseFile(file);
-		goto out;
-	}
-        //There is no votemaps.cfg file, find filelist of maps
-        nummaps = trap_FS_GetFileList("maps",".bsp",buffer,MAX_MAPNAME_BUFFER);
-
-        if(nummaps && nummaps<=maps_in_page*page) {
-            result = getMappage(0, largepage, recommenedonly);
-	    goto out;
-	}
-
-        pointer = buffer;
-        result.pagenumber = page;
-
-        for (i = 0; i < nummaps; i++, pointer += maplen+1) {
-		int copylen = 0;
-		maplen = strlen(pointer);
-		copylen = maplen-3;
-		if (copylen > MAX_MAPNAME) {
-			copylen = MAX_MAPNAME;
-		}
-                if(i>=maps_in_page*page && i<maps_in_page*(page+1)) {
-                    Q_strncpyz(result.mapname[i-maps_in_page*page],pointer,copylen);
-                }
-	}
-out:
-	BG_Free(buffer);
-        return result;
-}
-
-t_mappage getGTMappage(int page, qboolean largepage) {
-	t_mappage result;
-	struct maplist_s *maplist;
-	int maps_in_page = largepage ? MAPS_PER_LARGEPAGE : MAPS_PER_PAGE;
-	int i;
-	int start;
-
-	maplist = BG_Alloc(sizeof(*maplist));
-
-	// FIXME: not very optimized, this gets called for every page and
-	// assembles the complete list each time
-	getCompleteMaplist(qfalse, G_GametypeBitsCurrent(), 0, maplist);
-
-	memset(&result,0,sizeof(result));
-	result.pagenumber = page;
-
-	start = maps_in_page * page;
-	if (start >= maplist->num) {
-		if (page > 0) {
-			result = getGTMappage(0, largepage);
-			goto out;
-		}
-		goto out;
-	}
-
-	for(i = 0; i < maps_in_page && i+start < maplist->num; ++i) {
-		Q_strncpyz(result.mapname[i],maplist->mapname[i+start],MAX_MAPNAME);
-	}
-
-out:
-	BG_Free(maplist);
-	return result;
-}
-
 static qboolean MapFilter(const char *mapname, int gametypebits_filter, int numPlayers) {
 	if ((gametypebits_filter != 0 && !(gametypebits_filter & G_GametypeBitsForMap(mapname)))) {
 		return qfalse;
@@ -184,71 +72,214 @@ static qboolean MapFilter(const char *mapname, int gametypebits_filter, int numP
 	return qtrue;
 }
 
-void getCompleteMaplist(qboolean recommenedonly, int gametypebits_filter, int numPlayers, struct maplist_s *out) {
-	fileHandle_t	file;
-	char *token,*pointer;
+/*
+==================
+Maplist_LoadFromTokens
+==================
+ */
+static void Maplist_LoadFromTokens( char *buffer, struct maplist_s *out ) {
+	char *token;
+	char *pointer;
+
+	memset( out, 0, sizeof( *out ) );
+	pointer = buffer;
+	token = COM_Parse( &pointer );
+	while ( token && token[0] != 0 && out->num < MAX_MAPS ) {
+		Q_strncpyz( out->mapname[out->num], token, MAX_MAPNAME );
+		out->num++;
+		token = COM_Parse( &pointer );
+	}
+}
+
+/*
+==================
+Maplist_LoadFromBspDir
+==================
+ */
+static void Maplist_LoadFromBspDir( struct maplist_s *out ) {
 	char *buffer;
-	int nummaps, maplen;
+	char *pointer;
+	int nummaps;
+	int maplen;
+	int copylen;
 
-	buffer = BG_Alloc(MAX_MAPNAME_BUFFER);
+	buffer = BG_Alloc( MAX_MAPNAME_BUFFER );
+	memset( buffer, 0, MAX_MAPNAME_BUFFER );
+	memset( out, 0, sizeof( *out ) );
 
-	memset(out,0,sizeof(*out));
-        memset(buffer,0,MAX_MAPNAME_BUFFER);
+	nummaps = trap_FS_GetFileList( "maps", ".bsp", buffer, MAX_MAPNAME_BUFFER );
+	pointer = buffer;
 
-	//Check if there is a votemaps.cfg
-	trap_FS_FOpenFile(g_votemaps.string,&file,FS_READ);
-	if (!file && recommenedonly) {
-		// if no votemaps.cfg and we only want recommened maps, try recommenedmaps.cfg
-		trap_FS_FOpenFile(g_recommendedMapsFile.string,&file,FS_READ);
-	}
-
-	if (gametypebits_filter != 0 || numPlayers != 0) {
-		G_LoadArenas();
-	}
-
-	if(file)
-	{
-		//there is a recommendedmaps file or a votemaps.cfg file, take allowed maps from there
-		trap_FS_Read(buffer,MAX_MAPNAME_BUFFER-1,file);
-		pointer = buffer;
-		token = COM_Parse(&pointer);
-		while (token && token[0] != 0 && out->num < MAX_MAPS) {
-			if (MapFilter(token, gametypebits_filter, numPlayers)) {
-				Q_strncpyz(out->mapname[out->num],token,MAX_MAPNAME);
-				out->num++;
-			}
-			token = COM_Parse(&pointer);
-		}
-                trap_FS_FCloseFile(file);
-		goto out;
-	}
-	if (!file && recommenedonly) {
-		goto out;
-	}
-
-        nummaps = trap_FS_GetFileList("maps",".bsp",buffer,MAX_MAPNAME_BUFFER);
-        pointer = buffer;
-
-	if (nummaps > MAX_MAPS) {
+	if ( nummaps > MAX_MAPS ) {
 		nummaps = MAX_MAPS;
 	}
-        for (out->num = 0; (out->num < nummaps && *pointer); pointer += maplen+1) {
-		char mapname[MAX_MAPNAME];
-		int copylen = 0;
 
-		maplen = strlen(pointer);
-		copylen = maplen-3;
-		if (copylen > MAX_MAPNAME) {
+	for ( ; out->num < nummaps && *pointer; pointer += maplen + 1 ) {
+		maplen = strlen( pointer );
+		copylen = maplen - 3;
+		if ( copylen < 1 ) {
+			continue;
+		}
+		if ( copylen > MAX_MAPNAME ) {
 			copylen = MAX_MAPNAME;
 		}
-		Q_strncpyz(mapname, pointer, copylen);
-		if (MapFilter(mapname, gametypebits_filter, numPlayers)) {
-			Q_strncpyz(out->mapname[out->num],pointer,copylen);
+		Q_strncpyz( out->mapname[out->num], pointer, copylen );
+		out->num++;
+	}
+
+	BG_Free( buffer );
+}
+
+/*
+==================
+Maplist_GetBase
+==================
+ */
+static const struct maplist_s *Maplist_GetBase( qboolean recommendedonly ) {
+	if ( !recommendedonly ) {
+		return &level.maplistSource;
+	}
+	if ( level.maplistFromVotemaps ) {
+		return &level.maplistSource;
+	}
+	return &level.maplistRecommended;
+}
+
+/*
+==================
+Maplist_FilterCopy
+==================
+ */
+static void Maplist_FilterCopy( const struct maplist_s *base, int gametypebits_filter, int numPlayers, struct maplist_s *out ) {
+	int i;
+
+	memset( out, 0, sizeof( *out ) );
+	for ( i = 0; i < base->num && out->num < MAX_MAPS; i++ ) {
+		if ( MapFilter( base->mapname[i], gametypebits_filter, numPlayers ) ) {
+			Q_strncpyz( out->mapname[out->num], base->mapname[i], MAX_MAPNAME );
 			out->num++;
 		}
 	}
-out:
-	BG_Free(buffer);
+}
+
+/*
+==================
+Maplist_MappageFromList
+==================
+ */
+static t_mappage Maplist_MappageFromList( const struct maplist_s *list, int page, qboolean largepage ) {
+	t_mappage result;
+	int maps_in_page = largepage ? MAPS_PER_LARGEPAGE : MAPS_PER_PAGE;
+	int start;
+	int i;
+
+	memset( &result, 0, sizeof( result ) );
+
+	if ( list->num < 1 && page == 0 ) {
+		result.pagenumber = -1;
+		return result;
+	}
+
+	start = maps_in_page * page;
+	if ( start >= list->num ) {
+		if ( page > 0 ) {
+			return Maplist_MappageFromList( list, 0, largepage );
+		}
+		return result;
+	}
+
+	result.pagenumber = page;
+	for ( i = 0; i < maps_in_page && i + start < list->num; i++ ) {
+		Q_strncpyz( result.mapname[i], list->mapname[i + start], MAX_MAPNAME );
+	}
+
+	return result;
+}
+
+/*
+==================
+G_BuildMaplistCache
+
+Build map source lists once per level from disk.
+==================
+ */
+void G_BuildMaplistCache( void ) {
+	fileHandle_t file;
+	char *buffer;
+
+	memset( &level.maplistSource, 0, sizeof( level.maplistSource ) );
+	memset( &level.maplistRecommended, 0, sizeof( level.maplistRecommended ) );
+	level.maplistFromVotemaps = qfalse;
+
+	G_LoadArenas();
+
+	buffer = BG_Alloc( MAX_MAPNAME_BUFFER );
+	memset( buffer, 0, MAX_MAPNAME_BUFFER );
+
+	trap_FS_FOpenFile( g_votemaps.string, &file, FS_READ );
+	if ( file ) {
+		trap_FS_Read( buffer, MAX_MAPNAME_BUFFER - 1, file );
+		trap_FS_FCloseFile( file );
+		Maplist_LoadFromTokens( buffer, &level.maplistSource );
+		level.maplistFromVotemaps = qtrue;
+	} else {
+		Maplist_LoadFromBspDir( &level.maplistSource );
+
+		trap_FS_FOpenFile( g_recommendedMapsFile.string, &file, FS_READ );
+		if ( file ) {
+			memset( buffer, 0, MAX_MAPNAME_BUFFER );
+			trap_FS_Read( buffer, MAX_MAPNAME_BUFFER - 1, file );
+			trap_FS_FCloseFile( file );
+			Maplist_LoadFromTokens( buffer, &level.maplistRecommended );
+		}
+	}
+
+	BG_Free( buffer );
+	level.maplistCached = qtrue;
+}
+
+/*
+==================
+getMappage
+==================
+ */
+
+t_mappage getMappage(int page, qboolean largepage, qboolean recommenedonly) {
+	if ( !level.maplistCached ) {
+		G_BuildMaplistCache();
+	}
+	return Maplist_MappageFromList( Maplist_GetBase( recommenedonly ), page, largepage );
+}
+
+t_mappage getGTMappage(int page, qboolean largepage) {
+	t_mappage result;
+	struct maplist_s *filtered;
+
+	if ( !level.maplistCached ) {
+		G_BuildMaplistCache();
+	}
+
+	filtered = BG_Alloc( sizeof( *filtered ) );
+	Maplist_FilterCopy( &level.maplistSource, G_GametypeBitsCurrent(), 0, filtered );
+	result = Maplist_MappageFromList( filtered, page, largepage );
+	BG_Free( filtered );
+	return result;
+}
+
+void getCompleteMaplist(qboolean recommenedonly, int gametypebits_filter, int numPlayers, struct maplist_s *out) {
+	const struct maplist_s *base;
+
+	if ( !level.maplistCached ) {
+		G_BuildMaplistCache();
+	}
+
+	base = Maplist_GetBase( recommenedonly );
+	if ( recommenedonly && !level.maplistFromVotemaps && base->num < 1 ) {
+		memset( out, 0, sizeof( *out ) );
+		return;
+	}
+
+	Maplist_FilterCopy( base, gametypebits_filter, numPlayers, out );
 }
 
 /*
