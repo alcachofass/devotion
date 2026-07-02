@@ -65,7 +65,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define FL_FORCE_GESTURE		0x00008000	// force gesture on client
 
 // for delagged projectiles
-//#define	MISSILE_PRESTEP_MAX_LATENCY 250
 #define	DELAG_MAX_BACKTRACK (g_delagMissileMaxLatency.integer + 1000/sv_fps.integer * 2)
 
 #define PLASMA_THINKTIME 10000
@@ -544,7 +543,7 @@ typedef struct {
 
 //unlagged - backward reconciliation #1
 // the size of history we'll keep
-#define NUM_CLIENT_HISTORY 17
+#define NUM_CLIENT_HISTORY 22
 
 // everything we need to know to backward reconcile
 typedef struct {
@@ -1183,6 +1182,7 @@ void G_UndoTimeShiftFor( gentity_t *ent );
 void G_UnTimeShiftClient( gentity_t *client );
 void G_TimeShiftClient( gentity_t *ent, int time, qboolean debug, gentity_t *debugger );
 void G_PredictPlayerMove( gentity_t *ent, float frametime );
+void G_PrintDelagMaxTimeshift(void);
 //unlagged - g_unlagged.c
 
 //
