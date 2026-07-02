@@ -33,6 +33,10 @@ int BotItems_HandleReachedGoal(struct bot_state_s *bs, struct bot_goal_s *goal);
 
 int BotItems_ShouldPreserveGoalStack(struct bot_state_s *bs);
 void BotItems_AbortCommit(struct bot_state_s *bs);
+/* Abort active commit and record goal as stuck-avoided for avoidSec seconds. */
+void BotItems_AbortCommitWithAvoid(struct bot_state_s *bs, float avoidSec);
+/* Returns non-zero if goalNumber was recently stuck-aborted and should be skipped. */
+int BotItems_IsGoalStuckAvoided(const struct bot_state_s *bs, int goalNumber);
 /* After risky movement (e.g. ledge abort): commit nearest visible health if needed. */
 void BotItems_RequestUrgentHealth(struct bot_state_s *bs);
 /* Drop commit when pathing to the pickup fails (Seek NBG/LTG). */

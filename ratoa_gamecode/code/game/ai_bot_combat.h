@@ -45,6 +45,27 @@ typedef enum {
 /* With a latched last-enemy area, keep contact longer for chase / blind suppressive fire. */
 #define BOT_COMBAT_LOS_DROP_AREA_SEC		4.0f
 #define BOT_COMBAT_CHASE_TIMEOUT_SEC		3.0f
+/* While a valid occluded peek point is being watched and the enemy was seen
+ * this recently, hold in the fight node (suppressive fire) instead of instantly
+ * breaking off to chase / seek. */
+#define BOT_COMBAT_SUPPRESS_HOLD_SEC		3.0f
+/* Occlusion peek aim: angular sweep off the blocked sightline to find the
+ * nearest opening (doorway / corner / ledge edge) the enemy will reappear from. */
+#define BOT_COMBAT_PEEK_NUDGE			12.0f
+#define BOT_COMBAT_PEEK_Z_OFFSET		8.0f
+#define BOT_COMBAT_PEEK_SWEEP_STEP		4.0f	/* degrees per probe */
+#define BOT_COMBAT_PEEK_SWEEP_MAX		62.0f	/* max angular deviation */
+#define BOT_COMBAT_PEEK_OPEN_MARGIN		80.0f	/* clearance past occluder = opening */
+#define BOT_COMBAT_PEEK_MAX_DIST		2600.0f
+#define BOT_COMBAT_PEEK_RECHECK_DIST		48.0f	/* re-solve when enemy shifts this far */
+#define BOT_COMBAT_PEEK_RECHECK_SEC		0.3f
+/* Projectile dodge: maintain chosen strafe / retreat while an incoming missile
+ * is detected; ignore missiles more than this far ahead in time. */
+#define BOT_COMBAT_DODGE_HOLD_SEC		0.6f
+#define BOT_COMBAT_DODGE_INTERCEPT_RADIUS	220.0f
+#define BOT_COMBAT_DODGE_MAX_INTERCEPT_SEC	1.0f
+#define BOT_COMBAT_DODGE_SPLASH_RADIUS		128.0f
+#define BOT_COMBAT_DODGE_THREAT_MIN		0.12f
 
 typedef struct {
 	bot_stance_t		stance;
@@ -55,6 +76,13 @@ typedef struct {
 	int				gauntlet_voluntary_best_dist;
 	int				close_stall_hits;			/* PERS_HITS at track start */
 	float			gauntlet_voluntary_abandon_until;	/* no close rush until */
+	vec3_t			peek_aim_point;		/* doorway / corner watch point */
+	qboolean		peek_aim_valid;
+	float			peek_aim_time;
+	vec3_t			peek_goal_origin;	/* enemy origin used to solve current peek */
+	float			dodge_strafe_until;	/* hold dodge strafe direction until this time */
+	qboolean		dodge_strafe_right;	/* forced strafe side during dodge window */
+	qboolean		dodge_retreat;		/* back away from incoming / landing splash */
 } bot_combat_intent_t;
 
 struct bot_state_s;
@@ -75,6 +103,12 @@ void BotCombat_UpdateIntent(struct bot_state_s *bs);
 void BotCombat_OnWeaponCommitted(struct bot_state_s *bs, int prev_wp, int new_wp);
 
 int BotCombat_HasFightLOS(struct bot_state_s *bs, int clientnum);
+/* True when enhanced bot should use latched occlusion peek aim (no fight LOS). */
+int BotCombat_HasOccludedAim(struct bot_state_s *bs);
+/* Latched occlusion peek point while fight LOS is blocked (enhanced). */
+int BotCombat_GetPeekAimPoint(struct bot_state_s *bs, vec3_t point);
+/* If aim point is blocked by geometry, substitute peek point when available. */
+void BotCombat_ApplyOccludedAimPoint(struct bot_state_s *bs, vec3_t point);
 /* Fight LOS or opponent-visible contact — retain enemy / opportunistic fire. */
 int BotCombat_HasEnemyCombatContact(struct bot_state_s *bs);
 void BotCombat_ReleaseEnemy(struct bot_state_s *bs);

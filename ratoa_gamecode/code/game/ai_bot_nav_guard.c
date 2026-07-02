@@ -36,6 +36,7 @@ BOT NAV GUARD
 #define BOTNAV_STAIR_LOOP_MAX_PATH	480.0f
 #define BOTNAV_STAIR_MIN_REVISITS	2
 #define BOTNAV_PURSUIT_BLOCK_SEC	18.0f
+#define BOTNAV_BREAKOUT_AVOID_SEC	10.0f  /* stuck avoid for goals after a loop breakout */
 
 static int BotNavGuard_RingSampleIndex(const bot_state_t *bs, int order);
 static int BotNavGuard_MaxPositionRevisits(bot_state_t *bs);
@@ -349,8 +350,11 @@ static void BotNavGuard_BreakOut(bot_state_t *bs, const char *reason, int stairL
 
 	if (stairLoop) {
 		BotItemTiming_BlockPursuitAtGoal(bs, BOTNAV_PURSUIT_BLOCK_SEC);
-	} else if (BotItems_HasActiveCommit(bs)) {
-		BotItems_AbortCommit(bs);
+	}
+	/* Always abort any remaining active commit (timing was already handled above
+	 * for stairLoop; this catches non-timing visible commits in both paths). */
+	if (BotItems_HasActiveCommit(bs)) {
+		BotItems_AbortCommitWithAvoid(bs, BOTNAV_BREAKOUT_AVOID_SEC);
 	}
 
 	trap_BotResetAvoidReach(bs->ms);

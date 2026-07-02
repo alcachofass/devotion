@@ -16,7 +16,7 @@ Behaviors provided:
 CPU notes:
   • OnThinkStart / UpdateCombat: arithmetic + cached fields only.
   • AdjustTravelFlags: one Z comparison when an item commit is active.
-  • TickRouteElevation: throttled AAS bbox scan (~every 2.5s while routing).
+  • TickRouteElevation: throttled AAS bbox scan (~every 8s while routing).
 ===========================================================================
 */
 
@@ -78,5 +78,10 @@ void BotPosition_TickItemHarass(struct bot_state_s *bs);
 int BotPosition_IsItemHarassActive(const struct bot_state_s *bs);
 int BotPosition_CanItemHarass(const struct bot_state_s *bs);
 void BotPosition_BeginItemHarass(struct bot_state_s *bs);
+
+/* Ledge-seek: approach nearest ledge edge above a below-enemy, then hold and fire down. */
+void BotPosition_TickLedgeSeek(struct bot_state_s *bs);
+int  BotPosition_IsLedgeSeekActive(const struct bot_state_s *bs);
+void BotPosition_CancelLedgeSeek(struct bot_state_s *bs);
 
 #endif /* AI_BOT_POSITION_H */

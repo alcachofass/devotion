@@ -554,6 +554,7 @@ void BotEnhanced_OnThinkStart(bot_state_t *bs) {
 	}
 	BotCombat_UpdateIntent(bs);
 	BotPosition_TickItemHarass(bs);
+	BotPosition_TickLedgeSeek(bs);
 	BotPosition_UpdateCombat(bs);
 	BotItems_Tick(bs);
 	if (BotEnhanced_WantsNavGuardThink(bs)) {

@@ -47,6 +47,10 @@ extern vmCvar_t bot_grapple;
 #define BOTMOVE_MAX_SAFE_WALKOFF_DROP	128.0f
 /* Item goal Z vs landing Z (large drops only); same threshold as safe drop. */
 #define BOTMOVE_COMMIT_ABOVE_THRESHOLD	BOTMOVE_MAX_SAFE_WALKOFF_DROP
+/* Down-trace under a predicted gap to resolve the true landing (or a void). */
+#define BOTMOVE_VOID_TRACE_DIST		4096.0f
+/* Route around jump pads while this low: a pad landing can do lethal fall damage. */
+#define BOTMOVE_JUMPPAD_LOW_HEALTH	20
 
 void BotMove_ClearWalkoffBlock(bot_state_t *bs);
 
@@ -631,6 +635,84 @@ static int BotMove_RunWalkoffPredict(bot_state_t *bs, const vec3_t movedir,
 	return 1;
 }
 
+static int BotMove_FallDamageFromDrop(float drop) {
+	/* Fall from rest under gravity 800: landing delta ~= 0.16 * drop (PM_CrashLand). */
+	if (drop <= 0.0f) {
+		return 0;
+	}
+	return BotMove_FallDamageFromDelta(drop * 0.16f);
+}
+
+static int BotMove_HasFallProtection(bot_state_t *bs) {
+	return bs && bs->inventory[INVENTORY_ENVIRONMENTSUIT] > 0;
+}
+
+/*
+ * Resolve a predicted walk-off to its true outcome: real drop height, estimated
+ * fall damage, and whether it ends in a hazard (lava/slime) or a bottomless
+ * void.  The raw AAS prediction stops at a >128uu gap edge (SE_GAP) without
+ * simulating the fall, so tall drops and pit/lava endings are traced out here.
+ */
+static void BotMove_ClassifyWalkoff(bot_state_t *bs, const aas_clientmove_t *move,
+		float *dropOut, int *fallDamageOut, int *hazardOut) {
+	bsp_trace_t trace;
+	vec3_t start, end, probe;
+	int contents;
+	float drop;
+
+	*dropOut = 0.0f;
+	*fallDamageOut = 0;
+	*hazardOut = 0;
+
+	if (!bs || !move) {
+		return;
+	}
+
+	/* Prediction walked straight into a hazard. */
+	if (move->stopevent & (SE_ENTERLAVA | SE_ENTERSLIME)) {
+		*hazardOut = 1;
+		*dropOut = bs->origin[2] - move->endpos[2];
+		*fallDamageOut = 999;
+		return;
+	}
+
+	/* Reached solid ground inside the prediction window. */
+	if (move->stopevent & (SE_HITGROUND | SE_HITGROUNDDAMAGE)) {
+		*dropOut = bs->origin[2] - move->endpos[2];
+		*fallDamageOut = BotMove_EstimatePredictedFallDamage(move, bs->origin);
+		return;
+	}
+
+	/* Gap / left ground without landing: trace down for the real floor. */
+	VectorCopy(move->endpos, start);
+	start[2] -= 1.0f;
+	VectorCopy(start, end);
+	end[2] -= BOTMOVE_VOID_TRACE_DIST;
+	BotAI_Trace(&trace, start, NULL, NULL, end, bs->entitynum,
+		MASK_SOLID | CONTENTS_LAVA | CONTENTS_SLIME);
+	if (trace.startsolid || trace.fraction >= 1.0f) {
+		/* Nothing solid within a very long drop → bottomless / death pit. */
+		*hazardOut = 1;
+		*dropOut = BOTMOVE_VOID_TRACE_DIST;
+		*fallDamageOut = 999;
+		return;
+	}
+
+	drop = bs->origin[2] - trace.endpos[2];
+	*dropOut = drop;
+
+	VectorCopy(trace.endpos, probe);
+	probe[2] -= 2.0f;
+	contents = trap_AAS_PointContents(probe);
+	if (contents & (CONTENTS_LAVA | CONTENTS_SLIME)) {
+		*hazardOut = 1;
+		*fallDamageOut = 999;
+		return;
+	}
+
+	*fallDamageOut = BotMove_FallDamageFromDrop(drop);
+}
+
 static void BotMove_CancelWalkoffMoveresult(bot_state_t *bs, bot_moveresult_t *mr) {
 	if (!bs || !mr) {
 		return;
@@ -761,13 +843,16 @@ int BotMove_ShouldDeferCommitMoveFailure(bot_state_t *bs, bot_moveresult_t *mr) 
 
 	if (mr && (mr->traveltype & TRAVELTYPE_MASK) == TRAVEL_WALKOFFLEDGE &&
 			BotMove_RunWalkoffPredict(bs, mr->movedir, &move)) {
-		drop = bs->origin[2] - move.endpos[2];
-		fallDamage = BotMove_EstimatePredictedFallDamage(&move, bs->origin);
+		int hazard;
+		BotMove_ClassifyWalkoff(bs, &move, &drop, &fallDamage, &hazard);
+		if (hazard && BotMove_HasFallProtection(bs)) {
+			hazard = 0;
+		}
 		health = bs->inventory[INVENTORY_HEALTH];
 		if (health <= 0) {
 			health = bs->cur_ps.stats[STAT_HEALTH];
 		}
-		if (drop > 0.0f && drop <= BOTMOVE_MAX_SAFE_WALKOFF_DROP &&
+		if (!hazard && drop > 0.0f && drop <= BOTMOVE_MAX_SAFE_WALKOFF_DROP &&
 				(fallDamage <= 0 || (float)fallDamage < (float)health * 0.5f)) {
 			BotMove_TriggerWalkoffEscape(bs);
 			bs->enh_travel_tfl = BotMove_BuildTravelFlags(bs);
@@ -827,14 +912,11 @@ static void BotMove_RecordWalkoffAbort(bot_state_t *bs, qboolean applyRoutingBan
 static qboolean BotMove_TryAbortRiskyWalkoff(bot_state_t *bs, bot_moveresult_t *mr,
 		int travel) {
 	aas_clientmove_t move;
-	int health, fallDamage;
-	qboolean abortForDamage, abortForItemZ;
+	int health, fallDamage, hazard;
+	qboolean abortForDamage, abortForItemZ, abortForHazard;
 	float itemGoalZ, drop;
 
 	if (!BotMoveHarness_MovementActive() || !bs || !mr) {
-		return qfalse;
-	}
-	if (BotMove_WalkoffEscapeActive(bs)) {
 		return qfalse;
 	}
 	if ((g_dmflags.integer & DF_NO_FALLING) ||
@@ -849,36 +931,56 @@ static qboolean BotMove_TryAbortRiskyWalkoff(bot_state_t *bs, bot_moveresult_t *
 		return qfalse;
 	}
 
-	drop = bs->origin[2] - move.endpos[2];
-	fallDamage = BotMove_EstimatePredictedFallDamage(&move, bs->origin);
+	BotMove_ClassifyWalkoff(bs, &move, &drop, &fallDamage, &hazard);
+	if (hazard && BotMove_HasFallProtection(bs)) {
+		hazard = 0;
+	}
 	health = bs->inventory[INVENTORY_HEALTH];
 	if (health <= 0) {
 		health = bs->cur_ps.stats[STAT_HEALTH];
 	}
 
-	/* Drops up to BOTMOVE_MAX_SAFE_WALKOFF_DROP are always allowed unless lethal. */
-	if (drop <= BOTMOVE_MAX_SAFE_WALKOFF_DROP) {
-		if (fallDamage <= 0 || (float)fallDamage < (float)health * 0.5f) {
+	abortForHazard = hazard ? qtrue : qfalse;
+	abortForDamage = qfalse;
+	abortForItemZ = qfalse;
+
+	/* Lava / slime / void is vetoed even during walk-off escape.  Fall-damage
+	 * and item-Z vetoes still yield to escape so the bot can unstick itself. */
+	if (!abortForHazard) {
+		if (BotMove_WalkoffEscapeActive(bs)) {
+			return qfalse;
+		}
+
+		/* Drops up to BOTMOVE_MAX_SAFE_WALKOFF_DROP are allowed unless lethal. */
+		if (drop <= BOTMOVE_MAX_SAFE_WALKOFF_DROP) {
+			if (fallDamage <= 0 || (float)fallDamage < (float)health * 0.5f) {
+				return qfalse;
+			}
+		}
+
+		abortForDamage = (fallDamage > 0 && (float)fallDamage >= (float)health * 0.5f);
+
+		if (!abortForDamage && drop > BOTMOVE_MAX_SAFE_WALKOFF_DROP &&
+				BotItems_HasActiveCommit(bs)) {
+			itemGoalZ = BotItems_GetCommitGoalOriginZ(bs);
+			abortForItemZ = (itemGoalZ > move.endpos[2] + BOTMOVE_COMMIT_ABOVE_THRESHOLD);
+		}
+
+		if (!abortForDamage && !abortForItemZ) {
 			return qfalse;
 		}
 	}
 
-	abortForDamage = (fallDamage > 0 && (float)fallDamage >= (float)health * 0.5f);
-
-	abortForItemZ = qfalse;
-	if (!abortForDamage && drop > BOTMOVE_MAX_SAFE_WALKOFF_DROP &&
-			BotItems_HasActiveCommit(bs)) {
-		itemGoalZ = BotItems_GetCommitGoalOriginZ(bs);
-		abortForItemZ = (itemGoalZ > move.endpos[2] + BOTMOVE_COMMIT_ABOVE_THRESHOLD);
-	}
-
-	if (!abortForDamage && !abortForItemZ) {
-		return qfalse;
-	}
-
 	BotMove_CancelWalkoffMoveresult(bs, mr);
 
-	if (abortForDamage) {
+	if (abortForHazard) {
+		/* Hard block; never enter walk-off escape toward a hazard. */
+		bs->nbg_time = 0.0f;
+		bs->ltg_time = 0.0f;
+		if (bs->movej_no_walkoff_until <= FloatTime()) {
+			bs->movej_no_walkoff_until = FloatTime() + BOTMOVE_WALKOFF_BLOCK_DAMAGE_SEC;
+		}
+	} else if (abortForDamage) {
 		bs->nbg_time = 0.0f;
 		bs->ltg_time = 0.0f;
 		bs->movej_urgent_health_until = FloatTime() + BOTMOVE_URGENT_HEALTH_SEC;
@@ -919,6 +1021,27 @@ static int BotMove_ShouldAvoidWalkoffLedges(bot_state_t *bs) {
 	return 1;
 }
 
+/*
+ * Very low on health: a jump-pad launch usually ends in a hard landing (up to
+ * ~10 fall damage), so route around pads while a landing could be lethal.
+ */
+static int BotMove_ShouldAvoidJumppadFallDeath(bot_state_t *bs) {
+	int health;
+
+	if (!bs || !BotMoveHarness_MovementActive()) {
+		return 0;
+	}
+	if ((g_dmflags.integer & DF_NO_FALLING) ||
+			(G_IsElimGT() && !g_elimination_selfdamage.integer)) {
+		return 0;
+	}
+	health = bs->inventory[INVENTORY_HEALTH];
+	if (health <= 0) {
+		health = bs->cur_ps.stats[STAT_HEALTH];
+	}
+	return health > 0 && health <= BOTMOVE_JUMPPAD_LOW_HEALTH;
+}
+
 int BotMove_BuildTravelFlags(bot_state_t *bs) {
 	int tfl;
 
@@ -938,7 +1061,8 @@ int BotMove_BuildTravelFlags(bot_state_t *bs) {
 	if (BotCanAndWantsToRocketJump(bs)) {
 		tfl |= TFL_ROCKETJUMP;
 	}
-	if (bs->jumppad_avoid_until > FloatTime()) {
+	if (bs->jumppad_avoid_until > FloatTime() ||
+			BotMove_ShouldAvoidJumppadFallDeath(bs)) {
 		tfl &= ~TFL_JUMPPAD;
 	}
 	if (BotMove_ShouldAvoidWalkoffLedges(bs)) {

@@ -1791,10 +1791,15 @@ void BotOpponent_OnClientEvent(bot_state_t *bs, entityState_t *state, int event)
 	if (event != EV_OBITUARY && event != EV_ITEM_PICKUP &&
 			event != EV_GLOBAL_ITEM_PICKUP &&
 			Opponent_InActiveCombat(bs, ob)) {
-		qboolean sensory;
-
-		sensory = Opponent_IsNoiseEvent(event);
-		if (!sensory || !Opponent_IsAvoiding(bs, ob)) {
+		if (!Opponent_IsNoiseEvent(event)) {
+			return;
+		}
+		/* Sensory events (footsteps, weapon fire/change, jumps, falls, taunts)
+		 * pass through when:
+		 *   - The bot is avoiding the opponent (existing behaviour), OR
+		 *   - Fight LOS is currently blocked (enemy is behind cover): use sound
+		 *     to keep track of their position while we can't see them. */
+		if (!Opponent_IsAvoiding(bs, ob) && BotCombat_HasFightLOS(bs, ob->client)) {
 			return;
 		}
 	}

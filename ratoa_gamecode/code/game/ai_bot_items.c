@@ -46,6 +46,8 @@ static qboolean BotItems_GoalVisibleToBot(bot_state_t *bs, bot_goal_t *goal);
 #define BOT_ITEMS_GONE_AVOID_TIME		20.0f
 #define BOT_ITEMS_STUCK_DIST			48.0f
 #define BOT_ITEMS_STUCK_TIME			1.75f
+#define BOT_ITEMS_STUCK_AVOID_TIME		8.0f  /* avoid re-committing to a stuck goal */
+#define BOT_ITEMS_MAJOR_ABANDON_AVOID_TIME	5.0f  /* ban same major pickup after abandon */
 
 #define BOT_ITEMS_LJ_MAX_HORIZ		320.0f
 #define BOT_ITEMS_LJ_MIN_DZ			20.0f
@@ -76,6 +78,14 @@ static qboolean BotItems_GoalVisibleToBot(bot_state_t *bs, bot_goal_t *goal);
 #define BOT_ITEM_HEALTH			19
 #define BOT_ITEM_HEALTH_LARGE		20
 #define BOT_ITEM_HEALTH_SEEK_MAX	80
+/* Deliberate recovery: while below "comfort" the bot boosts health/armor pickup
+ * priority (cheaper route cost) proportional to how deficient it is. */
+#define BOT_ITEM_RECOVERY_HEALTH_COMFORT	100
+#define BOT_ITEM_RECOVERY_ARMOR_COMFORT		100
+#define BOT_ITEM_RECOVERY_MAX_BOOST		0.55f
+/* Critically low: drop competing item commits and urgently grab health/armor. */
+#define BOT_ITEM_CRITICAL_HEALTH		35
+#define BOT_ITEM_CRITICAL_STACK			50
 #define BOT_ITEMS_DBG_GOT		1
 #define BOT_ITEMS_DBG_TIMEOUT		2
 #define BOT_ITEMS_DBG_GONE		3
@@ -96,6 +106,8 @@ static qboolean BotItems_TryAcquireReachableWeapon(bot_state_t *bs);
 static qboolean BotItems_TickWeaponDetourScan(bot_state_t *bs);
 static qboolean BotItems_CommitInventoryImproved(bot_state_t *bs);
 static int BotItems_SuspendActivePrimary(bot_state_t *bs);
+static void BotItems_RecordStuckGoalInternal(bot_state_t *bs, int goalNumber, float avoidSec);
+static qboolean BotItems_IsMajorKind(int kind);
 
 
 
@@ -351,6 +363,42 @@ static qboolean BotItems_NeedsHealthPickup(bot_state_t *bs) {
 	return bs->inventory[INVENTORY_HEALTH] < BOT_ITEM_HEALTH_SEEK_MAX;
 }
 
+static qboolean BotItems_NeedsArmorPickup(bot_state_t *bs) {
+	if (!bs) {
+		return qfalse;
+	}
+	return bs->inventory[INVENTORY_ARMOR] < BOT_ITEM_RECOVERY_ARMOR_COMFORT;
+}
+
+/*
+ * Stack (health + armor) is low enough to warrant dropping other item plans and
+ * urgently grabbing recovery.  Also true while the fall-damage abort latch holds.
+ */
+static qboolean BotItems_CriticallyLowStack(bot_state_t *bs) {
+	int health, stack;
+
+	if (!bs) {
+		return qfalse;
+	}
+	health = bs->inventory[INVENTORY_HEALTH];
+	stack = health + bs->inventory[INVENTORY_ARMOR];
+	return (health <= BOT_ITEM_CRITICAL_HEALTH) || (stack <= BOT_ITEM_CRITICAL_STACK);
+}
+
+static qboolean BotItems_WantsUrgentRecovery(bot_state_t *bs) {
+	if (!bs) {
+		return qfalse;
+	}
+	if (BotMove_WantsUrgentHealth(bs) && BotItems_NeedsHealthPickup(bs)) {
+		return qtrue;
+	}
+	if (BotItems_CriticallyLowStack(bs) &&
+			(BotItems_NeedsHealthPickup(bs) || BotItems_NeedsArmorPickup(bs))) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
 static float BotItems_PriorityScale(int kind) {
 
 	const botItemWeaponDef_t *wdef;
@@ -423,12 +471,53 @@ static int BotItems_CountMissingWeapons(bot_state_t *bs) {
 	return count;
 }
 
+/*
+ * Route-cost multiplier (<=1) that makes health/armor progressively more
+ * attractive as the bot's own supply drops below comfort.  Keeps roaming
+ * pickups deliberate instead of incidental.
+ */
+static float BotItems_RecoveryUrgencyScale(bot_state_t *bs, int kind) {
+	int have, comfort;
+	float t;
+
+	if (!bs) {
+		return 1.0f;
+	}
+
+	switch (kind) {
+	case BOT_ITEM_MEGA_HEALTH:
+	case BOT_ITEM_HEALTH_LARGE:
+	case BOT_ITEM_HEALTH:
+	case BOT_ITEM_HEALTH_SMALL:
+		have = bs->inventory[INVENTORY_HEALTH];
+		comfort = BOT_ITEM_RECOVERY_HEALTH_COMFORT;
+		break;
+	case BOT_ITEM_RED_ARMOR:
+	case BOT_ITEM_YELLOW_ARMOR:
+		have = bs->inventory[INVENTORY_ARMOR];
+		comfort = BOT_ITEM_RECOVERY_ARMOR_COMFORT;
+		break;
+	default:
+		return 1.0f;
+	}
+
+	if (have >= comfort || comfort <= 0) {
+		return 1.0f;
+	}
+	t = (float)(comfort - have) / (float)comfort;
+	if (t > 1.0f) {
+		t = 1.0f;
+	}
+	return 1.0f - t * BOT_ITEM_RECOVERY_MAX_BOOST;
+}
+
 static float BotItems_EffectivePickupScale(bot_state_t *bs, int kind) {
 	float scale;
 	int missing;
 
 	scale = BotItems_PriorityScale(kind);
 	if (!BotItems_WeaponDef(kind)) {
+		scale *= BotItems_RecoveryUrgencyScale(bs, kind);
 		return BotOpponent_ItemPriorityScale(bs, scale);
 	}
 	missing = BotItems_CountMissingWeapons(bs);
@@ -923,6 +1012,8 @@ static void BotItems_ClearCommit(bot_state_t *bs, int endEvent) {
 
 	qboolean wasActive;
 
+	qboolean wasTimingCommit;
+
 	int goalNumber;
 
 
@@ -983,6 +1074,8 @@ static void BotItems_ClearCommit(bot_state_t *bs, int endEvent) {
 	}
 
 	wasActive = bs->item_commit_active;
+
+	wasTimingCommit = bs->item_commit_timing;
 
 	kind = bs->item_commit_kind;
 
@@ -1046,6 +1139,22 @@ static void BotItems_ClearCommit(bot_state_t *bs, int endEvent) {
 	if (wasActive && endEvent == BOT_ITEMS_DBG_GONE && goalNumber) {
 
 		trap_BotSetAvoidGoalTime(bs->gs, goalNumber, BOT_ITEMS_GONE_AVOID_TIME);
+
+	}
+
+	if (wasActive && endEvent != BOT_ITEMS_DBG_GOT && goalNumber) {
+
+		if (BotItems_IsMajorKind(kind)) {
+
+			BotItems_RecordStuckGoalInternal(bs, goalNumber,
+				BOT_ITEMS_MAJOR_ABANDON_AVOID_TIME);
+
+		} else if (endEvent == BOT_ITEMS_DBG_STUCK && !wasTimingCommit) {
+
+			BotItems_RecordStuckGoalInternal(bs, goalNumber,
+				BOT_ITEMS_STUCK_AVOID_TIME);
+
+		}
 
 	}
 
@@ -2298,6 +2407,12 @@ static qboolean BotItems_TryAcquireVisible(bot_state_t *bs) {
 
 			}
 
+			if (BotItems_IsGoalStuckAvoided(bs, goal.number)) {
+
+				continue;
+
+			}
+
 			cost = BotItems_GoalTravelCost(bs, &goal, kind);
 
 			if (cost >= bestCost) {
@@ -2405,6 +2520,12 @@ static qboolean BotItems_FindBestAmongKinds(bot_state_t *bs, bot_goal_t *bestGoa
 			}
 
 			if (!BotItems_GoalHasPickupEntity(&goal)) {
+
+				continue;
+
+			}
+
+			if (BotItems_IsGoalStuckAvoided(bs, goal.number)) {
 
 				continue;
 
@@ -2829,12 +2950,14 @@ void BotItems_Tick(bot_state_t *bs) {
 
 
 
-	if (BotMove_WantsUrgentHealth(bs) && BotItems_NeedsHealthPickup(bs)) {
+	if (BotItems_WantsUrgentRecovery(bs)) {
 		static const int urgentKinds[] = {
 			BOT_ITEM_MEGA_HEALTH,
 			BOT_ITEM_HEALTH_LARGE,
 			BOT_ITEM_HEALTH,
-			BOT_ITEM_HEALTH_SMALL
+			BOT_ITEM_HEALTH_SMALL,
+			BOT_ITEM_RED_ARMOR,
+			BOT_ITEM_YELLOW_ARMOR
 		};
 		if (bs->item_commit_detour) {
 			BotItems_FinishDetourCommit(bs, BOT_ITEMS_DBG_RESET, qfalse);
@@ -3139,6 +3262,103 @@ int BotItems_ShouldPreserveGoalStack(bot_state_t *bs) {
 
 
 
+static qboolean BotItems_IsMajorKind(int kind) {
+
+	switch (kind) {
+
+	case BOT_ITEM_QUAD:
+	case BOT_ITEM_MEGA_HEALTH:
+	case BOT_ITEM_RED_ARMOR:
+	case BOT_ITEM_YELLOW_ARMOR:
+		return qtrue;
+
+	default:
+		return qfalse;
+
+	}
+
+}
+
+
+
+static void BotItems_RecordStuckGoalInternal(bot_state_t *bs, int goalNumber, float avoidSec) {
+
+	int i, oldest;
+
+	float oldestTime;
+
+
+
+	if (!bs || !goalNumber || avoidSec <= 0.0f) {
+
+		return;
+
+	}
+
+	for (i = 0; i < 2; i++) {
+
+		if (bs->item_stuck_avoid_num[i] == goalNumber) {
+
+			bs->item_stuck_avoid_until[i] = FloatTime() + avoidSec;
+
+			return;
+
+		}
+
+	}
+
+	oldest = 0;
+
+	oldestTime = bs->item_stuck_avoid_until[0];
+
+	if (bs->item_stuck_avoid_until[1] < oldestTime) {
+
+		oldest = 1;
+
+	}
+
+	bs->item_stuck_avoid_num[oldest] = goalNumber;
+
+	bs->item_stuck_avoid_until[oldest] = FloatTime() + avoidSec;
+
+}
+
+
+
+int BotItems_IsGoalStuckAvoided(const bot_state_t *bs, int goalNumber) {
+
+	int i;
+
+	float now;
+
+
+
+	if (!bs || !goalNumber) {
+
+		return 0;
+
+	}
+
+	now = FloatTime();
+
+	for (i = 0; i < 2; i++) {
+
+		if (bs->item_stuck_avoid_num[i] == goalNumber &&
+
+				now < bs->item_stuck_avoid_until[i]) {
+
+			return 1;
+
+		}
+
+	}
+
+	return 0;
+
+}
+
+
+
 void BotItems_AbortCommit(bot_state_t *bs) {
 
 	if (!BotItems_HasActiveCommit(bs)) {
@@ -3148,6 +3368,32 @@ void BotItems_AbortCommit(bot_state_t *bs) {
 	}
 
 	BotItems_ClearCommit(bs, BOT_ITEMS_DBG_RESET);
+
+}
+
+
+
+void BotItems_AbortCommitWithAvoid(bot_state_t *bs, float avoidSec) {
+
+	int goalNumber;
+
+
+
+	if (!BotItems_HasActiveCommit(bs)) {
+
+		return;
+
+	}
+
+	goalNumber = bs->item_commit_goal.number;
+
+	BotItems_AbortCommit(bs);
+
+	if (goalNumber && avoidSec > 0.0f) {
+
+		BotItems_RecordStuckGoalInternal(bs, goalNumber, avoidSec);
+
+	}
 
 }
 
@@ -3744,6 +3990,9 @@ static void Timing_StartPursuit(bot_state_t *bs, int trackIndex,
 static void Timing_PlanClosestSpawned(bot_state_t *bs);
 static qboolean Timing_ShouldDeferSpawnedGrab(bot_state_t *bs, int kind);
 static int Timing_PriorityForKind(int kind);
+static qboolean Timing_IsControlKind(int kind);
+static float Timing_NextControlDepartureIn(bot_state_t *bs);
+static qboolean Timing_PriorityControlImminent(bot_state_t *bs);
 static int Timing_PursuitScore(timing_belief_t *track, int travelTime);
 static int Timing_PursuitScoreWithGoal(bot_state_t *bs, timing_belief_t *track,
 	int travelTime, bot_goal_t *goal);
@@ -3779,6 +4028,11 @@ static void Timing_MarkSpawned(bot_state_t *bs, timing_belief_t *track,
 #define TIMING_SCORE_URGENCY_SCALE		10
 #define TIMING_SCORE_TRAVEL_DIV			10
 #define TIMING_SCORE_SPAWNED_BONUS		50
+/* 1v1 control loop — MH and RA are "control items" that bots prioritise above all else. */
+#define TIMING_TRAVEL_MARGIN_CONTROL_SEC	3.5f /* depart earlier for MH/RA; wider window */
+#define TIMING_YA_PRIORITY_BLOCK_SEC		14.0f /* suppress YA when control item within N sec of departure */
+#define TIMING_PLAN_INTERVAL_NEAR_SEC		1.5f  /* fast idle replan when control item approaching */
+#define TIMING_PLAN_NEAR_THRESHOLD_SEC		8.0f  /* "near" threshold: control departs within this many sec */
 
 static const timing_type_def_t *Timing_DefForKind(int kind) {
 	int i;
@@ -3806,6 +4060,81 @@ static int Timing_PriorityForKind(int kind) {
 
 	def = Timing_DefForKind(kind);
 	return def ? def->priority : 0;
+}
+
+/*
+ * "Control items" — MH and RA that skilled 1v1 players loop on continuously.
+ * These are tracked first in slot assignment (already handled by priority sort)
+ * and given wider departure windows and stronger filler suppression.
+ */
+static qboolean Timing_IsControlKind(int kind) {
+	return kind == TIMING_KIND_MEGA_HEALTH || kind == TIMING_KIND_RED_ARMOR;
+}
+
+/*
+ * Returns the number of seconds until the earliest tracked control item (MH or RA)
+ * enters its departure window.  Returns 0 when any control item is already spawned
+ * (needs pickup immediately).  Returns a large value when no control tracks exist.
+ *
+ * "Departure window" uses the wider TIMING_TRAVEL_MARGIN_CONTROL_SEC margin so this
+ * value stays consistent with Timing_ShouldDepartForTrack.
+ */
+static float Timing_NextControlDepartureIn(bot_state_t *bs) {
+	int i;
+	float now;
+	float best;
+	float travelSec;
+	float timeToDepart;
+	bot_goal_t goal;
+	int travelTime;
+	timing_belief_t *track;
+
+	if (!bs) {
+		return 9999.0f;
+	}
+
+	now = FloatTime();
+	best = 9999.0f;
+
+	for (i = 0; i < BOT_TIMING_TRACK_COUNT; i++) {
+		track = &bs->timing_track[i];
+		if (!Timing_TrackActive(track) || !Timing_IsControlKind(track->kind)) {
+			continue;
+		}
+
+		if (track->state == BOT_TIMING_STATE_SPAWNED) {
+			return 0.0f;	/* already up — departure is overdue */
+		}
+
+		if (track->state == BOT_TIMING_STATE_COOLDOWN) {
+			if (!Timing_BuildGoalFromTrack(bs, track, &goal)) {
+				continue;
+			}
+			travelTime = BotItems_TravelTimeToGoal(bs, &goal);
+			if (travelTime <= 0) {
+				continue;
+			}
+			travelSec = (float)travelTime / 100.0f;
+			timeToDepart = track->believed_spawn_at - now - travelSec -
+				TIMING_TRAVEL_MARGIN_CONTROL_SEC;
+			if (timeToDepart < 0.0f) {
+				timeToDepart = 0.0f;
+			}
+			if (timeToDepart < best) {
+				best = timeToDepart;
+			}
+		}
+	}
+
+	return best;
+}
+
+/*
+ * True when any tracked MH or RA will need departure within TIMING_YA_PRIORITY_BLOCK_SEC.
+ * Used to suppress YA as a primary pursuit target in favour of the control loop.
+ */
+static qboolean Timing_PriorityControlImminent(bot_state_t *bs) {
+	return Timing_NextControlDepartureIn(bs) <= TIMING_YA_PRIORITY_BLOCK_SEC;
 }
 
 static float Timing_SecondsUntilRelevant(const timing_belief_t *track) {
@@ -5286,6 +5615,14 @@ static qboolean Timing_ShouldDeferPursuit(bot_state_t *bs, int kind, int purpose
 		return qtrue;
 	}
 
+	/* YA filler suppression: if MH or RA is about to enter its departure window,
+	 * hold off on YA so the bot is free to pursue the control item on time.
+	 * This applies even when YA is already spawned (purpose == SPAWNED).
+	 * YA can still be picked up opportunistically as a detour en route to MH/RA. */
+	if (kind == TIMING_KIND_YELLOW_ARMOR && Timing_PriorityControlImminent(bs)) {
+		return qtrue;
+	}
+
 	if (purpose == TIMING_PURPOSE_SPAWNED) {
 		return qfalse;
 	}
@@ -5330,19 +5667,25 @@ static qboolean Timing_ShouldDepartForTrack(bot_state_t *bs, timing_belief_t *tr
 	int travelTime) {
 	float secondsUntil;
 	float travelSec;
+	float margin;
 
 	if (!bs || !track || !Timing_TrackActive(track) || travelTime <= 0) {
 		return qfalse;
 	}
 
 	travelSec = (float)travelTime / 100.0f;
+	/* Control items (MH and RA) use a wider departure margin so the bot starts
+	 * routing toward them earlier, giving more reliable on-time arrivals. */
+	margin = Timing_IsControlKind(track->kind)
+		? TIMING_TRAVEL_MARGIN_CONTROL_SEC
+		: TIMING_TRAVEL_MARGIN_SEC;
 
 	if (track->state == BOT_TIMING_STATE_COOLDOWN) {
 		secondsUntil = track->believed_spawn_at - FloatTime();
 		if (secondsUntil <= 0.0f) {
 			return qtrue;
 		}
-		return secondsUntil <= travelSec + TIMING_TRAVEL_MARGIN_SEC;
+		return secondsUntil <= travelSec + margin;
 	}
 
 	if (track->state == BOT_TIMING_STATE_SPAWNED) {
@@ -5453,6 +5796,9 @@ static int Timing_PickBestPursuitTrack(bot_state_t *bs, int excludeIndex,
 			continue;
 		}
 		if (!Timing_BuildGoalFromTrack(bs, track, &goal)) {
+			continue;
+		}
+		if (BotItems_IsGoalStuckAvoided(bs, goal.number)) {
 			continue;
 		}
 		travelTime = BotItems_TravelTimeToGoal(bs, &goal);
@@ -5700,13 +6046,20 @@ static void Timing_TickPursuit(bot_state_t *bs) {
 	if (now < bs->timing_next_plan_time) {
 		return;
 	}
-	bs->timing_next_plan_time = now + TIMING_PLAN_INTERVAL;
 
 	trackIndex = Timing_PickBestPursuitTrack(bs, -1, qtrue, &travelTime);
 	if (trackIndex < 0) {
+		/* Nothing departable yet.  Replan sooner when a control item is nearly
+		 * ready so we don't miss the departure window by up to TIMING_PLAN_INTERVAL. */
+		if (Timing_NextControlDepartureIn(bs) <= TIMING_PLAN_NEAR_THRESHOLD_SEC) {
+			bs->timing_next_plan_time = now + TIMING_PLAN_INTERVAL_NEAR_SEC;
+		} else {
+			bs->timing_next_plan_time = now + TIMING_PLAN_INTERVAL;
+		}
 		return;
 	}
 
+	bs->timing_next_plan_time = now + TIMING_PLAN_INTERVAL;
 	track = &bs->timing_track[trackIndex];
 	Timing_StartPursuit(bs, trackIndex, track, travelTime);
 }

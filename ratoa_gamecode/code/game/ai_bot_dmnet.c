@@ -315,6 +315,21 @@ bot_dmnet_fight_vis_t BotDmnet_BattleFightEnemyVisibility(bot_state_t *bs,
 		return BOT_DMNET_FIGHT_VIS_OK;
 	}
 	if (!BotCombat_HasFightLOS(bs, bs->enemy)) {
+		/* Recently lost the sightline but we still have a watched reappear
+		 * point: hold in the fight node and lay down suppressive fire at the
+		 * opening rather than instantly breaking off. Keep the last-known
+		 * origin/area (don't overwrite with the occluded live position). */
+		if (BotCombat_HasOccludedAim(bs) &&
+				bs->enemyvisible_time > 0.0f &&
+				bs->enemyvisible_time >= FloatTime() - BOT_COMBAT_SUPPRESS_HOLD_SEC) {
+			return BOT_DMNET_FIGHT_VIS_OK;
+		}
+		/* Ledge-seek is en route to a firing position above the enemy — stay
+		 * in the fight node while the approach is active so the seek goal
+		 * gets to execute rather than being overridden by chase/LTG. */
+		if (BotPosition_IsLedgeSeekActive(bs)) {
+			return BOT_DMNET_FIGHT_VIS_OK;
+		}
 		if (BotWantsToChase(bs)) {
 			return BOT_DMNET_FIGHT_VIS_CHASE;
 		}

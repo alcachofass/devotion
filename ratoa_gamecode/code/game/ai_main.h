@@ -337,6 +337,8 @@ typedef struct bot_state_s
 	int			item_lj_attempts;
 	float		item_lj_lip_since;
 	float		item_lj_jump_until;
+	int			item_stuck_avoid_num[2];    /* goal numbers to skip after a stuck abort */
+	float		item_stuck_avoid_until[2];  /* per-slot avoid expiry times */
 	/* ---- end BOT ITEMS ---- */
 
 	/* ---- BOT ITEM TIMING: ai_bot_item_timing.c — remove this block to revert ---- */
@@ -398,6 +400,7 @@ typedef struct bot_state_s
 	float		aimh_recal_next_time;	/* next observe/adjust window */
 	float		aimh_recal_fire_since;	/* when current suppressive burst started */
 	int			aimh_recal_last_hits;	/* PERS_HITS latch at last recal window */
+	float		aimh_noise_sign[2];		/* persistent noise direction per axis (±1) */
 	/* ---- end BOT AIM HARNESS ---- */
 
 	/* ---- BOT MOVE HARNESS: ai_bot_move_harness.c ---- */
@@ -454,9 +457,15 @@ typedef struct bot_state_s
 	qboolean	pos_ledge_peek_crouch; /* current peek phase: crouched behind cover */
 	qboolean	pos_item_harass_active; /* timing pursuit suspended for overlook fight */
 	float		pos_route_audit_time; /* next mid-route elevation audit */
+	int			pos_route_audit_goal; /* goal.number last audited; change resets timer */
 	qboolean	pos_uplift_active;    /* short uplift waypoint on goal stack */
 	float		pos_uplift_until;
 	bot_goal_t	pos_uplift_goal;
+	/* Ledge-seek: approach the nearest ledge edge above a below-enemy for overlook fire. */
+	qboolean	pos_ledge_seek_active;  /* edge-approach goal is on goal stack */
+	float		pos_ledge_seek_until;   /* seek expires (or enemy no longer below) */
+	float		pos_ledge_seek_check_time; /* throttle: next eligibility re-eval */
+	bot_goal_t	pos_ledge_seek_goal;    /* the edge waypoint pushed onto stack */
 	/* ---- end BOT POSITION ---- */
 
 	/* ---- BOT NAV GUARD: ai_bot_nav_guard.c ---- */

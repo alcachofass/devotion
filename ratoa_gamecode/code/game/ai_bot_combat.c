@@ -392,6 +392,229 @@ static void BotCombat_UpdateCloseCombatRush(bot_state_t *bs) {
 	}
 	BotCombat_ApplyCloseCombatRush(bs);
 }
+static void BotCombat_ClearPeekAim(bot_state_t *bs) {
+	if (!bs) {
+		return;
+	}
+	bs->combat.peek_aim_valid = qfalse;
+	bs->combat.peek_aim_time = 0.0f;
+	VectorClear(bs->combat.peek_aim_point);
+	VectorClear(bs->combat.peek_goal_origin);
+}
+
+/*
+ * Where the enemy actually is right now (behind cover). Live origin is what we
+ * want for occlusion geometry — the nearest opening to their current position is
+ * where they will reappear. Last-known area is only a fallback.
+ */
+static void BotCombat_GetPeekGoal(bot_state_t *bs, vec3_t goal) {
+	aas_entityinfo_t entinfo;
+
+	BotEntityInfo(bs->enemy, &entinfo);
+	if (entinfo.valid) {
+		VectorCopy(entinfo.origin, goal);
+		goal[2] += 24.0f;
+		return;
+	}
+	if (bs->lastenemyareanum > 0) {
+		VectorCopy(bs->lastenemyorigin, goal);
+		goal[2] += 24.0f;
+		return;
+	}
+	VectorCopy(bs->eye, goal);
+}
+
+/*
+ * Sweep the aim bearing off the (blocked) direct line to the enemy along one
+ * axis. Finds the smallest angular offset where the view ray clears the near
+ * occluder — i.e. the edge of the doorway/corner. Fills the world point on that
+ * opening and returns the offset in degrees.
+ */
+static qboolean BotCombat_SweepForOpening(bot_state_t *bs, vec3_t base,
+		int axis, int sign, float dist, float baselineHit,
+		float *offsetOut, vec3_t aimOut) {
+	bsp_trace_t trace;
+	vec3_t ang, dir, end;
+	float step, hit, aimDist;
+
+	for (step = BOT_COMBAT_PEEK_SWEEP_STEP; step <= BOT_COMBAT_PEEK_SWEEP_MAX;
+			step += BOT_COMBAT_PEEK_SWEEP_STEP) {
+		VectorCopy(base, ang);
+		ang[axis] += sign * step;
+		AngleVectors(ang, dir, NULL, NULL);
+		VectorMA(bs->eye, dist, dir, end);
+		BotAI_Trace(&trace, bs->eye, NULL, NULL, end, bs->client, MASK_SHOT);
+		if (trace.fraction >= 1.0f || trace.ent == bs->enemy) {
+			hit = dist;
+		} else {
+			hit = trace.fraction * dist;
+		}
+		if (hit > baselineHit + BOT_COMBAT_PEEK_OPEN_MARGIN) {
+			/* Aim just past the occluder edge so the crosshair sits on the
+			 * opening the enemy will step through, not deep into the room. */
+			aimDist = baselineHit + BOT_COMBAT_PEEK_OPEN_MARGIN;
+			if (aimDist > hit) {
+				aimDist = hit;
+			}
+			if (aimDist > dist) {
+				aimDist = dist;
+			}
+			VectorMA(bs->eye, aimDist, dir, aimOut);
+			*offsetOut = step;
+			return qtrue;
+		}
+	}
+	return qfalse;
+}
+
+/*
+ * Solve for the nearest opening around the occluder. Sweeps yaw (walls/corners)
+ * and pitch (ledges/floors); picks the side with the smallest angular deviation,
+ * which is the most likely reappear spot. Returns the aim point and the wall hit.
+ */
+static qboolean BotCombat_ComputeReappearAim(bot_state_t *bs, vec3_t goal,
+		vec3_t aimOut, vec3_t wallHitOut) {
+	bsp_trace_t trace;
+	vec3_t toEnemy, base, end, cand;
+	float dist, baselineHit, bestOffset, offset;
+	int axes[2], ai, sign;
+	qboolean found;
+
+	VectorSubtract(goal, bs->eye, toEnemy);
+	dist = VectorNormalize(toEnemy);
+	if (dist < 1.0f) {
+		return qfalse;
+	}
+	if (dist > BOT_COMBAT_PEEK_MAX_DIST) {
+		dist = BOT_COMBAT_PEEK_MAX_DIST;
+	}
+	vectoangles(toEnemy, base);
+
+	VectorMA(bs->eye, dist, toEnemy, end);
+	BotAI_Trace(&trace, bs->eye, NULL, NULL, end, bs->client, MASK_SHOT);
+	if (trace.fraction >= 1.0f || trace.ent == bs->enemy) {
+		return qfalse;	/* not actually occluded */
+	}
+	baselineHit = trace.fraction * dist;
+	VectorCopy(trace.endpos, wallHitOut);
+
+	bestOffset = BOT_COMBAT_PEEK_SWEEP_MAX + 1.0f;
+	found = qfalse;
+	axes[0] = YAW;
+	axes[1] = PITCH;
+	for (ai = 0; ai < 2; ai++) {
+		for (sign = -1; sign <= 1; sign += 2) {
+			if (BotCombat_SweepForOpening(bs, base, axes[ai], sign, dist,
+					baselineHit, &offset, cand)) {
+				if (offset < bestOffset) {
+					bestOffset = offset;
+					VectorCopy(cand, aimOut);
+					found = qtrue;
+				}
+			}
+		}
+	}
+	return found;
+}
+
+static void BotCombat_TickOccludedPeekAim(bot_state_t *bs) {
+	vec3_t goal, aim, wallHit, delta, dir;
+	bsp_trace_t trace;
+	float now;
+
+	if (!bs || bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		return;
+	}
+	if (!BotEnhanced_IsActive()) {
+		return;
+	}
+	if (BotCombat_HasFightLOS(bs, bs->enemy)) {
+		BotCombat_ClearPeekAim(bs);
+		return;
+	}
+
+	BotCombat_GetPeekGoal(bs, goal);
+	now = FloatTime();
+
+	/* Hold the current opening unless the enemy shifted or it went stale. */
+	if (bs->combat.peek_aim_valid) {
+		VectorSubtract(goal, bs->combat.peek_goal_origin, delta);
+		if (VectorLength(delta) < BOT_COMBAT_PEEK_RECHECK_DIST &&
+				now - bs->combat.peek_aim_time < BOT_COMBAT_PEEK_RECHECK_SEC) {
+			return;
+		}
+	}
+
+	if (BotCombat_ComputeReappearAim(bs, goal, aim, wallHit)) {
+		VectorCopy(aim, bs->combat.peek_aim_point);
+		bs->combat.peek_aim_valid = qtrue;
+		VectorCopy(goal, bs->combat.peek_goal_origin);
+		bs->combat.peek_aim_time = now;
+		return;
+	}
+
+	/* No opening within the sweep: aim at the near occluder edge (not through
+	 * it) so the bot stops staring at the enemy's position through the wall. */
+	BotAI_Trace(&trace, bs->eye, NULL, NULL, goal, bs->client, MASK_SHOT);
+	if (trace.fraction < 1.0f && trace.ent != bs->enemy) {
+		VectorCopy(trace.endpos, bs->combat.peek_aim_point);
+		VectorSubtract(goal, trace.endpos, dir);
+		dir[2] = 0.0f;
+		if (VectorNormalize(dir) > 0.25f) {
+			VectorMA(bs->combat.peek_aim_point, BOT_COMBAT_PEEK_NUDGE, dir,
+				bs->combat.peek_aim_point);
+		}
+		bs->combat.peek_aim_point[2] += BOT_COMBAT_PEEK_Z_OFFSET;
+		bs->combat.peek_aim_valid = qtrue;
+		VectorCopy(goal, bs->combat.peek_goal_origin);
+		bs->combat.peek_aim_time = now;
+	}
+}
+
+int BotCombat_HasOccludedAim(bot_state_t *bs) {
+	if (!bs || !BotEnhanced_IsActive()) {
+		return 0;
+	}
+	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		return 0;
+	}
+	if (BotCombat_HasFightLOS(bs, bs->enemy)) {
+		return 0;
+	}
+	return bs->combat.peek_aim_valid;
+}
+
+int BotCombat_GetPeekAimPoint(bot_state_t *bs, vec3_t point) {
+	if (!bs || !point || !bs->combat.peek_aim_valid) {
+		return 0;
+	}
+	VectorCopy(bs->combat.peek_aim_point, point);
+	return 1;
+}
+
+void BotCombat_ApplyOccludedAimPoint(bot_state_t *bs, vec3_t point) {
+	bsp_trace_t trace;
+
+	if (!bs || !point || !BotEnhanced_IsActive()) {
+		return;
+	}
+	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		return;
+	}
+	if (BotCombat_HasFightLOS(bs, bs->enemy)) {
+		return;
+	}
+	if (!bs->combat.peek_aim_valid) {
+		return;
+	}
+
+	BotAI_Trace(&trace, bs->eye, NULL, NULL, point, bs->client, MASK_SHOT);
+	if (trace.fraction >= 1.0f || trace.ent == bs->enemy) {
+		return;
+	}
+	VectorCopy(bs->combat.peek_aim_point, point);
+}
+
 static void BotCombat_ResetStance(bot_state_t *bs) {
 	float backoff;
 
@@ -410,7 +633,11 @@ void BotCombat_Reset(bot_state_t *bs) {
 	}
 	BotCombat_ResetStance(bs);
 	BotCombat_ClearVoluntaryPursuit(bs);
+	BotCombat_ClearPeekAim(bs);
 	bs->combat.gauntlet_voluntary_abandon_until = 0.0f;
+	bs->combat.dodge_strafe_until = 0.0f;
+	bs->combat.dodge_strafe_right = qfalse;
+	bs->combat.dodge_retreat = qfalse;
 }
 int BotCombat_HasFightLOS(bot_state_t *bs, int clientnum) {
 	aas_entityinfo_t entinfo;
@@ -458,6 +685,7 @@ void BotCombat_ReleaseEnemy(bot_state_t *bs) {
 	bs->enemy = -1;
 	bs->enemydeath_time = 0;
 	BotCombat_ClearVoluntaryPursuit(bs);
+	BotCombat_ClearPeekAim(bs);
 	if (BotEnhanced_IsActive()) {
 		BotAimHarness_ReleaseCombat(bs);
 	}
@@ -495,8 +723,10 @@ void BotCombat_TickEngagement(bot_state_t *bs) {
 	if (BotCombat_HasFightLOS(bs, bs->enemy)) {
 		bs->enemyvisible_time = FloatTime();
 		BotCombat_RefreshLastEnemySpot(bs);
+		BotCombat_ClearPeekAim(bs);
 		return;
 	}
+	BotCombat_TickOccludedPeekAim(bs);
 	if (bs->lastenemyareanum > 0) {
 		if (bs->enemyvisible_time >= FloatTime() - BOT_COMBAT_LOS_DROP_AREA_SEC) {
 			return;
@@ -700,6 +930,247 @@ int BotCombat_FindEnemy(bot_state_t *bs, int curenemy) {
 	return qtrue;
 }
 
+static int BotCombat_MissileFromEnemy(const gentity_t *ent, int enemyClient) {
+	if (!ent || enemyClient < 0 || enemyClient >= MAX_CLIENTS) {
+		return 0;
+	}
+	if (ent->r.ownerNum == enemyClient ||
+			ent->s.otherEntityNum == enemyClient) {
+		return 1;
+	}
+	if (ent->r.ownerNum == g_entities[enemyClient].s.number) {
+		return 1;
+	}
+	return 0;
+}
+
+/*
+ * Scan g_entities for direct-fire missiles from the current enemy that are on
+ * course to intercept the bot within BOT_COMBAT_DODGE_MAX_INTERCEPT_SEC.
+ * Sets *dodgeRightOut for lateral clearance and *retreatOut when the bot should
+ * back away (head-on intercept or splash landing ahead).
+ * Returns qtrue when a credible threat is found.
+ */
+static qboolean BotCombat_ScanIncomingMissile(bot_state_t *bs,
+		const vec3_t horizFwdToEnemy, qboolean *dodgeRightOut,
+		qboolean *retreatOut) {
+	int i;
+	gentity_t *ent;
+	vec3_t missilePos, velNorm, toBotVec, closestPt, offset, left;
+	vec3_t up = {0, 0, 1};
+	float speed, projDist, t, approachDist, bestThreat;
+	qboolean bestRetreat;
+
+	if (!bs || bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		return qfalse;
+	}
+
+	bestThreat = 0.0f;
+	bestRetreat = qfalse;
+	if (dodgeRightOut) {
+		*dodgeRightOut = qfalse;
+	}
+	if (retreatOut) {
+		*retreatOut = qfalse;
+	}
+
+	for (i = 0; i < level.num_entities; i++) {
+		ent = &g_entities[i];
+		if (!ent->inuse) {
+			continue;
+		}
+		if (ent->s.eType != ET_MISSILE) {
+			continue;
+		}
+		if (!BotCombat_MissileFromEnemy(ent, bs->enemy)) {
+			continue;
+		}
+		/* Only direct-fire projectiles; skip arcing grenades. */
+		if (ent->s.pos.trType != TR_LINEAR && ent->s.pos.trType != TR_LINEAR_STOP) {
+			continue;
+		}
+		if (ent->s.weapon == WP_GRENADE_LAUNCHER) {
+			continue;
+		}
+
+		BG_EvaluateTrajectory(&ent->s.pos, level.time, missilePos);
+		speed = VectorLength(ent->s.pos.trDelta);
+		if (speed < 1.0f) {
+			continue;
+		}
+		VectorScale(ent->s.pos.trDelta, 1.0f / speed, velNorm);
+
+		/* Project bot's position onto missile's forward path. */
+		VectorSubtract(bs->origin, missilePos, toBotVec);
+		projDist = DotProduct(toBotVec, velNorm);
+		if (projDist < 0.0f) {
+			continue;	/* missile already past the bot */
+		}
+		t = projDist / speed;
+		if (t > BOT_COMBAT_DODGE_MAX_INTERCEPT_SEC) {
+			continue;
+		}
+
+		/* Horizontal distance from bot to missile path. */
+		VectorMA(missilePos, projDist, velNorm, closestPt);
+		VectorSubtract(bs->origin, closestPt, offset);
+		offset[2] = 0.0f;
+		approachDist = VectorLength(offset);
+		if (approachDist > BOT_COMBAT_DODGE_INTERCEPT_RADIUS) {
+			continue;
+		}
+
+		{
+			float threat = (1.0f - approachDist / BOT_COMBAT_DODGE_INTERCEPT_RADIUS) *
+				(1.0f - t / BOT_COMBAT_DODGE_MAX_INTERCEPT_SEC);
+			qboolean retreat;
+			vec3_t aheadVec;
+			float ahead;
+
+			retreat = qfalse;
+			VectorSubtract(closestPt, bs->origin, aheadVec);
+			aheadVec[2] = 0.0f;
+			ahead = DotProduct(aheadVec, horizFwdToEnemy);
+			/* Head-on or splash-about-to-land in front: step back. */
+			if (approachDist <= BOT_COMBAT_DODGE_SPLASH_RADIUS ||
+					(ahead > 24.0f && approachDist <= BOT_COMBAT_DODGE_INTERCEPT_RADIUS * 0.65f)) {
+				retreat = qtrue;
+			}
+			/* Missile velocity carries toward the bot: treat as retreat case too. */
+			if (DotProduct(velNorm, horizFwdToEnemy) < -0.55f &&
+					approachDist <= BOT_COMBAT_DODGE_SPLASH_RADIUS) {
+				retreat = qtrue;
+			}
+
+			if (threat > bestThreat) {
+				bestThreat = threat;
+				bestRetreat = retreat;
+				/* strafe-left direction relative to facing the enemy */
+				CrossProduct(horizFwdToEnemy, up, left);
+				if (approachDist > 1.0f) {
+					vec3_t offsetDir;
+					VectorScale(offset, 1.0f / approachDist, offsetDir);
+					if (dodgeRightOut) {
+						*dodgeRightOut = (DotProduct(offsetDir, left) < 0.0f);
+					}
+				} else if (dodgeRightOut) {
+					*dodgeRightOut = !(bs->flags & BFL_STRAFERIGHT);
+				}
+			} else if (retreat) {
+				bestRetreat = qtrue;
+			}
+		}
+	}
+
+	if (retreatOut) {
+		*retreatOut = bestRetreat;
+	}
+	return bestThreat > BOT_COMBAT_DODGE_THREAT_MIN;
+}
+
+static void BotCombat_TickProjectileDodge(bot_state_t *bs, const vec3_t horizFwd,
+		int holdHighGround) {
+	float now;
+	qboolean dodgeRight;
+	qboolean retreat;
+
+	if (!bs || holdHighGround) {
+		return;
+	}
+
+	now = FloatTime();
+	if (bs->combat.dodge_strafe_until >= now) {
+		return;
+	}
+
+	if (VectorLength(horizFwd) < 0.1f) {
+		return;
+	}
+
+	if (BotCombat_ScanIncomingMissile(bs, horizFwd, &dodgeRight, &retreat)) {
+		bs->combat.dodge_strafe_until = now + BOT_COMBAT_DODGE_HOLD_SEC;
+		bs->combat.dodge_strafe_right = dodgeRight;
+		bs->combat.dodge_retreat = retreat;
+		bs->attackstrafe_time = 0.0f;
+	}
+}
+
+static void BotCombat_ApplyDodgeStrafeFlags(bot_state_t *bs) {
+	if (!bs || bs->combat.dodge_strafe_until < FloatTime()) {
+		return;
+	}
+	if (bs->combat.dodge_strafe_right) {
+		bs->flags |= BFL_STRAFERIGHT;
+	} else {
+		bs->flags &= ~BFL_STRAFERIGHT;
+	}
+}
+
+/*
+ * Execute dodge movement (retreat and/or strafe).  Returns qtrue if a move was
+ * issued.  Does not flip strafe side on failure while the dodge window is active.
+ */
+static qboolean BotCombat_TryDodgeMove(bot_state_t *bs, int movetype,
+		vec3_t forward, vec3_t backward, int holdHighGround) {
+	vec3_t hordir, sideward, combo, up = {0, 0, 1};
+	qboolean inDodge;
+
+	if (!bs || holdHighGround) {
+		return qfalse;
+	}
+
+	inDodge = bs->combat.dodge_strafe_until >= FloatTime();
+	if (!inDodge) {
+		return qfalse;
+	}
+
+	BotCombat_ApplyDodgeStrafeFlags(bs);
+
+	if (bs->combat.dodge_retreat) {
+		if (trap_BotMoveInDirection(bs->ms, backward, 400, movetype)) {
+			return qtrue;
+		}
+	}
+
+	hordir[0] = forward[0];
+	hordir[1] = forward[1];
+	hordir[2] = 0.0f;
+	VectorNormalize(hordir);
+	CrossProduct(hordir, up, sideward);
+	if (bs->flags & BFL_STRAFERIGHT) {
+		VectorNegate(sideward, sideward);
+	}
+
+	if (bs->combat.dodge_retreat) {
+		VectorAdd(sideward, backward, combo);
+	} else {
+		VectorCopy(sideward, combo);
+	}
+	VectorNormalize(combo);
+	if (trap_BotMoveInDirection(bs->ms, combo, 400, movetype)) {
+		return qtrue;
+	}
+
+	bs->flags ^= BFL_STRAFERIGHT;
+	CrossProduct(hordir, up, sideward);
+	if (bs->flags & BFL_STRAFERIGHT) {
+		VectorNegate(sideward, sideward);
+	}
+	if (bs->combat.dodge_retreat) {
+		VectorAdd(sideward, backward, combo);
+	} else {
+		VectorCopy(sideward, combo);
+	}
+	VectorNormalize(combo);
+	if (trap_BotMoveInDirection(bs->ms, combo, 400, movetype)) {
+		BotCombat_ApplyDodgeStrafeFlags(bs);
+		return qtrue;
+	}
+
+	BotCombat_ApplyDodgeStrafeFlags(bs);
+	return qfalse;
+}
+
 bot_moveresult_t BotCombat_AttackMove(bot_state_t *bs, int tfl) {
 	int movetype, i, attackentity, holdHighGround;
 	float attack_skill, croucher, dist, strafechange_time;
@@ -740,13 +1211,25 @@ bot_moveresult_t BotCombat_AttackMove(bot_state_t *bs, int tfl) {
 		attack_dist = IDEAL_ATTACKDIST;
 		attack_range = 40;
 	}
+	holdHighGround = BotPosition_WantsLedgeStrafeOnly(bs);
+	{
+		vec3_t horizFwd;
+
+		horizFwd[0] = forward[0];
+		horizFwd[1] = forward[1];
+		horizFwd[2] = 0.0f;
+		VectorNormalize(horizFwd);
+		BotCombat_TickProjectileDodge(bs, horizFwd, holdHighGround);
+	}
+	if (BotCombat_TryDodgeMove(bs, movetype, forward, backward, holdHighGround)) {
+		return moveresult;
+	}
 	if (BotCombat_WantsCloseBackoff(bs)) {
 		movetype = MOVE_WALK;
 		if (trap_BotMoveInDirection(bs->ms, backward, 400, movetype)) {
 			return moveresult;
 		}
 	}
-	holdHighGround = BotPosition_WantsLedgeStrafeOnly(bs);
 	if (BotCombat_IsLedgeHold(bs)) {
 		BotPosition_TickLedgePeek(bs);
 		movetype = bs->pos_ledge_peek_crouch ? MOVE_CROUCH : MOVE_WALK;
@@ -766,6 +1249,9 @@ bot_moveresult_t BotCombat_AttackMove(bot_state_t *bs, int tfl) {
 	if (BotCombat_IsRushOpponent(bs) &&
 			bs->combat.move_policy == BOT_MOVE_CLOSE_MELEE) {
 		movetype = MOVE_WALK;
+		if (BotCombat_TryDodgeMove(bs, movetype, forward, backward, holdHighGround)) {
+			return moveresult;
+		}
 		if (trap_BotMoveInDirection(bs->ms, forward, 400, movetype)) {
 			return moveresult;
 		}
@@ -775,6 +1261,9 @@ bot_moveresult_t BotCombat_AttackMove(bot_state_t *bs, int tfl) {
 		return moveresult;
 	}
 	if (attack_skill <= 0.4f) {
+		if (BotCombat_TryDodgeMove(bs, movetype, forward, backward, holdHighGround)) {
+			return moveresult;
+		}
 		if (dist > attack_dist + attack_range && !holdHighGround) {
 			if (trap_BotMoveInDirection(bs->ms, forward, 400, movetype)) {
 				return moveresult;
@@ -787,16 +1276,22 @@ bot_moveresult_t BotCombat_AttackMove(bot_state_t *bs, int tfl) {
 		}
 		return moveresult;
 	}
+	BotCombat_ApplyDodgeStrafeFlags(bs);
+
 	bs->attackstrafe_time += bs->thinktime;
 	strafechange_time = 0.4f + (1 - attack_skill) * 0.2f;
 	if (attack_skill > 0.7f) {
 		strafechange_time += crandom() * 0.2f;
 	}
-	if (bs->attackstrafe_time > strafechange_time) {
+	if (bs->attackstrafe_time > strafechange_time &&
+			bs->combat.dodge_strafe_until < FloatTime()) {
 		if (random() > 0.935f * (1.0f - bot_wigglefactor.value)) {
 			bs->flags ^= BFL_STRAFERIGHT;
 			bs->attackstrafe_time = 0;
 		}
+	}
+	if (BotCombat_TryDodgeMove(bs, movetype, forward, backward, holdHighGround)) {
+		return moveresult;
 	}
 	for (i = 0; i < 2; i++) {
 		hordir[0] = forward[0];
@@ -818,6 +1313,9 @@ bot_moveresult_t BotCombat_AttackMove(bot_state_t *bs, int tfl) {
 		}
 		if (trap_BotMoveInDirection(bs->ms, sideward, 400, movetype)) {
 			return moveresult;
+		}
+		if (bs->combat.dodge_strafe_until >= FloatTime()) {
+			break;
 		}
 		bs->flags ^= BFL_STRAFERIGHT;
 		bs->attackstrafe_time = 0;
