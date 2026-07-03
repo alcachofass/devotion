@@ -261,7 +261,7 @@ static void LoadSourceFile( const char *filename ) {
 	length = filelength( f );
 	sourceFile = malloc( length + 1 );
 	if ( sourceFile ) {
-		fread( sourceFile, length, 1, f );
+		(void)!fread( sourceFile, length, 1, f );
 		sourceFile[length] = 0;
 	}
 
