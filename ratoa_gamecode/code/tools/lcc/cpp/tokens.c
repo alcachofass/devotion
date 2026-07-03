@@ -305,15 +305,15 @@ puttokens(Tokenrow *trp)
 		}
 		if (len>OBS/2) {		/* handle giant token */
 			if (wbp > wbuf)
-				write(1, wbuf, wbp-wbuf);
-			write(1, (char *)p, len);
+				(void)!write(1, wbuf, wbp-wbuf);
+			(void)!write(1, (char *)p, len);
 			wbp = wbuf;
 		} else {	
 			memcpy(wbp, p, len);
 			wbp += len;
 		}
 		if (wbp >= &wbuf[OBS]) {
-			write(1, wbuf, OBS);
+			(void)!write(1, wbuf, OBS);
 			if (wbp > &wbuf[OBS])
 				memmove(wbuf, wbuf+OBS, wbp - &wbuf[OBS]);
 			wbp -= OBS;
@@ -328,7 +328,7 @@ void
 flushout(void)
 {
 	if (wbp>wbuf) {
-		write(1, wbuf, wbp-wbuf);
+		(void)!write(1, wbuf, wbp-wbuf);
 		wbp = wbuf;
 	}
 }

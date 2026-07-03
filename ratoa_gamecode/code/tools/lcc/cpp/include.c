@@ -92,9 +92,9 @@ doinclude(Tokenrow *trp)
 			break;
 	}
 	if ( Mflag>1 || (!angled&&Mflag==1) ) {
-		write(1,objname,strlen(objname));
-		write(1,iname,strlen(iname));
-		write(1,"\n",1);
+		(void)!write(1,objname,strlen(objname));
+		(void)!write(1,iname,strlen(iname));
+		(void)!write(1,"\n",1);
 	}
 	if (fd >= 0) {
 		if (++incdepth > 10)
