@@ -39,7 +39,7 @@ static void error(char *, char *);
 static char *exists(char *);
 static char *first(char *);
 static int filename(char *, char *);
-static List find(char *, List);
+static List find(const char *, List);
 static void help(void);
 static void initinputs(void);
 static void interrupt(int);
@@ -548,7 +548,7 @@ static int filename(char *name, char *base) {
 }
 
 /* find - find 1st occurrence of str in list, return list node or 0 */
-static List find(char *str, List list) {
+static List find(const char *str, List list) {
 	List b;
 	
 	if ((b = list))
@@ -788,7 +788,8 @@ static List path2list(const char *path) {
 	if (strchr(path, ';'))
 		sep = ';';
 	while (*path) {
-		char *p, buf[512];
+		const char *p;
+		char buf[512];
 		if ((p = strchr(path, sep))) {
 			assert(p - path < sizeof buf);
 			strncpy(buf, path, p - path);
