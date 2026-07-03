@@ -575,7 +575,7 @@ setsource(char *name, int fd, char *str)
 		len = strlen(str);
 		s->inb = domalloc(len+4);
 		s->inp = s->inb;
-		strncpy((char *)s->inp, str, len);
+		memcpy(s->inp, str, len);                 // use memcpy instead of strncpy to avoid compiler warnings given that EOB is handled explicitly. 
 	} else {
 		s->inb = domalloc(INS+4);
 		s->inp = s->inb;
