@@ -924,7 +924,6 @@ typedef struct {
     qboolean arenasLoaded;
 
     qboolean maplistFromVotemaps;
-    qboolean maplistCached;
     struct maplist_s maplistSource;
     struct maplist_s maplistRecommended;
 
@@ -1467,7 +1466,6 @@ typedef struct {
 extern char custom_vote_info[2048];
 
 extern t_mappage getMappage(int page, qboolean largepage, qboolean recommendedonly);
-extern t_mappage getGTMappage(int page, qboolean largepage);
 void G_BuildMaplistCache( void );
 void getCompleteMaplist(qboolean recommenedonly, int gametypebits_filter, int numPlayers, struct maplist_s *out);
 extern int allowedMap(char *mapname);

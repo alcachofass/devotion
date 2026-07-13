@@ -235,7 +235,6 @@ void G_BuildMaplistCache( void ) {
 	}
 
 	BG_Free( buffer );
-	level.maplistCached = qtrue;
 }
 
 /*
@@ -245,33 +244,11 @@ getMappage
  */
 
 t_mappage getMappage(int page, qboolean largepage, qboolean recommenedonly) {
-	if ( !level.maplistCached ) {
-		G_BuildMaplistCache();
-	}
 	return Maplist_MappageFromList( Maplist_GetBase( recommenedonly ), page, largepage );
-}
-
-t_mappage getGTMappage(int page, qboolean largepage) {
-	t_mappage result;
-	struct maplist_s *filtered;
-
-	if ( !level.maplistCached ) {
-		G_BuildMaplistCache();
-	}
-
-	filtered = BG_Alloc( sizeof( *filtered ) );
-	Maplist_FilterCopy( &level.maplistSource, G_GametypeBitsCurrent(), 0, filtered );
-	result = Maplist_MappageFromList( filtered, page, largepage );
-	BG_Free( filtered );
-	return result;
 }
 
 void getCompleteMaplist(qboolean recommenedonly, int gametypebits_filter, int numPlayers, struct maplist_s *out) {
 	const struct maplist_s *base;
-
-	if ( !level.maplistCached ) {
-		G_BuildMaplistCache();
-	}
 
 	base = Maplist_GetBase( recommenedonly );
 	if ( recommenedonly && !level.maplistFromVotemaps && base->num < 1 ) {

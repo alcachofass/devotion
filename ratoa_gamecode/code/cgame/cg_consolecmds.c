@@ -120,7 +120,6 @@ void CG_Randomcolors_f( void ) {
 
 typedef struct {
 	qboolean	active;
-	qboolean	allMaps;
 	qboolean	loaded_all;
 	int		num_cmds;
 	int		num_maps;
@@ -389,82 +388,6 @@ static const char *CG_Maplist_ColorForMap( const char *mapname ) {
 	return S_COLOR_WHITE;
 }
 
-static void CG_Maplist_CurrentGametypeLabel( const char **name, const char **color ) {
-	switch ( cgs.gametype ) {
-	case GT_FFA:
-		*name = "FFA";
-		*color = S_COLOR_WHITE;
-		return;
-	case GT_SINGLE_PLAYER:
-		*name = "Single Player";
-		*color = S_COLOR_WHITE;
-		return;
-	case GT_TOURNAMENT:
-#ifdef WITH_MULTITOURNAMENT
-	case GT_MULTITOURNAMENT:
-#endif
-		*name = "Duel";
-		*color = S_COLOR_CYAN;
-		return;
-	case GT_TEAM:
-		*name = "TDM";
-		*color = S_COLOR_YELLOW;
-		return;
-	case GT_CTF:
-		*name = "CTF";
-		*color = S_COLOR_GREEN;
-		return;
-#ifdef MISSIONPACK
-	case GT_1FCTF:
-		*name = "1FCTF";
-		*color = S_COLOR_GREEN;
-		return;
-	case GT_OBELISK:
-		*name = "Overload";
-		*color = S_COLOR_GREEN;
-		return;
-	case GT_HARVESTER:
-		*name = "Harvester";
-		*color = S_COLOR_GREEN;
-		return;
-#endif
-	case GT_ELIMINATION:
-		*name = "Elimination";
-		*color = S_COLOR_YELLOW;
-		return;
-	case GT_CTF_ELIMINATION:
-		*name = "CTF Elim";
-		*color = S_COLOR_GREEN;
-		return;
-	case GT_LMS:
-		*name = "LMS";
-		*color = S_COLOR_YELLOW;
-		return;
-#ifdef WITH_DOM_GAMETYPE
-	case GT_DOMINATION:
-		*name = "Domination";
-		*color = S_COLOR_YELLOW;
-		return;
-#endif
-#ifdef WITH_DOUBLED_GAMETYPE
-	case GT_DOUBLE_D:
-		*name = "DD";
-		*color = S_COLOR_YELLOW;
-		return;
-#endif
-#ifdef WITH_TREASURE_HUNTER_GAMETYPE
-	case GT_TREASURE_HUNTER:
-		*name = "TH";
-		*color = S_COLOR_YELLOW;
-		return;
-#endif
-	default:
-		*name = "Unknown";
-		*color = S_COLOR_WHITE;
-		return;
-	}
-}
-
 static void CG_Maplist_Reset( void ) {
 	memset( &cg_maplist, 0, sizeof( cg_maplist ) );
 }
@@ -487,11 +410,7 @@ static void CG_Maplist_RequestNextPage( void ) {
 
 	page = ( cg_maplist.num_maps / CG_MAPLIST_MAPS_PER_PAGE )
 		+ ( ( cg_maplist.num_maps % CG_MAPLIST_MAPS_PER_PAGE == 0 ) ? 0 : 1 );
-	if ( cg_maplist.allMaps ) {
-		trap_SendClientCommand( va( "getmappage %i\n", page ) );
-	} else {
-		trap_SendClientCommand( va( "getgtmappage %i\n", page ) );
-	}
+	trap_SendClientCommand( va( "getmappage %i\n", page ) );
 }
 
 static void CG_Maplist_Print( void ) {
@@ -536,16 +455,7 @@ static void CG_Maplist_Print( void ) {
 
 	CG_Maplist_EnsureArenasLoaded();
 
-	if ( cg_maplist.allMaps ) {
-		CG_Printf( "List of maps from server for gametype: All\n" );
-	} else {
-		const char *gtName;
-		const char *gtColor;
-
-		CG_Maplist_CurrentGametypeLabel( &gtName, &gtColor );
-		CG_Printf( "List of maps from server for gametype: %s%s%s\n",
-			gtColor, gtName, S_COLOR_WHITE );
-	}
+	CG_Printf( "List of maps from server\n" );
 	CG_Printf( "%i Maps\n", cg_maplist.num_maps );
 	CG_Printf( "Key: FFA " S_COLOR_CYAN "Tourney " S_COLOR_GREEN "CTF "
 		S_COLOR_YELLOW "TDM\n" );
@@ -638,25 +548,14 @@ qboolean CG_Maplist_HandleMappage( void ) {
 }
 
 static void CG_Maplist_f( void ) {
-	int argc;
-	char arg[MAX_STRING_CHARS];
-
 	if ( !cg.snap ) {
 		CG_Printf( "maplist: not connected to a server\n" );
 		return;
 	}
 
-	argc = trap_Argc();
-	if ( argc > 2 ) {
-		CG_Printf( "usage: maplist [all]\n" );
+	if ( trap_Argc() > 1 ) {
+		CG_Printf( "usage: maplist\n" );
 		return;
-	}
-	if ( argc > 1 ) {
-		trap_Argv( 1, arg, sizeof( arg ) );
-		if ( Q_stricmp( arg, "all" ) ) {
-			CG_Printf( "usage: maplist [all]\n" );
-			return;
-		}
 	}
 
 	if ( cg_maplist.active ) {
@@ -666,7 +565,6 @@ static void CG_Maplist_f( void ) {
 
 	memset( &cg_maplist, 0, sizeof( cg_maplist ) );
 	cg_maplist.active = qtrue;
-	cg_maplist.allMaps = ( argc > 1 );
 
 	CG_Maplist_RequestNextPage();
 }
@@ -1587,7 +1485,6 @@ void CG_InitConsoleCommands( void ) {
 	trap_AddCommand ("setviewpos");
 	trap_AddCommand ("callvote");
 	trap_AddCommand ("getmappage");
-	trap_AddCommand ("getgtmappage");
 	trap_AddCommand ("getrecmappage");
 	trap_AddCommand ("maplist");
 	trap_AddCommand ("vote");

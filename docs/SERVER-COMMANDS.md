@@ -39,7 +39,6 @@ Commands handled by the Devotion **game** (the server) module. Use them from the
 | `game_memory` | Server console | RatMod | — | Print game memory usage (debug). |
 | `gc` | In-game | Vanilla | — | Send a game command to a specific client (admin). |
 | `gdumpuser` | Server console | RatMod | — | Alias for `dumpuser`. |
-| `getgtmappage` | In-game | RatMod | — | Fetch gametype map list page for vote UI. |
 | `getmappage` | In-game | RatMod | — | Fetch map list page for vote UI. |
 | `getrecmappage` | In-game | RatMod | — | Fetch recommended maps page for vote UI. |
 | `gg` | In-game | RatMod | — | Send a good-game style message. |
