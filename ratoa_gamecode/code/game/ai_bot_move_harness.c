@@ -111,7 +111,15 @@ static int BotMove_RJ_HoldingFireView(bot_state_t *bs) {
 }
 
 static int BotMove_SuppressEnhancedView(bot_state_t *bs) {
-	if (!bs || !BotMoveHarness_IsActive() || bs->enemy >= 0) {
+	if (!bs || !BotMoveHarness_IsActive()) {
+		return 0;
+	}
+	/* Ledge-jump pickup injects ACTION_JUMP via BotItems_OnInputFrame inside
+	 * BotMove_OnInputFrame; the aim-motor path never calls that hook. */
+	if (bs->item_commit_active && FloatTime() < bs->item_lj_jump_until) {
+		return 1;
+	}
+	if (bs->enemy >= 0) {
 		return 0;
 	}
 	/*

@@ -2297,7 +2297,7 @@ static qboolean BotItems_LedgeJumpAtLip(bot_state_t *bs, bot_moveresult_t *mr) {
 	VectorSubtract(bs->item_commit_goal.origin, bs->origin, delta);
 	delta[2] = 0.0f;
 	horiz = VectorLength(delta);
-	if (horiz < BOT_ITEMS_LJ_PICKUP_HORIZ) {
+	if (horiz > BOT_ITEMS_LJ_MAX_HORIZ) {
 		return qfalse;
 	}
 
