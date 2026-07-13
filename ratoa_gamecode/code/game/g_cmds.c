@@ -4515,7 +4515,7 @@ void Cmd_Stats_f( gentity_t *ent ) {
 	trap_SendServerCommand( ent-g_entities, va("print \"%d%% level coverage\n\"", n * 100 / max));
 */
 }
-void Cmd_GetMappage_f_impl( gentity_t *ent, qboolean recommendedmaps, qboolean forgametype) {
+void Cmd_GetMappage_f_impl( gentity_t *ent, qboolean recommendedmaps) {
         t_mappage page;
         char string[(MAX_MAPNAME+1)*MAPS_PER_LARGEPAGE+1];
         char arg[MAX_STRING_TOKENS];
@@ -4531,11 +4531,7 @@ void Cmd_GetMappage_f_impl( gentity_t *ent, qboolean recommendedmaps, qboolean f
 	if (pagenum < 0) {
 		pagenum = 0;
 	}
-	if (forgametype) {
-		page = getGTMappage(pagenum, largepage);
-	} else {
-		page = getMappage(pagenum, largepage, recommendedmaps);
-	}
+	page = getMappage(pagenum, largepage, recommendedmaps);
 	if (largepage) {
 		int i;
 		string[0] = '\0';
@@ -4555,15 +4551,11 @@ void Cmd_GetMappage_f_impl( gentity_t *ent, qboolean recommendedmaps, qboolean f
 }
 
 void Cmd_GetMappage_f( gentity_t *ent ) {
-	Cmd_GetMappage_f_impl(ent, qfalse, qfalse);
+	Cmd_GetMappage_f_impl(ent, qfalse);
 }
 
 void Cmd_GetRecMappage_f( gentity_t *ent ) {
-	Cmd_GetMappage_f_impl(ent, qtrue, qfalse);
-}
-
-void Cmd_GetGTMappage_f( gentity_t *ent ) {
-	Cmd_GetMappage_f_impl(ent, qfalse, qtrue);
+	Cmd_GetMappage_f_impl(ent, qtrue);
 }
 
 //KK-OAX This is the table that ClientCommands runs the console entry against. 
@@ -4656,7 +4648,6 @@ commands_t cmds[ ] =
   { "freespectator", CMD_NOTEAM, StopFollowing },
   { "getmappage", 0, Cmd_GetMappage_f },
   { "getrecmappage", 0, Cmd_GetRecMappage_f },
-  { "getgtmappage", 0, Cmd_GetGTMappage_f },
   { "gc", 0, Cmd_GameCommand_f },
   { "motd", 0, Cmd_Motd_f },
   { "help", 0, Cmd_Motd_f },
