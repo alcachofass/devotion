@@ -339,6 +339,8 @@ typedef struct bot_state_s
 	float		item_lj_jump_until;
 	int			item_stuck_avoid_num[2];    /* goal numbers to skip after a stuck abort */
 	float		item_stuck_avoid_until[2];  /* per-slot avoid expiry times */
+	vec3_t		item_filler_avoid_origin; /* cluster ban center for 5/25h loops */
+	float		item_filler_avoid_until;
 	/* ---- end BOT ITEMS ---- */
 
 	/* ---- BOT ITEM TIMING: ai_bot_item_timing.c — remove this block to revert ---- */
@@ -432,6 +434,7 @@ typedef struct bot_state_s
 	float		wps_next_roam_eval_time;
 	float		wps_enhanced_latch_until;	/* no fight weapon re-eval until this time */
 	float		wps_last_switch_time;
+	float		wps_last_enemy_dist;		/* last fight-eval enemy distance */
 	int			wps_last_chosen_weapon;
 	int			wps_desired_weapon;
 	float		wps_desire_strength;
@@ -477,6 +480,16 @@ typedef struct bot_state_s
 	vec3_t		nav_ring_origin[BOTNAV_RING_SAMPLES];
 	float		nav_next_ring_sample;
 	float		nav_breakout_cooldown_until;
+	vec3_t		nav_exile_origin;		/* last loop pocket — avoid-spot center */
+	float		nav_exile_until;
+	float		nav_exile_since;		/* when this exile began (egress grace) */
+	float		nav_exile_radius;
+	int			nav_exile_count;		/* consecutive breakouts in same region */
+	int			nav_exile_egressed;		/* 1 once bot left pocket — then ban re-entry */
+	int			nav_goal_watch_number;	/* goal number for travel-progress watch */
+	int			nav_goal_watch_best;	/* best (lowest) AAS travel seen */
+	float		nav_goal_watch_since;	/* when best was last improved */
+	float		nav_stuck_debug_next;	/* throttle for bot_navstuck_debug */
 	/* ---- end BOT NAV GUARD ---- */
 } bot_state_t;
 

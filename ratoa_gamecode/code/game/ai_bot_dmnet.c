@@ -47,7 +47,7 @@ void BotDmnet_ExecuteSeekCombat(bot_state_t *bs, bot_dmnet_seek_act_t act,
 		break;
 	case BOT_DMNET_SEEK_BATTLE_FIGHT:
 		if (abort_item_commit) {
-			BotItems_AbortCommit(bs);
+			BotItems_AbortCommit(bs, "enter battle fight");
 		}
 		trap_BotResetLastAvoidReach(bs->ms);
 		trap_BotEmptyGoalStack(bs->gs);

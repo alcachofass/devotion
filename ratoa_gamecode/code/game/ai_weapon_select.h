@@ -52,5 +52,10 @@ int BotWpnSelect_CountCombatAlternatives(const struct bot_state_s *bs, float dis
 /* Botlib travel weapon — ignored when bot_enhanced_weapons is on. */
 void BotWpnSelect_ApplyMovementWeapon(struct bot_state_s *bs, int weapon,
 	int apply);
+/*
+ * Holding rail (ready or post-shot): prefer strafe/hold distance, do not chase
+ * or close into mid/short range.
+ */
+int BotWpnSelect_PrefersHoldRange(const struct bot_state_s *bs);
 
 #endif /* AI_WEAPON_SELECT_H */

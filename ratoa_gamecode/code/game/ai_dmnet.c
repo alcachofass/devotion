@@ -47,6 +47,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "ai_bot_items.h"
 #include "ai_bot_item_timing.h"
 #include "ai_bot_move_harness.h"
+#include "ai_bot_opponent.h"
 #include "ai_bot_tactics.h"
 #include "ai_weapon_select.h"
 #include "ai_dmq3.h"
@@ -1649,6 +1650,10 @@ int AINode_Seek_ActivateEntity(bot_state_t *bs) {
 		}
 		bs->ideal_viewangles[2] *= 0.5;
 	}
+	if (!(moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW))
+			&& !(bs->flags & BFL_IDEALVIEWSET)) {
+		BotOpponent_BiasRoamView(bs);
+	}
 	// if the weapon is used for the bot movement
 	BotWpnSelect_ApplyMovementWeapon(bs, moveresult.weapon,
 		moveresult.flags & MOVERESULT_MOVEMENTWEAPON);
@@ -1814,6 +1819,10 @@ int AINode_Seek_NBG(bot_state_t *bs) {
 		//FIXME: look at cluster portals?
 		else vectoangles(moveresult.movedir, bs->ideal_viewangles);
 		bs->ideal_viewangles[2] *= 0.5;
+	}
+	if (!(moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW))
+			&& !(bs->flags & BFL_IDEALVIEWSET)) {
+		BotOpponent_BiasRoamView(bs);
 	}
 	//if the weapon is used for the bot movement
 	BotWpnSelect_ApplyMovementWeapon(bs, moveresult.weapon,
@@ -2016,6 +2025,10 @@ int AINode_Seek_LTG(bot_state_t *bs)
 			bs->ideal_viewangles[2] *= 0.5;
 		}
 		bs->ideal_viewangles[2] *= 0.5;
+	}
+	if (!(moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW))
+			&& !(bs->flags & BFL_IDEALVIEWSET)) {
+		BotOpponent_BiasRoamView(bs);
 	}
 	//if the weapon is used for the bot movement
 	BotWpnSelect_ApplyMovementWeapon(bs, moveresult.weapon,
@@ -2364,6 +2377,10 @@ int AINode_Battle_Chase(bot_state_t *bs)
 		}
 		bs->ideal_viewangles[2] *= 0.5;
 	}
+	if (!(moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW))
+			&& !(bs->flags & BFL_IDEALVIEWSET)) {
+		BotOpponent_BiasRoamView(bs);
+	}
 	//if the weapon is used for the bot movement
 	BotWpnSelect_ApplyMovementWeapon(bs, moveresult.weapon,
 		moveresult.flags & MOVERESULT_MOVEMENTWEAPON);
@@ -2570,6 +2587,10 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 			bs->ideal_viewangles[2] *= 0.5;
 		}
 	}
+	if (!(moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW))
+			&& !(bs->flags & BFL_IDEALVIEWSET)) {
+		BotOpponent_BiasRoamView(bs);
+	}
 	//if the weapon is used for the bot movement
 	BotWpnSelect_ApplyMovementWeapon(bs, moveresult.weapon,
 		moveresult.flags & MOVERESULT_MOVEMENTWEAPON);
@@ -2716,6 +2737,10 @@ int AINode_Battle_NBG(bot_state_t *bs) {
 			}
 			bs->ideal_viewangles[2] *= 0.5;
 		}
+	}
+	if (!(moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW))
+			&& !(bs->flags & BFL_IDEALVIEWSET)) {
+		BotOpponent_BiasRoamView(bs);
 	}
 	//if the weapon is used for the bot movement
 	BotWpnSelect_ApplyMovementWeapon(bs, moveresult.weapon,

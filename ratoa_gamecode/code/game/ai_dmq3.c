@@ -2634,6 +2634,10 @@ int BotWantsToChase(bot_state_t *bs) {
 	if (BotOpponent_IsActive() && BotOpponent_WantsAvoidEngagement(bs)) {
 		return qfalse;
 	}
+	/* Rail ready / post-shot: hold distance instead of chasing into mid-range. */
+	if (BotEnhanced_IsActive() && BotWpnSelect_PrefersHoldRange(bs)) {
+		return qfalse;
+	}
 	if (BotAggression(bs) > 50)
 		return qtrue;
 	return qfalse;
@@ -2921,7 +2925,8 @@ bot_moveresult_t BotAttackMove(bot_state_t *bs, int tfl) {
 	attackentity = bs->enemy;
 	holdHighGround = 0;
 	//
-	if (bs->attackchase_time > FloatTime()) {
+	if (bs->attackchase_time > FloatTime() &&
+			!(BotEnhanced_IsActive() && BotWpnSelect_PrefersHoldRange(bs))) {
 		//create the chase goal
 		goal.entitynum = attackentity;
 		goal.areanum = bs->lastenemyareanum;

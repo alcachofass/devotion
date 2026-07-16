@@ -392,7 +392,7 @@ static void BotCombat_UpdateCloseCombatRush(bot_state_t *bs) {
 	}
 	BotCombat_ApplyCloseCombatRush(bs);
 }
-static void BotCombat_ClearPeekAim(bot_state_t *bs) {
+void BotCombat_ClearPeekAim(bot_state_t *bs) {
 	if (!bs) {
 		return;
 	}
@@ -400,6 +400,17 @@ static void BotCombat_ClearPeekAim(bot_state_t *bs) {
 	bs->combat.peek_aim_time = 0.0f;
 	VectorClear(bs->combat.peek_aim_point);
 	VectorClear(bs->combat.peek_goal_origin);
+}
+
+/* Trace hit the latched enemy only if that client is still alive. */
+static qboolean BotCombat_TraceHitsLivingEnemy(const bot_state_t *bs, int ent) {
+	if (!bs || bs->enemy < 0 || ent != bs->enemy) {
+		return qfalse;
+	}
+	if (EntityClientIsDead(bs->enemy)) {
+		return qfalse;
+	}
+	return qtrue;
 }
 
 /*
@@ -410,11 +421,14 @@ static void BotCombat_ClearPeekAim(bot_state_t *bs) {
 static void BotCombat_GetPeekGoal(bot_state_t *bs, vec3_t goal) {
 	aas_entityinfo_t entinfo;
 
-	BotEntityInfo(bs->enemy, &entinfo);
-	if (entinfo.valid) {
-		VectorCopy(entinfo.origin, goal);
-		goal[2] += 24.0f;
-		return;
+	if (bs->enemy >= 0 && bs->enemy < MAX_CLIENTS &&
+			!EntityClientIsDead(bs->enemy)) {
+		BotEntityInfo(bs->enemy, &entinfo);
+		if (entinfo.valid) {
+			VectorCopy(entinfo.origin, goal);
+			goal[2] += 24.0f;
+			return;
+		}
 	}
 	if (bs->lastenemyareanum > 0) {
 		VectorCopy(bs->lastenemyorigin, goal);
@@ -427,15 +441,14 @@ static void BotCombat_GetPeekGoal(bot_state_t *bs, vec3_t goal) {
 /*
  * Sweep the aim bearing off the (blocked) direct line to the enemy along one
  * axis. Finds the smallest angular offset where the view ray clears the near
- * occluder — i.e. the edge of the doorway/corner. Fills the world point on that
- * opening and returns the offset in degrees.
+ * occluder, then aims further into that gap (not at the jamb).
  */
 static qboolean BotCombat_SweepForOpening(bot_state_t *bs, vec3_t base,
 		int axis, int sign, float dist, float baselineHit,
 		float *offsetOut, vec3_t aimOut) {
 	bsp_trace_t trace;
 	vec3_t ang, dir, end;
-	float step, hit, aimDist;
+	float step, hit, aimDist, biasStep;
 
 	for (step = BOT_COMBAT_PEEK_SWEEP_STEP; step <= BOT_COMBAT_PEEK_SWEEP_MAX;
 			step += BOT_COMBAT_PEEK_SWEEP_STEP) {
@@ -444,36 +457,85 @@ static qboolean BotCombat_SweepForOpening(bot_state_t *bs, vec3_t base,
 		AngleVectors(ang, dir, NULL, NULL);
 		VectorMA(bs->eye, dist, dir, end);
 		BotAI_Trace(&trace, bs->eye, NULL, NULL, end, bs->client, MASK_SHOT);
-		if (trace.fraction >= 1.0f || trace.ent == bs->enemy) {
+		if (trace.fraction >= 1.0f || BotCombat_TraceHitsLivingEnemy(bs, trace.ent)) {
 			hit = dist;
 		} else {
 			hit = trace.fraction * dist;
 		}
-		if (hit > baselineHit + BOT_COMBAT_PEEK_OPEN_MARGIN) {
-			/* Aim just past the occluder edge so the crosshair sits on the
-			 * opening the enemy will step through, not deep into the room. */
+		if (hit <= baselineHit + BOT_COMBAT_PEEK_OPEN_MARGIN) {
+			continue;
+		}
+
+		/* First clear ray often grazes the frame — bias deeper into the gap
+		 * and place the watch point past the occluder plane in open volume. */
+		biasStep = step + BOT_COMBAT_PEEK_GAP_BIAS;
+		if (biasStep > BOT_COMBAT_PEEK_SWEEP_MAX) {
+			biasStep = BOT_COMBAT_PEEK_SWEEP_MAX;
+		}
+		VectorCopy(base, ang);
+		ang[axis] += sign * biasStep;
+		AngleVectors(ang, dir, NULL, NULL);
+		VectorMA(bs->eye, dist, dir, end);
+		BotAI_Trace(&trace, bs->eye, NULL, NULL, end, bs->client, MASK_SHOT);
+		if (trace.fraction >= 1.0f || BotCombat_TraceHitsLivingEnemy(bs, trace.ent)) {
+			hit = dist;
+		} else {
+			hit = trace.fraction * dist;
+		}
+		if (hit <= baselineHit + BOT_COMBAT_PEEK_OPEN_MARGIN) {
+			/* Biased ray clipped the far jamb — fall back to the clear edge ray. */
+			VectorCopy(base, ang);
+			ang[axis] += sign * step;
+			AngleVectors(ang, dir, NULL, NULL);
+			VectorMA(bs->eye, dist, dir, end);
+			BotAI_Trace(&trace, bs->eye, NULL, NULL, end, bs->client, MASK_SHOT);
+			if (trace.fraction >= 1.0f || BotCombat_TraceHitsLivingEnemy(bs, trace.ent)) {
+				hit = dist;
+			} else {
+				hit = trace.fraction * dist;
+			}
+			biasStep = step;
+		}
+
+		aimDist = baselineHit + BOT_COMBAT_PEEK_GAP_DEPTH;
+		if (aimDist > hit * 0.85f) {
+			aimDist = hit * 0.85f;
+		}
+		if (aimDist < baselineHit + BOT_COMBAT_PEEK_OPEN_MARGIN) {
 			aimDist = baselineHit + BOT_COMBAT_PEEK_OPEN_MARGIN;
 			if (aimDist > hit) {
 				aimDist = hit;
 			}
-			if (aimDist > dist) {
-				aimDist = dist;
-			}
-			VectorMA(bs->eye, aimDist, dir, aimOut);
-			*offsetOut = step;
-			return qtrue;
 		}
+		if (aimDist > dist) {
+			aimDist = dist;
+		}
+		VectorMA(bs->eye, aimDist, dir, aimOut);
+		*offsetOut = biasStep;
+		return qtrue;
 	}
 	return qfalse;
 }
 
+static qboolean BotCombat_PeekPointClear(bot_state_t *bs, const vec3_t point) {
+	bsp_trace_t trace;
+	vec3_t end;
+
+	if (!bs || !point) {
+		return qfalse;
+	}
+	VectorCopy(point, end);
+	BotAI_Trace(&trace, bs->eye, NULL, NULL, end, bs->client, MASK_SHOT);
+	return (trace.fraction >= 0.92f || BotCombat_TraceHitsLivingEnemy(bs, trace.ent)) &&
+		!trace.startsolid;
+}
+
 /*
- * Solve for the nearest opening around the occluder. Sweeps yaw (walls/corners)
- * and pitch (ledges/floors); picks the side with the smallest angular deviation,
- * which is the most likely reappear spot. Returns the aim point and the wall hit.
+ * Angular opening search. pitchFirst=true prioritizes ledge/floor lips;
+ * false prioritizes doorway/corner yaw.
  */
 static qboolean BotCombat_ComputeReappearAim(bot_state_t *bs, vec3_t goal,
-		vec3_t aimOut, vec3_t wallHitOut) {
+		qboolean pitchFirst, vec3_t aimOut, vec3_t wallHitOut) {
 	bsp_trace_t trace;
 	vec3_t toEnemy, base, end, cand;
 	float dist, baselineHit, bestOffset, offset;
@@ -492,7 +554,7 @@ static qboolean BotCombat_ComputeReappearAim(bot_state_t *bs, vec3_t goal,
 
 	VectorMA(bs->eye, dist, toEnemy, end);
 	BotAI_Trace(&trace, bs->eye, NULL, NULL, end, bs->client, MASK_SHOT);
-	if (trace.fraction >= 1.0f || trace.ent == bs->enemy) {
+	if (trace.fraction >= 1.0f || BotCombat_TraceHitsLivingEnemy(bs, trace.ent)) {
 		return qfalse;	/* not actually occluded */
 	}
 	baselineHit = trace.fraction * dist;
@@ -500,8 +562,13 @@ static qboolean BotCombat_ComputeReappearAim(bot_state_t *bs, vec3_t goal,
 
 	bestOffset = BOT_COMBAT_PEEK_SWEEP_MAX + 1.0f;
 	found = qfalse;
-	axes[0] = YAW;
-	axes[1] = PITCH;
+	if (pitchFirst) {
+		axes[0] = PITCH;
+		axes[1] = YAW;
+	} else {
+		axes[0] = YAW;
+		axes[1] = PITCH;
+	}
 	for (ai = 0; ai < 2; ai++) {
 		for (sign = -1; sign <= 1; sign += 2) {
 			if (BotCombat_SweepForOpening(bs, base, axes[ai], sign, dist,
@@ -517,9 +584,297 @@ static qboolean BotCombat_ComputeReappearAim(bot_state_t *bs, vec3_t goal,
 	return found;
 }
 
-static void BotCombat_TickOccludedPeekAim(bot_state_t *bs) {
-	vec3_t goal, aim, wallHit, delta, dir;
+static qboolean BotCombat_IsVerticalPeekCase(bot_state_t *bs, const vec3_t goal,
+	const bsp_trace_t *blocked) {
+	float dz;
+
+	if (!bs || !goal) {
+		return qfalse;
+	}
+	dz = goal[2] - bs->eye[2];
+	if (dz < 0.0f) {
+		dz = -dz;
+	}
+	if (dz >= BOT_COMBAT_PEEK_VERTICAL_Z) {
+		return qtrue;
+	}
+	if (blocked && !blocked->allsolid && blocked->fraction < 1.0f) {
+		if (blocked->plane.normal[2] >= BOT_COMBAT_PEEK_VERTICAL_NORMAL ||
+				blocked->plane.normal[2] <= -BOT_COMBAT_PEEK_VERTICAL_NORMAL) {
+			return qtrue;
+		}
+	}
+	return qfalse;
+}
+
+/*
+ * Pathless ledge/shaft lip: pitch-first angular sweep, then step from the
+ * occluder toward the goal into open volume (works with no walk connectivity).
+ */
+static qboolean BotCombat_SolveVerticalLip(bot_state_t *bs, vec3_t goal,
+	vec3_t aimOut) {
 	bsp_trace_t trace;
+	vec3_t wallHit, toGap, cand, end, hitNormal;
+	float dist, step, rayDist, wallDist;
+
+	if (BotCombat_ComputeReappearAim(bs, goal, qtrue, aimOut, wallHit)) {
+		return qtrue;
+	}
+
+	VectorSubtract(goal, bs->eye, end);
+	dist = VectorNormalize(end);
+	if (dist < 1.0f) {
+		return qfalse;
+	}
+	if (dist > BOT_COMBAT_PEEK_MAX_DIST) {
+		dist = BOT_COMBAT_PEEK_MAX_DIST;
+	}
+	VectorMA(bs->eye, dist, end, end);
+	BotAI_Trace(&trace, bs->eye, NULL, NULL, end, bs->client, MASK_SHOT);
+	if (trace.fraction >= 1.0f || BotCombat_TraceHitsLivingEnemy(bs, trace.ent) || trace.allsolid) {
+		return qfalse;
+	}
+	VectorCopy(trace.endpos, wallHit);
+	VectorCopy(trace.plane.normal, hitNormal);
+	wallDist = Distance(bs->eye, wallHit);
+
+	VectorSubtract(goal, wallHit, toGap);
+	if (VectorNormalize(toGap) < 0.25f) {
+		return qfalse;
+	}
+
+	for (step = BOT_COMBAT_PEEK_LIP_FAN_STEP; step <= BOT_COMBAT_PEEK_LIP_FAN_MAX;
+			step += BOT_COMBAT_PEEK_LIP_FAN_STEP) {
+		VectorMA(wallHit, step, toGap, cand);
+		/* Off the hit surface into free space (plane faces the eye). */
+		VectorMA(cand, BOT_COMBAT_PEEK_SURFACE_PULL, hitNormal, cand);
+		BotAI_Trace(&trace, bs->eye, NULL, NULL, cand, bs->client, MASK_SHOT);
+		if (trace.startsolid) {
+			continue;
+		}
+		rayDist = Distance(bs->eye, cand);
+		if (rayDist < 1.0f) {
+			continue;
+		}
+		if (trace.fraction >= 0.92f || BotCombat_TraceHitsLivingEnemy(bs, trace.ent) ||
+				trace.fraction * rayDist >
+					wallDist + BOT_COMBAT_PEEK_OPEN_MARGIN) {
+			VectorCopy(cand, aimOut);
+			return qtrue;
+		}
+	}
+	return qfalse;
+}
+
+/*
+ * Same-floor doorway candidate via AAS first-visibility along the walk route.
+ * Rejected when travel time implies a long detour (ledge/stacked rooms).
+ */
+static qboolean BotCombat_TryRoutePeek(bot_state_t *bs, const vec3_t goal,
+	vec3_t aimOut) {
+	bot_goal_t g;
+	vec3_t target;
+	vec3_t goalCopy;
+	int goalArea;
+	int travel;
+	int tfl;
+	float dist;
+	float expected;
+
+	if (!bs || !goal || !aimOut) {
+		return qfalse;
+	}
+	if (bs->areanum <= 0) {
+		return qfalse;
+	}
+	VectorCopy(goal, goalCopy);
+	goalArea = BotPointAreaNum(goalCopy);
+	if (goalArea <= 0 || !trap_AAS_AreaReachability(goalArea)) {
+		return qfalse;
+	}
+
+	dist = Distance(bs->origin, goalCopy);
+	if (dist < 80.0f) {
+		return qfalse;
+	}
+	tfl = bs->tfl ? bs->tfl : TFL_DEFAULT;
+	travel = trap_AAS_AreaTravelTimeToGoalArea(bs->areanum, bs->origin, goalArea,
+		tfl);
+	if (travel <= 0) {
+		return qfalse;
+	}
+	expected = dist * BOT_COMBAT_PEEK_ROUTE_TRAVEL_SCALE;
+	if (expected < 40.0f) {
+		expected = 40.0f;
+	}
+	if ((float)travel > expected * BOT_COMBAT_PEEK_ROUTE_TRAVEL_MAX_MULT) {
+		return qfalse;
+	}
+
+	memset(&g, 0, sizeof(g));
+	g.areanum = goalArea;
+	VectorCopy(goalCopy, g.origin);
+	VectorSet(g.mins, -8, -8, -8);
+	VectorSet(g.maxs, 8, 8, 8);
+
+	if (!trap_BotPredictVisiblePosition(bs->origin, bs->areanum, &g, tfl, target)) {
+		return qfalse;
+	}
+	if (DistanceSquared(bs->eye, target) < Square(80.0f)) {
+		return qfalse;
+	}
+	if (!BotCombat_PeekPointClear(bs, target)) {
+		return qfalse;
+	}
+	VectorCopy(target, aimOut);
+	return qtrue;
+}
+
+static qboolean BotCombat_SolveWallFallback(bot_state_t *bs, vec3_t goal,
+	vec3_t out) {
+	vec3_t wallHit, toGoal, ang, sideFwd, sideRight, end, pull, aim;
+	bsp_trace_t trace;
+	float dist, baselineHit, sideHit, bestSideHit;
+	int sign, bestSign;
+
+	BotAI_Trace(&trace, bs->eye, NULL, NULL, goal, bs->client, MASK_SHOT);
+	if (trace.fraction >= 1.0f ||
+			(bs->enemy >= 0 && BotCombat_TraceHitsLivingEnemy(bs, trace.ent))) {
+		return qfalse;
+	}
+
+	VectorSubtract(goal, bs->eye, toGoal);
+	dist = VectorNormalize(toGoal);
+	if (dist < 1.0f) {
+		return qfalse;
+	}
+	baselineHit = trace.fraction * dist;
+	VectorCopy(trace.endpos, wallHit);
+	vectoangles(toGoal, ang);
+
+	bestSign = 0;
+	bestSideHit = baselineHit;
+	for (sign = -1; sign <= 1; sign += 2) {
+		VectorCopy(ang, aim);
+		aim[YAW] += sign * 20.0f;
+		AngleVectors(aim, sideFwd, NULL, NULL);
+		VectorMA(bs->eye, dist, sideFwd, end);
+		BotAI_Trace(&trace, bs->eye, NULL, NULL, end, bs->client, MASK_SHOT);
+		if (trace.fraction >= 1.0f || BotCombat_TraceHitsLivingEnemy(bs, trace.ent)) {
+			sideHit = dist;
+		} else {
+			sideHit = trace.fraction * dist;
+		}
+		if (sideHit > bestSideHit) {
+			bestSideHit = sideHit;
+			bestSign = sign;
+		}
+	}
+
+	VectorCopy(wallHit, out);
+	VectorSubtract(bs->eye, out, pull);
+	if (VectorNormalize(pull) > 0.25f) {
+		VectorMA(out, BOT_COMBAT_PEEK_SURFACE_PULL, pull, out);
+	}
+	if (bestSign != 0) {
+		AngleVectors(ang, NULL, sideRight, NULL);
+		VectorMA(out, -bestSign * BOT_COMBAT_PEEK_NUDGE, sideRight, out);
+	} else {
+		VectorSubtract(goal, out, pull);
+		pull[2] = 0.0f;
+		if (VectorNormalize(pull) > 0.25f) {
+			VectorMA(out, BOT_COMBAT_PEEK_NUDGE, pull, out);
+		}
+	}
+	out[2] += BOT_COMBAT_PEEK_Z_OFFSET;
+	return qtrue;
+}
+
+/*
+ * Occluded watch toward goalOrigin. Vertical/ledge cases use a pathless lip
+ * solve; same-floor cases may use AAS first-visibility, then yaw-first sweep.
+ * Returns 0 when the sightline is clear (caller aims at the goal).
+ */
+int BotCombat_SolveReappearAim(bot_state_t *bs, const vec3_t goalOrigin,
+	vec3_t out) {
+	vec3_t goal, aim, wallHit, end, toGoal;
+	bsp_trace_t blocked;
+	float dist;
+	qboolean vertical;
+
+	if (!bs || !goalOrigin || !out || !BotEnhanced_IsActive()) {
+		return 0;
+	}
+	VectorCopy(goalOrigin, goal);
+	goal[2] += 24.0f;
+
+	VectorSubtract(goal, bs->eye, toGoal);
+	dist = VectorNormalize(toGoal);
+	if (dist < 1.0f) {
+		return 0;
+	}
+	if (dist > BOT_COMBAT_PEEK_MAX_DIST) {
+		dist = BOT_COMBAT_PEEK_MAX_DIST;
+	}
+	VectorMA(bs->eye, dist, toGoal, end);
+	BotAI_Trace(&blocked, bs->eye, NULL, NULL, end, bs->client, MASK_SHOT);
+	if (blocked.fraction >= 1.0f || BotCombat_TraceHitsLivingEnemy(bs, blocked.ent)) {
+		return 0;	/* clear LOS — aim at goal */
+	}
+
+	vertical = BotCombat_IsVerticalPeekCase(bs, goal, &blocked);
+
+	if (vertical) {
+		if (BotCombat_SolveVerticalLip(bs, goal, aim)) {
+			VectorCopy(aim, out);
+			return 1;
+		}
+	} else {
+		if (BotCombat_TryRoutePeek(bs, goal, aim)) {
+			VectorCopy(aim, out);
+			return 1;
+		}
+		if (BotCombat_ComputeReappearAim(bs, goal, qfalse, aim, wallHit)) {
+			VectorCopy(aim, out);
+			return 1;
+		}
+	}
+
+	/* Last resort: yaw-first sweep (vertical path may have missed a side gap),
+	 * then soft wall fallback. */
+	if (BotCombat_ComputeReappearAim(bs, goal, vertical ? qtrue : qfalse, aim,
+			wallHit)) {
+		VectorCopy(aim, out);
+		return 1;
+	}
+	if (!vertical && BotCombat_ComputeReappearAim(bs, goal, qtrue, aim, wallHit)) {
+		VectorCopy(aim, out);
+		return 1;
+	}
+	if (BotCombat_SolveWallFallback(bs, goal, out)) {
+		return 1;
+	}
+	return 0;
+}
+
+void BotCombat_LatchPeekAimPoint(bot_state_t *bs, const vec3_t point,
+	const vec3_t goalOrigin) {
+	if (!bs || !point) {
+		return;
+	}
+	VectorCopy(point, bs->combat.peek_aim_point);
+	bs->combat.peek_aim_valid = qtrue;
+	bs->combat.peek_aim_time = FloatTime();
+	if (goalOrigin) {
+		VectorCopy(goalOrigin, bs->combat.peek_goal_origin);
+	} else {
+		VectorCopy(point, bs->combat.peek_goal_origin);
+	}
+}
+
+static void BotCombat_TickOccludedPeekAim(bot_state_t *bs) {
+	aas_entityinfo_t entinfo;
+	vec3_t goal, rawGoal, aim, delta;
 	float now;
 
 	if (!bs || bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
@@ -545,29 +900,17 @@ static void BotCombat_TickOccludedPeekAim(bot_state_t *bs) {
 		}
 	}
 
-	if (BotCombat_ComputeReappearAim(bs, goal, aim, wallHit)) {
-		VectorCopy(aim, bs->combat.peek_aim_point);
-		bs->combat.peek_aim_valid = qtrue;
-		VectorCopy(goal, bs->combat.peek_goal_origin);
-		bs->combat.peek_aim_time = now;
-		return;
+	/* SolveReappearAim adds the eye-height offset itself — pass raw origin. */
+	BotEntityInfo(bs->enemy, &entinfo);
+	if (entinfo.valid) {
+		VectorCopy(entinfo.origin, rawGoal);
+	} else if (bs->lastenemyareanum > 0) {
+		VectorCopy(bs->lastenemyorigin, rawGoal);
+	} else {
+		VectorCopy(bs->eye, rawGoal);
 	}
-
-	/* No opening within the sweep: aim at the near occluder edge (not through
-	 * it) so the bot stops staring at the enemy's position through the wall. */
-	BotAI_Trace(&trace, bs->eye, NULL, NULL, goal, bs->client, MASK_SHOT);
-	if (trace.fraction < 1.0f && trace.ent != bs->enemy) {
-		VectorCopy(trace.endpos, bs->combat.peek_aim_point);
-		VectorSubtract(goal, trace.endpos, dir);
-		dir[2] = 0.0f;
-		if (VectorNormalize(dir) > 0.25f) {
-			VectorMA(bs->combat.peek_aim_point, BOT_COMBAT_PEEK_NUDGE, dir,
-				bs->combat.peek_aim_point);
-		}
-		bs->combat.peek_aim_point[2] += BOT_COMBAT_PEEK_Z_OFFSET;
-		bs->combat.peek_aim_valid = qtrue;
-		VectorCopy(goal, bs->combat.peek_goal_origin);
-		bs->combat.peek_aim_time = now;
+	if (BotCombat_SolveReappearAim(bs, rawGoal, aim)) {
+		BotCombat_LatchPeekAimPoint(bs, aim, goal);
 	}
 }
 
@@ -609,7 +952,7 @@ void BotCombat_ApplyOccludedAimPoint(bot_state_t *bs, vec3_t point) {
 	}
 
 	BotAI_Trace(&trace, bs->eye, NULL, NULL, point, bs->client, MASK_SHOT);
-	if (trace.fraction >= 1.0f || trace.ent == bs->enemy) {
+	if (trace.fraction >= 1.0f || BotCombat_TraceHitsLivingEnemy(bs, trace.ent)) {
 		return;
 	}
 	VectorCopy(bs->combat.peek_aim_point, point);
@@ -647,6 +990,9 @@ int BotCombat_HasFightLOS(bot_state_t *bs, int clientnum) {
 	if (!bs || clientnum < 0 || clientnum >= MAX_CLIENTS) {
 		return 0;
 	}
+	if (EntityClientIsDead(clientnum)) {
+		return 0;
+	}
 	BotEntityInfo(clientnum, &entinfo);
 	if (!entinfo.valid) {
 		return 0;
@@ -661,6 +1007,9 @@ int BotCombat_HasEnemyCombatContact(bot_state_t *bs) {
 	float vis;
 
 	if (!bs || bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		return 0;
+	}
+	if (EntityClientIsDead(bs->enemy)) {
 		return 0;
 	}
 	if (BotCombat_HasFightLOS(bs, bs->enemy)) {
@@ -1201,6 +1550,15 @@ bot_moveresult_t BotCombat_AttackMove(bot_state_t *bs, int tfl) {
 	if (bs->cur_ps.weapon == WP_GAUNTLET) {
 		attack_dist = 0;
 		attack_range = 0;
+	} else if (bs->cur_ps.weapon == WP_RAILGUN || bs->weaponnum == WP_RAILGUN) {
+		/* Hold long range — do not walk into the reload window. */
+		if (bs->cur_ps.weapon == WP_RAILGUN && bs->cur_ps.weaponTime > 0) {
+			attack_dist = 720.0f;
+			attack_range = 180.0f;
+		} else {
+			attack_dist = 640.0f;
+			attack_range = 160.0f;
+		}
 	} else if (bs->cur_ps.weapon == WP_SHOTGUN ||
 			bs->cur_ps.weapon == WP_PLASMAGUN) {
 		attack_dist = (BOT_COMBAT_CLOSE_WEAPON_MIN_DIST +

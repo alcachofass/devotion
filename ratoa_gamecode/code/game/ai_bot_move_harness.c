@@ -27,6 +27,7 @@ native RJ travel.
 #include "ai_bot_move_harness.h"
 #include "ai_bot_items.h"
 #include "ai_bot_position.h"
+#include "ai_bot_nav_guard.h"
 #include "ai_dmq3.h"
 
 extern vmCvar_t bot_grapple;
@@ -119,11 +120,9 @@ static int BotMove_SuppressEnhancedView(bot_state_t *bs) {
 	if (bs->item_commit_active && FloatTime() < bs->item_lj_jump_until) {
 		return 1;
 	}
-	if (bs->enemy >= 0) {
-		return 0;
-	}
 	/*
-	 * Keep BotMove_OnInputFrame for the whole maneuver until landing after a jump.
+	 * RJ owns view for the whole maneuver until landing. Soft-latched enemy
+	 * must not hand control to the aim motor / sensory look mid-jump.
 	 * At the RJ spot botlib often clears on_rj_travel / VIEWSET; aim motor path
 	 * would run and TryFire would never execute (stare at floor until timeout).
 	 */
@@ -133,6 +132,10 @@ static int BotMove_SuppressEnhancedView(bot_state_t *bs) {
 	if (bs->movej_rj_active &&
 			(bs->movej_on_rj_travel || BotMoveUtil_BypassActive(bs))) {
 		return 1;
+	}
+	/* Outside RJ, latched combat enemy lets the aim motor own the view. */
+	if (bs->enemy >= 0) {
+		return 0;
 	}
 	return BotMoveUtil_HasMovementView(bs->movej_moveresult_flags) ||
 		BotMoveUtil_BypassActive(bs);
@@ -1122,13 +1125,16 @@ int BotMove_EffectiveTfl(bot_state_t *bs) {
 
 void BotMove_OnPostMoveToGoal(bot_state_t *bs, bot_moveresult_t *mr) {
 	int travel;
+	int walkoffAborted;
 
 	if (!bs || !mr) {
 		return;
 	}
 
 	travel = mr->traveltype & TRAVELTYPE_MASK;
+	walkoffAborted = 0;
 	if (BotMove_TryAbortRiskyWalkoff(bs, mr, travel)) {
+		walkoffAborted = 1;
 		travel = 0;
 	}
 
@@ -1136,6 +1142,8 @@ void BotMove_OnPostMoveToGoal(bot_state_t *bs, bot_moveresult_t *mr) {
 	bs->movej_travel_type = travel;
 	bs->movej_on_rj_travel = BotMoveUtil_IsWeaponJumpTravel(travel);
 	BotMoveUtil_CacheHorizMovedir(bs, mr);
+
+	BotNavGuard_DebugStuckMove(bs, mr, walkoffAborted);
 
 	if (!BotMoveHarness_IsActive() || !BotMoveHarness_MovementActive()) {
 		return;

@@ -48,6 +48,8 @@ static qboolean BotItems_GoalVisibleToBot(bot_state_t *bs, bot_goal_t *goal);
 #define BOT_ITEMS_STUCK_TIME			1.75f
 #define BOT_ITEMS_STUCK_AVOID_TIME		8.0f  /* avoid re-committing to a stuck goal */
 #define BOT_ITEMS_MAJOR_ABANDON_AVOID_TIME	5.0f  /* ban same major pickup after abandon */
+#define BOT_ITEMS_FILLER_CLUSTER_AVOID_SEC	12.0f /* ban nearby 5/25h after filler abandon */
+#define BOT_ITEMS_FILLER_CLUSTER_RADIUS		280.0f
 
 #define BOT_ITEMS_LJ_MAX_HORIZ		320.0f
 #define BOT_ITEMS_LJ_MIN_DZ			20.0f
@@ -107,7 +109,12 @@ static qboolean BotItems_TickWeaponDetourScan(bot_state_t *bs);
 static qboolean BotItems_CommitInventoryImproved(bot_state_t *bs);
 static int BotItems_SuspendActivePrimary(bot_state_t *bs);
 static void BotItems_RecordStuckGoalInternal(bot_state_t *bs, int goalNumber, float avoidSec);
+static void BotItems_RecordFillerClusterAvoid(bot_state_t *bs, const vec3_t origin);
 static qboolean BotItems_IsMajorKind(int kind);
+static qboolean BotItems_IsFillerHealthKind(int kind);
+static qboolean BotItems_GoalIsFillerHealth(const bot_goal_t *goal);
+static qboolean BotItems_IsGoalFillerClusterAvoided(const bot_state_t *bs,
+	const bot_goal_t *goal);
 
 
 
@@ -310,6 +317,21 @@ static void BotItems_DebugLine(bot_state_t *bs, int kind, const char *event) {
 		return;
 	}
 	G_Printf("BotItems: %s %s the %s\n", botName, event, itemName);
+}
+
+static void BotItems_DebugAbandon(bot_state_t *bs, int kind, const char *label,
+	const char *reason) {
+	char event[160];
+
+	if (!label) {
+		return;
+	}
+	if (reason && reason[0]) {
+		Com_sprintf(event, sizeof(event), "%s - %s", label, reason);
+	} else {
+		Q_strncpyz(event, label, sizeof(event));
+	}
+	BotItems_DebugLine(bs, kind, event);
 }
 
 /* BotGetLevelItemGoal matches items.c "name", not entity classname. */
@@ -603,6 +625,13 @@ void BotItems_Reset(bot_state_t *bs) {
 	bs->item_opportune_next_scan_time = 0.0f;
 
 	bs->item_opportune_block_until = 0.0f;
+
+	bs->item_stuck_avoid_num[0] = 0;
+	bs->item_stuck_avoid_num[1] = 0;
+	bs->item_stuck_avoid_until[0] = 0.0f;
+	bs->item_stuck_avoid_until[1] = 0.0f;
+	VectorClear(bs->item_filler_avoid_origin);
+	bs->item_filler_avoid_until = 0.0f;
 
 }
 
@@ -1004,7 +1033,7 @@ static void BotItems_NotifyOpponentItemGone(bot_state_t *bs, int kind,
 
 
 
-static void BotItems_ClearCommit(bot_state_t *bs, int endEvent) {
+static void BotItems_ClearCommit(bot_state_t *bs, int endEvent, const char *reason) {
 
 	bot_goal_t top;
 
@@ -1015,6 +1044,8 @@ static void BotItems_ClearCommit(bot_state_t *bs, int endEvent) {
 	qboolean wasTimingCommit;
 
 	int goalNumber;
+
+	vec3_t commitOrigin;
 
 
 
@@ -1051,6 +1082,17 @@ static void BotItems_ClearCommit(bot_state_t *bs, int endEvent) {
 
 	if (bs->item_commit_detour) {
 
+		if (endEvent == BOT_ITEMS_DBG_RESET && bs->item_commit_active) {
+			BotItems_DebugAbandon(bs, bs->item_commit_kind,
+				"abandoned reset", reason);
+		}
+		if (bs->item_commit_active && endEvent != BOT_ITEMS_DBG_GOT &&
+				BotItems_IsFillerHealthKind(bs->item_commit_kind)) {
+			BotItems_RecordStuckGoalInternal(bs, bs->item_commit_goal.number,
+				BOT_ITEMS_STUCK_AVOID_TIME);
+			BotItems_RecordFillerClusterAvoid(bs, bs->item_commit_goal.origin);
+		}
+
 		BotItems_FinishDetourCommit(bs, endEvent,
 			endEvent == BOT_ITEMS_DBG_GOT ||
 			endEvent == BOT_ITEMS_DBG_TIMEOUT ||
@@ -1062,6 +1104,17 @@ static void BotItems_ClearCommit(bot_state_t *bs, int endEvent) {
 	}
 
 	if (bs->item_commit_opportune) {
+
+		if (endEvent == BOT_ITEMS_DBG_RESET && bs->item_commit_active) {
+			BotItems_DebugAbandon(bs, bs->item_commit_kind,
+				"abandoned reset", reason);
+		}
+		if (bs->item_commit_active && endEvent != BOT_ITEMS_DBG_GOT &&
+				BotItems_IsFillerHealthKind(bs->item_commit_kind)) {
+			BotItems_RecordStuckGoalInternal(bs, bs->item_commit_goal.number,
+				BOT_ITEMS_STUCK_AVOID_TIME);
+			BotItems_RecordFillerClusterAvoid(bs, bs->item_commit_goal.origin);
+		}
 
 		BotItems_FinishOpportuneCommit(bs, endEvent,
 			endEvent == BOT_ITEMS_DBG_GOT ||
@@ -1080,6 +1133,8 @@ static void BotItems_ClearCommit(bot_state_t *bs, int endEvent) {
 	kind = bs->item_commit_kind;
 
 	goalNumber = bs->item_commit_goal.number;
+
+	VectorCopy(bs->item_commit_goal.origin, commitOrigin);
 
 	if (wasActive && bs->item_commit_timing) {
 
@@ -1149,6 +1204,12 @@ static void BotItems_ClearCommit(bot_state_t *bs, int endEvent) {
 			BotItems_RecordStuckGoalInternal(bs, goalNumber,
 				BOT_ITEMS_MAJOR_ABANDON_AVOID_TIME);
 
+		} else if (BotItems_IsFillerHealthKind(kind)) {
+
+			BotItems_RecordStuckGoalInternal(bs, goalNumber,
+				BOT_ITEMS_STUCK_AVOID_TIME);
+			BotItems_RecordFillerClusterAvoid(bs, commitOrigin);
+
 		} else if (endEvent == BOT_ITEMS_DBG_STUCK && !wasTimingCommit) {
 
 			BotItems_RecordStuckGoalInternal(bs, goalNumber,
@@ -1184,7 +1245,7 @@ static void BotItems_ClearCommit(bot_state_t *bs, int endEvent) {
 
 		case BOT_ITEMS_DBG_RESET:
 
-			BotItems_DebugLine(bs, kind, "abandoned reset");
+			BotItems_DebugAbandon(bs, kind, "abandoned reset", reason);
 
 			break;
 
@@ -1958,7 +2019,7 @@ int BotItems_BeginTimingCommit(bot_state_t *bs, bot_goal_t *goal, int kind,
 
 	if (bs->item_commit_active) {
 
-		BotItems_ClearCommit(bs, BOT_ITEMS_DBG_RESET);
+		BotItems_ClearCommit(bs, BOT_ITEMS_DBG_RESET, "superseded by timing commit");
 
 	}
 
@@ -2203,7 +2264,12 @@ static void BotItems_EnsureGoalOnStack(bot_state_t *bs) {
 
 	if (!BotEnhanced_PushGoalSafe(bs, &bs->item_commit_goal)) {
 
-		BotItems_ClearCommit(bs, BOT_ITEMS_DBG_RESET);
+		if (BotEnhanced_GoalStackDepth(bs) >= MAX_GOALSTACK) {
+			BotItems_ClearCommit(bs, BOT_ITEMS_DBG_RESET, "goal stack full");
+		} else {
+			BotItems_ClearCommit(bs, BOT_ITEMS_DBG_RESET,
+				"stack push rate-limited");
+		}
 
 	}
 
@@ -2276,7 +2342,7 @@ static void BotItems_CheckStuck(bot_state_t *bs) {
 
 	if (FloatTime() - bs->item_commit_progress_time >= BOT_ITEMS_STUCK_TIME) {
 
-		BotItems_ClearCommit(bs, BOT_ITEMS_DBG_STUCK);
+		BotItems_ClearCommit(bs, BOT_ITEMS_DBG_STUCK, NULL);
 
 	}
 
@@ -2413,6 +2479,12 @@ static qboolean BotItems_TryAcquireVisible(bot_state_t *bs) {
 
 			}
 
+			if (BotItems_IsGoalFillerClusterAvoided(bs, &goal)) {
+
+				continue;
+
+			}
+
 			cost = BotItems_GoalTravelCost(bs, &goal, kind);
 
 			if (cost >= bestCost) {
@@ -2526,6 +2598,12 @@ static qboolean BotItems_FindBestAmongKinds(bot_state_t *bs, bot_goal_t *bestGoa
 			}
 
 			if (BotItems_IsGoalStuckAvoided(bs, goal.number)) {
+
+				continue;
+
+			}
+
+			if (BotItems_IsGoalFillerClusterAvoided(bs, &goal)) {
 
 				continue;
 
@@ -2722,9 +2800,25 @@ static qboolean BotItems_FindOpportunePickup(bot_state_t *bs, bot_goal_t *bestGo
 		BOT_ITEM_HEALTH_LARGE,
 		BOT_ITEM_YELLOW_ARMOR
 	};
+	/* While timing a control major, do not suspend for 5/25h filler. */
+	static const int opportuneKindsMajorTiming[] = {
+		BOT_ITEM_HEALTH_LARGE,
+		BOT_ITEM_YELLOW_ARMOR
+	};
+	const int *kinds;
+	int nKinds;
 
-	return BotItems_FindBestAmongKinds(bs, bestGoal, bestKindOut, opportuneKinds,
-		sizeof(opportuneKinds) / sizeof(opportuneKinds[0]),
+	if (bs->item_commit_timing && BotItems_IsMajorKind(bs->item_commit_kind) &&
+			!BotItems_WantsUrgentRecovery(bs)) {
+		kinds = opportuneKindsMajorTiming;
+		nKinds = (int)(sizeof(opportuneKindsMajorTiming) /
+			sizeof(opportuneKindsMajorTiming[0]));
+	} else {
+		kinds = opportuneKinds;
+		nKinds = (int)(sizeof(opportuneKinds) / sizeof(opportuneKinds[0]));
+	}
+
+	return BotItems_FindBestAmongKinds(bs, bestGoal, bestKindOut, kinds, nKinds,
 		BOT_ITEMS_OPPORTUNE_MAX_TRAVEL, primaryTravel, qtrue, qfalse);
 
 }
@@ -2942,7 +3036,7 @@ void BotItems_Tick(bot_state_t *bs) {
 
 	if (!BotItems_CanConsider(bs)) {
 
-		BotItems_ClearCommit(bs, BOT_ITEMS_DBG_RESET);
+		BotItems_ClearCommit(bs, BOT_ITEMS_DBG_RESET, "cannot consider");
 
 		return;
 
@@ -2960,13 +3054,18 @@ void BotItems_Tick(bot_state_t *bs) {
 			BOT_ITEM_YELLOW_ARMOR
 		};
 		if (bs->item_commit_detour) {
+			BotItems_DebugAbandon(bs, bs->item_commit_kind,
+				"abandoned reset", "urgent recovery drop detour");
 			BotItems_FinishDetourCommit(bs, BOT_ITEMS_DBG_RESET, qfalse);
 		}
 		if (bs->item_commit_opportune) {
+			BotItems_DebugAbandon(bs, bs->item_commit_kind,
+				"abandoned reset", "urgent recovery drop opportune");
 			BotItems_FinishOpportuneCommit(bs, BOT_ITEMS_DBG_RESET, qfalse);
 		}
 		if (bs->item_commit_timing) {
-			BotItems_ClearCommit(bs, BOT_ITEMS_DBG_RESET);
+			BotItems_ClearCommit(bs, BOT_ITEMS_DBG_RESET,
+				"urgent recovery drop timing");
 		}
 		BotItems_ClearSuspended(bs);
 		if (!bs->item_commit_active) {
@@ -3000,7 +3099,7 @@ void BotItems_Tick(bot_state_t *bs) {
 
 		if (FloatTime() >= bs->item_commit_until) {
 
-			BotItems_ClearCommit(bs, BOT_ITEMS_DBG_TIMEOUT);
+			BotItems_ClearCommit(bs, BOT_ITEMS_DBG_TIMEOUT, NULL);
 
 			return;
 
@@ -3008,7 +3107,7 @@ void BotItems_Tick(bot_state_t *bs) {
 
 		if (BotItems_CommitAchieved(bs)) {
 
-			BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GOT);
+			BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GOT, NULL);
 
 			return;
 
@@ -3018,7 +3117,7 @@ void BotItems_Tick(bot_state_t *bs) {
 
 			if (!bs->item_commit_timing) {
 
-				BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GONE);
+				BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GONE, NULL);
 
 				return;
 
@@ -3029,7 +3128,7 @@ void BotItems_Tick(bot_state_t *bs) {
 		if (!bs->item_commit_timing &&
 				!BotItems_GoalIsPresent(bs, &bs->item_commit_goal)) {
 
-			BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GONE);
+			BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GONE, NULL);
 
 			return;
 
@@ -3192,7 +3291,7 @@ int BotItems_HandleReachedGoal(bot_state_t *bs, bot_goal_t *goal) {
 						return 0;
 					}
 					trap_BotSetAvoidGoalTime(bs->gs, goal->number, -1);
-					BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GONE);
+					BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GONE, NULL);
 					return 1;
 				}
 				return 0;
@@ -3202,7 +3301,7 @@ int BotItems_HandleReachedGoal(bot_state_t *bs, bot_goal_t *goal) {
 
 		trap_BotSetAvoidGoalTime(bs->gs, goal->number, -1);
 
-		BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GOT);
+		BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GOT, NULL);
 
 		return 1;
 
@@ -3214,7 +3313,7 @@ int BotItems_HandleReachedGoal(bot_state_t *bs, bot_goal_t *goal) {
 
 		trap_BotSetAvoidGoalTime(bs->gs, goal->number, -1);
 
-		BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GOT);
+		BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GOT, NULL);
 
 		return 1;
 
@@ -3234,7 +3333,7 @@ int BotItems_HandleReachedGoal(bot_state_t *bs, bot_goal_t *goal) {
 
 		BotItems_ItemGoalInVisButNotVisible(bs, goal)) {
 
-		BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GONE);
+		BotItems_ClearCommit(bs, BOT_ITEMS_DBG_GONE, NULL);
 
 		return 1;
 
@@ -3251,6 +3350,13 @@ int BotItems_HandleReachedGoal(bot_state_t *bs, bot_goal_t *goal) {
 int BotItems_ShouldPreserveGoalStack(bot_state_t *bs) {
 
 	if (!BotItems_HasActiveCommit(bs)) {
+
+		return 0;
+
+	}
+
+	/* Low stack: allow NearbyGoal / recovery to override the commit. */
+	if (BotItems_WantsUrgentRecovery(bs)) {
 
 		return 0;
 
@@ -3277,6 +3383,61 @@ static qboolean BotItems_IsMajorKind(int kind) {
 
 	}
 
+}
+
+static qboolean BotItems_IsFillerHealthKind(int kind) {
+	return kind == BOT_ITEM_HEALTH_SMALL || kind == BOT_ITEM_HEALTH;
+}
+
+static qboolean BotItems_GoalIsFillerHealth(const bot_goal_t *goal) {
+	gentity_t *ent;
+	gitem_t *item;
+
+	if (!goal || !(goal->flags & GFL_ITEM)) {
+		return qfalse;
+	}
+	if (!BotItems_PickupEntityActive(goal->entitynum)) {
+		return qfalse;
+	}
+	ent = &g_entities[goal->entitynum];
+	item = ent->item;
+	if (!item || item->giType != IT_HEALTH) {
+		return qfalse;
+	}
+	/* Mega / +50 are worthwhile; 5 and 25 are cluster-loop bait. */
+	if (item->quantity >= 50) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+static void BotItems_RecordFillerClusterAvoid(bot_state_t *bs, const vec3_t origin) {
+	if (!bs || !origin) {
+		return;
+	}
+	VectorCopy(origin, bs->item_filler_avoid_origin);
+	bs->item_filler_avoid_until = FloatTime() + BOT_ITEMS_FILLER_CLUSTER_AVOID_SEC;
+}
+
+static qboolean BotItems_IsGoalFillerClusterAvoided(const bot_state_t *bs,
+	const bot_goal_t *goal) {
+	vec3_t delta;
+	float dist;
+
+	if (!bs || !goal || bs->item_filler_avoid_until <= FloatTime()) {
+		return qfalse;
+	}
+	/* Urgent recovery may still take nearby health. */
+	if (BotItems_WantsUrgentRecovery((bot_state_t *)bs)) {
+		return qfalse;
+	}
+	if (!BotItems_GoalIsFillerHealth(goal)) {
+		return qfalse;
+	}
+	VectorSubtract(goal->origin, bs->item_filler_avoid_origin, delta);
+	delta[2] = 0.0f;
+	dist = VectorLength(delta);
+	return dist <= BOT_ITEMS_FILLER_CLUSTER_RADIUS;
 }
 
 
@@ -3359,7 +3520,7 @@ int BotItems_IsGoalStuckAvoided(const bot_state_t *bs, int goalNumber) {
 
 
 
-void BotItems_AbortCommit(bot_state_t *bs) {
+void BotItems_AbortCommit(bot_state_t *bs, const char *reason) {
 
 	if (!BotItems_HasActiveCommit(bs)) {
 
@@ -3367,13 +3528,14 @@ void BotItems_AbortCommit(bot_state_t *bs) {
 
 	}
 
-	BotItems_ClearCommit(bs, BOT_ITEMS_DBG_RESET);
+	BotItems_ClearCommit(bs, BOT_ITEMS_DBG_RESET, reason);
 
 }
 
 
 
-void BotItems_AbortCommitWithAvoid(bot_state_t *bs, float avoidSec) {
+void BotItems_AbortCommitWithAvoid(bot_state_t *bs, float avoidSec,
+	const char *reason) {
 
 	int goalNumber;
 
@@ -3387,7 +3549,11 @@ void BotItems_AbortCommitWithAvoid(bot_state_t *bs, float avoidSec) {
 
 	goalNumber = bs->item_commit_goal.number;
 
-	BotItems_AbortCommit(bs);
+	if (BotItems_IsFillerHealthKind(bs->item_commit_kind)) {
+		BotItems_RecordFillerClusterAvoid(bs, bs->item_commit_goal.origin);
+	}
+
+	BotItems_AbortCommit(bs, reason ? reason : "avoid abort");
 
 	if (goalNumber && avoidSec > 0.0f) {
 
@@ -3472,7 +3638,7 @@ void BotItems_OnMoveFailure(bot_state_t *bs, bot_moveresult_t *mr) {
 
 	}
 
-	BotItems_ClearCommit(bs, BOT_ITEMS_DBG_STUCK);
+	BotItems_ClearCommit(bs, BOT_ITEMS_DBG_STUCK, NULL);
 
 }
 
@@ -3623,7 +3789,27 @@ static qboolean BotItems_GoalWorthPursuing(bot_state_t *bs, const bot_goal_t *go
 
 	}
 
-	return BotItems_PlayerCanUsePickup(bs, &g_entities[goal->entitynum]);
+	if (!BotItems_PlayerCanUsePickup(bs, &g_entities[goal->entitynum])) {
+
+		return qfalse;
+
+	}
+
+	/* Comfortable bots must not farm 5/25h via botlib NBG. */
+	if (BotItems_GoalIsFillerHealth(goal) && !BotItems_NeedsHealthPickup(bs) &&
+			!BotItems_WantsUrgentRecovery(bs)) {
+
+		return qfalse;
+
+	}
+
+	if (BotItems_IsGoalFillerClusterAvoided(bs, goal)) {
+
+		return qfalse;
+
+	}
+
+	return qtrue;
 
 }
 
@@ -3714,6 +3900,13 @@ int BotItems_NearbyGoal(bot_state_t *bs, int tfl, bot_goal_t *ltg, float range) 
 
 
 	if (!bs) {
+
+		return qfalse;
+
+	}
+
+	/* Keep major/timing commits on track unless recovery is urgent. */
+	if (BotItems_ShouldPreserveGoalStack(bs)) {
 
 		return qfalse;
 
@@ -3918,6 +4111,9 @@ int BotItems_SuppressBlockedAvoid(bot_state_t *bs) {
 #define TIMING_MAP_POOL_MAX			32
 
 #define TIMING_ORIGIN_MATCH_DIST	96.0f
+/* Loose match: botlib goal origins can sit above the dropped floor entity. */
+#define TIMING_ORIGIN_MATCH_DIST_LOOSE	192.0f
+#define TIMING_ORIGIN_MATCH_Z_SLACK	256.0f
 #define TIMING_PICKUP_MATCH_DIST	192.0f
 #define TIMING_OPPONENT_HEARD_BIND_DIST	4096.0f
 #define TIMING_PICKUP_LATCH_SEC		3.0f
@@ -3993,6 +4189,7 @@ static int Timing_PriorityForKind(int kind);
 static qboolean Timing_IsControlKind(int kind);
 static float Timing_NextControlDepartureIn(bot_state_t *bs);
 static qboolean Timing_PriorityControlImminent(bot_state_t *bs);
+static qboolean Timing_TrackActive(const timing_belief_t *track);
 static int Timing_PursuitScore(timing_belief_t *track, int travelTime);
 static int Timing_PursuitScoreWithGoal(bot_state_t *bs, timing_belief_t *track,
 	int travelTime, bot_goal_t *goal);
@@ -4226,14 +4423,58 @@ static float Timing_Dist(const vec3_t a, const vec3_t b) {
 	return VectorLength(delta);
 }
 
+static float Timing_DistToEntityOrigin(gentity_t *ent, const vec3_t origin) {
+	float distS;
+	float distCur;
+
+	if (!ent || !origin) {
+		return 999999.0f;
+	}
+	distS = Timing_Dist(ent->s.origin, origin);
+	distCur = Timing_Dist(ent->r.currentOrigin, origin);
+	return distS < distCur ? distS : distCur;
+}
+
+static qboolean Timing_OriginMatchesEntity(gentity_t *ent, const vec3_t origin) {
+	vec3_t delta;
+	float dist;
+	float xy;
+	float dz;
+
+	if (!ent || !origin) {
+		return qfalse;
+	}
+	dist = Timing_DistToEntityOrigin(ent, origin);
+	if (dist <= TIMING_ORIGIN_MATCH_DIST) {
+		return qtrue;
+	}
+	/* Prefer currentOrigin for XY/Z slack; fall back to s.origin. */
+	VectorSubtract(ent->r.currentOrigin, origin, delta);
+	dz = fabs(delta[2]);
+	delta[2] = 0.0f;
+	xy = VectorLength(delta);
+	if (xy <= TIMING_ORIGIN_MATCH_DIST_LOOSE && dz <= TIMING_ORIGIN_MATCH_Z_SLACK) {
+		return qtrue;
+	}
+	VectorSubtract(ent->s.origin, origin, delta);
+	dz = fabs(delta[2]);
+	delta[2] = 0.0f;
+	xy = VectorLength(delta);
+	return xy <= TIMING_ORIGIN_MATCH_DIST_LOOSE && dz <= TIMING_ORIGIN_MATCH_Z_SLACK;
+}
+
 static gentity_t *Timing_FindSpawnEntity(const char *classname, const vec3_t origin) {
 	int i;
 	gentity_t *ent;
+	gentity_t *best;
 	float dist;
+	float bestDist;
 
 	if (!classname || !origin) {
 		return NULL;
 	}
+	best = NULL;
+	bestDist = TIMING_ORIGIN_MATCH_DIST_LOOSE + TIMING_ORIGIN_MATCH_Z_SLACK;
 	for (i = MAX_CLIENTS; i < level.num_entities; i++) {
 		ent = &g_entities[i];
 		if (!ent->inuse || !ent->item) {
@@ -4242,12 +4483,19 @@ static gentity_t *Timing_FindSpawnEntity(const char *classname, const vec3_t ori
 		if (Q_stricmp(ent->classname, classname)) {
 			continue;
 		}
-		dist = Timing_Dist(ent->s.origin, origin);
+		if (!Timing_OriginMatchesEntity(ent, origin)) {
+			continue;
+		}
+		dist = Timing_DistToEntityOrigin(ent, origin);
 		if (dist <= TIMING_ORIGIN_MATCH_DIST) {
 			return ent;
 		}
+		if (dist < bestDist) {
+			bestDist = dist;
+			best = ent;
+		}
 	}
-	return NULL;
+	return best;
 }
 
 static float Timing_RespawnIntervalFromEntity(gentity_t *ent, int kind) {
@@ -4525,7 +4773,9 @@ static void Timing_AssignTrackFromPool(bot_state_t *bs, int slot,
 		track->state = BOT_TIMING_STATE_SPAWNED;
 		track->believed_spawn_at = 0.0f;
 		seconds = 0;
-	} else if (inst->cooldown_sec > 0.0f) {
+	} else if (inst->cooldown_sec > 1.0f) {
+		/* Ignore the brief FinishSpawningItem delay (~2 frames); only real
+		 * respawn / powerup-start timers should create a cooldown belief. */
 		track->state = BOT_TIMING_STATE_COOLDOWN;
 		track->believed_spawn_at = FloatTime() + inst->cooldown_sec;
 		seconds = (int)inst->cooldown_sec;
@@ -4937,7 +5187,7 @@ static void Timing_AbandonPadAfterCollect(bot_state_t *bs, int trackIndex) {
 	}
 	bs->timing_spawn_due_at = 0.0f;
 	if (bs->item_commit_timing && bs->item_commit_active) {
-		BotItems_AbortCommit(bs);
+		BotItems_AbortCommit(bs, "timing abandon pad");
 		return;
 	}
 	bs->timing_pursue_track = -1;
@@ -4999,13 +5249,20 @@ static void Timing_TickAbandonEmptyPad(bot_state_t *bs, int trackIndex,
 		if (!spawned) {
 			int itemIndex;
 
+			/*
+			 * Near-pad absence is trustworthy. Prefer the entity's real
+			 * nextthink when known; otherwise fall back to full interval.
+			 */
 			itemIndex = Timing_ItemIndexFromKind(track->kind);
 			if (itemIndex >= 0) {
 				BotItemTiming_OnWitnessedPadTakenCooldown(bs, -1, itemIndex,
-					track->origin, "empty at pad", cooldown);
+					track->origin, "empty at pad",
+					cooldown > 0.0f ? cooldown : track->respawn_interval);
 			} else {
 				Timing_TouchPickupLatch(track);
-				Timing_StartCooldown(bs, track, cooldown, "empty at pad");
+				Timing_StartCooldown(bs, track,
+					cooldown > 0.0f ? cooldown : track->respawn_interval,
+					"empty at pad");
 			}
 			return;
 		}
@@ -5053,7 +5310,7 @@ static void Timing_HandleMissedSpawn(bot_state_t *bs, int trackIndex,
 	BotItemTiming_DebugLine(bs, "missed spawn",
 		Timing_LabelForKind(track->kind), (int)track->respawn_interval);
 	if (bs->item_commit_timing) {
-		BotItems_AbortCommit(bs);
+		BotItems_AbortCommit(bs, "missed spawn");
 	}
 	Timing_StartCooldown(bs, track,
 		cooldown > 0.0f ? cooldown : track->respawn_interval, "missed spawn");
@@ -5082,7 +5339,7 @@ static void Timing_TickFarPursueStall(bot_state_t *bs, int trackIndex,
 			BotItemTiming_DebugLine(bs, "pursue overdue",
 				Timing_LabelForKind(track->kind), (int)TIMING_SPAWN_MISS_SEC);
 			if (bs->item_commit_timing && bs->item_commit_active) {
-				BotItems_AbortCommit(bs);
+				BotItems_AbortCommit(bs, "pursue overdue");
 			} else {
 				bs->timing_pursue_track = -1;
 				bs->timing_spawn_due_at = 0.0f;
@@ -5104,7 +5361,7 @@ static void Timing_TickFarPursueStall(bot_state_t *bs, int trackIndex,
 	BotItemTiming_DebugLine(bs, "pursue stall",
 		Timing_LabelForKind(track->kind), (int)TIMING_FAR_PURSUE_ABORT_SEC);
 	if (bs->item_commit_timing && bs->item_commit_active) {
-		BotItems_AbortCommit(bs);
+		BotItems_AbortCommit(bs, "pursue stall");
 	} else {
 		bs->timing_pursue_track = -1;
 		bs->timing_spawn_due_at = 0.0f;
@@ -5254,9 +5511,8 @@ void BotItemTiming_OnSpawn(bot_state_t *bs) {
 	}
 
 	if (bs->item_commit_timing && bs->item_commit_active) {
-		BotItems_AbortCommit(bs);
+		BotItems_AbortCommit(bs, "timing track swap");
 	}
-	BotItemTiming_AbortPursuit(bs);
 	bs->timing_next_plan_time = FloatTime() + 1.0f + (float)(rand() % 4);
 	bs->timing_spawn_due_at = 0.0f;
 	bs->timing_detour_track = -1;
@@ -5514,6 +5770,11 @@ static void BotItemTiming_CheckEmptySpawns(bot_state_t *bs) {
 			continue;
 		}
 
+		/* Botlib still sees a pickup — do not invent a respawn timer. */
+		if (Timing_ItemPresentAtTrack(bs, track)) {
+			continue;
+		}
+
 		def = Timing_DefForKind(track->kind);
 		if (!def) {
 			continue;
@@ -5523,6 +5784,16 @@ static void BotItemTiming_CheckEmptySpawns(bot_state_t *bs) {
 		spawned = qfalse;
 		Timing_ScanSpawnState(def, track->origin, &spawned, &cooldown, NULL);
 		if (spawned) {
+			continue;
+		}
+
+		/*
+		 * Long-range LOS only: require a real entity nextthink. Matching the
+		 * pad origin can fail (goal vs floor drop), and treating that as
+		 * "just taken" with a full MH/RA/YA timer makes bots ignore sitting
+		 * majors at match start. Near-pad confirmation lives in TickAbandon.
+		 */
+		if (cooldown <= 0.0f) {
 			continue;
 		}
 
@@ -5986,7 +6257,7 @@ static void Timing_TickPursuit(bot_state_t *bs) {
 		track = &bs->timing_track[trackIndex];
 		if (!Timing_TrackActive(track)) {
 			if (bs->item_commit_timing) {
-				BotItems_AbortCommit(bs);
+				BotItems_AbortCommit(bs, "timing track inactive");
 			}
 			BotItemTiming_AbortPursuit(bs);
 			return;
@@ -6006,7 +6277,7 @@ static void Timing_TickPursuit(bot_state_t *bs) {
 				TIMING_PURPOSE_SPAWNED : TIMING_PURPOSE_COOLDOWN;
 			if (Timing_ShouldDeferPursuit(bs, track->kind, purpose)) {
 				if (bs->item_commit_timing) {
-					BotItems_AbortCommit(bs);
+					BotItems_AbortCommit(bs, "timing defer pursuit");
 				}
 				BotItemTiming_AbortPursuit(bs);
 				return;
@@ -6026,7 +6297,7 @@ static void Timing_TickPursuit(bot_state_t *bs) {
 		}
 		if (!Timing_BuildGoalFromTrack(bs, track, &goal)) {
 			if (bs->item_commit_timing) {
-				BotItems_AbortCommit(bs);
+				BotItems_AbortCommit(bs, "timing goal build failed");
 			}
 			BotItemTiming_AbortPursuit(bs);
 			return;
@@ -6034,7 +6305,7 @@ static void Timing_TickPursuit(bot_state_t *bs) {
 		travelTime = BotItems_TravelTimeToGoal(bs, &goal);
 		if (travelTime <= 0) {
 			if (bs->item_commit_timing) {
-				BotItems_AbortCommit(bs);
+				BotItems_AbortCommit(bs, "timing goal unreachable");
 			}
 			BotItemTiming_AbortPursuit(bs);
 			return;
@@ -6157,7 +6428,7 @@ void BotItemTiming_BlockPursuitAtGoal(bot_state_t *bs, float blockSec) {
 	bs->timing_next_detour_time = bs->timing_detour_block_until;
 
 	if (bs->item_commit_timing) {
-		BotItems_AbortCommit(bs);
+		BotItems_AbortCommit(bs, "timing pursuit blocked");
 	}
 	BotItemTiming_AbortPursuit(bs);
 }

@@ -51,14 +51,24 @@ typedef enum {
 #define BOT_COMBAT_SUPPRESS_HOLD_SEC		3.0f
 /* Occlusion peek aim: angular sweep off the blocked sightline to find the
  * nearest opening (doorway / corner / ledge edge) the enemy will reappear from. */
-#define BOT_COMBAT_PEEK_NUDGE			12.0f
+#define BOT_COMBAT_PEEK_NUDGE			40.0f	/* fallback lateral nudge into freer side */
+#define BOT_COMBAT_PEEK_SURFACE_PULL		24.0f	/* pull aim off wall into free space */
 #define BOT_COMBAT_PEEK_Z_OFFSET		8.0f
 #define BOT_COMBAT_PEEK_SWEEP_STEP		4.0f	/* degrees per probe */
 #define BOT_COMBAT_PEEK_SWEEP_MAX		62.0f	/* max angular deviation */
 #define BOT_COMBAT_PEEK_OPEN_MARGIN		80.0f	/* clearance past occluder = opening */
+#define BOT_COMBAT_PEEK_GAP_BIAS		10.0f	/* degrees into gap past first clear ray */
+#define BOT_COMBAT_PEEK_GAP_DEPTH		160.0f	/* aim depth past occluder plane into gap */
 #define BOT_COMBAT_PEEK_MAX_DIST		2600.0f
-#define BOT_COMBAT_PEEK_RECHECK_DIST		48.0f	/* re-solve when enemy shifts this far */
-#define BOT_COMBAT_PEEK_RECHECK_SEC		0.3f
+#define BOT_COMBAT_PEEK_RECHECK_DIST		96.0f	/* re-solve when enemy shifts this far */
+#define BOT_COMBAT_PEEK_RECHECK_SEC		1.0f
+/* Vertical / ledge peeks: pathless lip solve when height or floor/ceiling hit. */
+#define BOT_COMBAT_PEEK_VERTICAL_Z		96.0f
+#define BOT_COMBAT_PEEK_VERTICAL_NORMAL	0.55f
+#define BOT_COMBAT_PEEK_ROUTE_TRAVEL_SCALE	0.35f	/* expected AAS travel ≈ dist * this */
+#define BOT_COMBAT_PEEK_ROUTE_TRAVEL_MAX_MULT	3.0f	/* reject route if travel ≫ straight */
+#define BOT_COMBAT_PEEK_LIP_FAN_STEP		32.0f
+#define BOT_COMBAT_PEEK_LIP_FAN_MAX		200.0f
 /* Projectile dodge: maintain chosen strafe / retreat while an incoming missile
  * is detected; ignore missiles more than this far ahead in time. */
 #define BOT_COMBAT_DODGE_HOLD_SEC		0.6f
@@ -107,8 +117,19 @@ int BotCombat_HasFightLOS(struct bot_state_s *bs, int clientnum);
 int BotCombat_HasOccludedAim(struct bot_state_s *bs);
 /* Latched occlusion peek point while fight LOS is blocked (enhanced). */
 int BotCombat_GetPeekAimPoint(struct bot_state_s *bs, vec3_t point);
+void BotCombat_ClearPeekAim(struct bot_state_s *bs);
 /* If aim point is blocked by geometry, substitute peek point when available. */
 void BotCombat_ApplyOccludedAimPoint(struct bot_state_s *bs, vec3_t point);
+/*
+ * Solve doorway/edge watch toward an arbitrary goal origin (belief or last seen).
+ * Returns 1 and fills out when the direct line is occluded (opening or near-wall
+ * edge). Returns 0 when the goal is clear LOS — caller should aim at the goal.
+ */
+int BotCombat_SolveReappearAim(struct bot_state_s *bs, const vec3_t goalOrigin,
+	vec3_t out);
+/* Latch a sensory / occluded watch point into combat peek state. */
+void BotCombat_LatchPeekAimPoint(struct bot_state_s *bs, const vec3_t point,
+	const vec3_t goalOrigin);
 /* Fight LOS or opponent-visible contact — retain enemy / opportunistic fire. */
 int BotCombat_HasEnemyCombatContact(struct bot_state_s *bs);
 void BotCombat_ReleaseEnemy(struct bot_state_s *bs);
