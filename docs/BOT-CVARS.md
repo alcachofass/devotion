@@ -66,4 +66,4 @@ set bot_enhanced 1
 set bot_enhanced_debug 0
 ```
 
-For architecture, extension points, and the **parity test checklist**, see [BOT-ENHANCED-ARCHITECTURE.md](BOT-ENHANCED-ARCHITECTURE.md).
+For how the enhanced bot modules hang together, see [BOT-ENHANCED-ARCHITECTURE.md](BOT-ENHANCED-ARCHITECTURE.md).
