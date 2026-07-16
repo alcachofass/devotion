@@ -13,6 +13,7 @@ Console variables that control bot AI, navigation, chat, and fill rules. Set the
 | `bot_enable` | Vanilla | `0` | 0 or 1 | Master switch: bots only load and play when `1`. Usually set in `server.cfg` (provided by the engine, not the game module). |
 | `bot_enhanced` | Devotion | `0` | 0 or 1 | Master switch for all Devotion bot AI upgrades: aim harness, smart weapons, tactics, items, item timing (per gametype), movement (RJ + walkoff), position, opponent (1v1), nav guard, combat intent. When `0`, behavior matches vanilla. Saved to config. |
 | `bot_enhanced_debug` | Devotion | `0` | 0 or 1 | Server-side debug logging for enhanced subsystems (item commits, nav guard, opponent inference, etc.). Requires `bot_enhanced 1`. |
+| `bot_navstuck_debug` | Devotion | `0` | 0 or 1 | High-rate nav stuck diagnosis: prints goal, travel type, walkoff/exile flags after each MoveToGoal. Toggle on when a bot is looping a trouble spot, then paste lines. |
 | `bot_fastchat` | Vanilla | `0` | 0 or 1 | When `1`, bots are more likely to use chat lines (skips some random "stay quiet" rolls). |
 | `bot_forceclustering` | Vanilla | `0` | 0 or 1 | Forces the navigation system to rebuild area clusters for the current map (slow; map load / AAS build). |
 | `bot_forcereachability` | Vanilla | `0` | 0 or 1 | Forces reachability between areas to be recalculated (slow; map load / AAS build). |
@@ -65,4 +66,4 @@ set bot_enhanced 1
 set bot_enhanced_debug 0
 ```
 
-For architecture, extension points, and the **parity test checklist**, see [BOT-ENHANCED-ARCHITECTURE.md](BOT-ENHANCED-ARCHITECTURE.md).
+For how the enhanced bot modules hang together, see [BOT-ENHANCED-ARCHITECTURE.md](BOT-ENHANCED-ARCHITECTURE.md).

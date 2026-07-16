@@ -86,6 +86,11 @@ static void BotAimHarness_ComputeRailLeadPoint(bot_state_t *bs, vec3_t leadPoint
 #define AIMH_RL_SPLASH_NEAR_XY		96.0f
 #define AIMH_RL_SPLASH_NEAR_3D		128.0f
 #define AIMH_RL_CLOSE_SPLASH_DIST	800.0f
+/* Occluded suppressive fire: drop the peek/opening aim to a splash-friendly
+ * spot (feet of the imagined enemy) so blind rockets/grenades do real damage. */
+#define AIMH_OCC_FLOOR_DROP		96.0f	/* down-trace under the opening for a floor */
+#define AIMH_OCC_FLOOR_Z_OFFSET		2.0f	/* nudge splash point off the floor */
+#define AIMH_OCC_SPLASH_LOS_TOL		24.0f	/* eye->splash must arrive this close */
 #define AIMH_PITCH_RESET_ERR	14.0f
 #define AIMH_PITCH_CATCHUP_ERR	10.0f
 #define AIMH_PITCH_CATCHUP_RATE	7.0f
@@ -128,6 +133,11 @@ static void BotAimHarness_ComputeRailLeadPoint(bot_state_t *bs, vec3_t leadPoint
 /* Fixed motor sub-steps so low sv_fps (large frame dt) stays stable on dedicated. */
 #define AIMH_MOTOR_SUBSTEP_DT		0.010f
 #define AIMH_MOTOR_SUBSTEP_MAX		12
+/* Pursuit-goal smoothing: blend new think aim into the motor target smoothly. */
+#define AIMH_GOAL_SMOOTH_ALPHA		0.65f	/* fraction of new goal used per think */
+#define AIMH_GOAL_SMOOTH_THRESH		18.0f	/* large change: snap instead of blend */
+/* Noise persistence: time constant for per-axis noise direction flip (seconds). */
+#define AIMH_NOISE_DIR_FLIP_TAU		0.12f
 
 /* Suppressive fire: wide cone; trace-only rail fire at elite skill. */
 #define AIMH_FIRE_TRACK_FOV			100.0f
@@ -135,6 +145,8 @@ static void BotAimHarness_ComputeRailLeadPoint(bot_state_t *bs, vec3_t leadPoint
 #define AIMH_FIRE_ANY_VISIBILITY		0.06f
 #define AIMH_FIRE_BLOCKED_TRACE_FRAC	0.18f
 #define AIMH_FIRE_RL_MAX_DIST		1024.0f
+/* Minimum forward clearance before splash weapons (RL/GL/BFG) may fire. */
+#define AIMH_SPLASH_MUZZLE_SAFE_DIST	96.0f
 /* Blind suppressive fire at last-seen / predicted peek (RL/GL/plasma/BFG). */
 #define AIMH_BLIND_MIN_AIM_DIST		80.0f
 #define AIMH_BLIND_SKILL_MIN			0.5f
@@ -617,6 +629,9 @@ static qboolean BotAimHarness_IsRailInterceptActive(bot_state_t *bs) {
 	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
 		return qfalse;
 	}
+	if (!BotCombat_HasFightLOS(bs, bs->enemy)) {
+		return qfalse;
+	}
 	return qtrue;
 }
 
@@ -683,6 +698,24 @@ static void BotAimHarness_RefreshThinkPursuitGoal(bot_state_t *bs) {
 		bs->aimh_smooth_goal_pitch = trueAngles[PITCH];
 		bs->aimh_smooth_goal_yaw = trueAngles[YAW];
 		return;
+	}
+
+	/* Smooth the true aim direction across thinks to reduce micro-jitter from
+	 * frame-to-frame enemy movement.  Only blend small corrections; large changes
+	 * (enemy teleport, sudden turn) snap immediately. */
+	if (bs->aimh_pursuit_set_time > 0.0f) {
+		float pDelta = fabs(BotAimHarness_PitchDiff(bs->aimh_true_goal_pitch,
+			trueAngles[PITCH]));
+		float yDelta = fabs(BotAimHarness_YawDiff(bs->aimh_true_goal_yaw,
+			trueAngles[YAW]));
+		if (pDelta < AIMH_GOAL_SMOOTH_THRESH && yDelta < AIMH_GOAL_SMOOTH_THRESH) {
+			trueAngles[PITCH] = BotAimHarness_ClampPitch(bs->aimh_true_goal_pitch +
+				BotAimHarness_PitchDiff(bs->aimh_true_goal_pitch, trueAngles[PITCH]) *
+				AIMH_GOAL_SMOOTH_ALPHA);
+			trueAngles[YAW] = AngleMod(bs->aimh_true_goal_yaw +
+				BotAimHarness_YawDiff(bs->aimh_true_goal_yaw, trueAngles[YAW]) *
+				AIMH_GOAL_SMOOTH_ALPHA);
+		}
 	}
 
 	dist = BotAimHarness_GetCombatPursuitDist(bs);
@@ -953,6 +986,28 @@ static qboolean BotAimHarness_BlindAimPathClear(bot_state_t *bs) {
 	return qtrue;
 }
 
+/* RL, GL, BFG can deal significant self-splash damage. */
+static qboolean BotAimHarness_IsSplashWeapon(bot_state_t *bs) {
+	return (bs->weaponnum == WP_ROCKET_LAUNCHER ||
+		bs->weaponnum == WP_GRENADE_LAUNCHER ||
+		bs->weaponnum == WP_BFG);
+}
+
+/*
+ * Returns true when the forward view direction is clear for at least
+ * AIMH_SPLASH_MUZZLE_SAFE_DIST units.  Used before firing splash weapons to
+ * prevent point-blank wall detonations caused by aim jitter or misalignment.
+ */
+static qboolean BotAimHarness_SplashMuzzleClear(bot_state_t *bs) {
+	vec3_t forward, end;
+	bsp_trace_t trace;
+
+	AngleVectors(bs->viewangles, forward, NULL, NULL);
+	VectorMA(bs->eye, AIMH_SPLASH_MUZZLE_SAFE_DIST, forward, end);
+	BotAI_Trace(&trace, bs->eye, NULL, NULL, end, bs->client, MASK_SHOT);
+	return trace.fraction >= 1.0f;
+}
+
 /*
  * Doorway / last-known-area suppressive fire when MASK_SHOT LOS to the enemy is gone.
  */
@@ -1038,6 +1093,10 @@ static int BotAimHarness_TryRocketCloseSplashPoint(bot_state_t *bs,
 	aas_entityinfo_t *entinfo, vec3_t feetPoint) {
 	vec3_t dir;
 	float horizDist;
+
+	if (!BotCombat_HasFightLOS(bs, bs->enemy)) {
+		return qfalse;
+	}
 
 	horizDist = BotAimHarness_EnemyHorizDist(bs, entinfo);
 	if (horizDist > AIMH_RL_CLOSE_SPLASH_DIST || horizDist < 8.0f) {
@@ -1412,6 +1471,10 @@ void BotAimHarness_ApplyPlasmaCenterMassAim(bot_state_t *bs, vec3_t aimPoint) {
 	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
 		return;
 	}
+	/* Don't drag the aim Z back to the enemy while shooting at a peek point. */
+	if (BotCombat_HasOccludedAim(bs)) {
+		return;
+	}
 	BotEntityInfo(bs->enemy, &entinfo);
 	if (!entinfo.valid) {
 		return;
@@ -1620,6 +1683,54 @@ void BotAimHarness_ApplyRocketFeetAim(bot_state_t *bs, vec3_t aimPoint) {
 }
 
 /*
+ * Occluded suppressive fire placement: aimPoint arrives as the peek/opening
+ * watch point (roughly torso height at the doorway/corner). Treat it as an
+ * imagined enemy stepping out there and place the shot per weapon so blind
+ * spam still does damage:
+ *   - Rockets / BFG: drop to the floor beneath the opening for feet splash.
+ *   - Grenades: aim a little low/short so they land in the opening.
+ *   - Everything else: leave the torso-height watch point untouched.
+ */
+void BotAimHarness_ApplyOccludedShotPlacement(bot_state_t *bs, vec3_t aimPoint) {
+	bsp_trace_t trace;
+	vec3_t down, floorPt, delta;
+
+	if (!BotAimHarness_IsActive() || !bs) {
+		return;
+	}
+	if (!BotCombat_HasOccludedAim(bs)) {
+		return;
+	}
+
+	switch (bs->weaponnum) {
+	case WP_ROCKET_LAUNCHER:
+	case WP_BFG:
+		VectorCopy(aimPoint, down);
+		down[2] -= AIMH_OCC_FLOOR_DROP;
+		BotAI_Trace(&trace, aimPoint, NULL, NULL, down, bs->entitynum, MASK_SHOT);
+		if (trace.fraction < 1.0f && !trace.startsolid) {
+			VectorCopy(trace.endpos, floorPt);
+			floorPt[2] += AIMH_OCC_FLOOR_Z_OFFSET;
+			/* The rocket must actually reach the splash spot from the eye. */
+			BotAI_Trace(&trace, bs->eye, NULL, NULL, floorPt, bs->entitynum, MASK_SHOT);
+			VectorSubtract(trace.endpos, floorPt, delta);
+			if (VectorLength(delta) <= AIMH_OCC_SPLASH_LOS_TOL) {
+				VectorCopy(floorPt, aimPoint);
+				return;
+			}
+		}
+		/* No clean floor / blocked: settle toward feet height at the opening. */
+		aimPoint[2] -= AIMH_RL_PLAYER_CENTER_Z * 0.5f;
+		return;
+	case WP_GRENADE_LAUNCHER:
+		aimPoint[2] -= AIMH_RL_PLAYER_CENTER_Z * 0.5f;
+		return;
+	default:
+		return;
+	}
+}
+
+/*
  * Live combat aim point: entity origin (with aimtarget Z when available) + skill-scaled lead.
  */
 static int BotAimHarness_GetCombatTarget(bot_state_t *bs, vec3_t target) {
@@ -1627,6 +1738,12 @@ static int BotAimHarness_GetCombatTarget(bot_state_t *bs, vec3_t target) {
 
 	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
 		return qfalse;
+	}
+
+	if (BotCombat_HasOccludedAim(bs) && BotAimHarness_AimTargetValid(bs)) {
+		VectorCopy(bs->aimtarget, target);
+		VectorCopy(target, bs->aimh_combat_target);
+		return qtrue;
 	}
 
 	BotEntityInfo(bs->enemy, &entinfo);
@@ -1695,7 +1812,9 @@ static void BotAimHarness_GetCombatAimAngles(bot_state_t *bs, vec3_t angles) {
 				VectorCopy(entinfo.origin, aimPoint);
 				aimPoint[2] += 8.0f;
 			}
-			if (BotAimHarness_TryRocketFeetPoint(bs, &entinfo, aimPoint, aimPoint)) {
+			BotCombat_ApplyOccludedAimPoint(bs, aimPoint);
+			if (BotCombat_HasFightLOS(bs, bs->enemy) &&
+					BotAimHarness_TryRocketFeetPoint(bs, &entinfo, aimPoint, aimPoint)) {
 				VectorSubtract(aimPoint, bs->eye, dir);
 				vectoangles(dir, angles);
 				angles[PITCH] = BotAimHarness_ClampPitch(angles[PITCH]);
@@ -1718,15 +1837,19 @@ static void BotAimHarness_GetCombatAimAngles(bot_state_t *bs, vec3_t angles) {
 	}
 
 	if (BotAimHarness_AimTargetValid(bs)) {
-		if (BotAimHarness_UsingTrackingHitscan(bs)) {
+		if (BotAimHarness_UsingTrackingHitscan(bs) &&
+				BotCombat_HasFightLOS(bs, bs->enemy)) {
 			BotAimHarness_GetLiveTrackingAimPoint(bs, aimPoint);
 		} else {
 			VectorCopy(bs->aimtarget, aimPoint);
 		}
+		BotCombat_ApplyOccludedAimPoint(bs, aimPoint);
 		BotAimHarness_ApplyPlasmaCenterMassAim(bs, aimPoint);
 		VectorSubtract(aimPoint, bs->eye, dir);
 	} else if (bs->aimh_combat_aim && VectorLengthSquared(bs->aimh_combat_target) > 1.0f) {
-		VectorSubtract(bs->aimh_combat_target, bs->eye, dir);
+		VectorCopy(bs->aimh_combat_target, aimPoint);
+		BotCombat_ApplyOccludedAimPoint(bs, aimPoint);
+		VectorSubtract(aimPoint, bs->eye, dir);
 	} else {
 		VectorCopy(bs->aimh_goal, angles);
 		return;
@@ -1770,6 +1893,7 @@ static void BotAimHarness_GetEnemyFirePoint(bot_state_t *bs, vec3_t point) {
 
 	if (BotAimHarness_UsingRocketLauncher(bs) && BotAimHarness_AimTargetValid(bs)) {
 		VectorCopy(bs->aimtarget, point);
+		BotCombat_ApplyOccludedAimPoint(bs, point);
 		return;
 	}
 
@@ -1777,6 +1901,7 @@ static void BotAimHarness_GetEnemyFirePoint(bot_state_t *bs, vec3_t point) {
 	if (!entinfo.valid) {
 		if (BotAimHarness_AimTargetValid(bs)) {
 			VectorCopy(bs->aimtarget, point);
+			BotCombat_ApplyOccludedAimPoint(bs, point);
 		} else {
 			VectorCopy(bs->eye, point);
 		}
@@ -1786,17 +1911,24 @@ static void BotAimHarness_GetEnemyFirePoint(bot_state_t *bs, vec3_t point) {
 	if (BotAimHarness_UsingRocketLauncher(bs) &&
 			BotAimHarness_TryRocketFeetPoint(bs, &entinfo, entinfo.origin, feetPoint)) {
 		VectorCopy(feetPoint, point);
+		BotCombat_ApplyOccludedAimPoint(bs, point);
 		return;
 	}
 
 	if (BotAimHarness_UsingPlasmagun(bs)) {
-		VectorCopy(entinfo.origin, point);
-		point[2] = BotAimHarness_GetEnemyCenterMassZ(&entinfo);
+		if (!BotCombat_HasOccludedAim(bs)) {
+			VectorCopy(entinfo.origin, point);
+			point[2] = BotAimHarness_GetEnemyCenterMassZ(&entinfo);
+		} else if (BotAimHarness_AimTargetValid(bs)) {
+			VectorCopy(bs->aimtarget, point);
+		}
+		BotCombat_ApplyOccludedAimPoint(bs, point);
 		return;
 	}
 
 	VectorCopy(entinfo.origin, point);
 	point[2] += 24.0f;
+	BotCombat_ApplyOccludedAimPoint(bs, point);
 }
 
 /*
@@ -2094,6 +2226,13 @@ static qboolean BotAimHarness_PassesThinkFireGates(bot_state_t *bs) {
 		return qfalse;
 	}
 
+	/* Block all weapons during the motor acquire window so the bot doesn't fire
+	 * mid-flick on a fresh engagement or enemy switch.  Rail has an additional
+	 * post-acquire delay in WantsRailFire; this covers everything else. */
+	if (FloatTime() < bs->aimh_acquire_until) {
+		return qfalse;
+	}
+
 	return qtrue;
 }
 
@@ -2160,6 +2299,12 @@ static qboolean BotAimHarness_WantsSuppressiveFire(bot_state_t *bs,
 	}
 
 	if (BotAimHarness_ShotObviouslyBlocked(bs)) {
+		return qfalse;
+	}
+	/* Prevent splash weapons from detonating on nearby walls due to aim jitter
+	 * or misalignment.  Checked before the blind-fire early-return so it applies
+	 * equally to occluded suppressive fire. */
+	if (BotAimHarness_IsSplashWeapon(bs) && !BotAimHarness_SplashMuzzleClear(bs)) {
 		return qfalse;
 	}
 	if (BotAimHarness_WantsBlindSuppressiveFire(bs, wi)) {
@@ -2257,6 +2402,12 @@ void BotAimHarness_ApplyCombatFire(bot_state_t *bs) {
 
 	if (BotAimHarness_ShotObviouslyBlocked(bs)) {
 		bs->aimh_hold_fire = qfalse;
+		return;
+	}
+	/* Per-frame muzzle clearance: RL aim can jitter between think frames, so
+	 * re-check the forward path each input frame.  Skip this frame without
+	 * dropping hold-fire so the next input frame can still fire. */
+	if (BotAimHarness_IsSplashWeapon(bs) && !BotAimHarness_SplashMuzzleClear(bs)) {
 		return;
 	}
 
@@ -2431,11 +2582,13 @@ static int BotAimHarness_GetDebugAimPoint(bot_state_t *bs, vec3_t point) {
 			}
 		}
 		if (BotAimHarness_AimTargetValid(bs)) {
-			if (BotAimHarness_UsingTrackingHitscan(bs)) {
+			if (BotAimHarness_UsingTrackingHitscan(bs) &&
+					BotCombat_HasFightLOS(bs, bs->enemy)) {
 				BotAimHarness_GetLiveTrackingAimPoint(bs, point);
 			} else {
 				VectorCopy(bs->aimtarget, point);
 			}
+			BotCombat_ApplyOccludedAimPoint(bs, point);
 			return qtrue;
 		}
 		if (VectorLengthSquared(bs->aimh_combat_target) > 1.0f) {
@@ -2667,6 +2820,8 @@ void BotAimHarness_Reset(bot_state_t *bs) {
 	bs->aimh_tracked_ideal_yaw = bs->viewangles[YAW];
 	VectorClear(bs->aimh_combat_target);
 	bs->aimh_hold_fire = qfalse;
+	bs->aimh_noise_sign[PITCH] = 1.0f;
+	bs->aimh_noise_sign[YAW] = 1.0f;
 	BotAimHarness_ClearRailLead(bs);
 	BotAimHarness_ResetRailShotRoll(bs);
 	BotAimHarness_ResetShotUrgency(bs);
@@ -2696,8 +2851,10 @@ void BotAimHarness_SetCombatGoal(bot_state_t *bs, const vec3_t idealAngles,
 	VectorCopy(bs->aimh_goal, bs->ideal_viewangles);
 	if (BotAimHarness_AimTargetValid(bs)) {
 		VectorCopy(bs->aimtarget, bs->aimh_combat_target);
+		BotCombat_ApplyOccludedAimPoint(bs, bs->aimh_combat_target);
 	} else if (bs->enemy >= 0) {
 		BotAimHarness_GetCombatTarget(bs, bs->aimh_combat_target);
+		BotCombat_ApplyOccludedAimPoint(bs, bs->aimh_combat_target);
 	}
 	BotAimHarness_RefreshThinkPursuitGoal(bs);
 }
@@ -2848,14 +3005,24 @@ static void BotAimHarness_UpdateAxis(bot_state_t *bs, int axis, float goalAngle,
 	if (axis == PITCH) {
 		bs->viewangles[PITCH] = BotAimHarness_ClampPitch(bs->viewangles[PITCH] + delta);
 		if (!inSnapBand && motorNoise > 0.01f && errAbs > 2.5f && errAbs < 9.0f) {
+			/* Flip noise direction probabilistically so it holds for ~FLIP_TAU seconds
+			 * rather than reversing every substep — gives hand-tremor, not electrical noise. */
+			if (random() < dt / AIMH_NOISE_DIR_FLIP_TAU) {
+				bs->aimh_noise_sign[PITCH] = -bs->aimh_noise_sign[PITCH];
+			}
 			bs->viewangles[PITCH] = BotAimHarness_ClampPitch(bs->viewangles[PITCH] +
-				crandom() * AIMH_MOTOR_NOISE_SCALE * motorNoise * dt * 60.0f * 0.35f);
+				fabs(crandom()) * bs->aimh_noise_sign[PITCH] *
+				AIMH_MOTOR_NOISE_SCALE * motorNoise * dt * 60.0f * 0.35f);
 		}
 	} else {
 		bs->viewangles[axis] = AngleMod(bs->viewangles[axis] + delta);
 		if (!inSnapBand && motorNoise > 0.01f && errAbs > 2.5f && errAbs < 9.0f) {
+			if (random() < dt / AIMH_NOISE_DIR_FLIP_TAU) {
+				bs->aimh_noise_sign[YAW] = -bs->aimh_noise_sign[YAW];
+			}
 			bs->viewangles[axis] = AngleMod(bs->viewangles[axis] +
-				crandom() * AIMH_MOTOR_NOISE_SCALE * motorNoise * dt * 60.0f * 0.4f);
+				fabs(crandom()) * bs->aimh_noise_sign[YAW] *
+				AIMH_MOTOR_NOISE_SCALE * motorNoise * dt * 60.0f * 0.4f);
 		}
 	}
 }

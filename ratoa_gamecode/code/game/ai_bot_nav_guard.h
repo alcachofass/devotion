@@ -19,6 +19,12 @@ struct bot_state_s;
 
 void BotNavGuard_Reset(struct bot_state_s *bs);
 void BotNavGuard_OnThinkStart(struct bot_state_s *bs);
+/* Re-apply after BotCheckSnapshot AVOID_CLEAR so exile survives the wipe. */
+void BotNavGuard_ApplyExileSpot(struct bot_state_s *bs);
 int BotNavGuard_HasIdleOrLoopRisk(struct bot_state_s *bs);
+void BotNavGuard_RegisterCvars(void);
+/* Post-MoveToGoal trace for bot_navstuck_debug. walkoffAborted: veto this step. */
+void BotNavGuard_DebugStuckMove(struct bot_state_s *bs,
+	struct bot_moveresult_s *mr, int walkoffAborted);
 
 #endif /* AI_BOT_NAV_GUARD_H */

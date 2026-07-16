@@ -67,6 +67,15 @@ typedef struct opponent_belief_s {
 	float		flee_from_until;
 	int			self_pickup_latch_index;	/* bot took this item — block opponent infer */
 	float		self_pickup_latch_until;
+	/* Heard / inferred positional cue: keep eyes on doorway while feet roam. */
+	float		sensory_look_until;
+	vec3_t		sensory_look_point;
+	qboolean	sensory_look_valid;
+	float		sensory_look_resolved_at;	/* last SolveReappearAim for sensory */
+	/* Soft roam vigilance toward believed reappear openings (no hard cue). */
+	vec3_t		vigilance_look_point;
+	qboolean	vigilance_look_valid;
+	float		vigilance_next_solve;
 } opponent_belief_t;
 
 void BotOpponent_RegisterCvars(void);
@@ -111,5 +120,17 @@ void BotOpponent_AdjustFleeMovement(struct bot_state_s *bs,
 int BotOpponent_HasCombatSight(const struct bot_state_s *bs, int clientnum);
 /* Per-think latch from visibility / fight LOS (1v1 opponent module). */
 void BotOpponent_TryLatchCombatEnemy(struct bot_state_s *bs);
+/*
+ * Soft-bias roam ideal_viewangles toward a believed reappear peek. Call after
+ * seek nodes set movement view; no-op while sensory hard-latch or fight LOS.
+ */
+void BotOpponent_BiasRoamView(struct bot_state_s *bs);
+/*
+ * Enhanced seek view: sensory → peek/belief toward opponent → look-along-travel.
+ * Danger looks set BFL_IDEALVIEWSET. Travel fallback only when no danger cue.
+ * mr/goal optional (used for travel fallback). Returns 1 if any view was set.
+ */
+int BotOpponent_ApplyEnhancedRoamView(struct bot_state_s *bs,
+	struct bot_moveresult_s *mr, struct bot_goal_s *goal);
 
 #endif /* AI_BOT_OPPONENT_H */

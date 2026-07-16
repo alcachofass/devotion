@@ -62,6 +62,7 @@ void BotAimHarness_CommitAimTargetSample(struct bot_state_s *bs);
 int BotAimHarness_UsingTrackingHitscan(struct bot_state_s *bs);
 /* Splash rockets: aim at enemy feet (center Z - 28, bot_enhanced_aim). */
 void BotAimHarness_ApplyRocketFeetAim(struct bot_state_s *bs, float aimPoint[3]);
+void BotAimHarness_ApplyOccludedShotPlacement(struct bot_state_s *bs, float aimPoint[3]);
 /* Plasma: torso center mass only (never feet / splash Z). */
 void BotAimHarness_ApplyPlasmaCenterMassAim(struct bot_state_s *bs, float aimPoint[3]);
 /* Rail: live lead ahead along enemy-minus-bot travel; fire when view trace hits bbox. */

@@ -337,6 +337,11 @@ typedef struct bot_state_s
 	int			item_lj_attempts;
 	float		item_lj_lip_since;
 	float		item_lj_jump_until;
+	int			item_stuck_avoid_num[2];    /* goal numbers to skip after a stuck abort */
+	float		item_stuck_avoid_until[2];  /* per-slot avoid expiry times */
+	vec3_t		item_filler_avoid_origin; /* cluster ban center for 5/25h loops */
+	float		item_filler_avoid_until;
+	float		item_arm_life_start;	/* FloatTime at last spawn — weapon arming clock */
 	/* ---- end BOT ITEMS ---- */
 
 	/* ---- BOT ITEM TIMING: ai_bot_item_timing.c — remove this block to revert ---- */
@@ -398,6 +403,7 @@ typedef struct bot_state_s
 	float		aimh_recal_next_time;	/* next observe/adjust window */
 	float		aimh_recal_fire_since;	/* when current suppressive burst started */
 	int			aimh_recal_last_hits;	/* PERS_HITS latch at last recal window */
+	float		aimh_noise_sign[2];		/* persistent noise direction per axis (±1) */
 	/* ---- end BOT AIM HARNESS ---- */
 
 	/* ---- BOT MOVE HARNESS: ai_bot_move_harness.c ---- */
@@ -429,6 +435,7 @@ typedef struct bot_state_s
 	float		wps_next_roam_eval_time;
 	float		wps_enhanced_latch_until;	/* no fight weapon re-eval until this time */
 	float		wps_last_switch_time;
+	float		wps_last_enemy_dist;		/* last fight-eval enemy distance */
 	int			wps_last_chosen_weapon;
 	int			wps_desired_weapon;
 	float		wps_desire_strength;
@@ -454,9 +461,15 @@ typedef struct bot_state_s
 	qboolean	pos_ledge_peek_crouch; /* current peek phase: crouched behind cover */
 	qboolean	pos_item_harass_active; /* timing pursuit suspended for overlook fight */
 	float		pos_route_audit_time; /* next mid-route elevation audit */
+	int			pos_route_audit_goal; /* goal.number last audited; change resets timer */
 	qboolean	pos_uplift_active;    /* short uplift waypoint on goal stack */
 	float		pos_uplift_until;
 	bot_goal_t	pos_uplift_goal;
+	/* Ledge-seek: approach the nearest ledge edge above a below-enemy for overlook fire. */
+	qboolean	pos_ledge_seek_active;  /* edge-approach goal is on goal stack */
+	float		pos_ledge_seek_until;   /* seek expires (or enemy no longer below) */
+	float		pos_ledge_seek_check_time; /* throttle: next eligibility re-eval */
+	bot_goal_t	pos_ledge_seek_goal;    /* the edge waypoint pushed onto stack */
 	/* ---- end BOT POSITION ---- */
 
 	/* ---- BOT NAV GUARD: ai_bot_nav_guard.c ---- */
@@ -468,6 +481,16 @@ typedef struct bot_state_s
 	vec3_t		nav_ring_origin[BOTNAV_RING_SAMPLES];
 	float		nav_next_ring_sample;
 	float		nav_breakout_cooldown_until;
+	vec3_t		nav_exile_origin;		/* last loop pocket — avoid-spot center */
+	float		nav_exile_until;
+	float		nav_exile_since;		/* when this exile began (egress grace) */
+	float		nav_exile_radius;
+	int			nav_exile_count;		/* consecutive breakouts in same region */
+	int			nav_exile_egressed;		/* 1 once bot left pocket — then ban re-entry */
+	int			nav_goal_watch_number;	/* goal number for travel-progress watch */
+	int			nav_goal_watch_best;	/* best (lowest) AAS travel seen */
+	float		nav_goal_watch_since;	/* when best was last improved */
+	float		nav_stuck_debug_next;	/* throttle for bot_navstuck_debug */
 	/* ---- end BOT NAV GUARD ---- */
 } bot_state_t;
 

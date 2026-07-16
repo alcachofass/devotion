@@ -137,6 +137,7 @@ void BotEnhanced_RegisterCvars(void) {
 
 	BotPosition_RegisterCvars();
 	BotOpponent_RegisterCvars();
+	BotNavGuard_RegisterCvars();
 
 	BotEnhanced_MigrateLegacyCvars();
 }
@@ -171,19 +172,11 @@ static int BotEnhanced_WantsOpponentThink(bot_state_t *bs) {
 }
 
 static int BotEnhanced_WantsNavGuardThink(bot_state_t *bs) {
-	if (!bs || !BotEnhanced_IsActive()) {
-		return 0;
-	}
-	if (BotItems_HasActiveCommit(bs)) {
-		return 1;
-	}
-	if (bs->timing_pursue_track >= 0) {
-		return 1;
-	}
-	if (BotEnhanced_GoalStackDepth(bs) > 0 && bs->enemy < 0) {
-		return 1;
-	}
-	return 0;
+	/*
+	 * Soft-latched enemy / empty roam must still run loop breakout. Combat and
+	 * deliberate holds are filtered inside BotNavGuard_IsDeliberateStillness.
+	 */
+	return bs && BotEnhanced_IsActive();
 }
 
 void BotEnhanced_OnObservedItemPickup(bot_state_t *bs, int pickerClient,
@@ -284,8 +277,7 @@ static void BotEnhanced_DropDeadEnemy(bot_state_t *bs) {
 	if (!EntityClientIsDead(bs->enemy)) {
 		return;
 	}
-	bs->enemy = -1;
-	bs->enemydeath_time = 0;
+	BotCombat_ReleaseEnemy(bs);
 }
 
 static void BotEnhanced_CancelCampLongTermGoal(bot_state_t *bs) {
@@ -554,6 +546,7 @@ void BotEnhanced_OnThinkStart(bot_state_t *bs) {
 	}
 	BotCombat_UpdateIntent(bs);
 	BotPosition_TickItemHarass(bs);
+	BotPosition_TickLedgeSeek(bs);
 	BotPosition_UpdateCombat(bs);
 	BotItems_Tick(bs);
 	if (BotEnhanced_WantsNavGuardThink(bs)) {
@@ -577,6 +570,8 @@ void BotEnhanced_AfterCheckSnapshot(bot_state_t *bs) {
 	}
 	if (BotEnhanced_IsActive()) {
 		BotItemTiming_PostSnapshot(bs);
+		/* Snapshot clears avoid spots; re-assert nav exile for routing. */
+		BotNavGuard_ApplyExileSpot(bs);
 	}
 }
 

@@ -2634,6 +2634,10 @@ int BotWantsToChase(bot_state_t *bs) {
 	if (BotOpponent_IsActive() && BotOpponent_WantsAvoidEngagement(bs)) {
 		return qfalse;
 	}
+	/* Rail ready / post-shot: hold distance instead of chasing into mid-range. */
+	if (BotEnhanced_IsActive() && BotWpnSelect_PrefersHoldRange(bs)) {
+		return qfalse;
+	}
 	if (BotAggression(bs) > 50)
 		return qtrue;
 	return qfalse;
@@ -2921,7 +2925,8 @@ bot_moveresult_t BotAttackMove(bot_state_t *bs, int tfl) {
 	attackentity = bs->enemy;
 	holdHighGround = 0;
 	//
-	if (bs->attackchase_time > FloatTime()) {
+	if (bs->attackchase_time > FloatTime() &&
+			!(BotEnhanced_IsActive() && BotWpnSelect_PrefersHoldRange(bs))) {
 		//create the chase goal
 		goal.entitynum = attackentity;
 		goal.areanum = bs->lastenemyareanum;
@@ -2932,6 +2937,9 @@ bot_moveresult_t BotAttackMove(bot_state_t *bs, int tfl) {
 		BotSetupForMovement(bs);
 		//move towards the goal
 		trap_BotMoveToGoal(&moveresult, bs->ms, &goal, tfl);
+		if (BotEnhanced_IsActive()) {
+			BotCombat_ApplyDodgeToMoveresult(bs, &moveresult);
+		}
 		return moveresult;
 	}
 	//
@@ -3584,6 +3592,7 @@ BotAimAtEnemy
 */
 void BotAimAtEnemy(bot_state_t *bs) {
 	int i, enemyvisible;
+	qboolean fightLos;
 	float dist, f, aim_skill, aim_accuracy, speed, reactiontime;
 	vec3_t dir, bestorigin, end, start, groundtarget, cmdmove, enemyvelocity;
 	vec3_t mins = {-4,-4,-4}, maxs = {4, 4, 4};
@@ -3705,8 +3714,9 @@ void BotAimAtEnemy(bot_state_t *bs) {
 		BotAimHarness_PreserveAimTargetSample(bs);
 	}
 	enemyvisible = BotEntityVisible(bs->entitynum, bs->eye, bs->viewangles, 360, bs->enemy);
-	//if the enemy is visible
-	if (enemyvisible) {
+	fightLos = BotCombat_HasFightLOS(bs, bs->enemy);
+	//if the enemy is visible (enhanced: require fight LOS, not just entity visibility)
+	if (enemyvisible && (!BotEnhanced_IsActive() || fightLos)) {
 		//
 		VectorCopy(entinfo.origin, bestorigin);
 		if (BotEnhanced_IsActive() && wi.number == WP_PLASMAGUN) {
@@ -3819,11 +3829,17 @@ void BotAimAtEnemy(bot_state_t *bs) {
 		}
 	}
 	else {
-		//
-		VectorCopy(bs->lastenemyorigin, bestorigin);
-		bestorigin[2] += 8;
+		qboolean usedPeek = qfalse;
+
+		if (BotEnhanced_IsActive() && !fightLos &&
+				BotCombat_GetPeekAimPoint(bs, bestorigin)) {
+			usedPeek = qtrue;
+		} else {
+			VectorCopy(bs->lastenemyorigin, bestorigin);
+			bestorigin[2] += 8;
+		}
 		//if the bot is skilled anough
-		if (aim_skill > 0.5) {
+		if (!usedPeek && aim_skill > 0.5) {
 			//do prediction shots around corners
 			if (wi.number == WP_BFG ||
 				wi.number == WP_ROCKET_LAUNCHER ||
@@ -3848,23 +3864,28 @@ void BotAimAtEnemy(bot_state_t *bs) {
 		}
 	}
 	//
-	if (enemyvisible) {
+	if (enemyvisible && (!BotEnhanced_IsActive() || fightLos)) {
 		BotAI_Trace(&trace, bs->eye, NULL, NULL, bestorigin, bs->entitynum, MASK_SHOT);
 		VectorCopy(trace.endpos, bs->aimtarget);
 	}
 	else {
 		VectorCopy(bestorigin, bs->aimtarget);
 	}
-	if (BotEnhanced_IsActive() && wi.number == WP_ROCKET_LAUNCHER) {
+	if (BotEnhanced_IsActive() && fightLos && wi.number == WP_ROCKET_LAUNCHER) {
 		BotAimHarness_ApplyRocketFeetAim(bs, bs->aimtarget);
 	}
-	if (BotEnhanced_IsActive() && wi.number == WP_PLASMAGUN) {
+	if (BotEnhanced_IsActive() && fightLos && wi.number == WP_PLASMAGUN) {
 		BotAimHarness_ApplyPlasmaCenterMassAim(bs, bs->aimtarget);
 	}
-	if (BotEnhanced_IsActive() && wi.number == WP_RAILGUN) {
+	if (BotEnhanced_IsActive() && fightLos && wi.number == WP_RAILGUN) {
 		BotAimHarness_ApplyRailInterceptAim(bs, bs->aimtarget, aim_skill, aim_accuracy);
-	} else if (BotEnhanced_IsActive() && !BotAimHarness_UsingTrackingHitscan(bs)) {
+	} else if (BotEnhanced_IsActive() && fightLos && !BotAimHarness_UsingTrackingHitscan(bs)) {
 		BotAimHarness_ApplyMovementLead(bs, bs->aimtarget, aim_skill);
+	}
+	/* Occluded: give suppressive spam weapon-appropriate placement at the
+	 * peek/opening (rocket feet splash, etc.) as if the enemy were there. */
+	if (BotEnhanced_IsActive() && !fightLos) {
+		BotAimHarness_ApplyOccludedShotPlacement(bs, bs->aimtarget);
 	}
 	if (BotEnhanced_IsActive()) {
 		BotAimHarness_CommitAimTargetSample(bs);
@@ -5399,11 +5420,13 @@ void BotCheckEvents(bot_state_t *bs, entityState_t *state) {
 		case EV_ITEM_RESPAWN:
 			BotEnhanced_OnSnapshotClientEvent(bs, state, event);
 			break;
-		case EV_NOAMMO:
-		case EV_CHANGE_WEAPON:
-		case EV_FIRE_WEAPON:
-			//FIXME: either add to sound queue or mark player as someone making noise
-			break;
+	case EV_NOAMMO:
+	case EV_CHANGE_WEAPON:
+	case EV_FIRE_WEAPON:
+		/* These are noise events forwarded to BotOpponent_OnClientEvent (below).
+		 * The opponent module uses them for positional tracking when fight LOS
+		 * is lost (sound-based tracking through cover). */
+		break;
 		case EV_USE_ITEM0:
 		case EV_USE_ITEM1:
 		case EV_USE_ITEM2:
