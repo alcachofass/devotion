@@ -1291,6 +1291,7 @@ int AINode_Respawn(bot_state_t *bs) {
 	if (bs->respawn_wait) {
 		if (!BotIsDead(bs)) {
 			if (BotEnhanced_IsActive()) {
+				BotItems_OnLifeStart(bs);
 				BotItemTiming_OnSpawn(bs);
 			}
 			AIEnter_Seek_LTG(bs, "respawn: respawned");
@@ -1631,6 +1632,10 @@ int AINode_Seek_ActivateEntity(bot_state_t *bs) {
 	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
 		VectorCopy(moveresult.ideal_viewangles, bs->ideal_viewangles);
 	}
+	else if (BotEnhanced_IsActive()) {
+		/* Danger look, else look-along-travel. */
+		BotOpponent_ApplyEnhancedRoamView(bs, &moveresult, goal);
+	}
 	// if waiting for something
 	else if (moveresult.flags & MOVERESULT_WAITING) {
 		if (random() < bs->thinktime * 0.8) {
@@ -1787,6 +1792,20 @@ int AINode_Seek_NBG(bot_state_t *bs) {
 	//if the viewangles are used for the movement
 	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
 		VectorCopy(moveresult.ideal_viewangles, bs->ideal_viewangles);
+	}
+	else if (BotEnhanced_IsActive()) {
+		if (!BotOpponent_ApplyEnhancedRoamView(bs, &moveresult, &goal) &&
+				BotDmnet_NBG_TimingHoldsCommit(bs, &goal)) {
+			/* No danger/travel cue: glance at timed pad while holding. */
+			if (random() < bs->thinktime * 0.6) {
+				VectorCopy(goal.origin, target);
+				target[0] += crandom() * 96.0f;
+				target[1] += crandom() * 96.0f;
+				VectorSubtract(target, bs->origin, dir);
+				vectoangles(dir, bs->ideal_viewangles);
+				bs->ideal_viewangles[2] *= 0.5;
+			}
+		}
 	}
 	//if waiting for something
 	else if (moveresult.flags & MOVERESULT_WAITING) {
@@ -1996,6 +2015,9 @@ int AINode_Seek_LTG(bot_state_t *bs)
 	//if the viewangles are used for the movement
 	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
 		VectorCopy(moveresult.ideal_viewangles, bs->ideal_viewangles);
+	}
+	else if (BotEnhanced_IsActive()) {
+		BotOpponent_ApplyEnhancedRoamView(bs, &moveresult, &goal);
 	}
 	//if waiting for something
 	else if (moveresult.flags & MOVERESULT_WAITING) {
@@ -2362,6 +2384,13 @@ int AINode_Battle_Chase(bot_state_t *bs)
 	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
 		VectorCopy(moveresult.ideal_viewangles, bs->ideal_viewangles);
 	}
+	else if (BotEnhanced_IsActive()) {
+		if (chaseShoot || bs->chase_time > FloatTime() - chaseAttackSec) {
+			BotAimAtEnemy(bs);
+		} else {
+			BotOpponent_ApplyEnhancedRoamView(bs, &moveresult, &goal);
+		}
+	}
 	else if (!(bs->flags & BFL_IDEALVIEWSET) && !BotMove_SuppressRoamView(bs)) {
 		if (chaseShoot || bs->chase_time > FloatTime() - chaseAttackSec) {
 			BotAimAtEnemy(bs);
@@ -2569,6 +2598,14 @@ int AINode_Battle_Retreat(bot_state_t *bs) {
 	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
 		VectorCopy(moveresult.ideal_viewangles, bs->ideal_viewangles);
 	}
+	else if (BotEnhanced_IsActive()) {
+		attack_skill = BotEnhanced_GetAttackSkill(bs);
+		if (attack_skill > 0.3 || BotDmnet_Retreat_WantsFleeEngaged(bs)) {
+			BotAimAtEnemy(bs);
+		} else {
+			BotOpponent_ApplyEnhancedRoamView(bs, &moveresult, &goal);
+		}
+	}
 	else if (!(moveresult.flags & MOVERESULT_MOVEMENTVIEWSET)
 				&& !(bs->flags & BFL_IDEALVIEWSET) && !BotMove_SuppressRoamView(bs) ) {
 		attack_skill = BotEnhanced_GetAttackSkill(bs);
@@ -2718,6 +2755,14 @@ int AINode_Battle_NBG(bot_state_t *bs) {
 	//if the view is fixed for the movement
 	if (moveresult.flags & (MOVERESULT_MOVEMENTVIEWSET|MOVERESULT_MOVEMENTVIEW|MOVERESULT_SWIMVIEW)) {
 		VectorCopy(moveresult.ideal_viewangles, bs->ideal_viewangles);
+	}
+	else if (BotEnhanced_IsActive()) {
+		attack_skill = BotEnhanced_GetAttackSkill(bs);
+		if (attack_skill > 0.3) {
+			BotAimAtEnemy(bs);
+		} else {
+			BotOpponent_ApplyEnhancedRoamView(bs, &moveresult, &goal);
+		}
 	}
 	else if (!(moveresult.flags & MOVERESULT_MOVEMENTVIEWSET)
 				&& !(bs->flags & BFL_IDEALVIEWSET) && !BotMove_SuppressRoamView(bs)) {

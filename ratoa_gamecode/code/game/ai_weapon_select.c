@@ -96,6 +96,15 @@ static float BotWpnSel_ReactionTime(bot_state_t *bs) {
 #define WPNSEL_RAIL_IDEAL_ATTACK_RANGE	160.0f
 #define WPNSEL_RAIL_POSTSHOT_ATTACK_DIST	720.0f
 #define WPNSEL_RAIL_POSTSHOT_ATTACK_RANGE	180.0f
+/* Vertical / airborne: prefer rail (hitscan) over plasma lob; LG over plasma on flat mid. */
+#define WPNSEL_VERT_SEP_Z				48
+#define WPNSEL_ENEMY_BELOW_Z			(-40)
+#define WPNSEL_PLASMA_MID_LG_PENALTY	36.0f	/* flat mid when LG is available */
+#define WPNSEL_PLASMA_VERT_PENALTY		48.0f
+#define WPNSEL_PLASMA_AIR_PENALTY		40.0f
+#define WPNSEL_LG_FLAT_MID_BONUS		34.0f
+#define WPNSEL_RAIL_VERT_BONUS			42.0f
+#define WPNSEL_RAIL_AIR_BONUS			36.0f
 
 int BotWpnSelect_HasWeaponAndAmmo(const bot_state_t *bs, int wp) {
 	if (wp <= WP_NONE || wp >= WP_NUM_WEAPONS) {
@@ -149,10 +158,12 @@ static float BotWpnSel_RangeScore(int wp, float dist) {
 		if (d < 3200.0f) return 48.0f;
 		return 42.0f;
 	case WP_LIGHTNING:
-		if (d < 280.0f) return 94.0f;
-		if (d < 450.0f) return 58.0f;
-		if (d < 650.0f) return 32.0f;
-		return 14.0f;
+		/* Strong through flat mid-range; soft falloff past shaft reach. */
+		if (d < 220.0f) return 96.0f;
+		if (d < 360.0f) return 90.0f;
+		if (d < 520.0f) return 78.0f;
+		if (d < 650.0f) return 48.0f;
+		return 16.0f;
 	case WP_RAILGUN:
 		/* Strong only at true long range; soft mid, weak when closing. */
 		if (d < 200.0f) return 16.0f;
@@ -177,11 +188,14 @@ static float BotWpnSel_RangeScore(int wp, float dist) {
 		if (d < 900.0f) return 18.0f;
 		return 6.0f;
 	case WP_PLASMAGUN:
-		if (d < 200.0f) return 76.0f;
-		if (d < 700.0f) return 80.0f;
-		if (d < 1100.0f) return 52.0f;
-		if (d < 1600.0f) return 32.0f;
-		return 18.0f;
+		/* Close/mid filler — not a blanket winner over LG shaft or rail snipe. */
+		if (d < 160.0f) return 82.0f;
+		if (d < 280.0f) return 72.0f;
+		if (d < 450.0f) return 58.0f;
+		if (d < 700.0f) return 48.0f;
+		if (d < 1100.0f) return 40.0f;
+		if (d < 1600.0f) return 28.0f;
+		return 16.0f;
 	case WP_BFG:
 		if (d < 400.0f) return 52.0f;
 		if (d < 1200.0f) return 68.0f;
@@ -324,17 +338,125 @@ static int BotWpnSel_IsRailDumpCandidate(int wp) {
 		wp == WP_ROCKET_LAUNCHER;
 }
 
-static float BotWpnSel_RailFlatPenalty(const bot_state_t *bs, float dist) {
+static int BotWpnSel_EnemyHeight(const bot_state_t *bs) {
+	if (!bs) {
+		return 0;
+	}
+	return bs->inventory[ENEMY_HEIGHT];
+}
+
+static int BotWpnSel_EnemyAbsHeight(const bot_state_t *bs) {
 	int height;
 
+	height = BotWpnSel_EnemyHeight(bs);
+	if (height < 0) {
+		return -height;
+	}
+	return height;
+}
+
+/* Enemy Z clearly below the bot (safe ledge / lower floor). */
+static int BotWpnSel_EnemyBelow(const bot_state_t *bs) {
+	return BotWpnSel_EnemyHeight(bs) <= WPNSEL_ENEMY_BELOW_Z;
+}
+
+static int BotWpnSel_EnemyAirborne(const bot_state_t *bs) {
+	gentity_t *ent;
+
+	if (!bs || bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		return 0;
+	}
+	ent = &g_entities[bs->enemy];
+	if (!ent->inuse || !ent->client) {
+		return 0;
+	}
+	if (ent->client->ps.groundEntityNum == ENTITYNUM_NONE) {
+		return 1;
+	}
+	/* Rising / falling hard enough that plasma lead is unreliable. */
+	if (ent->client->ps.velocity[2] > 200.0f ||
+			ent->client->ps.velocity[2] < -220.0f) {
+		return 1;
+	}
+	return 0;
+}
+
+static int BotWpnSel_SameLevelFlat(const bot_state_t *bs) {
+	return BotWpnSel_EnemyAbsHeight(bs) <= WPNSEL_RAIL_FLAT_Z;
+}
+
+/*
+ * Situational adjustments: LG beats plasma on flat mid; rail beats plasma when
+ * the enemy is safely below or airborne (hitscan >> lobbed balls).
+ */
+static float BotWpnSel_SituationalMod(bot_state_t *bs, int wp, float dist) {
+	float mod;
+	int absH;
+	int below;
+	int air;
+	int flat;
+	int hasLG;
+	int hasRail;
+
+	mod = 0.0f;
+	if (!bs) {
+		return 0.0f;
+	}
+	absH = BotWpnSel_EnemyAbsHeight(bs);
+	below = BotWpnSel_EnemyBelow(bs);
+	air = BotWpnSel_EnemyAirborne(bs);
+	flat = BotWpnSel_SameLevelFlat(bs);
+	hasLG = BotWpnSelect_HasWeaponAndAmmo(bs, WP_LIGHTNING);
+	hasRail = BotWpnSelect_HasWeaponAndAmmo(bs, WP_RAILGUN);
+
+	if (wp == WP_LIGHTNING && flat && dist >= 220.0f && dist <= 560.0f) {
+		mod += WPNSEL_LG_FLAT_MID_BONUS;
+	}
+
+	if (wp == WP_PLASMAGUN) {
+		if (hasLG && flat && dist >= 200.0f && dist <= 600.0f) {
+			mod -= WPNSEL_PLASMA_MID_LG_PENALTY;
+		}
+		if (absH >= WPNSEL_VERT_SEP_Z && dist >= 220.0f) {
+			mod -= WPNSEL_PLASMA_VERT_PENALTY;
+			if (below) {
+				mod -= 12.0f;
+			}
+		}
+		if (air && dist >= 200.0f) {
+			mod -= WPNSEL_PLASMA_AIR_PENALTY;
+		}
+	}
+
+	if (wp == WP_RAILGUN) {
+		if (below && dist >= 280.0f) {
+			mod += WPNSEL_RAIL_VERT_BONUS;
+			if (dist >= 420.0f) {
+				mod += 10.0f;
+			}
+		} else if (absH >= WPNSEL_VERT_SEP_Z && dist >= 360.0f) {
+			mod += WPNSEL_RAIL_VERT_BONUS * 0.65f;
+		}
+		if (air && dist >= 300.0f) {
+			mod += WPNSEL_RAIL_AIR_BONUS;
+		}
+		/* Holding rail with ammo: resist dumping to plasma while vertically favored. */
+		if (hasRail && BotWpnSel_IsRailHeld(bs) && (below || air) &&
+				dist >= 300.0f) {
+			mod += 18.0f;
+		}
+	}
+
+	return mod;
+}
+
+static float BotWpnSel_RailFlatPenalty(const bot_state_t *bs, float dist) {
 	if (!bs || dist >= WPNSEL_RAIL_LONG_DIST) {
 		return 0.0f;
 	}
-	height = bs->inventory[ENEMY_HEIGHT];
-	if (height < 0) {
-		height = -height;
-	}
-	if (height > WPNSEL_RAIL_FLAT_Z) {
+	/* Vertical fights: keep rail — flat-exposure penalty does not apply. */
+	if (BotWpnSel_EnemyBelow(bs) ||
+			BotWpnSel_EnemyAbsHeight(bs) > WPNSEL_RAIL_FLAT_Z) {
 		return 0.0f;
 	}
 	/* Flat approach: reload leaves the bot exposed — soft mid, hard when close. */
@@ -922,17 +1044,29 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 		score = BotWpnSel_RangeScore(wp, dist) * WPNSEL_RANGE_WEIGHT;
 		score -= BotWpnSel_AmmoPressure(bs, wp);
 		score -= BotWpnSel_SplashPenalty(bs, wp, dist, &wi);
+		score += BotWpnSel_SituationalMod(bs, wp, dist);
 
 		if (wp == WP_RAILGUN) {
 			score -= BotWpnSel_RailFlatPenalty(bs, dist);
-			if (dist < 450.0f) {
+			if (dist < 450.0f && !BotWpnSel_EnemyBelow(bs) &&
+					!BotWpnSel_EnemyAirborne(bs)) {
 				score -= WPNSEL_RAIL_CLOSE_ENTER_PEN *
 					(1.0f - dist / 450.0f);
 			}
 		}
+		/*
+		 * Post-shot rail dump into mid weapons — but not into plasma when the
+		 * geometry favors keeping hitscan (enemy below / airborne).
+		 */
 		if (BotWpnSel_RailJustFired(bs) && BotWpnSel_IsRailDumpCandidate(wp) &&
 				dist < WPNSEL_RAIL_LONG_DIST) {
-			score += WPNSEL_RAIL_POSTSHOT_DUMP;
+			if (wp == WP_PLASMAGUN &&
+					(BotWpnSel_EnemyBelow(bs) || BotWpnSel_EnemyAirborne(bs) ||
+					 BotWpnSel_EnemyAbsHeight(bs) >= WPNSEL_VERT_SEP_Z)) {
+				/* no dump bonus — plasma is the wrong follow-up here */
+			} else {
+				score += WPNSEL_RAIL_POSTSHOT_DUMP;
+			}
 		}
 
 		if (wp == WP_MACHINEGUN) {
@@ -1024,7 +1158,12 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 				(dist < WPNSEL_RAIL_SOFT_MAX_DIST ||
 				 BotWpnSel_EnemyClosing(bs, dist) ||
 				 BotWpnSel_RailJustFired(bs))) {
-			hyst *= WPNSEL_RAIL_DUMP_HYST_SCALE;
+			/* Keep rail sticky vs plasma when enemy is below / airborne. */
+			if (!(best_wp == WP_PLASMAGUN &&
+					(BotWpnSel_EnemyBelow(bs) || BotWpnSel_EnemyAirborne(bs) ||
+					 BotWpnSel_EnemyAbsHeight(bs) >= WPNSEL_VERT_SEP_Z))) {
+				hyst *= WPNSEL_RAIL_DUMP_HYST_SCALE;
+			}
 		}
 		if (best_score < cur_score + hyst) {
 			best_wp = bs->weaponnum;

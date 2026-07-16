@@ -125,5 +125,12 @@ void BotOpponent_TryLatchCombatEnemy(struct bot_state_s *bs);
  * seek nodes set movement view; no-op while sensory hard-latch or fight LOS.
  */
 void BotOpponent_BiasRoamView(struct bot_state_s *bs);
+/*
+ * Enhanced seek view: sensory → peek/belief toward opponent → look-along-travel.
+ * Danger looks set BFL_IDEALVIEWSET. Travel fallback only when no danger cue.
+ * mr/goal optional (used for travel fallback). Returns 1 if any view was set.
+ */
+int BotOpponent_ApplyEnhancedRoamView(struct bot_state_s *bs,
+	struct bot_moveresult_s *mr, struct bot_goal_s *goal);
 
 #endif /* AI_BOT_OPPONENT_H */

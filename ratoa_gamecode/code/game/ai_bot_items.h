@@ -17,6 +17,8 @@ struct bot_goal_s;
 void BotItems_RegisterCvars(void);
 int BotItems_IsActive(void);
 void BotItems_Reset(struct bot_state_s *bs);
+/* Reset post-spawn arming clock (arena entry / death respawn). */
+void BotItems_OnLifeStart(struct bot_state_s *bs);
 
 void BotItems_Tick(struct bot_state_s *bs);
 

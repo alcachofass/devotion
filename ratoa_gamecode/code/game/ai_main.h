@@ -341,6 +341,7 @@ typedef struct bot_state_s
 	float		item_stuck_avoid_until[2];  /* per-slot avoid expiry times */
 	vec3_t		item_filler_avoid_origin; /* cluster ban center for 5/25h loops */
 	float		item_filler_avoid_until;
+	float		item_arm_life_start;	/* FloatTime at last spawn — weapon arming clock */
 	/* ---- end BOT ITEMS ---- */
 
 	/* ---- BOT ITEM TIMING: ai_bot_item_timing.c — remove this block to revert ---- */

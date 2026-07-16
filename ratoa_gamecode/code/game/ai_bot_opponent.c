@@ -36,7 +36,9 @@ float BotEntityVisible(int viewer, vec3_t eye, vec3_t viewangles, float fov, int
 #define OPPONENT_LOW_FITNESS_ARMOR_MAX	25
 #define OPPONENT_LOW_FITNESS_PRESS_DIFF	(-20)
 #define OPPONENT_LOW_FITNESS_AVOID_BIAS	0.42f
-#define OPPONENT_HEARD_LOC_CONF			0.6f
+#define OPPONENT_HEARD_LOC_CONF			0.75f
+#define OPPONENT_NOISE_FLEE_SEC			3.5f
+#define OPPONENT_NOISE_UNREADY_CAUTION_SEC	2.2f
 #define OPPONENT_VISIBLE_THRESH			0.15f
 #define OPPONENT_SPAWN_POOL_MAX			64
 #define OPPONENT_FAR_SPAWN_CANDIDATES	4
@@ -69,15 +71,16 @@ float BotEntityVisible(int viewer, vec3_t eye, vec3_t viewangles, float fov, int
 #define OPPONENT_COMBAT_COMPARE_INTERVAL	0.5f
 #define OPPONENT_ITEM_PRIO_NOT_READY_SCALE	1.42f
 #define OPPONENT_ITEM_PRIO_SITUATIONAL_SCALE	1.12f
-#define OPPONENT_SENSORY_LOOK_SEC		2.2f
+#define OPPONENT_SENSORY_LOOK_SEC		2.8f
 #define OPPONENT_SENSORY_RESOLVE_SEC		1.25f	/* min time between peek re-solves */
 #define OPPONENT_SENSORY_RESOLVE_DIST		192.0f	/* re-solve sooner only if clue moves */
-#define OPPONENT_VIGILANCE_MIN_CONF		0.28f
+#define OPPONENT_VIGILANCE_MIN_CONF		0.05f	/* match loc-confidence floor */
 #define OPPONENT_VIGILANCE_SOLVE_SEC		1.75f
 #define OPPONENT_VIGILANCE_STICK_DIST		96.0f	/* ignore tiny solver jitter */
 #define OPPONENT_VIGILANCE_YAW_BLEND		0.48f
 #define OPPONENT_VIGILANCE_PITCH_BLEND	0.28f
 #define OPPONENT_VIGILANCE_PITCH_MAX	28.0f
+#define OPPONENT_LAST_SEEN_LOOK_SEC		20.0f	/* stale last-seen still usable for roam eyes */
 
 typedef struct {
 	vec3_t	origin;
@@ -1404,11 +1407,53 @@ static void Opponent_ClearVigilanceLook(opponent_belief_t *ob) {
 }
 
 /*
+ * Best origin to watch while roaming: live belief, then last seen, then
+ * bot last-enemy spot / flee bearing. Always prefer some danger guess in 1v1.
+ */
+static int Opponent_GetRoamLookOrigin(bot_state_t *bs, opponent_belief_t *ob,
+		vec3_t out) {
+	float now;
+
+	if (!bs || !ob || !out) {
+		return 0;
+	}
+	now = FloatTime();
+	if (ob->loc_source != BOT_OPPONENT_LOC_UNKNOWN &&
+			ob->loc_confidence >= OPPONENT_VIGILANCE_MIN_CONF) {
+		VectorCopy(ob->believed_origin, out);
+		return 1;
+	}
+	if (ob->loc_last_seen > 0.0f &&
+			now - ob->loc_last_seen <= OPPONENT_LAST_SEEN_LOOK_SEC &&
+			VectorLengthSquared(ob->last_seen_origin) > 1.0f) {
+		VectorCopy(ob->last_seen_origin, out);
+		return 1;
+	}
+	if (bs->lastenemyareanum > 0 &&
+			VectorLengthSquared(bs->lastenemyorigin) > 1.0f) {
+		VectorCopy(bs->lastenemyorigin, out);
+		return 1;
+	}
+	if (ob->flee_from_until > now &&
+			VectorLengthSquared(ob->flee_from_origin) > 1.0f) {
+		VectorCopy(ob->flee_from_origin, out);
+		return 1;
+	}
+	/* Stale believed point still better than a frozen arbitrary yaw. */
+	if (VectorLengthSquared(ob->believed_origin) > 1.0f) {
+		VectorCopy(ob->believed_origin, out);
+		return 1;
+	}
+	return 0;
+}
+
+/*
  * Soft continuous watch toward believed reappear openings while roaming.
  * Does not set BFL_IDEALVIEWSET — seek nodes blend via BotOpponent_BiasRoamView.
  */
 static void Opponent_TickVigilanceLook(bot_state_t *bs, opponent_belief_t *ob) {
 	vec3_t watch;
+	vec3_t goalOrigin;
 	float now;
 
 	if (!bs || !ob) {
@@ -1429,13 +1474,7 @@ static void Opponent_TickVigilanceLook(bot_state_t *bs, opponent_belief_t *ob) {
 		Opponent_ClearVigilanceLook(ob);
 		return;
 	}
-	/* Heads-down escape: keep movement view. */
-	if (Opponent_WantsPureFlee(ob)) {
-		Opponent_ClearVigilanceLook(ob);
-		return;
-	}
-	if (ob->loc_source == BOT_OPPONENT_LOC_UNKNOWN ||
-			ob->loc_confidence < OPPONENT_VIGILANCE_MIN_CONF) {
+	if (!Opponent_GetRoamLookOrigin(bs, ob, goalOrigin)) {
 		Opponent_ClearVigilanceLook(ob);
 		return;
 	}
@@ -1448,7 +1487,7 @@ static void Opponent_TickVigilanceLook(bot_state_t *bs, opponent_belief_t *ob) {
 	}
 	ob->vigilance_next_solve = now + OPPONENT_VIGILANCE_SOLVE_SEC;
 
-	if (BotCombat_SolveReappearAim(bs, ob->believed_origin, watch)) {
+	if (BotCombat_SolveReappearAim(bs, goalOrigin, watch)) {
 		/* Stick to the current opening unless the solver jumped elsewhere. */
 		if (ob->vigilance_look_valid) {
 			vec3_t delta;
@@ -1460,9 +1499,9 @@ static void Opponent_TickVigilanceLook(bot_state_t *bs, opponent_belief_t *ob) {
 		}
 		VectorCopy(watch, ob->vigilance_look_point);
 		ob->vigilance_look_valid = qtrue;
-		BotCombat_LatchPeekAimPoint(bs, watch, ob->believed_origin);
+		BotCombat_LatchPeekAimPoint(bs, watch, goalOrigin);
 	} else {
-		VectorCopy(ob->believed_origin, watch);
+		VectorCopy(goalOrigin, watch);
 		watch[2] += 24.0f;
 		if (ob->vigilance_look_valid) {
 			vec3_t delta;
@@ -1479,6 +1518,104 @@ static void Opponent_TickVigilanceLook(bot_state_t *bs, opponent_belief_t *ob) {
 	if (Opponent_DebugEnabled()) {
 		Opponent_Debug(bs, "vigilance look");
 	}
+}
+
+static int Opponent_ApplyTravelRoamView(bot_state_t *bs, bot_moveresult_t *mr,
+		bot_goal_t *goal) {
+	vec3_t target;
+	vec3_t dir;
+	int tfl;
+
+	if (!bs) {
+		return 0;
+	}
+	tfl = BotMove_EffectiveTfl(bs);
+	if (goal && trap_BotMovementViewTarget(bs->ms, goal, tfl, 300, target)) {
+		VectorSubtract(target, bs->origin, dir);
+		if (VectorNormalize(dir) > 0.1f) {
+			vectoangles(dir, bs->ideal_viewangles);
+			if (goal->origin[2] < bs->origin[2] - 64.0f) {
+				bs->ideal_viewangles[PITCH] = 0.0f;
+			}
+			bs->ideal_viewangles[2] *= 0.5f;
+			return 1;
+		}
+	}
+	if (mr && VectorLengthSquared(mr->movedir) > 0.01f) {
+		VectorCopy(mr->movedir, dir);
+		dir[2] = 0.0f;
+		if (VectorNormalize(dir) > 0.1f) {
+			vectoangles(dir, bs->ideal_viewangles);
+			bs->ideal_viewangles[2] *= 0.5f;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/*
+ * Enhanced seek view: sensory → peek/belief → look-along-travel last.
+ */
+int BotOpponent_ApplyEnhancedRoamView(bot_state_t *bs, bot_moveresult_t *mr,
+		bot_goal_t *goal) {
+	opponent_belief_t *ob;
+	vec3_t dir;
+	vec3_t look;
+	vec3_t goalOrigin;
+	float now;
+
+	if (!bs || !BotEnhanced_IsActive()) {
+		return 0;
+	}
+	if (BotMove_SuppressRoamView(bs)) {
+		return 0;
+	}
+
+	ob = &bs->opponent_belief;
+	now = FloatTime();
+
+	/* Combat nodes own aim via BotAimAtEnemy. */
+	if (ob->tracking && ob->client >= 0 &&
+			(BotCombat_HasFightLOS(bs, ob->client) ||
+			 Opponent_InActiveCombat(bs, ob))) {
+		return 0;
+	}
+
+	if (ob->tracking && ob->client >= 0) {
+		if (ob->sensory_look_valid && now < ob->sensory_look_until) {
+			Opponent_ApplySensoryLook(bs, ob);
+			if (bs->flags & BFL_IDEALVIEWSET) {
+				return 1;
+			}
+		}
+
+		Opponent_TickVigilanceLook(bs, ob);
+		if (ob->vigilance_look_valid) {
+			VectorCopy(ob->vigilance_look_point, look);
+		} else if (Opponent_GetRoamLookOrigin(bs, ob, goalOrigin)) {
+			if (BotCombat_SolveReappearAim(bs, goalOrigin, look)) {
+				BotCombat_LatchPeekAimPoint(bs, look, goalOrigin);
+			} else {
+				VectorCopy(goalOrigin, look);
+				look[2] += 24.0f;
+			}
+		} else {
+			VectorClear(look);
+		}
+
+		if (VectorLengthSquared(look) > 1.0f) {
+			VectorSubtract(look, bs->eye, dir);
+			if (VectorNormalize(dir) > 0.1f) {
+				vectoangles(dir, bs->ideal_viewangles);
+				bs->ideal_viewangles[2] *= 0.5f;
+				bs->flags |= BFL_IDEALVIEWSET;
+				return 1;
+			}
+		}
+	}
+
+	/* No danger cue (or not 1v1 tracking): look where you're going. */
+	return Opponent_ApplyTravelRoamView(bs, mr, goal);
 }
 
 void BotOpponent_BiasRoamView(bot_state_t *bs) {
@@ -1555,11 +1692,14 @@ static void Opponent_OnHeardOpponentRoaming(bot_state_t *bs,
 
 /*
  * Shared reaction for opponent pickup sounds and movement/weapon noises.
- * Updates location belief, holds a doorway/direct look while feet keep the
- * current roam goal, then runs press/avoid sensory hooks.
+ * Updates location, refreshes fight/flee bias, hard-looks toward the clue,
+ * then latches engage or starts caution/flee while feet keep the roam goal.
  */
 static void Opponent_OnOpponentPositionalClue(bot_state_t *bs,
 	opponent_belief_t *ob, const vec3_t origin) {
+	float now;
+	int canEngage;
+
 	if (!bs || !ob || !origin) {
 		return;
 	}
@@ -1568,13 +1708,49 @@ static void Opponent_OnOpponentPositionalClue(bot_state_t *bs,
 	} else {
 		Opponent_MergeGuess(bs, ob, origin, 0.55f);
 	}
+
+	/* Re-assess stack / loadout / score before fight-or-flee. */
+	Opponent_RefreshStackCompare(bs, ob);
+
 	/* Always look toward the reappear opening — even mid-duel without LOS. */
 	Opponent_LatchSensoryLook(bs, ob, origin);
-	Opponent_ReactSensoryContact(bs, ob);
-	if (!Opponent_IsAvoiding(bs, ob) &&
-			(BotOpponent_WantsPressEngagement(bs) ||
-			 Opponent_IsEvenDuelScore(ob))) {
-		Opponent_LatchOpponentEnemy(bs, ob);
+
+	now = FloatTime();
+	canEngage = BotCombat_CanEngageTrackedOpponent(bs);
+
+	if (Opponent_IsAvoiding(bs, ob) || Opponent_WantsPureFlee(ob)) {
+		ob->flee_until = Opponent_FloatMax(ob->flee_until,
+			now + OPPONENT_NOISE_FLEE_SEC);
+		Opponent_ReactSensoryContact(bs, ob);
+		if (Opponent_DebugEnabled()) {
+			Opponent_Debug(bs, "noise → avoid/flee");
+		}
+		return;
+	}
+
+	if (canEngage) {
+		/*
+		 * Ready loadout: latch for combat readiness on any non-avoid bias
+		 * (press, even duel, up, or neutral investigate).
+		 */
+		if (BotOpponent_WantsPressEngagement(bs) ||
+				Opponent_IsEvenDuelScore(ob) ||
+				ob->compare == BOT_OPPONENT_COMPARE_UP ||
+				ob->engage_bias >= 0.0f) {
+			Opponent_LatchOpponentEnemy(bs, ob);
+			if (Opponent_DebugEnabled()) {
+				Opponent_Debug(bs, "noise → engage latch");
+			}
+			return;
+		}
+	} else {
+		/* Heard them but not ready to take the fight — brief caution. */
+		ob->flee_until = Opponent_FloatMax(ob->flee_until,
+			now + OPPONENT_NOISE_UNREADY_CAUTION_SEC);
+		BotOpponent_ApplyAvoidSpot(bs);
+		if (Opponent_DebugEnabled()) {
+			Opponent_Debug(bs, "noise → unready caution");
+		}
 	}
 }
 

@@ -73,13 +73,13 @@ There are no live feature sub-cvars. Old names (`bot_humanizeaim`, `bot_enhanced
 | `ai_weapon_select.c/h` | Range/ammo weapon choice, roam bias, close-combat picks, hold-range preference |
 | `ai_bot_tactics.c/h` | Gauntlet flee/rush, third-party hurt, threat swap, finish wounded; owns `BotEvents_*` impl |
 | `ai_bot_events.h` | Deferred world→bot ingress API (`Push` / `Drain`); drain only from `OnThinkStart` |
-| `ai_bot_combat.c/h` | Per-think intent (stance / move / fire), rush, peek aim, dodge, loadout tier, attack-move |
+| `ai_bot_combat.c/h` | Per-think intent (stance / move / fire), rush, peek aim, dodge bias (fire pressure + missiles blended into move), loadout tier, attack-move |
 | `ai_bot_move_harness.c/h` | Aim-motor bypass for botlib movement, enhanced RJ, walk-off avoidance, travel flags |
 | `ai_bot_move_util.h` | Shared geometry/view helpers (implemented in the move harness) |
-| `ai_bot_items.c/h` | Visible pickup commits, botlib chooser wrappers, stuck-abort / preserve-goal |
+| `ai_bot_items.c/h` | Visible pickup commits, empty weapon-pad camp, post-spawn arming (LG/RL then rail), stuck-abort / preserve-goal |
 | `ai_bot_item_timing.h` (+ items) | Per-bot spawn timing beliefs (FFA / Duel / TDM when enhanced) |
 | `ai_bot_position.c/h` | Height advantage, ledge hold/seek, item harass, elevated goal bias |
-| `ai_bot_opponent.c/h` | 1v1 opponent location/stack beliefs, flee/duel commit, sensory roam look |
+| `ai_bot_opponent.c/h` | 1v1 opponent location/stack beliefs, flee/duel commit, sensory/vigilance roam view (danger over look-along-travel) |
 | `ai_bot_nav_guard.c/h` | Idle / short-loop breakout and route exile |
 | `ai_bot_dmnet.c/h` | Thin seek/battle hooks called from legacy `ai_dmnet.c` |
 | `ai_dmq3.c` / `ai_dmnet.c` / `ai_main.c` | Legacy AI; call into enhanced facade at boundaries |

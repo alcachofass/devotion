@@ -28,6 +28,7 @@ native RJ travel.
 #include "ai_bot_items.h"
 #include "ai_bot_position.h"
 #include "ai_bot_nav_guard.h"
+#include "ai_bot_combat.h"
 #include "ai_dmq3.h"
 
 extern vmCvar_t bot_grapple;
@@ -1144,6 +1145,11 @@ void BotMove_OnPostMoveToGoal(bot_state_t *bs, bot_moveresult_t *mr) {
 	BotMoveUtil_CacheHorizMovedir(bs, mr);
 
 	BotNavGuard_DebugStuckMove(bs, mr, walkoffAborted);
+
+	/* Dodge bias blends into route wish after botlib MoveToGoal (fight uses AttackMove). */
+	if (!walkoffAborted) {
+		BotCombat_ApplyDodgeToMoveresult(bs, mr);
+	}
 
 	if (!BotMoveHarness_IsActive() || !BotMoveHarness_MovementActive()) {
 		return;

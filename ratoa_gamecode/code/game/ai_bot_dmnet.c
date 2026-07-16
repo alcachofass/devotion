@@ -168,6 +168,7 @@ int BotDmnet_ItemGoalGone(bot_state_t *bs, bot_goal_t *goal) {
 
 void BotDmnet_OnRespawned(bot_state_t *bs) {
 	if (BotEnhanced_IsActive()) {
+		BotItems_OnLifeStart(bs);
 		BotItemTiming_OnSpawn(bs);
 	}
 }

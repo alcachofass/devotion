@@ -2937,6 +2937,9 @@ bot_moveresult_t BotAttackMove(bot_state_t *bs, int tfl) {
 		BotSetupForMovement(bs);
 		//move towards the goal
 		trap_BotMoveToGoal(&moveresult, bs->ms, &goal, tfl);
+		if (BotEnhanced_IsActive()) {
+			BotCombat_ApplyDodgeToMoveresult(bs, &moveresult);
+		}
 		return moveresult;
 	}
 	//

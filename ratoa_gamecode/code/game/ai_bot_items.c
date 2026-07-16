@@ -25,6 +25,7 @@ BOT ITEMS — visible high-value pickup with committed goal persistence.
 #include "ai_bot_move_harness.h"
 #include "ai_bot_position.h"
 #include "ai_bot_opponent.h"
+#include "ai_bot_combat.h"
 #include "ai_dmq3.h"
 #include "ai_team.h"
 
@@ -41,7 +42,13 @@ static qboolean BotItems_GoalVisibleToBot(bot_state_t *bs, bot_goal_t *goal);
 #define BOT_ITEMS_OPPORTUNE_COOLDOWN_SEC	8.0f
 #define BOT_ITEMS_OPPORTUNE_PRIMARY_MIN	250	/* don't opportune if this close to primary */
 #define BOT_ITEMS_WEAPON_DETOUR_MAX_TRAVEL	420	/* AAS units (~4.2s) */
-#define BOT_ITEMS_WEAPON_REACH_MAX_TRAVEL		480	/* idle reachable weapon grab */
+#define BOT_ITEMS_WEAPON_REACH_MAX_TRAVEL		480	/* filler / GL idle grab */
+#define BOT_ITEMS_WEAPON_IMPORTANT_MAX_TRAVEL	1400	/* RL/LG/rail/etc. hunt range */
+#define BOT_ITEMS_WEAPON_EMPTY_METRIC_PENALTY	100.0f	/* prefer live pads over empty */
+#define BOT_ITEMS_WEAPON_EMPTY_WAIT_SEC		8.0f	/* camp empty pad (~g_weaponRespawn) */
+#define BOT_ITEMS_ARM_LG_RL_SEC			30.0f	/* after spawn: need LG or RL */
+#define BOT_ITEMS_ARM_RAIL_SEC			60.0f	/* after spawn: need rail */
+#define BOT_ITEMS_ARM_MIN_HEALTH			50
 #define BOT_ITEMS_WEAPON_DETOUR_SEC		4.5f
 #define BOT_ITEMS_GONE_AVOID_TIME		20.0f
 #define BOT_ITEMS_STUCK_DIST			48.0f
@@ -103,9 +110,12 @@ static int BotItems_CountMissingWeapons(bot_state_t *bs);
 static float BotItems_EffectivePickupScale(bot_state_t *bs, int kind);
 static qboolean BotItems_FindBestAmongKinds(bot_state_t *bs, bot_goal_t *bestGoal,
 	int *bestKindOut, const int *kinds, int nKinds, int maxTravel, int primaryTravel,
-	qboolean requireVisible, qboolean useTravelMetric);
+	qboolean requireVisible, qboolean useTravelMetric, qboolean allowEmpty);
 static qboolean BotItems_TryAcquireReachableWeapon(bot_state_t *bs);
+static qboolean BotItems_TrySpawnArmingGoals(bot_state_t *bs);
 static qboolean BotItems_TickWeaponDetourScan(bot_state_t *bs);
+static qboolean BotItems_IsWeaponPadWait(bot_state_t *bs);
+static qboolean BotItems_CommitWeaponGoal(bot_state_t *bs, bot_goal_t *goal, int kind);
 static qboolean BotItems_CommitInventoryImproved(bot_state_t *bs);
 static int BotItems_SuspendActivePrimary(bot_state_t *bs);
 static void BotItems_RecordStuckGoalInternal(bot_state_t *bs, int goalNumber, float avoidSec);
@@ -180,6 +190,20 @@ static const int botItemsWeaponKinds[] = {
 };
 
 #define BOT_ITEMS_WEAPON_KIND_COUNT	(sizeof(botItemsWeaponKinds) / sizeof(botItemsWeaponKinds[0]))
+
+/* Post-spawn arming: LG or RL first, then rail. */
+static const int botItemsArmLgRlKinds[] = {
+	BOT_ITEM_WEAPON_ROCKET,
+	BOT_ITEM_WEAPON_LIGHTNING
+};
+#define BOT_ITEMS_ARM_LG_RL_KIND_COUNT \
+	(sizeof(botItemsArmLgRlKinds) / sizeof(botItemsArmLgRlKinds[0]))
+
+static const int botItemsArmRailKinds[] = {
+	BOT_ITEM_WEAPON_RAIL
+};
+#define BOT_ITEMS_ARM_RAIL_KIND_COUNT \
+	(sizeof(botItemsArmRailKinds) / sizeof(botItemsArmRailKinds[0]))
 
 static int BotItems_DebugEnabled(void) {
 	return BotEnhanced_DebugActive();
@@ -632,7 +656,15 @@ void BotItems_Reset(bot_state_t *bs) {
 	bs->item_stuck_avoid_until[1] = 0.0f;
 	VectorClear(bs->item_filler_avoid_origin);
 	bs->item_filler_avoid_until = 0.0f;
+	bs->item_arm_life_start = FloatTime();
 
+}
+
+void BotItems_OnLifeStart(bot_state_t *bs) {
+	if (!bs) {
+		return;
+	}
+	bs->item_arm_life_start = FloatTime();
 }
 
 
@@ -2529,16 +2561,81 @@ static qboolean BotItems_TryAcquireVisible(bot_state_t *bs) {
 
 
 
+static qboolean BotItems_IsImportantWeaponKind(int kind) {
+	switch (kind) {
+	case BOT_ITEM_WEAPON_ROCKET:
+	case BOT_ITEM_WEAPON_LIGHTNING:
+	case BOT_ITEM_WEAPON_RAIL:
+	case BOT_ITEM_WEAPON_PLASMA:
+	case BOT_ITEM_WEAPON_SHOTGUN:
+	case BOT_ITEM_WEAPON_BFG:
+		return qtrue;
+	default:
+		return qfalse;
+	}
+}
+
+/* GL and filler guns stay short-range; important guns may path farther. */
+static int BotItems_WeaponTravelCap(int kind) {
+	if (!BotItems_WeaponDef(kind)) {
+		return 0;
+	}
+	if (BotItems_IsImportantWeaponKind(kind)) {
+		return BOT_ITEMS_WEAPON_IMPORTANT_MAX_TRAVEL;
+	}
+	return BOT_ITEMS_WEAPON_REACH_MAX_TRAVEL;
+}
+
+static qboolean BotItems_IsWeaponPadWait(bot_state_t *bs) {
+	if (!bs || !bs->item_commit_active || !bs->item_commit_timing) {
+		return qfalse;
+	}
+	if (!BotItems_WeaponDef(bs->item_commit_kind)) {
+		return qfalse;
+	}
+	if (!BotItems_NeedsKind(bs, bs->item_commit_kind)) {
+		return qfalse;
+	}
+	if (!BotItems_TimingHoldingNearGoal(bs)) {
+		return qfalse;
+	}
+	if (BotItems_GoalIsPresent(bs, &bs->item_commit_goal)) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+static qboolean BotItems_CommitWeaponGoal(bot_state_t *bs, bot_goal_t *goal, int kind) {
+	float until;
+	qboolean present;
+
+	if (!bs || !goal || !BotItems_WeaponDef(kind)) {
+		return qfalse;
+	}
+
+	present = BotItems_GoalIsPresent(bs, goal) &&
+		BotItems_GoalHasPickupEntity(goal);
+	until = BotItems_CommitDeadline(bs, goal);
+	if (!present) {
+		until += BOT_ITEMS_WEAPON_EMPTY_WAIT_SEC;
+		return BotItems_BeginTimingCommit(bs, goal, kind, until) ? qtrue : qfalse;
+	}
+	BotItems_BeginCommit(bs, goal, kind);
+	return bs->item_commit_active;
+}
+
 static qboolean BotItems_FindBestAmongKinds(bot_state_t *bs, bot_goal_t *bestGoal,
 	int *bestKindOut, const int *kinds, int nKinds, int maxTravel, int primaryTravel,
-	qboolean requireVisible, qboolean useTravelMetric) {
+	qboolean requireVisible, qboolean useTravelMetric, qboolean allowEmpty) {
 
-	int kind, index, k, travelTime;
+	int kind, index, k, travelTime, kindTravel;
 	char goalname[64];
 	vec3_t dir;
 	bot_goal_t goal;
 	int bestKind;
 	float metric, bestMetric, scale;
+	qboolean present;
+	qboolean isWeapon;
 
 	if (!bs || !bestGoal || !bestKindOut || !kinds || nKinds <= 0) {
 
@@ -2560,6 +2657,8 @@ static qboolean BotItems_FindBestAmongKinds(bot_state_t *bs, bot_goal_t *bestGoa
 
 		}
 
+		isWeapon = BotItems_WeaponDef(kind) != NULL;
+
 		BotItems_GoalName(bs, kind, goalname, sizeof(goalname));
 
 		if (!goalname[0]) {
@@ -2578,20 +2677,17 @@ static qboolean BotItems_FindBestAmongKinds(bot_state_t *bs, bot_goal_t *bestGoa
 
 			}
 
-			if (!BotItems_GoalIsPresent(bs, &goal)) {
+			present = BotItems_GoalIsPresent(bs, &goal) &&
+				BotItems_GoalHasPickupEntity(&goal);
 
-				continue;
-
+			if (!present) {
+				if (!allowEmpty || !isWeapon) {
+					continue;
+				}
 			}
 
 			if (!BotItems_GoalReachable(bs, &goal) &&
 					!BotItems_LedgeJumpEligible(bs, &goal)) {
-
-				continue;
-
-			}
-
-			if (!BotItems_GoalHasPickupEntity(&goal)) {
 
 				continue;
 
@@ -2617,7 +2713,15 @@ static qboolean BotItems_FindBestAmongKinds(bot_state_t *bs, bot_goal_t *bestGoa
 
 			}
 
-			if (maxTravel > 0 && travelTime > maxTravel) {
+			kindTravel = maxTravel;
+			if (isWeapon) {
+				int cap = BotItems_WeaponTravelCap(kind);
+				if (kindTravel <= 0 || cap < kindTravel) {
+					kindTravel = cap;
+				}
+			}
+
+			if (kindTravel > 0 && travelTime > kindTravel) {
 
 				continue;
 
@@ -2644,6 +2748,10 @@ static qboolean BotItems_FindBestAmongKinds(bot_state_t *bs, bot_goal_t *bestGoa
 				metric = metric * scale *
 					BotOpponent_ItemRoutePenalty(bs, goal.origin);
 
+			}
+
+			if (!present) {
+				metric += BOT_ITEMS_WEAPON_EMPTY_METRIC_PENALTY;
 			}
 
 			if (metric >= bestMetric) {
@@ -2676,6 +2784,118 @@ static qboolean BotItems_FindBestAmongKinds(bot_state_t *bs, bot_goal_t *bestGoa
 
 
 
+static qboolean BotItems_HasCoreFightWeapon(bot_state_t *bs) {
+	if (!bs) {
+		return qfalse;
+	}
+	return bs->inventory[INVENTORY_ROCKETLAUNCHER] > 0 ||
+		bs->inventory[INVENTORY_LIGHTNING] > 0;
+}
+
+static qboolean BotItems_InGoodArmingState(bot_state_t *bs) {
+	if (!bs || !BotItems_CanConsider(bs)) {
+		return qfalse;
+	}
+	if (BotItems_WantsUrgentRecovery(bs) || BotItems_CriticallyLowStack(bs)) {
+		return qfalse;
+	}
+	if (bs->inventory[INVENTORY_HEALTH] < BOT_ITEMS_ARM_MIN_HEALTH) {
+		return qfalse;
+	}
+	if (BotOpponent_WantsFleeEngaged(bs)) {
+		return qfalse;
+	}
+	if (bs->enemy >= 0 && BotCombat_HasEnemyCombatContact(bs)) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+/* Soft commits may be dropped for spawn arming; majors / current arm weapon stay. */
+static qboolean BotItems_CommitBlocksArming(bot_state_t *bs, int wantKind) {
+	int kind;
+
+	if (!bs || !bs->item_commit_active) {
+		return qfalse;
+	}
+	kind = bs->item_commit_kind;
+	if (kind == wantKind) {
+		return qtrue;
+	}
+	if (bs->item_commit_timing && BotItems_IsMajorKind(kind)) {
+		return qtrue;
+	}
+	if (wantKind == BOT_ITEM_WEAPON_RAIL) {
+		return qfalse;
+	}
+	/* LG/RL arming: keep an in-flight commit for either core fight gun. */
+	if ((kind == BOT_ITEM_WEAPON_ROCKET || kind == BOT_ITEM_WEAPON_LIGHTNING) &&
+			(wantKind == BOT_ITEM_WEAPON_ROCKET ||
+			 wantKind == BOT_ITEM_WEAPON_LIGHTNING)) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+static qboolean BotItems_TrySpawnArmingGoals(bot_state_t *bs) {
+	float age;
+	float lifeStart;
+	bot_goal_t goal;
+	int kind;
+	int wantKind;
+
+	if (!bs || !BotItems_CanConsider(bs)) {
+		return qfalse;
+	}
+	if (!BotItems_InGoodArmingState(bs)) {
+		return qfalse;
+	}
+
+	lifeStart = bs->item_arm_life_start;
+	if (lifeStart <= 0.0f) {
+		lifeStart = bs->entergame_time;
+	}
+	age = FloatTime() - lifeStart;
+
+	/* Core fight guns first even past the rail timer. */
+	if (age >= BOT_ITEMS_ARM_LG_RL_SEC && !BotItems_HasCoreFightWeapon(bs)) {
+		wantKind = BOT_ITEM_WEAPON_ROCKET;
+		if (BotItems_CommitBlocksArming(bs, wantKind)) {
+			return qfalse;
+		}
+		if (bs->item_commit_active) {
+			BotItems_ClearCommit(bs, BOT_ITEMS_DBG_RESET, "spawn arming LG/RL");
+		}
+		if (!BotItems_FindBestAmongKinds(bs, &goal, &kind, botItemsArmLgRlKinds,
+				BOT_ITEMS_ARM_LG_RL_KIND_COUNT,
+				BOT_ITEMS_WEAPON_IMPORTANT_MAX_TRAVEL, 0,
+				qfalse, qtrue, qtrue)) {
+			return qfalse;
+		}
+		return BotItems_CommitWeaponGoal(bs, &goal, kind);
+	}
+
+	if (age >= BOT_ITEMS_ARM_RAIL_SEC &&
+			BotItems_NeedsKind(bs, BOT_ITEM_WEAPON_RAIL)) {
+		wantKind = BOT_ITEM_WEAPON_RAIL;
+		if (BotItems_CommitBlocksArming(bs, wantKind)) {
+			return qfalse;
+		}
+		if (bs->item_commit_active) {
+			BotItems_ClearCommit(bs, BOT_ITEMS_DBG_RESET, "spawn arming rail");
+		}
+		if (!BotItems_FindBestAmongKinds(bs, &goal, &kind, botItemsArmRailKinds,
+				BOT_ITEMS_ARM_RAIL_KIND_COUNT,
+				BOT_ITEMS_WEAPON_IMPORTANT_MAX_TRAVEL, 0,
+				qfalse, qtrue, qtrue)) {
+			return qfalse;
+		}
+		return BotItems_CommitWeaponGoal(bs, &goal, kind);
+	}
+
+	return qfalse;
+}
+
 static qboolean BotItems_TryAcquireReachableWeapon(bot_state_t *bs) {
 
 	bot_goal_t goal;
@@ -2694,16 +2914,14 @@ static qboolean BotItems_TryAcquireReachableWeapon(bot_state_t *bs) {
 	}
 
 	if (!BotItems_FindBestAmongKinds(bs, &goal, &kind, botItemsWeaponKinds,
-			BOT_ITEMS_WEAPON_KIND_COUNT, BOT_ITEMS_WEAPON_REACH_MAX_TRAVEL, 0,
-			qfalse, qtrue)) {
+			BOT_ITEMS_WEAPON_KIND_COUNT, BOT_ITEMS_WEAPON_IMPORTANT_MAX_TRAVEL, 0,
+			qfalse, qtrue, qtrue)) {
 
 		return qfalse;
 
 	}
 
-	BotItems_BeginCommit(bs, &goal, kind);
-
-	return bs->item_commit_active;
+	return BotItems_CommitWeaponGoal(bs, &goal, kind);
 
 }
 
@@ -2763,7 +2981,7 @@ static qboolean BotItems_TickWeaponDetourScan(bot_state_t *bs) {
 
 	if (!BotItems_FindBestAmongKinds(bs, &goal, &kind, botItemsWeaponKinds,
 			BOT_ITEMS_WEAPON_KIND_COUNT, BOT_ITEMS_WEAPON_DETOUR_MAX_TRAVEL,
-			primaryTravel, qfalse, qtrue)) {
+			primaryTravel, qfalse, qtrue, qfalse)) {
 
 		return qfalse;
 
@@ -2819,7 +3037,7 @@ static qboolean BotItems_FindOpportunePickup(bot_state_t *bs, bot_goal_t *bestGo
 	}
 
 	return BotItems_FindBestAmongKinds(bs, bestGoal, bestKindOut, kinds, nKinds,
-		BOT_ITEMS_OPPORTUNE_MAX_TRAVEL, primaryTravel, qtrue, qfalse);
+		BOT_ITEMS_OPPORTUNE_MAX_TRAVEL, primaryTravel, qtrue, qfalse, qfalse);
 
 }
 
@@ -3093,6 +3311,11 @@ void BotItems_Tick(bot_state_t *bs) {
 		}
 	}
 
+	/* May supersede soft armor/health commits once spawn arming is due. */
+	if (BotItems_TrySpawnArmingGoals(bs)) {
+		return;
+	}
+
 	if (bs->item_commit_active) {
 
 		BotItems_TickNearGoalCommitExtend(bs);
@@ -3259,7 +3482,17 @@ int BotItems_TimingHoldsGoalReached(bot_state_t *bs, bot_goal_t *goal) {
 		return 0;
 	}
 
-	return BotItemTiming_ShouldWaitAtPad(bs);
+	if (BotItemTiming_ShouldWaitAtPad(bs)) {
+		return 1;
+	}
+
+	/* Empty weapon pad: keep waiting through the short respawn window. */
+	if (BotItems_WeaponDef(bs->item_commit_kind) &&
+			BotItems_NeedsKind(bs, bs->item_commit_kind)) {
+		return 1;
+	}
+
+	return 0;
 }
 
 
@@ -3287,7 +3520,8 @@ int BotItems_HandleReachedGoal(bot_state_t *bs, bot_goal_t *goal) {
 
 			if (!BotItems_CommitInventoryImproved(bs)) {
 				if (bs->item_commit_timing) {
-					if (BotItemTiming_ShouldWaitAtPad(bs)) {
+					if (BotItemTiming_ShouldWaitAtPad(bs) ||
+							BotItems_IsWeaponPadWait(bs)) {
 						return 0;
 					}
 					trap_BotSetAvoidGoalTime(bs->gs, goal->number, -1);
