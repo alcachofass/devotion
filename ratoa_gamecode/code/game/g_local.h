@@ -1441,6 +1441,7 @@ void G_MapMinMaxPlayers(const char *mapname, int *minPlayers, int *maxPlayers);
 void PlayerStoreInit( void );
 void PlayerStore_store(char* guid, playerState_t ps);
 void PlayerStore_restore(char* guid, gclient_t *client);
+team_t PlayerStore_getLastTeam( const char *guid );
 
 //
 // g_vote.c

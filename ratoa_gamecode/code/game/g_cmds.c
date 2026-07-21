@@ -1661,21 +1661,30 @@ void SetTeam_Force( gentity_t *ent, char *s, gentity_t *by, qboolean tryforce ) 
 	}
 
 	//KK-OAX Check to make sure the team is not locked from Admin
+	// Allow rejoining the same team after disconnect (tracked via playerstore)
 	if ( !force ) {
-		if ( team == TEAM_RED && level.RedTeamLocked ) {
-			trap_SendServerCommand( ent - g_entities,
-					"cp \"Red Team is locked!\n\"" );
-			return;    
+		qboolean rejoinAllowed = qfalse;
+
+		if ( ( team == TEAM_RED || team == TEAM_BLUE || team == TEAM_FREE )
+				&& PlayerStore_getLastTeam( client->pers.guid ) == team ) {
+			rejoinAllowed = qtrue;
 		}
-		if ( team == TEAM_BLUE && level.BlueTeamLocked ) {
-			trap_SendServerCommand( ent - g_entities,
-					"cp \"Blue Team is locked!\n\"" );
-			return;
-		}
-		if ( team == TEAM_FREE && level.FFALocked ) {
-			trap_SendServerCommand( ent - g_entities,
-					"cp \"This Deathmatch is locked!\n\"" );
-			return;
+		if ( !rejoinAllowed ) {
+			if ( team == TEAM_RED && level.RedTeamLocked ) {
+				trap_SendServerCommand( ent - g_entities,
+						"cp \"Red Team is locked!\n\"" );
+				return;
+			}
+			if ( team == TEAM_BLUE && level.BlueTeamLocked ) {
+				trap_SendServerCommand( ent - g_entities,
+						"cp \"Blue Team is locked!\n\"" );
+				return;
+			}
+			if ( team == TEAM_FREE && level.FFALocked ) {
+				trap_SendServerCommand( ent - g_entities,
+						"cp \"This Deathmatch is locked!\n\"" );
+				return;
+			}
 		}
 	}
 	//
