@@ -32,6 +32,7 @@ typedef struct {
     int	persistant[MAX_PERSISTANT]; //This is the only information we need to save
     int timePlayed;
     int	accuracy[WP_NUM_WEAPONS][2];
+    team_t lastTeam; // team at store time; used to allow rejoin while teams are locked
 } playerstore_t;
 
 static playerstore_t playerstore[MAX_PLAYERS_STORED];
@@ -78,6 +79,7 @@ void PlayerStore_store(char* guid, playerState_t ps) {
     memcpy(playerstore[place2store].persistant,ps.persistant,sizeof(int[MAX_PERSISTANT]));
     memcpy(playerstore[place2store].accuracy,level.clients[ps.clientNum].accuracy, sizeof(playerstore[0].accuracy) );
     playerstore[place2store].timePlayed = level.time - level.clients[ps.clientNum].pers.enterTime;
+    playerstore[place2store].lastTeam = level.clients[ps.clientNum].sess.sessionTeam;
     G_LogPrintf("Playerstore: Stored player with guid: %s in %u\n", playerstore[place2store].guid,place2store);
 }
 
@@ -102,4 +104,31 @@ void PlayerStore_restore(char* guid, gclient_t *client)  {
         }
     }
     G_LogPrintf("Playerstore: Nothing to restore. Guid: %s\n",guid);
+}
+
+/*
+=================
+PlayerStore_getLastTeam
+
+Returns the team the player was on when their stats were last stored,
+or TEAM_SPECTATOR if unknown / not a playable team.
+=================
+*/
+team_t PlayerStore_getLastTeam( const char *guid ) {
+	int i;
+
+	if ( !guid || strlen( guid ) < GUID_SIZE ) {
+		return TEAM_SPECTATOR;
+	}
+	for ( i = 0; i < MAX_PLAYERS_STORED; i++ ) {
+		if ( !Q_stricmpn( guid, playerstore[i].guid, GUID_SIZE ) ) {
+			if ( playerstore[i].lastTeam == TEAM_RED
+					|| playerstore[i].lastTeam == TEAM_BLUE
+					|| playerstore[i].lastTeam == TEAM_FREE ) {
+				return playerstore[i].lastTeam;
+			}
+			return TEAM_SPECTATOR;
+		}
+	}
+	return TEAM_SPECTATOR;
 }
