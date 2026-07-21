@@ -304,16 +304,6 @@ int CG_DemoHistory_LocalFireDelay( void ) {
 	return ping;
 }
 
-static int demoDelagDisplayServerTime( void ) {
-	if ( cg.nextSnap ) {
-		int delta = cg.nextSnap->serverTime - cg.snap->serverTime;
-		if ( delta > 0 ) {
-			return cg.snap->serverTime + (int)( cg.frameInterpolation * (float)delta + 0.5f );
-		}
-	}
-	return cg.snap->serverTime;
-}
-
 static void entityPoseFromBracket( int entityNum, int evalTime, const snapshot_t *sOld, const snapshot_t *sNew, float frac,
 		vec3_t outOrigin, vec_t *outAnglesOpt, int *outSolidOpt, qboolean *outOk ) {
 	entityState_t esLo, esHi;
@@ -329,39 +319,27 @@ static void entityPoseFromBracket( int entityNum, int evalTime, const snapshot_t
 	hasHi = findEntityInSnapshot( sNew, entityNum, &esHi );
 
 	if ( hasLo && hasHi && sOld != sNew && sOld->serverTime < sNew->serverTime ) {
-		if ( frac <= 0.0f ) {
-			BG_EvaluateTrajectory( &esLo.pos, evalTime, outOrigin );
-			if ( outAnglesOpt ) {
-				BG_EvaluateTrajectory( &esLo.apos, evalTime, outAnglesOpt );
-			}
-			if ( outSolidOpt ) {
-				*outSolidOpt = esLo.solid;
-			}
-		} else if ( frac >= 1.0f ) {
-			BG_EvaluateTrajectory( &esHi.pos, evalTime, outOrigin );
-			if ( outAnglesOpt ) {
-				BG_EvaluateTrajectory( &esHi.apos, evalTime, outAnglesOpt );
-			}
-			if ( outSolidOpt ) {
-				*outSolidOpt = esHi.solid;
-			}
-		} else {
-			BG_EvaluateTrajectory( &esLo.pos, sOld->serverTime, oLo );
-			BG_EvaluateTrajectory( &esHi.pos, sNew->serverTime, oHi );
-			outOrigin[0] = oLo[0] + frac * ( oHi[0] - oLo[0] );
-			outOrigin[1] = oLo[1] + frac * ( oHi[1] - oLo[1] );
-			outOrigin[2] = oLo[2] + frac * ( oHi[2] - oLo[2] );
+		/* Always lerp endpoints so frac 0/1 stay continuous with the open interval. */
+		if ( frac < 0.0f ) {
+			frac = 0.0f;
+		} else if ( frac > 1.0f ) {
+			frac = 1.0f;
+		}
+		BG_EvaluateTrajectory( &esLo.pos, sOld->serverTime, oLo );
+		BG_EvaluateTrajectory( &esHi.pos, sNew->serverTime, oHi );
+		outOrigin[0] = oLo[0] + frac * ( oHi[0] - oLo[0] );
+		outOrigin[1] = oLo[1] + frac * ( oHi[1] - oLo[1] );
+		outOrigin[2] = oLo[2] + frac * ( oHi[2] - oLo[2] );
 
-			if ( outAnglesOpt ) {
-				BG_EvaluateTrajectory( &esLo.apos, sOld->serverTime, aLo );
-				BG_EvaluateTrajectory( &esHi.apos, sNew->serverTime, aHi );
-				outAnglesOpt[0] = LerpAngle( aLo[0], aHi[0], frac );
-				outAnglesOpt[1] = LerpAngle( aLo[1], aHi[1], frac );
-				outAnglesOpt[2] = LerpAngle( aLo[2], aHi[2], frac );
-			}
-			if ( outSolidOpt ) {
-				*outSolidOpt = esHi.solid;
-			}
+		if ( outAnglesOpt ) {
+			BG_EvaluateTrajectory( &esLo.apos, sOld->serverTime, aLo );
+			BG_EvaluateTrajectory( &esHi.apos, sNew->serverTime, aHi );
+			outAnglesOpt[0] = LerpAngle( aLo[0], aHi[0], frac );
+			outAnglesOpt[1] = LerpAngle( aLo[1], aHi[1], frac );
+			outAnglesOpt[2] = LerpAngle( aLo[2], aHi[2], frac );
+		}
+		if ( outSolidOpt ) {
+			*outSolidOpt = ( frac < 1.0f ) ? esLo.solid : esHi.solid;
 		}
 		*outOk = qtrue;
 		return;
@@ -510,6 +488,43 @@ static qboolean demoDelagPoseFromHistoryEnvelope( int entityNum, int tHist, vec3
 	return qfalse;
 }
 
+/*
+Sample a continuous pose at an arbitrary server time for demo delag.
+
+Prefer the live snap↔nextSnap window first so times past the history ring's
+newest entry (still within the open interpolation window) stay interpolated.
+Fall back to history bracket / envelope for older times.
+*/
+static qboolean demoDelagSamplePoseAtTime( centity_t *cent, int entityNum, int tSample,
+		vec3_t outOrigin, vec3_t outAngles ) {
+	const snapshot_t *newest;
+	int tHist;
+
+	if ( cent && demoDelagPoseFromActiveSnapWindow( cent, tSample, outOrigin, outAngles ) ) {
+		return qtrue;
+	}
+
+	newest = CG_DemoHistory_GetNewest();
+	if ( newest && tSample > newest->serverTime ) {
+		/*
+		 * Past history and outside the live window (or no usable nextState).
+		 * Clamp only for the history lookup — do not prefer this over the live
+		 * window path above.
+		 */
+		tHist = newest->serverTime;
+	} else {
+		tHist = clampServerTimeToHistory( tSample );
+	}
+
+	if ( getEntityPoseAtHistoryTime( entityNum, tHist, outOrigin, outAngles ) ) {
+		return qtrue;
+	}
+	if ( demoDelagPoseFromHistoryEnvelope( entityNum, tSample, outOrigin, outAngles ) ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
 static void demoDelagApplyPoseAndCache( centity_t *cent, const vec3_t origin, const vec3_t angles ) {
 	VectorCopy( origin, cent->lerpOrigin );
 	VectorCopy( angles, cent->lerpAngles );
@@ -577,10 +592,12 @@ void CG_DemoHistory_EndHitscanRewind( void ) {
 
 void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( centity_t *cent ) {
 	int ping;
-	int tDisp;
-	int tHist;
-	vec3_t origin;
-	vec3_t angles;
+	int tLo, tHi;
+	vec3_t originLo, anglesLo;
+	vec3_t originHi, anglesHi;
+	vec3_t origin, angles;
+	float f;
+	qboolean okLo, okHi;
 
 	if ( !CG_DemoHistory_DemoDelagActive() || !cg.snap ) {
 		return;
@@ -598,21 +615,50 @@ void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( centity_t *cent ) {
 		return;
 	}
 
-	tDisp = demoDelagDisplayServerTime();
+	/*
+	 * Reuse the same frameInterpolation stepper as normal playback, but on
+	 * ping-rewound endpoints: lerp(pose(snap−ping), pose(nextSnap−ping), f).
+	 * That keeps motion continuous between server ticks instead of collapsing
+	 * onto a single clamped history snap.
+	 */
+	f = cg.frameInterpolation;
+	if ( f < 0.0f ) {
+		f = 0.0f;
+	} else if ( f > 1.0f ) {
+		f = 1.0f;
+	}
 
-	tHist = clampServerTimeToHistory( tDisp - ping );
-	if ( getEntityPoseAtHistoryTime( cent->currentState.number, tHist, origin, angles ) ) {
-		demoDelagApplyPoseAndCache( cent, origin, angles );
-		return;
+	if ( cg.nextSnap && cg.nextSnap->serverTime > cg.snap->serverTime ) {
+		tLo = cg.snap->serverTime - ping;
+		tHi = cg.nextSnap->serverTime - ping;
+		okLo = demoDelagSamplePoseAtTime( cent, cent->currentState.number, tLo, originLo, anglesLo );
+		okHi = demoDelagSamplePoseAtTime( cent, cent->currentState.number, tHi, originHi, anglesHi );
+		if ( okLo && okHi ) {
+			origin[0] = originLo[0] + f * ( originHi[0] - originLo[0] );
+			origin[1] = originLo[1] + f * ( originHi[1] - originLo[1] );
+			origin[2] = originLo[2] + f * ( originHi[2] - originLo[2] );
+			angles[0] = LerpAngle( anglesLo[0], anglesHi[0], f );
+			angles[1] = LerpAngle( anglesLo[1], anglesHi[1], f );
+			angles[2] = LerpAngle( anglesLo[2], anglesHi[2], f );
+			demoDelagApplyPoseAndCache( cent, origin, angles );
+			return;
+		}
+		if ( okLo ) {
+			demoDelagApplyPoseAndCache( cent, originLo, anglesLo );
+			return;
+		}
+		if ( okHi ) {
+			demoDelagApplyPoseAndCache( cent, originHi, anglesHi );
+			return;
+		}
+	} else {
+		tLo = cg.snap->serverTime - ping;
+		if ( demoDelagSamplePoseAtTime( cent, cent->currentState.number, tLo, origin, angles ) ) {
+			demoDelagApplyPoseAndCache( cent, origin, angles );
+			return;
+		}
 	}
-	if ( demoDelagPoseFromActiveSnapWindow( cent, tHist, origin, angles ) ) {
-		demoDelagApplyPoseAndCache( cent, origin, angles );
-		return;
-	}
-	if ( demoDelagPoseFromHistoryEnvelope( cent->currentState.number, tHist, origin, angles ) ) {
-		demoDelagApplyPoseAndCache( cent, origin, angles );
-		return;
-	}
+
 	if ( cent->demoDelagVisualCached ) {
 		VectorCopy( cent->demoDelagVisualOrigin, cent->lerpOrigin );
 		VectorCopy( cent->demoDelagVisualAngles, cent->lerpAngles );
@@ -621,10 +667,12 @@ void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( centity_t *cent ) {
 
 qboolean CG_DemoHistory_AdjustMissileLerpForDemoDelag( centity_t *cent ) {
 	int ping;
-	int tDisp;
-	int tHist;
-	vec3_t origin;
-	vec3_t angles;
+	int tLo, tHi;
+	vec3_t originLo, anglesLo;
+	vec3_t originHi, anglesHi;
+	vec3_t origin, angles;
+	float f;
+	qboolean okLo, okHi;
 
 	if ( !CG_DemoHistory_DemoDelagActive() || !cg.snap ) {
 		return qfalse;
@@ -639,13 +687,46 @@ qboolean CG_DemoHistory_AdjustMissileLerpForDemoDelag( centity_t *cent ) {
 		return qfalse;
 	}
 
-	tDisp = demoDelagDisplayServerTime();
+	f = cg.frameInterpolation;
+	if ( f < 0.0f ) {
+		f = 0.0f;
+	} else if ( f > 1.0f ) {
+		f = 1.0f;
+	}
 
-	tHist = clampServerTimeToHistory( tDisp - ping );
-	if ( !getEntityPoseAtHistoryTime( cent->currentState.number, tHist, origin, angles ) ) {
+	if ( cg.nextSnap && cg.nextSnap->serverTime > cg.snap->serverTime ) {
+		tLo = cg.snap->serverTime - ping;
+		tHi = cg.nextSnap->serverTime - ping;
+		okLo = demoDelagSamplePoseAtTime( cent, cent->currentState.number, tLo, originLo, anglesLo );
+		okHi = demoDelagSamplePoseAtTime( cent, cent->currentState.number, tHi, originHi, anglesHi );
+		if ( okLo && okHi ) {
+			origin[0] = originLo[0] + f * ( originHi[0] - originLo[0] );
+			origin[1] = originLo[1] + f * ( originHi[1] - originLo[1] );
+			origin[2] = originLo[2] + f * ( originHi[2] - originLo[2] );
+			angles[0] = LerpAngle( anglesLo[0], anglesHi[0], f );
+			angles[1] = LerpAngle( anglesLo[1], anglesHi[1], f );
+			angles[2] = LerpAngle( anglesLo[2], anglesHi[2], f );
+			VectorCopy( origin, cent->lerpOrigin );
+			VectorCopy( angles, cent->lerpAngles );
+			return qtrue;
+		}
+		if ( okLo ) {
+			VectorCopy( originLo, cent->lerpOrigin );
+			VectorCopy( anglesLo, cent->lerpAngles );
+			return qtrue;
+		}
+		if ( okHi ) {
+			VectorCopy( originHi, cent->lerpOrigin );
+			VectorCopy( anglesHi, cent->lerpAngles );
+			return qtrue;
+		}
 		return qfalse;
 	}
 
+	tLo = cg.snap->serverTime - ping;
+	if ( !demoDelagSamplePoseAtTime( cent, cent->currentState.number, tLo, origin, angles ) ) {
+		return qfalse;
+	}
 	VectorCopy( origin, cent->lerpOrigin );
 	VectorCopy( angles, cent->lerpAngles );
 	return qtrue;
