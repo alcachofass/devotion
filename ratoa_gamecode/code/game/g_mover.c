@@ -577,6 +577,54 @@ void ReturnToPos1( gentity_t *ent ) {
 	}
 }
 
+/*
+================
+G_MoverUnlockedBy
+
+Quake Live key doors/buttons:
+  spawnflags 16 = silver key required
+  spawnflags 32 = gold key required
+  master key unlocks either
+================
+*/
+qboolean G_MoverUnlockedBy( gentity_t *ent, gentity_t *activator ) {
+	int	flags;
+
+	flags = ent->spawnflags & ( 16 | 32 );
+	if ( !flags ) {
+		return qtrue;
+	}
+	if ( !activator || !activator->client ) {
+		return qfalse;
+	}
+	if ( activator->client->ps.powerups[PW_KEY_MASTER] ) {
+		return qtrue;
+	}
+	if ( ( flags & 16 ) && !activator->client->ps.powerups[PW_KEY_SILVER] ) {
+		return qfalse;
+	}
+	if ( ( flags & 32 ) && !activator->client->ps.powerups[PW_KEY_GOLD] ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+static void G_MoverKeyDenied( gentity_t *ent, gentity_t *activator ) {
+	const char *msg;
+
+	if ( !activator || !activator->client ) {
+		return;
+	}
+	if ( ( ent->spawnflags & 16 ) && ( ent->spawnflags & 32 ) ) {
+		msg = "You need the silver and gold keys";
+	} else if ( ent->spawnflags & 16 ) {
+		msg = "You need the silver key";
+	} else {
+		msg = "You need the gold key";
+	}
+	trap_SendServerCommand( activator - g_entities, va( "cp \"%s\"", msg ) );
+}
+
 
 /*
 ================
@@ -597,9 +645,15 @@ void Reached_BinaryMover( gentity_t *ent ) {
 			G_AddEvent( ent, EV_GENERAL_SOUND, ent->soundPos2 );
 		}
 
-		// return to pos1 after a delay
-		ent->think = ReturnToPos1;
-		ent->nextthink = level.time + ent->wait;
+		// Quake Live stay_open (spawnflag 8): do not auto-return
+		if ( !( ent->spawnflags & 8 ) ) {
+			// return to pos1 after a delay
+			ent->think = ReturnToPos1;
+			ent->nextthink = level.time + ent->wait;
+		} else {
+			ent->think = 0;
+			ent->nextthink = 0;
+		}
 
 		// fire targets
 		if ( !ent->activator ) {
@@ -640,6 +694,12 @@ void Use_BinaryMover( gentity_t *ent, gentity_t *other, gentity_t *activator ) {
 		return;
 	}
 
+	// key-locked doors/buttons (QL spawnflags 16/32)
+	if ( !G_MoverUnlockedBy( ent, activator ) ) {
+		G_MoverKeyDenied( ent, activator );
+		return;
+	}
+
 	ent->activator = activator;
 
 	if ( ent->moverState == MOVER_POS1 ) {
@@ -664,6 +724,10 @@ void Use_BinaryMover( gentity_t *ent, gentity_t *other, gentity_t *activator ) {
 
 	// if all the way up, just delay before coming down
 	if ( ent->moverState == MOVER_POS2 ) {
+		// stay_open doors never schedule a return
+		if ( ent->spawnflags & 8 ) {
+			return;
+		}
 		ent->nextthink = level.time + ent->wait;
 		return;
 	}
@@ -937,10 +1001,13 @@ void Think_MatchTeam( gentity_t *ent ) {
 }
 
 
-/*QUAKED func_door (0 .5 .8) ? START_OPEN x CRUSHER
+/*QUAKED func_door (0 .5 .8) ? START_OPEN x CRUSHER STAY_OPEN KEY_SILVER KEY_GOLD
 TOGGLE		wait in both the start and end states for a trigger event.
 START_OPEN	the door to moves to its destination when spawned, and operate in reverse.  It is used to temporarily or permanently close off an area when triggered (not useful for touch or takedamage doors).
 NOMONSTER	monsters will not trigger this door
+STAY_OPEN	(spawnflag 8) Quake Live: door stays open after activation
+KEY_SILVER	(spawnflag 16) Quake Live: requires silver or master key
+KEY_GOLD	(spawnflag 32) Quake Live: requires gold or master key
 
 "model2"	.md3 model to also draw
 "angle"		determines the opening direction
@@ -1192,8 +1259,10 @@ void Touch_Button(gentity_t *ent, gentity_t *other, trace_t *trace ) {
 }
 
 
-/*QUAKED func_button (0 .5 .8) ?
+/*QUAKED func_button (0 .5 .8) ? x x x x KEY_SILVER KEY_GOLD
 When a button is touched, it moves some distance in the direction of it's angle, triggers all of it's targets, waits some time, then returns to it's original position where it can be triggered again.
+KEY_SILVER	(spawnflag 16) Quake Live: requires silver or master key
+KEY_GOLD	(spawnflag 32) Quake Live: requires gold or master key
 
 "model2"	.md3 model to also draw
 "angle"		determines the opening direction

@@ -425,6 +425,11 @@ typedef enum {
 	PW_BLUEFLAG,
 	PW_NEUTRALFLAG,
 
+	// Quake Live key items (never expire; returned to pad on death)
+	PW_KEY_SILVER,
+	PW_KEY_GOLD,
+	PW_KEY_MASTER,
+
 #ifdef MISSIONPACK
 	PW_SCOUT,
 	PW_GUARD,
@@ -853,7 +858,8 @@ typedef enum {
 							// EFX: rotate + bob
 	IT_PERSISTANT_POWERUP,
 	IT_TEAM,
-	IT_COIN
+	IT_COIN,
+	IT_KEY					// Quake Live door keys
 } itemType_t;
 
 #define MAX_ITEM_MODELS 4
