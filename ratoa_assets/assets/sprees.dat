@@ -27,3 +27,11 @@ level = 5
 printpos = 1
 message = ^7[n]^2 is the ^1GRIM REAPER^2 with ^1[k]^2 kills! You're gonna need a bigger gun!
 award = 1
+
+//This is an example of a death spree. Like kill sprees, you can stack levels and attach sounds/messages when conditions are met.
+//uncomment the lines to make it active.
+//[dspree]
+//level = 1
+//printpos = 2
+//message = [n] keeps on fighting despite [k] deaths
+//sound = sound/feedback/humiliation.wav
