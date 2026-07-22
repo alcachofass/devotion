@@ -3871,21 +3871,29 @@ static float CG_DrawPowerups( float y ) {
 	// sort the list by time remaining
 	active = 0;
 	for ( i = 0 ; i < MAX_POWERUPS ; i++ ) {
+		qboolean isKey;
+
 		if ( !ps->powerups[ i ] ) {
 			continue;
 		}
+
+		item = BG_FindItemForPowerup( i );
+		if ( item && item->giType == IT_PERSISTANT_POWERUP ) {
+			continue; //Don't draw persistant powerups here!
+		}
+		isKey = ( item && item->giType == IT_KEY );
+
 		t = ps->powerups[ i ] - cg.time;
 		// ZOID--don't draw if the power up has unlimited time (999 seconds)
-		// This is true of the CTF flags
-		if ( t < 0 || t > 999000) {
+		// This is true of the CTF flags. Keys are unlimited but still drawn (no timer).
+		if ( !isKey && ( t < 0 || t > 999000 ) ) {
 			continue;
 		}
 
-                item = BG_FindItemForPowerup( i );
-                if ( item && item->giType == IT_PERSISTANT_POWERUP)
-                    continue; //Don't draw persistant powerups here!
-
-		// insert into the list
+		// insert into the list (keys sort after timed powerups)
+		if ( isKey ) {
+			t = 0x7fffffff;
+		}
 		for ( j = 0 ; j < active ; j++ ) {
 			if ( sortedTime[j] >= t ) {
 				for ( k = active - 1 ; k >= j ; k-- ) {
@@ -3902,52 +3910,52 @@ static float CG_DrawPowerups( float y ) {
 
 	// draw the icons and timers
 	for ( i = 0 ; i < active ; i++ ) {
+		qboolean isKey;
+
 		item = BG_FindItemForPowerup( sorted[i] );
 
 		if (item) {
-
+			isKey = ( item->giType == IT_KEY );
 
 			y -= powerup_height;
 
-			if (cg_altStatusbar.integer >= 4 && cg_altStatusbar.integer <= 5) {
-				int numDigits, v;
+			if ( !isKey ) {
+				if (cg_altStatusbar.integer >= 4 && cg_altStatusbar.integer <= 5) {
+					int numDigits, v;
 
-				//CG_DrawPic( decor_x,
-				//	       	y, 
-				//		CG_HeightToWidth(DPW_DECOR_WIDTH),
-				//	       	DPW_DECOR_WIDTH, 
-				//		cgs.media.powerupFrameShader);
-
-				v = sortedTime[ i ] / 1000;
-				numDigits = 1;
-				while (numDigits < 2 && (v /= 10)) {
-					numDigits++;
-				}
-				if (sortedTime[ i ] / 1000 <= 5) {
-					trap_R_SetColor( colors[2] );
+					v = sortedTime[ i ] / 1000;
+					numDigits = 1;
+					while (numDigits < 2 && (v /= 10)) {
+						numDigits++;
+					}
+					if (sortedTime[ i ] / 1000 <= 5) {
+						trap_R_SetColor( colors[2] );
+					} else {
+						trap_R_SetColor( colors[0] );
+					}
+					CG_DrawField( decor_x + CG_HeightToWidth(DPW_NUMBER_XOFFSET),
+							y + DPW_NUMBER_YOFFSET, numDigits, sortedTime[ i ] / 1000, qfalse, char_width, char_height);
 				} else {
-					trap_R_SetColor( colors[0] );
+					trap_R_SetColor( colors[1] );
+					CG_DrawField( SCREEN_WIDTH - CG_HeightToWidth(icon_sz) - char_width * 2, y, 2, sortedTime[ i ] / 1000, qfalse, char_width, char_height);
 				}
-				CG_DrawField( decor_x + CG_HeightToWidth(DPW_NUMBER_XOFFSET),
-					       	y + DPW_NUMBER_YOFFSET, numDigits, sortedTime[ i ] / 1000, qfalse, char_width, char_height);
-			} else {
-				trap_R_SetColor( colors[1] );
-				CG_DrawField( SCREEN_WIDTH - CG_HeightToWidth(icon_sz) - char_width * 2, y, 2, sortedTime[ i ] / 1000, qfalse, char_width, char_height);
-			}
 
-			t = ps->powerups[ sorted[i] ];
-			if ( t - cg.time >= POWERUP_BLINKS * POWERUP_BLINK_TIME ) {
+				t = ps->powerups[ sorted[i] ];
+				if ( t - cg.time >= POWERUP_BLINKS * POWERUP_BLINK_TIME ) {
+					trap_R_SetColor( NULL );
+				} else {
+					vec4_t	modulate;
+
+					f = (float)( t - cg.time ) / POWERUP_BLINK_TIME;
+					f -= (int)f;
+					modulate[0] = modulate[1] = modulate[2] = modulate[3] = f;
+					trap_R_SetColor( modulate );
+				}
+			} else {
 				trap_R_SetColor( NULL );
-			} else {
-				vec4_t	modulate;
-
-				f = (float)( t - cg.time ) / POWERUP_BLINK_TIME;
-				f -= (int)f;
-				modulate[0] = modulate[1] = modulate[2] = modulate[3] = f;
-				trap_R_SetColor( modulate );
 			}
 
-			if ( cg.powerupActive == sorted[i] && 
+			if ( !isKey && cg.powerupActive == sorted[i] &&
 					cg.time - cg.powerupTime < PULSE_TIME ) {
 				f = 1.0 - ( ( (float)cg.time - cg.powerupTime ) / PULSE_TIME );
 				size = icon_sz * ( 1.0 + ( PULSE_SCALE - 1.0 ) * f );

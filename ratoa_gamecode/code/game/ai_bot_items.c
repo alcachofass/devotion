@@ -3973,6 +3973,9 @@ static qboolean BotItems_PlayerCanUsePickup(bot_state_t *bs, gentity_t *ent) {
 				return qfalse;
 			}
 			return qtrue;
+		case IT_KEY:
+			return qtrue;
+
 		case IT_TEAM:
 			if (!BotItems_FlagCaptureGametype()) {
 				return qtrue;

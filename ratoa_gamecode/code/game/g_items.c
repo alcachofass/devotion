@@ -399,6 +399,61 @@ int Pickup_Coin( gentity_t *ent, gentity_t *other ) {
 
 /*
 ===============
+Pickup_Key
+
+Quake Live keys: held until death, never expire, do not auto-respawn
+unless the mapper sets a wait value.
+===============
+*/
+int Pickup_Key( gentity_t *ent, gentity_t *other ) {
+	other->client->ps.powerups[ent->item->giTag] = INT_MAX;
+	return -1;
+}
+
+/*
+===============
+G_ReturnKeys
+
+Return any keys held by this player to their original spawn pads.
+===============
+*/
+void G_ReturnKeys( gentity_t *ent ) {
+	int			i;
+	gentity_t	*key;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	for ( i = 0; i < level.num_entities; i++ ) {
+		key = &g_entities[i];
+		if ( !G_InUse( key ) || !key->item || key->item->giType != IT_KEY ) {
+			continue;
+		}
+		if ( key->flags & FL_DROPPED_ITEM ) {
+			continue;
+		}
+		if ( !ent->client->ps.powerups[key->item->giTag] ) {
+			continue;
+		}
+		ent->client->ps.powerups[key->item->giTag] = 0;
+		RespawnItem( key );
+	}
+}
+
+/*
+===============
+BG_IsKeyPowerup / G_IsKeyPowerupTag
+===============
+*/
+qboolean G_IsKeyPowerup( int powerup ) {
+	return (powerup == PW_KEY_SILVER || powerup == PW_KEY_GOLD || powerup == PW_KEY_MASTER);
+}
+
+//======================================================================
+
+/*
+===============
 RespawnItem
 ===============
 */
@@ -484,7 +539,7 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 		|| g_rockets.integer 
 		|| ((g_gametype.integer == GT_CTF_ELIMINATION || g_elimination_allgametypes.integer) && !g_elimination_spawnitems.integer)
 		)
-                && ent->item->giType != IT_TEAM)
+                && ent->item->giType != IT_TEAM && ent->item->giType != IT_KEY)
 		return;
 
 	//Cannot touch flag/items before round starts
@@ -497,8 +552,9 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 			(other->client->sess.sessionTeam==TEAM_RED && (level.eliminationSides+level.roundNumber)%2 != 0 ) ))
 		return;
 
-	if ((g_gametype.integer == GT_ELIMINATION || g_gametype.integer == GT_LMS) && !g_elimination_spawnitems.integer)
-		return;		//nothing to pick up in elimination
+	if ((g_gametype.integer == GT_ELIMINATION || g_gametype.integer == GT_LMS) && !g_elimination_spawnitems.integer
+			&& ent->item->giType != IT_KEY)
+		return;		//nothing to pick up in elimination (keys still allowed)
 
 	if (!other->client)
 		return;
@@ -582,6 +638,9 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 	case IT_COIN:
 		respawn = Pickup_Coin(ent, other);
 		break;
+	case IT_KEY:
+		respawn = Pickup_Key(ent, other);
+		break;
 	default:
 		return;
 	}
@@ -598,7 +657,7 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 	}
 
 	// powerup pickups are global broadcasts
-	if ( ent->item->giType == IT_POWERUP || ent->item->giType == IT_TEAM) {
+	if ( ent->item->giType == IT_POWERUP || ent->item->giType == IT_TEAM || ent->item->giType == IT_KEY) {
 		// if we want the global sound to play
 		if (!ent->speed) {
 			gentity_t	*te;
@@ -1114,10 +1173,12 @@ void G_SpawnItem (gentity_t *ent, gitem_t *item) {
 	G_SpawnFloat( "random", "0", &ent->random );
 	G_SpawnFloat( "wait", "0", &ent->wait );
 
-	if((item->giType == IT_TEAM && (g_instantgib.integer || g_rockets.integer) ) || (!g_instantgib.integer && !g_rockets.integer) )
+	if((item->giType == IT_TEAM && (g_instantgib.integer || g_rockets.integer) ) ||
+	   (item->giType == IT_KEY) ||
+	   (!g_instantgib.integer && !g_rockets.integer) )
 	{
 		//Don't load pickups in Elimination (or maybe... gives warnings)
-		if (!G_IsElimGT() || g_elimination_spawnitems.integer)
+		if (!G_IsElimGT() || g_elimination_spawnitems.integer || item->giType == IT_KEY)
 			RegisterItem( item );
 		//Registrer flags anyway in CTF Elimination:
 		if (g_gametype.integer == GT_CTF_ELIMINATION && item->giType == IT_TEAM)
@@ -1141,8 +1202,8 @@ void G_SpawnItem (gentity_t *ent, gitem_t *item) {
 
 	ent->physicsBounce = 0.50;		// items are bouncy
 
-	if (((g_gametype.integer == GT_ELIMINATION || g_gametype.integer == GT_LMS) && !g_elimination_spawnitems.integer) || 
-			( item->giType != IT_TEAM && (g_instantgib.integer || g_rockets.integer || 
+	if (((g_gametype.integer == GT_ELIMINATION || g_gametype.integer == GT_LMS) && !g_elimination_spawnitems.integer && item->giType != IT_KEY) || 
+			( item->giType != IT_TEAM && item->giType != IT_KEY && (g_instantgib.integer || g_rockets.integer || 
 						      ((g_elimination_allgametypes.integer || g_gametype.integer==GT_CTF_ELIMINATION) && !g_elimination_spawnitems.integer)) ) ) {
 		ent->s.eFlags |= EF_NODRAW; //Invisible in elimination
                 ent->r.svFlags |= SVF_NOCLIENT;  //Don't broadcast

@@ -466,6 +466,8 @@ static void CG_TouchItem( centity_t *cent ) {
 		} else if ( !cg.predictedPlayerState.ammo[ item->giTag ] ) {
 			cg.predictedPlayerState.ammo[ item->giTag ] = 1;
 		}
+	} else if ( item->giType == IT_KEY ) {
+		cg.predictedPlayerState.powerups[ item->giTag ] = INT_MAX;
 	}
 	//}
 }

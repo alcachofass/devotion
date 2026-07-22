@@ -249,6 +249,9 @@ void TossClientItems( gentity_t *self ) {
 	if ( g_gametype.integer != GT_TEAM ) {
 		angle = 45;
 		for ( i = 1 ; i < PW_NUM_POWERUPS ; i++ ) {
+			if ( G_IsKeyPowerup( i ) ) {
+				continue; // keys return to pad, never drop
+			}
 			if ( self->client->ps.powerups[ i ] > level.time ) {
 				item = BG_FindItemForPowerup( i );
 				if ( !item ) {
@@ -1318,6 +1321,8 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
                 TossClientCubes( self );
         }
 #endif
+	// Quake Live keys return to their pads; they never drop
+	G_ReturnKeys( self );
 	// if client is in a nodrop area, don't drop anything (but return CTF flags!)
 	TossClientItems( self );
 

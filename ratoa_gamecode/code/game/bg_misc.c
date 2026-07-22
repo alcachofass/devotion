@@ -1090,6 +1090,57 @@ Only in Domination games
 /* sounds */ ""
 	},
 
+/*QUAKED item_key_silver (.56 .56 .56) (-16 -16 -16) (16 16 16) suspended
+Quake Live silver key. Unlocks func_door / func_button with spawnflags 16.
+*/
+	{
+		"item_key_silver",
+		"sound/items/n_health.wav",
+		{ "models/powerups/keys/key_silver.md3",
+		NULL, NULL, NULL },
+/* icon */		"icons/key_silver",
+/* pickup */	"Silver Key",
+		0,
+		IT_KEY,
+		PW_KEY_SILVER,
+/* precache */ "",
+/* sounds */ ""
+	},
+
+/*QUAKED item_key_gold (1 .66 0) (-16 -16 -16) (16 16 16) suspended
+Quake Live gold key. Unlocks func_door / func_button with spawnflags 32.
+*/
+	{
+		"item_key_gold",
+		"sound/items/n_health.wav",
+		{ "models/powerups/keys/key_gold.md3",
+		NULL, NULL, NULL },
+/* icon */		"icons/key_gold",
+/* pickup */	"Gold Key",
+		0,
+		IT_KEY,
+		PW_KEY_GOLD,
+/* precache */ "",
+/* sounds */ ""
+	},
+
+/*QUAKED item_key_master (1 0 0) (-16 -16 -16) (16 16 16) suspended
+Quake Live master key. Unlocks silver and gold locked doors/buttons.
+*/
+	{
+		"item_key_master",
+		"sound/items/n_health.wav",
+		{ "models/powerups/keys/key_master.md3",
+		NULL, NULL, NULL },
+/* icon */		"icons/key_master",
+/* pickup */	"Master Key",
+		0,
+		IT_KEY,
+		PW_KEY_MASTER,
+/* precache */ "",
+/* sounds */ ""
+	},
+
 #if 0
 /* For Coin{FFA,..} */
 	{
@@ -1177,6 +1228,7 @@ gitem_t	*BG_FindItemForPowerup( powerup_t pw ) {
 	for ( i = 0 ; i < bg_numItems ; i++ ) {
 		if ( (bg_itemlist[i].giType == IT_POWERUP || 
 					bg_itemlist[i].giType == IT_TEAM ||
+					bg_itemlist[i].giType == IT_KEY ||
 					bg_itemlist[i].giType == IT_PERSISTANT_POWERUP) && 
 			bg_itemlist[i].giTag == pw ) {
 			return &bg_itemlist[i];
@@ -1485,6 +1537,12 @@ qboolean BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const play
 		return qtrue;
 #endif
 
+	case IT_KEY:
+		// already holding this key
+		if ( ps->powerups[item->giTag] ) {
+			return qfalse;
+		}
+		return qtrue;
 
         case IT_BAD:
             Com_Error( ERR_DROP, "BG_CanItemBeGrabbed: IT_BAD" );

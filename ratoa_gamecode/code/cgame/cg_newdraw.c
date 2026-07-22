@@ -1117,6 +1117,27 @@ static void CG_DrawPlayerHasFlag(rectDef_t *rect, qboolean force2D) {
 	}
 }
 
+static void CG_DrawPlayerHasKey(rectDef_t *rect) {
+	gitem_t *item = NULL;
+	qhandle_t icon;
+
+	if ( cg.predictedPlayerState.powerups[PW_KEY_MASTER] ) {
+		item = BG_FindItemForPowerup( PW_KEY_MASTER );
+	} else if ( cg.predictedPlayerState.powerups[PW_KEY_GOLD] ) {
+		item = BG_FindItemForPowerup( PW_KEY_GOLD );
+	} else if ( cg.predictedPlayerState.powerups[PW_KEY_SILVER] ) {
+		item = BG_FindItemForPowerup( PW_KEY_SILVER );
+	}
+	if ( !item ) {
+		return;
+	}
+	icon = cg_items[ ITEM_INDEX( item ) ].icon;
+	if ( !icon ) {
+		return;
+	}
+	CG_DrawPic( rect->x, rect->y, rect->w, rect->h, icon );
+}
+
 static void CG_DrawAreaSystemChat(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader) {
   CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, systemChat, 0, 0, 0);
 }
@@ -1675,6 +1696,9 @@ void CG_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y
     break;
   case CG_PLAYER_HASFLAG2D:
     CG_DrawPlayerHasFlag(&rect, qtrue);
+    break;
+  case CG_PLAYER_HASKEY:
+    CG_DrawPlayerHasKey(&rect);
     break;
   case CG_AREA_SYSTEMCHAT:
     CG_DrawAreaSystemChat(&rect, scale, color, shader);
