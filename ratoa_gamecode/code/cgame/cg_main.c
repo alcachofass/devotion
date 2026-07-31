@@ -2925,12 +2925,181 @@ qboolean CG_BrokenEngine(void) {
 }
 
 
-void CG_AutoRecordStart(void) {
-	char demoName[MAX_OSPATH];
+static void CG_SanitizeDemoFilenameChars( char *s ) {
+	char *p;
+
+	for ( p = s; *p; ++p ) {
+		switch ( *p ) {
+			case '\n':
+			case '\r':
+			case ';':
+			case '"':
+			case '\'':
+				*p = '_';
+				continue;
+			case '/':
+			case '\\':
+			case '|':
+				*p = '#';
+				continue;
+			case '<':
+			case '>':
+			case ':':
+			case '?':
+			case '*':
+				*p = '_';
+				continue;
+		}
+		if ( isspace( *p ) ) {
+			*p = '_';
+		} else if ( !isprint( *p ) ) {
+			*p = '_';
+		}
+	}
+}
+
+static void CG_SanitizeDemoPlayerName( char *out, int outSize, const char *name ) {
+	char buf[MAX_QPATH];
+
+	Q_strncpyz( buf, name, sizeof( buf ) );
+	Q_CleanStr( buf );
+	if ( (int)strlen( buf ) > 12 ) {
+		buf[12] = '\0';
+	}
+	Q_strncpyz( out, buf, outSize );
+	CG_SanitizeDemoFilenameChars( out );
+}
+
+static const char *CG_DemoGametypeSlug( void ) {
+	switch ( cgs.gametype ) {
+	case GT_FFA:
+		return "ffa";
+	case GT_TOURNAMENT:
+		return "1v1";
+	case GT_SINGLE_PLAYER:
+		return "sp";
+	case GT_TEAM:
+		return "tdm";
+	case GT_CTF:
+		return "ctf";
+#ifdef MISSIONPACK
+	case GT_1FCTF:
+		return "1fctf";
+	case GT_OBELISK:
+		return "obelisk";
+	case GT_HARVESTER:
+		return "harv";
+#endif
+	case GT_ELIMINATION:
+		return "elim";
+	case GT_CTF_ELIMINATION:
+		return "ctfe";
+	case GT_LMS:
+		return "lms";
+#ifdef WITH_DOM_GAMETYPE
+	case GT_DOMINATION:
+		return "dom";
+#endif
+#ifdef WITH_DOUBLED_GAMETYPE
+	case GT_DOUBLE_D:
+		return "dd";
+#endif
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+	case GT_TREASURE_HUNTER:
+		return "th";
+#endif
+#ifdef WITH_MULTITOURNAMENT
+	case GT_MULTITOURNAMENT:
+		return "1v1";
+#endif
+	default:
+		return "game";
+	}
+}
+
+static void CG_AppendDemoDuelPlayers( char *demoName, int demoNameSize ) {
+	clientInfo_t *ci1;
+	clientInfo_t *ci2;
+	char name1[MAX_QPATH];
+	char name2[MAX_QPATH];
+	char temp[MAX_QPATH];
+	int i;
+
+	if ( cgs.gametype != GT_TOURNAMENT
+#ifdef WITH_MULTITOURNAMENT
+		&& cgs.gametype != GT_MULTITOURNAMENT
+#endif
+		) {
+		return;
+	}
+
+	ci1 = NULL;
+	ci2 = NULL;
+	for ( i = 0; i < cgs.maxclients; i++ ) {
+		if ( !cgs.clientinfo[i].infoValid || cgs.clientinfo[i].team != TEAM_FREE ) {
+			continue;
+		}
+		if ( !ci1 ) {
+			ci1 = &cgs.clientinfo[i];
+		} else if ( !ci2 ) {
+			ci2 = &cgs.clientinfo[i];
+		} else {
+			return;
+		}
+	}
+
+	if ( !ci1 || !ci2 ) {
+		return;
+	}
+
+	CG_SanitizeDemoPlayerName( name1, sizeof( name1 ), ci1->name );
+	CG_SanitizeDemoPlayerName( name2, sizeof( name2 ), ci2->name );
+
+	if ( !name1[0] || !name2[0] ) {
+		return;
+	}
+
+	if ( Q_stricmp( name1, name2 ) > 0 ) {
+		Q_strncpyz( temp, name1, sizeof( temp ) );
+		Q_strncpyz( name1, name2, sizeof( name1 ) );
+		Q_strncpyz( name2, temp, sizeof( name2 ) );
+	}
+
+	Q_strcat( demoName, demoNameSize, "-" );
+	Q_strcat( demoName, demoNameSize, name1 );
+	Q_strcat( demoName, demoNameSize, "_v_" );
+	Q_strcat( demoName, demoNameSize, name2 );
+}
+
+void CG_BuildDemoFilename( char *demoName, int demoNameSize ) {
 	char serverName[MAX_OSPATH];
 	qtime_t now;
 	char *nowString;
-	char *p;
+
+	trap_RealTime( &now );
+	nowString = va( "%04d-%02d-%02d_%02d-%02d-",
+			1900 + now.tm_year,
+			1 + now.tm_mon,
+			now.tm_mday,
+			now.tm_hour,
+			now.tm_min );
+	Q_strncpyz( serverName, cgs.sv_hostname, sizeof( serverName ) );
+	Q_LstripStr( serverName );
+	Q_CleanStr( serverName );
+	CG_SanitizeDemoFilenameChars( serverName );
+
+	Q_strncpyz( demoName, nowString, demoNameSize );
+	Q_strcat( demoName, demoNameSize, serverName );
+	Q_strcat( demoName, demoNameSize, "-" );
+	Q_strcat( demoName, demoNameSize, CG_DemoGametypeSlug() );
+	Q_strcat( demoName, demoNameSize, "-" );
+	Q_strcat( demoName, demoNameSize, cgs.mapbasename );
+	CG_AppendDemoDuelPlayers( demoName, demoNameSize );
+	CG_SanitizeDemoFilenameChars( demoName );
+}
+
+void CG_AutoRecordStart(void) {
+	char demoName[MAX_OSPATH];
 
 	if (cg.demoPlayback) {
 		return;
@@ -2944,54 +3113,7 @@ void CG_AutoRecordStart(void) {
 		return;
 	}
 
-	trap_RealTime(&now);
-	nowString = va( "%04d%02d%02d%02d%02d%02d-",
-			1900 + now.tm_year,
-			1 + now.tm_mon,
-			now.tm_mday,
-			now.tm_hour,
-			now.tm_min,
-			now.tm_sec );
-	Q_strncpyz(serverName, cgs.sv_hostname, sizeof(serverName));
-	Q_LstripStr(serverName);
-	Q_CleanStr(serverName);
-
-	Q_strncpyz(demoName, nowString, sizeof(demoName));
-	Q_strcat(demoName, sizeof(demoName), serverName);
-	Q_strcat(demoName, sizeof(demoName), "-");
-	Q_strcat(demoName, sizeof(demoName), cgs.mapbasename);
-
-	// replace naughty characters
-	for (p = demoName; *p; ++p) {
-		switch (*p) {
-			case '\n':
-			case '\r':
-			case ';':
-			case '"':
-			case '\'':
-				*p = '_';
-				continue;
-			// path separators
-			case '/':
-			case '\\':
-			case '|':
-				*p = '#';
-				continue;
-			// additional characters that aren't allowed on windows
-			case '<':
-			case '>':
-			case ':':
-			case '?':
-			case '*':
-				*p = '_';
-				continue;
-		}
-		if (isspace(*p)) {
-			*p = '_';
-		} else if (!isprint(*p)) {
-			*p = '_';
-		}
-	}
+	CG_BuildDemoFilename( demoName, sizeof( demoName ) );
 	trap_SendConsoleCommand(va("record \"%s\"\n", demoName));
 	cg.demoRecording = qtrue;
 }
