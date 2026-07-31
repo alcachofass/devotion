@@ -1343,6 +1343,32 @@ typedef struct {
 	void	(*function)(void);
 } consoleCommand_t;
 
+/*
+==================
+CG_Rec_f - Demo recording just with a better file naming scheme
+==================
+*/
+
+static void CG_Rec_f( void ) {
+	char demoName[MAX_OSPATH];
+	char cmd[MAX_STRING_CHARS];
+
+	if ( trap_Argc() > 1 ) {
+		Com_sprintf( cmd, sizeof( cmd ), "record %s\n", ConcatArgs( 1 ) );
+		trap_SendConsoleCommand( cmd );
+		cg.demoRecording = qtrue;
+		return;
+	}
+
+	if ( cg.demoPlayback ) {
+		return;
+	}
+
+	CG_BuildDemoFilename( demoName, sizeof( demoName ) );
+	trap_SendConsoleCommand( va( "record \"%s\"\n", demoName ) );
+	cg.demoRecording = qtrue;
+}
+
 static consoleCommand_t	commands[] = {
 	{ "testgun", CG_TestGun_f },
 	{ "testmodel", CG_TestModel_f },
@@ -1374,6 +1400,7 @@ static consoleCommand_t	commands[] = {
 	{ "cecho", CG_Echo_f },
 	{ "randomcolors", CG_Randomcolors_f },
 	{ "cgconfig", CG_CGConfig_f },
+	{ "rec", CG_Rec_f },
 	{ "maplist", CG_Maplist_f },
 	{ "mv", CG_Mapvote_f },
 	{ "taunt", CG_Taunt_f },
