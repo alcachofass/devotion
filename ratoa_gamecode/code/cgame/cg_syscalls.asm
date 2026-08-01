@@ -104,6 +104,3 @@ equ	testPrintInt				-110
 equ	testPrintFloat				-111
 equ acos						-112
 
-equ trap_GetValue					-701
-equ trap_Cvar_SetDescription_Q3E		-117
-
