@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // g_public.h -- game module information visible to server
 
 #define	GAME_API_VERSION	8
+#define COM_TRAP_GETVALUE	700
 
 // entity->svFlags
 // the server does not know how to interpret most of the values
@@ -393,7 +394,11 @@ typedef enum {
 	// RAT engine only
 	RAT_EQPING_RESET,
 	RAT_EQPING_SETDELAY,
-	RAT_EQPING_GETDELAY
+	RAT_EQPING_GETDELAY,
+
+	// Quake3e extensions (optional; discovered via trap_GetValue)
+	G_CVAR_SETDESCRIPTION,
+	G_TRAP_GETVALUE = COM_TRAP_GETVALUE
 
 } gameImport_t;
 
