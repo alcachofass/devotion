@@ -227,3 +227,6 @@ equ trap_RAT_EQPing_Reset			-583
 equ trap_RAT_EQPing_SetDelay			-584
 equ trap_RAT_EQPing_GetDelay			-585
 
+equ trap_GetValue					-701
+equ trap_Cvar_SetDescription_Q3E		-583
+

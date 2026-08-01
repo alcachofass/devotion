@@ -1698,6 +1698,8 @@ Q3CGOBJ_ = \
   $(B)/baseq3/cgame/bg_lib.o \
   $(B)/baseq3/cgame/bg_pmove.o \
   $(B)/baseq3/cgame/bg_slidemove.o \
+  $(B)/baseq3/cgame/bg_cvar_desc.o \
+  $(B)/baseq3/cgame/bg_trap_ext.o \
   $(B)/baseq3/cgame/cg_challenges.o \
   $(B)/baseq3/cgame/cg_consolecmds.o \
   $(B)/baseq3/cgame/cg_draw.o \
@@ -1743,6 +1745,8 @@ MPCGOBJ_ = \
   $(B)/missionpack/cgame/bg_lib.o \
   $(B)/missionpack/cgame/bg_pmove.o \
   $(B)/missionpack/cgame/bg_slidemove.o \
+  $(B)/missionpack/cgame/bg_cvar_desc.o \
+  $(B)/missionpack/cgame/bg_trap_ext.o \
   $(B)/missionpack/cgame/cg_challenges.o \
   $(B)/missionpack/cgame/cg_consolecmds.o \
   $(B)/missionpack/cgame/cg_newdraw.o \
@@ -1810,6 +1814,8 @@ Q3GOBJ_ = \
   $(B)/baseq3/game/bg_lib.o \
   $(B)/baseq3/game/bg_pmove.o \
   $(B)/baseq3/game/bg_slidemove.o \
+  $(B)/baseq3/game/bg_cvar_desc.o \
+  $(B)/baseq3/game/bg_trap_ext.o \
   $(B)/baseq3/game/g_active.o \
   $(B)/baseq3/game/g_arenas.o \
   $(B)/baseq3/game/g_admin.o \
@@ -1881,6 +1887,8 @@ MPGOBJ_ = \
   $(B)/missionpack/game/bg_lib.o \
   $(B)/missionpack/game/bg_pmove.o \
   $(B)/missionpack/game/bg_slidemove.o \
+  $(B)/missionpack/game/bg_cvar_desc.o \
+  $(B)/missionpack/game/bg_trap_ext.o \
   $(B)/missionpack/game/g_active.o \
   $(B)/missionpack/game/g_admin.o \
   $(B)/missionpack/game/g_arenas.o \
