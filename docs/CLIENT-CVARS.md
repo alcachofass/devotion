@@ -171,7 +171,7 @@ Client-side variables registered by the **cgame** module (`cg_*`, plus related n
 | `cg_gunZ` | Vanilla | `0` | 0 or 1 | Console variable `cg_gunZ`. Default `0`. |
 | `cg_gun_frame` | Devotion | `` | string or numeric (see default) | Console variable `cg_gun_frame`. |
 | `cg_helpMotdSeconds` | RatMod | `120` | integer ≥ 0 (typical) | Console variable `cg_helpMotdSeconds`. Default `120`. |
-| `cg_hitsound` | RatMod | `1` | `0`–`3` | Hit sound style. `0` = off, `1` = default, `2`/`3` = alternate sounds. |
+| `cg_hitsound` | RatMod | `1` | 0 or 1 | Console variable `cg_hitsound`. Default `1`. |
 | `cg_horplus` | RatMod | `0` | 0 or 1 | Console variable `cg_horplus`. Default `0`. |
 | `cg_hudDamageIndicator` | RatMod | `3` | integer ≥ 0 (typical) | HUD damage indicator and related UI. |
 | `cg_hudDamageIndicatorAlpha` | RatMod | `1.0` | float | HUD damage indicator and related UI. |
@@ -224,7 +224,6 @@ Client-side variables registered by the **cgame** module (`cg_*`, plus related n
 | `cg_pmove_fixed` | Vanilla | `0` | 0 or 1 | Console variable `cg_pmove_fixed`. Default `0`. |
 | `cg_powerupBlink` | RatMod | `0` | 0 or 1 | Console variable `cg_powerupBlink`. Default `0`. |
 | `cg_predictExplosions` | RatMod | `1` | 0 or 1 | Console variable `cg_predictExplosions`. Default `1`. |
-| `cg_predictHitSound` | Devotion | `1` | 0 or 1 | When `1`, plays hit sounds immediately from client-side hit prediction (hitscan and projectiles). Requires `cg_hitsound` not `0` and server delag enabled. |
 | `cg_predictItems` | Vanilla | `1` | 0 or 1 | Console variable `cg_predictItems`. Default `1`. |
 | `cg_predictItemsNearPlayers` | RatMod | `0` | 0 or 1 | Console variable `cg_predictItemsNearPlayers`. Default `0`. |
 | `cg_predictPlayerExplosions` | RatMod | `0` | 0 or 1 | Console variable `cg_predictPlayerExplosions`. Default `0`. |

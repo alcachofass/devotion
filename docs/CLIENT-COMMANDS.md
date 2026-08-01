@@ -50,7 +50,6 @@ Here's an exhaustive listing of valid client console commands for the Devotion m
 | `prevskin` | Local | Vanilla | — | Previous test model skin. |
 | `pro` | Local | Devotion | <0-9> | Apply competitive visual presets (`pro 0` clears, `1`–`9` variants). |
 | `randomcolors` | Local | RatMod | — | Set random `color1`/`color2` HSV values. |
-| `rec` | Local | Devotion | [name] | Start a demo recording with an auto-generated filename (gametype, map, and duel player names). Optional name overrides. Prefer over `record` for sensible names. |
 | `resetcfg` | Local | RatMod | — | Reset mod client cvars and `vid_restart`. |
 | `rules` | Local | RatMod | — | Print server gameplay rules to console. |
 | `sampleconfig` | Local | Devotion | none | Alias for `doc`. |

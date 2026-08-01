@@ -23,7 +23,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "g_local.h"
 #include "ai_main.h"
 #include "ai_bot_enhanced.h"
-#include "bg_trap_ext.h"
 
 extern bot_state_t *botstates[MAX_CLIENTS];
 
@@ -863,15 +862,5 @@ void trap_RAT_EQPing_SetDelay( int clientnum, int msec ) {
 
 int trap_RAT_EQPing_GetDelay( int clientnum ) {
 	return syscall( RAT_EQPING_GETDELAY, clientnum );
-}
-
-qboolean trap_GetValue( char *value, int valueSize, const char *key ) {
-	return (qboolean)syscall( COM_TRAP_GETVALUE, value, valueSize, key );
-}
-
-void trap_Cvar_SetDescription( const char *cvarName, const char *description ) {
-	if ( BG_TrapExt_CvarSetDescriptionSupported() ) {
-		syscall( BG_TrapExt_CvarSetDescriptionTrap(), cvarName, description );
-	}
 }
 

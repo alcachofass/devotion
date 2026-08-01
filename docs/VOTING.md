@@ -1,27 +1,28 @@
 # Voting
 
-Players can vote in-game to adjust various aspects of the server configuration.
+> **Note:** This documentation is based on release PK3s built with `WITH_MULTITOURNAMENT=0` and `BUILD_MISSIONPACK=0` (Mission Pack / Multi-Tournament code paths omitted). If you build your own PK3 with different flags you may expose commands and cvars that are not listed here.
 
-## Player voting commands
+Player voting (`callvote` / `vote`) and related server configuration.
+
+## Player commands
 
 | Command | Origin | Description |
 |---------|--------|-------------|
-| `callvote` | Vanilla | Propose a vote e.g. `callvote map pro-q3dm6`; If called without any arguments, will list out the voteable verbs in g_voteNames. |
+| `callvote` | Vanilla | Propose a vote; lists options if called with no arguments. |
 | `cv` | RatMod | Alias for `callvote`. |
 | `vote` | Vanilla | Cast ballot: `vote yes` or `vote no`. |
 | `callteamvote` | RatMod | Team-restricted vote (team modes). |
 | `teamvote` | RatMod | Respond to an active team vote. |
 | `nextmapvote` | RatMod | Vote for a map during intermission. |
 | `mv` | RatMod | Open map vote menu (client; see CLIENT-COMMANDS.md). |
-| `maplist` | Devotion | Returns a list of voteable maps present on the server. |
 
-## Standard voteable verbs
+## Standard vote verbs
 
-These are only exposed to players if listed in `g_voteNames`.
+Implemented in game code. Enable by including the name in `g_voteNames` (default shown below). Set `g_voteNames` to `*` to allow all.
 
-**Default `g_voteNames`:** `/map_restart/nextmap/map/g_gametype/clientkick/g_doWarmup/timelimit/fraglimit/capturelimit/shuffle/bots/botskill/votenextmap/`
+**Default `g_voteNames`:**
 
-Set `g_voteNames` to `*` to allow all.
+`/map_restart/nextmap/map/g_gametype/clientkick/g_doWarmup/timelimit/fraglimit/capturelimit/shuffle/bots/botskill/votenextmap/`
 
 | Verb | Origin | Example | Description |
 |------|--------|---------|-------------|
@@ -45,7 +46,6 @@ Set `g_voteNames` to `*` to allow all.
 | `custom` | RatMod | `callvote custom instagib_on` | Run entry from `g_votecustomfile`. |
 
 ## Custom votes
-Server operator only - Allows you to define custom voteable verbs so players can vote for additional configuration changes during play.
 
 File: `g_votecustomfile` (default `votecustom.cfg`). Each block:
 
