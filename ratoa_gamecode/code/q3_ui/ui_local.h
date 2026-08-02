@@ -407,6 +407,20 @@ extern void SpecifyServer_Cache( void );
 
 extern void UI_ArenaServersMenu( void );
 extern void ArenaServers_Cache( void );
+extern void UI_MainMenuServers_Begin( menulist_s *list, menubitmap_s *mappic );
+extern void UI_MainMenuServers_Resume( menulist_s *list, menubitmap_s *mappic );
+extern void UI_MainMenuServers_Update( void );
+extern void UI_MainMenuServers_End( void );
+extern void UI_MainMenuServers_Refresh( void );
+extern qboolean UI_MainMenuServers_IsRefreshing( void );
+extern void UI_MainMenuServers_Connect( menulist_s *list );
+extern void UI_MainMenuServers_Draw( menulist_s *list );
+extern void UI_MainMenuServers_SetColumnFocus( qboolean focus );
+extern qboolean UI_MainMenuServers_GetColumnFocus( void );
+extern qboolean UI_MainMenuServers_MouseRegion( menulist_s *list );
+extern qboolean UI_MainMenuServers_Mouse( menulist_s *list );
+extern qboolean UI_MainMenuServers_MouseClick( menulist_s *list );
+extern void UI_MainMenuServers_UpdatePicture( menubitmap_s *mappic );
 
 //
 // ui_startserver.c
@@ -612,6 +626,7 @@ extern void			UI_DrawProportionalString( int x, int y, const char* str, int styl
 extern void			UI_DrawProportionalString_AutoWrapped( int x, int ystart, int xmax, int ystep, const char* str, int style, vec4_t color );
 extern int			UI_ProportionalStringWidth( const char* str );
 extern void			UI_DrawString( int x, int y, const char* str, int style, vec4_t color );
+extern void			UI_DrawStringSized( int x, int y, const char* str, int style, vec4_t color, int charw, int charh );
 extern void			UI_DrawChar( int x, int y, int ch, int style, vec4_t color );
 extern qboolean 	UI_CursorInRect (int x, int y, int width, int height);
 extern void			UI_AdjustFrom640( float *x, float *y, float *w, float *h );

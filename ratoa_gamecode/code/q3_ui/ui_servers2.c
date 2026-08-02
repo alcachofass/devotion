@@ -93,6 +93,23 @@ MULTIPLAYER MENU (SERVER BROWSER)
 #define UIAS_GLOBAL5			5
 #define UIAS_FAVORITES			6
 
+#define MM_REFRESH_MASTERS		0
+#define MM_REFRESH_PINGING		1
+
+#define MAINMENU_MAX_ADDRESSES		1024
+#define MAINMENU_CACHE_FILE			"devotion_servers.cache"
+#define MAINMENU_MASTER_STABLE_MS	2000
+#define MAINMENU_MASTER_TIMEOUT_MS	15000
+#define MAINMENU_MASTER_BOOT_MS		750
+#define MAINMENU_PINGS_PER_TICK		4
+#define MAINMENU_PING_INTERVAL_MS	50
+#define MAINMENU_MAX_CACHE_WRITTEN	128
+#define MAINMENU_MAX_DISCOVERY_ADDRESSES	128
+#define MAINMENU_SCAN_TIMEOUT_MS		90000
+#define MAINMENU_PING_STALL_MS		10000
+#define MAINMENU_PING_UNKNOWN		(-1)
+#define MAINMENU_GAMETYPE_UNKNOWN	(-1)
+
 #define SORT_HOST			0
 #define SORT_MAP			1
 #define SORT_CLIENTS                    2
@@ -304,6 +321,8 @@ static arenaservers_t	g_arenaservers;
 
 static servernode_t		g_globalserverlist[MAX_GLOBALSERVERS];
 static int				g_numglobalservers;
+static servernode_t		g_mainmenu_serverlist[MAX_GLOBALSERVERS];
+static int				g_mainmenu_numservers;
 static servernode_t		g_localserverlist[MAX_LOCALSERVERS];
 static int				g_numlocalservers;
 static servernode_t		g_favoriteserverlist[MAX_FAVORITESERVERS];
@@ -316,6 +335,28 @@ static int				g_fullservers;
 
 static int				g_onlyhumans;
 static int                              g_hideprivate;
+
+static menulist_s			*g_mainmenu_list = NULL;
+static menubitmap_s			*g_mainmenu_mappic = NULL;
+static int					g_mainmenu_refresh_phase;
+static int					g_mainmenu_scan_start_time;
+static int					g_mainmenu_active_query_master;
+static int					g_mainmenu_last_ping_time;
+static int					g_mainmenu_master_last_count[UIAS_GLOBAL5 + 1];
+static int					g_mainmenu_master_merged_idx[UIAS_GLOBAL5 + 1];
+static int					g_mainmenu_master_stable_time[UIAS_GLOBAL5 + 1];
+static int					g_mainmenu_master_query_time[UIAS_GLOBAL5 + 1];
+static qboolean				g_mainmenu_master_done[UIAS_GLOBAL5 + 1];
+static qboolean				g_mainmenu_master_query_sent[UIAS_GLOBAL5 + 1];
+static char					g_mainmenu_cache_written[MAINMENU_MAX_CACHE_WRITTEN][MAX_ADDRESSLENGTH];
+static int					g_mainmenu_cache_written_count;
+static char					g_mainmenu_addresses[MAINMENU_MAX_ADDRESSES][MAX_ADDRESSLENGTH];
+static int					g_mainmenu_numaddresses;
+static int					g_mainmenu_discovery_addresses;
+static int					g_mainmenu_last_ping_activity;
+
+static void ArenaServers_StopRefresh( void );
+static void ArenaServers_UpdateMainMenuList( void );
 
 /*
  *Removes illigal chars but keeps colors
@@ -546,6 +587,698 @@ static qboolean ArenaServers_Filtered(servernode_t *servernodeptr) {
 
 /*
 =================
+MainMenuServers_IsDevotionMod
+=================
+*/
+static qboolean MainMenuServers_IsDevotionMod( const char *gamename ) {
+	return gamename && gamename[0] && !Q_stricmp( gamename, "devotion" );
+}
+
+/*
+=================
+MainMenuServers_AddressExists
+=================
+*/
+static qboolean MainMenuServers_AddressExists( const char *adrstr ) {
+	int		i;
+
+	for( i = 0; i < g_mainmenu_numaddresses; i++ ) {
+		if( !Q_stricmp( g_mainmenu_addresses[i], adrstr ) ) {
+			return qtrue;
+		}
+	}
+
+	return qfalse;
+}
+
+/*
+=================
+MainMenuServers_AddAddress
+=================
+*/
+static void MainMenuServers_AddAddress( const char *adrstr ) {
+	if( !adrstr || !adrstr[0] || MainMenuServers_AddressExists( adrstr ) ) {
+		return;
+	}
+
+	if( g_mainmenu_numaddresses >= MAINMENU_MAX_ADDRESSES ) {
+		return;
+	}
+
+	Q_strncpyz( g_mainmenu_addresses[g_mainmenu_numaddresses], adrstr, MAX_ADDRESSLENGTH );
+	g_mainmenu_numaddresses++;
+}
+
+/*
+=================
+MainMenuServers_AddDiscoveryAddress
+=================
+*/
+static void MainMenuServers_AddDiscoveryAddress( const char *adrstr ) {
+	if( g_mainmenu_discovery_addresses >= MAINMENU_MAX_DISCOVERY_ADDRESSES ) {
+		return;
+	}
+
+	if( !adrstr || !adrstr[0] || MainMenuServers_AddressExists( adrstr ) ) {
+		return;
+	}
+
+	if( g_mainmenu_numaddresses >= MAINMENU_MAX_ADDRESSES ) {
+		return;
+	}
+
+	MainMenuServers_AddAddress( adrstr );
+	g_mainmenu_discovery_addresses++;
+}
+
+/*
+=================
+MainMenuServers_ClearPendingPings
+=================
+*/
+static void MainMenuServers_ClearPendingPings( void ) {
+	int		i;
+
+	for( i = 0; i < MAX_PINGREQUESTS; i++ ) {
+		g_arenaservers.pinglist[i].adrstr[0] = '\0';
+		trap_LAN_ClearPing( i );
+	}
+}
+
+/*
+=================
+MainMenuServers_AnyPendingPings
+=================
+*/
+static qboolean MainMenuServers_AnyPendingPings( void ) {
+	int		i;
+
+	for( i = 0; i < MAX_PINGREQUESTS; i++ ) {
+		if( g_arenaservers.pinglist[i].adrstr[0] ) {
+			return qtrue;
+		}
+	}
+
+	return trap_LAN_GetPingQueueCount() > 0;
+}
+
+/*
+=================
+MainMenuServers_FinishRefreshIfDone
+=================
+*/
+static void MainMenuServers_FinishRefreshIfDone( void ) {
+	if( g_arenaservers.currentping < g_arenaservers.numqueriedservers ) {
+		return;
+	}
+
+	if( !MainMenuServers_AnyPendingPings() ) {
+		ArenaServers_StopRefresh();
+		return;
+	}
+
+	if( g_mainmenu_last_ping_activity &&
+		uis.realtime - g_mainmenu_last_ping_activity > MAINMENU_PING_STALL_MS ) {
+		MainMenuServers_ClearPendingPings();
+		ArenaServers_StopRefresh();
+	}
+}
+
+/*
+=================
+MainMenuServers_AddCachedAddresses
+=================
+*/
+static void MainMenuServers_AddCachedAddresses( void ) {
+	int		i;
+
+	for( i = 0; i < *g_arenaservers.numservers; i++ ) {
+		if( !MainMenuServers_IsDevotionMod( g_arenaservers.serverlist[i].gamename ) ) {
+			continue;
+		}
+		MainMenuServers_AddAddress( g_arenaservers.serverlist[i].adrstr );
+	}
+}
+
+/*
+=================
+MainMenuServers_InsertCachedServer
+=================
+*/
+static qboolean MainMenuServers_HasPing( servernode_t *servernodeptr );
+
+static void MainMenuServers_InsertCachedServer( const char *adrstr, const char *hostname, const char *mapname, int pingtime ) {
+	servernode_t	*servernodeptr;
+	int				i;
+
+	for( i = 0; i < *g_arenaservers.numservers; i++ ) {
+		if( !Q_stricmp( g_arenaservers.serverlist[i].adrstr, adrstr ) ) {
+			return;
+		}
+	}
+
+	if( *g_arenaservers.numservers >= g_arenaservers.maxservers ) {
+		return;
+	}
+
+	servernodeptr = g_arenaservers.serverlist + (*g_arenaservers.numservers);
+	(*g_arenaservers.numservers)++;
+
+	Q_strncpyz( servernodeptr->adrstr, adrstr, MAX_ADDRESSLENGTH );
+	Q_strncpyz( servernodeptr->hostname, hostname, sizeof( servernodeptr->hostname ) );
+	Q_strncpyz( servernodeptr->mapname, mapname, sizeof( servernodeptr->mapname ) );
+	Q_strncpyz( servernodeptr->gamename, "devotion", sizeof( servernodeptr->gamename ) );
+	servernodeptr->pingtime = pingtime;
+	servernodeptr->gametype = MAINMENU_GAMETYPE_UNKNOWN;
+	servernodeptr->maxclients = 0;
+	servernodeptr->numclients = 0;
+	servernodeptr->humanclients = 0;
+}
+
+/*
+=================
+MainMenuServers_LoadCache
+=================
+*/
+static void MainMenuServers_LoadCache( void ) {
+	fileHandle_t	f;
+	int				len;
+	char			buffer[4096];
+	char			*cursor;
+	char			*line;
+	char			*adr;
+	char			*host;
+	char			*map;
+	char			*pingstr;
+	int				pingtime;
+
+	len = trap_FS_FOpenFile( MAINMENU_CACHE_FILE, &f, FS_READ );
+	if( len <= 0 ) {
+		return;
+	}
+
+	if( len >= (int)sizeof( buffer ) ) {
+		len = sizeof( buffer ) - 1;
+	}
+
+	trap_FS_Read( buffer, len, f );
+	trap_FS_FCloseFile( f );
+	buffer[len] = '\0';
+
+	cursor = buffer;
+	while( cursor && *cursor ) {
+		line = cursor;
+		cursor = strchr( cursor, '\n' );
+		if( cursor ) {
+			*cursor = '\0';
+			cursor++;
+		}
+
+		adr = line;
+		host = strchr( line, '\t' );
+		pingstr = NULL;
+		if( host ) {
+			*host = '\0';
+			host++;
+			map = strchr( host, '\t' );
+			if( map ) {
+				*map = '\0';
+				map++;
+				pingstr = strchr( map, '\t' );
+				if( pingstr ) {
+					*pingstr = '\0';
+					pingstr++;
+				}
+			} else {
+				map = "";
+			}
+		} else {
+			host = "";
+			map = "";
+		}
+
+		if( !adr[0] ) {
+			continue;
+		}
+
+		pingtime = MAINMENU_PING_UNKNOWN;
+		if( pingstr && pingstr[0] ) {
+			pingtime = atoi( pingstr );
+			if( pingtime < 0 ) {
+				pingtime = MAINMENU_PING_UNKNOWN;
+			}
+		}
+
+		MainMenuServers_InsertCachedServer( adr, host, map, pingtime );
+		MainMenuServers_AddAddress( adr );
+
+		if( g_mainmenu_cache_written_count < MAINMENU_MAX_CACHE_WRITTEN ) {
+			Q_strncpyz( g_mainmenu_cache_written[g_mainmenu_cache_written_count], adr, MAX_ADDRESSLENGTH );
+			g_mainmenu_cache_written_count++;
+		}
+	}
+}
+
+/*
+=================
+MainMenuServers_IsCacheWritten
+=================
+*/
+static qboolean MainMenuServers_IsCacheWritten( const char *adrstr ) {
+	int		i;
+
+	for( i = 0; i < g_mainmenu_cache_written_count; i++ ) {
+		if( !Q_stricmp( g_mainmenu_cache_written[i], adrstr ) ) {
+			return qtrue;
+		}
+	}
+
+	return qfalse;
+}
+
+/*
+=================
+MainMenuServers_CacheServer
+=================
+*/
+static void MainMenuServers_CacheServer( servernode_t *servernodeptr ) {
+	fileHandle_t	f;
+	char			line[MAX_ADDRESSLENGTH + MAX_HOSTNAMELENGTH + MAX_MAPNAMELENGTH + 16];
+	char			hostname[MAX_HOSTNAMELENGTH + 3];
+
+	if( !g_mainmenu_list || !servernodeptr ) {
+		return;
+	}
+
+	if( !MainMenuServers_IsDevotionMod( servernodeptr->gamename ) ) {
+		return;
+	}
+
+	if( MainMenuServers_IsCacheWritten( servernodeptr->adrstr ) ) {
+		return;
+	}
+
+	if( g_mainmenu_cache_written_count < MAINMENU_MAX_CACHE_WRITTEN ) {
+		Q_strncpyz( g_mainmenu_cache_written[g_mainmenu_cache_written_count],
+			servernodeptr->adrstr, MAX_ADDRESSLENGTH );
+		g_mainmenu_cache_written_count++;
+	}
+
+	Q_strncpyz( hostname, servernodeptr->hostname, sizeof( hostname ) );
+	Q_CleanStrWithColor( hostname );
+	if( MainMenuServers_HasPing( servernodeptr ) ) {
+		Com_sprintf( line, sizeof( line ), "%s\t%s\t%s\t%d\n",
+			servernodeptr->adrstr, hostname, servernodeptr->mapname, servernodeptr->pingtime );
+	} else {
+		Com_sprintf( line, sizeof( line ), "%s\t%s\t%s\n",
+			servernodeptr->adrstr, hostname, servernodeptr->mapname );
+	}
+
+	trap_FS_FOpenFile( MAINMENU_CACHE_FILE, &f, FS_APPEND );
+	trap_FS_Write( line, strlen( line ), f );
+	trap_FS_FCloseFile( f );
+}
+
+/*
+=================
+MainMenuServers_SaveCache
+=================
+*/
+static void MainMenuServers_SaveCache( void ) {
+	fileHandle_t	f;
+	int				i;
+	servernode_t	*servernodeptr;
+	char			line[MAX_ADDRESSLENGTH + MAX_HOSTNAMELENGTH + MAX_MAPNAMELENGTH + 16];
+	char			hostname[MAX_HOSTNAMELENGTH + 3];
+
+	trap_FS_FOpenFile( MAINMENU_CACHE_FILE, &f, FS_WRITE );
+
+	for( i = 0; i < *g_arenaservers.numservers; i++ ) {
+		servernodeptr = &g_arenaservers.serverlist[i];
+		if( !MainMenuServers_IsDevotionMod( servernodeptr->gamename ) ) {
+			continue;
+		}
+
+		Q_strncpyz( hostname, servernodeptr->hostname, sizeof( hostname ) );
+		Q_CleanStrWithColor( hostname );
+		if( MainMenuServers_HasPing( servernodeptr ) ) {
+			Com_sprintf( line, sizeof( line ), "%s\t%s\t%s\t%d\n",
+				servernodeptr->adrstr, hostname, servernodeptr->mapname, servernodeptr->pingtime );
+		} else {
+			Com_sprintf( line, sizeof( line ), "%s\t%s\t%s\n",
+				servernodeptr->adrstr, hostname, servernodeptr->mapname );
+		}
+		trap_FS_Write( line, strlen( line ), f );
+	}
+
+	trap_FS_FCloseFile( f );
+}
+
+/*
+=================
+UI_MainMenuServers_UpdatePicture
+=================
+*/
+void UI_MainMenuServers_UpdatePicture( menubitmap_s *mappic ) {
+	static char		picname[64];
+	servernode_t	*servernodeptr;
+	menulist_s		*list;
+	table_t			*tableptr;
+
+	if( !mappic || !g_mainmenu_list ) {
+		return;
+	}
+
+	list = g_mainmenu_list;
+	if( !list->numitems ) {
+		mappic->generic.name = NULL;
+		mappic->shader = 0;
+		return;
+	}
+
+	tableptr = &g_arenaservers.table[list->curvalue];
+	servernodeptr = tableptr->servernode;
+	if( !servernodeptr || !servernodeptr->mapname[0] ) {
+		mappic->generic.name = NULL;
+		mappic->shader = 0;
+		return;
+	}
+
+	Com_sprintf( picname, sizeof( picname ), "levelshots/%s.tga", servernodeptr->mapname );
+	mappic->generic.name = picname;
+	mappic->shader = 0;
+}
+
+/*
+=================
+ArenaServers_UpdateMainMenuList
+=================
+*/
+#define MAIN_MENU_SERVER_INFO_LINE_COUNT	5
+#define MAIN_MENU_SERVER_INFO_GAP		0
+#define MAIN_MENU_MAPNAME_MAX_FRIENDLY	25
+#define MAIN_MENU_SERVER_NAME_LINE_HEIGHT	SMALLCHAR_HEIGHT
+#define MAIN_MENU_SERVER_INFO_LINE_HEIGHT	TINYCHAR_HEIGHT
+#define MAIN_MENU_SERVER_CONTENT_HEIGHT	( MAIN_MENU_SERVER_NAME_LINE_HEIGHT + MAIN_MENU_SERVER_INFO_LINE_COUNT * MAIN_MENU_SERVER_INFO_LINE_HEIGHT )
+#define MAIN_MENU_SERVER_TEXT_PAD		4
+#define MAIN_MENU_SERVER_TEXT_RIGHT_X	( MAIN_MENU_LEVELSHOT_X - MAIN_MENU_SERVER_TEXT_PAD )
+#define MAIN_MENU_SERVER_BLOCK_HEIGHT	( MAIN_MENU_SERVER_CONTENT_HEIGHT >= MAIN_MENU_LEVELSHOT_HEIGHT ? MAIN_MENU_SERVER_CONTENT_HEIGHT : MAIN_MENU_LEVELSHOT_HEIGHT ) + MAIN_MENU_SERVER_INFO_GAP
+#define MAIN_MENU_LEVELSHOT_X			527
+#define MAIN_MENU_LEVELSHOT_Y_OFFSET	( -2 )
+#define MAIN_MENU_LEVELSHOT_WIDTH		82
+#define MAIN_MENU_LEVELSHOT_HEIGHT		61
+#define MAIN_MENU_UNKNOWNMAP			"menu/art/unknownmap"
+
+static qhandle_t g_mainmenu_unknownmap_shader = 0;
+static qboolean g_mainmenu_server_column_focus = qfalse;
+
+void UI_MainMenuServers_SetColumnFocus( qboolean focus ) {
+	g_mainmenu_server_column_focus = focus;
+}
+
+qboolean UI_MainMenuServers_GetColumnFocus( void ) {
+	return g_mainmenu_server_column_focus;
+}
+
+static int MainMenuServers_MouseIndex( menulist_s *list ) {
+	int		x;
+	int		y;
+	int		w;
+	int		h;
+	int		index;
+
+	if( !list || !list->numitems ) {
+		return -1;
+	}
+
+	x = list->generic.x - 2;
+	y = list->generic.y;
+	w = MAIN_MENU_LEVELSHOT_X + MAIN_MENU_LEVELSHOT_WIDTH - x;
+	h = list->height * MAIN_MENU_SERVER_BLOCK_HEIGHT;
+
+	if( !UI_CursorInRect( x, y, w, h ) ) {
+		return -1;
+	}
+
+	index = ( uis.cursory - y ) / MAIN_MENU_SERVER_BLOCK_HEIGHT;
+	if( index < 0 || index >= list->height ) {
+		return -1;
+	}
+
+	index += list->top;
+	if( index >= list->numitems ) {
+		return -1;
+	}
+
+	return index;
+}
+
+qboolean UI_MainMenuServers_MouseRegion( menulist_s *list ) {
+	return MainMenuServers_MouseIndex( list ) >= 0;
+}
+
+static void MainMenuServers_GetMapFriendlyName( const char *mapname, char *out, int outlen ) {
+	const char	*arenaInfo;
+	const char	*longname;
+	int			len;
+
+	if( !out || outlen <= 0 ) {
+		return;
+	}
+
+	out[0] = '\0';
+
+	if( !mapname || !mapname[0] ) {
+		return;
+	}
+
+	arenaInfo = UI_GetArenaInfoByMap( mapname );
+	if( !arenaInfo ) {
+		return;
+	}
+
+	longname = Info_ValueForKey( arenaInfo, "longname" );
+	if( !longname || !longname[0] ) {
+		return;
+	}
+
+	Q_strncpyz( out, longname, outlen );
+	len = strlen( out );
+	if( len > MAIN_MENU_MAPNAME_MAX_FRIENDLY ) {
+		out[MAIN_MENU_MAPNAME_MAX_FRIENDLY] = '\0';
+	}
+}
+
+static void MainMenuServers_DrawEntryString( int rightX, int y, const char *str, int style, vec4_t color, qboolean compact ) {
+	int		charw;
+	int		charh;
+	int		x;
+
+	if( !str || !str[0] ) {
+		return;
+	}
+
+	charw = SMALLCHAR_WIDTH;
+	charh = compact ? TINYCHAR_HEIGHT : SMALLCHAR_HEIGHT;
+
+	x = rightX - Q_PrintStrlen( str ) * charw;
+	style &= ~UI_FORMATMASK;
+	UI_DrawStringSized( x, y, str, style, color, charw, charh );
+}
+
+static qboolean MainMenuServers_HasPing( servernode_t *servernodeptr ) {
+	if( !servernodeptr ) {
+		return qfalse;
+	}
+
+	if( servernodeptr->pingtime < 0 ) {
+		return qfalse;
+	}
+
+	if( servernodeptr->pingtime >= ArenaServers_MaxPing() ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+static char *MainMenuServers_PingColor( servernode_t *servernodeptr ) {
+	if( servernodeptr->pingtime < servernodeptr->minPing ) {
+		return S_COLOR_BLUE;
+	}
+	if( servernodeptr->maxPing && servernodeptr->pingtime > servernodeptr->maxPing ) {
+		return S_COLOR_BLUE;
+	}
+	if( servernodeptr->pingtime < 200 ) {
+		return S_COLOR_GREEN;
+	}
+	if( servernodeptr->pingtime < 400 ) {
+		return S_COLOR_YELLOW;
+	}
+	return S_COLOR_RED;
+}
+
+static const char *MainMenuServers_GametypeName( int gametype ) {
+	switch( gametype ) {
+	case GT_FFA:
+		return "FFA";
+	case GT_TOURNAMENT:
+		return "Duel";
+	case GT_SINGLE_PLAYER:
+		return "SP";
+	case GT_TEAM:
+		return "TDM";
+	case GT_CTF:
+		return "CTF";
+#ifdef MISSIONPACK
+	case GT_1FCTF:
+		return "1FCTF";
+	case GT_OBELISK:
+		return "Overload";
+	case GT_HARVESTER:
+		return "Harvester";
+#endif
+	case GT_ELIMINATION:
+		return "Elimination";
+	case GT_CTF_ELIMINATION:
+		return "CTF Elim";
+	case GT_LMS:
+		return "LMS";
+#ifdef WITH_DOM_GAMETYPE
+	case GT_DOMINATION:
+		return "Domination";
+#endif
+#ifdef WITH_DOUBLED_GAMETYPE
+	case GT_DOUBLE_D:
+		return "Double Dom";
+#endif
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+	case GT_TREASURE_HUNTER:
+		return "Treasure Hunter";
+#endif
+#ifdef WITH_MULTITOURNAMENT
+	case GT_MULTITOURNAMENT:
+		return "Multi-Duel";
+#endif
+	default:
+		return "???";
+	}
+}
+
+static char *MainMenuServers_GametypeColor( int gametype ) {
+	switch( gametype ) {
+	case GT_FFA:
+	case GT_SINGLE_PLAYER:
+	case GT_LMS:
+		return S_COLOR_GREEN;
+	case GT_TOURNAMENT:
+#ifdef WITH_MULTITOURNAMENT
+	case GT_MULTITOURNAMENT:
+#endif
+		return S_COLOR_YELLOW;
+	case GT_TEAM:
+		return S_COLOR_CYAN;
+	case GT_CTF:
+#ifdef MISSIONPACK
+	case GT_1FCTF:
+#endif
+	case GT_CTF_ELIMINATION:
+		return S_COLOR_RED;
+	case GT_ELIMINATION:
+		return S_COLOR_MAGENTA;
+#ifdef MISSIONPACK
+	case GT_OBELISK:
+	case GT_HARVESTER:
+		return S_COLOR_BLUE;
+#endif
+#ifdef WITH_DOM_GAMETYPE
+	case GT_DOMINATION:
+		return S_COLOR_BLUE;
+#endif
+#ifdef WITH_DOUBLED_GAMETYPE
+	case GT_DOUBLE_D:
+		return S_COLOR_BLUE;
+#endif
+#ifdef WITH_TREASURE_HUNTER_GAMETYPE
+	case GT_TREASURE_HUNTER:
+		return S_COLOR_BLUE;
+#endif
+	default:
+		return S_COLOR_WHITE;
+	}
+}
+
+static void MainMenuServers_DrawLevelshot( int x, int y, const char *mapname ) {
+	char		picname[64];
+	qhandle_t	shader;
+
+	if( !mapname || !mapname[0] ) {
+		return;
+	}
+
+	Com_sprintf( picname, sizeof( picname ), "levelshots/%s.tga", mapname );
+	shader = trap_R_RegisterShaderNoMip( picname );
+	if( !shader ) {
+		if( !g_mainmenu_unknownmap_shader ) {
+			g_mainmenu_unknownmap_shader = trap_R_RegisterShaderNoMip( MAIN_MENU_UNKNOWNMAP );
+		}
+		shader = g_mainmenu_unknownmap_shader;
+	}
+
+	UI_DrawHandlePic( x, y, MAIN_MENU_LEVELSHOT_WIDTH, MAIN_MENU_LEVELSHOT_HEIGHT, shader );
+}
+
+static void ArenaServers_UpdateMainMenuList( void ) {
+	int				i;
+	int				j;
+	int				count;
+	int				curvalue;
+	servernode_t	*servernodeptr;
+	table_t			*tableptr;
+	menulist_s		*list;
+
+	list = g_mainmenu_list;
+	if( !list ) {
+		return;
+	}
+
+	curvalue = list->curvalue;
+
+	if( *g_arenaservers.numservers > 0 ) {
+		qsort( g_arenaservers.serverlist, *g_arenaservers.numservers, sizeof( servernode_t ), ArenaServers_Compare );
+	}
+
+	servernodeptr = g_arenaservers.serverlist;
+	count = *g_arenaservers.numservers;
+	for( i = 0, j = 0; i < count; i++, servernodeptr++ ) {
+		if( !MainMenuServers_IsDevotionMod( servernodeptr->gamename ) ) {
+			continue;
+		}
+
+		tableptr = &g_arenaservers.table[j];
+		tableptr->servernode = servernodeptr;
+		tableptr->buff[0] = '\0';
+		j++;
+	}
+
+	list->numitems = j;
+	if( curvalue >= j ) {
+		list->curvalue = j > 0 ? j - 1 : 0;
+	} else {
+		list->curvalue = curvalue;
+	}
+	if( list->top > list->curvalue ) {
+		list->top = list->curvalue;
+	}
+	if( list->top < 0 ) {
+		list->top = 0;
+	}
+
+	UI_MainMenuServers_UpdatePicture( g_mainmenu_mappic );
+}
+
+/*
+=================
 ArenaServers_UpdateMenu
 =================
 */
@@ -557,6 +1290,11 @@ static void ArenaServers_UpdateMenu( void ) {
 	servernode_t*	servernodeptr;
 	table_t*		tableptr;
 	char			*b, *pingColor;
+
+	if( g_mainmenu_list ) {
+		ArenaServers_UpdateMainMenuList();
+		return;
+	}
 
 	if( g_arenaservers.numqueriedservers > 0 ) {
 		// servers found
@@ -916,25 +1654,59 @@ static void ArenaServers_Insert( char* adrstr, char* info, int pingtime )
 {
 	servernode_t*	servernodeptr;
 	char*			s;
+	char			savedGamename[64];
 	int				i;
+	qboolean		existing;
 
+	existing = qfalse;
+	servernodeptr = NULL;
+	savedGamename[0] = '\0';
 
-	if ((pingtime >= ArenaServers_MaxPing()) && (g_servertype != UIAS_FAVORITES))
-	{
-		// slow global or local servers do not get entered
-		return;
+	for( i = 0; i < *g_arenaservers.numservers; i++ ) {
+		if( !Q_stricmp( g_arenaservers.serverlist[i].adrstr, adrstr ) ) {
+			servernodeptr = &g_arenaservers.serverlist[i];
+			existing = qtrue;
+			break;
+		}
 	}
 
-	if (*g_arenaservers.numservers >= g_arenaservers.maxservers) {
-		// list full;
-		servernodeptr = g_arenaservers.serverlist+(*g_arenaservers.numservers)-1;
-	} else {
-		// next slot
-		servernodeptr = g_arenaservers.serverlist+(*g_arenaservers.numservers);
-		(*g_arenaservers.numservers)++;
+	if( !existing ) {
+		if ((pingtime >= ArenaServers_MaxPing()) && (g_servertype != UIAS_FAVORITES) && !g_mainmenu_list)
+		{
+			// slow global or local servers do not get entered
+			return;
+		}
+
+		if (*g_arenaservers.numservers >= g_arenaservers.maxservers) {
+			if( g_mainmenu_list ) {
+				return;
+			}
+			// list full;
+			servernodeptr = g_arenaservers.serverlist+(*g_arenaservers.numservers)-1;
+		} else {
+			// next slot
+			servernodeptr = g_arenaservers.serverlist+(*g_arenaservers.numservers);
+			(*g_arenaservers.numservers)++;
+		}
+	}
+
+	if( g_mainmenu_list && existing ) {
+		Q_strncpyz( savedGamename, servernodeptr->gamename, sizeof( savedGamename ) );
 	}
 
 	Q_strncpyz( servernodeptr->adrstr, adrstr, MAX_ADDRESSLENGTH );
+
+	if( g_mainmenu_list && !info[0] ) {
+		if( existing ) {
+			if( pingtime < ArenaServers_MaxPing() ) {
+				servernodeptr->pingtime = pingtime;
+			}
+			ArenaServers_UpdateMainMenuList();
+		} else {
+			(*g_arenaservers.numservers)--;
+		}
+		return;
+	}
 
 	Q_strncpyz( servernodeptr->hostname, Info_ValueForKey( info, "hostname"), MAX_HOSTNAMELENGTH );
 	Q_CleanStrWithColor( servernodeptr->hostname );
@@ -988,9 +1760,25 @@ static void ArenaServers_Insert( char* adrstr, char* info, int pingtime )
 		servernodeptr->gametype = i;//-1;
 		Q_strncpyz( servernodeptr->gamename, s, sizeof(servernodeptr->gamename) );
 	}
+	else if( g_mainmenu_list && existing && savedGamename[0] ) {
+		servernodeptr->gametype = i;
+		Q_strncpyz( servernodeptr->gamename, savedGamename, sizeof(servernodeptr->gamename) );
+	}
 	else {
 		servernodeptr->gametype = i;
 		Q_strncpyz( servernodeptr->gamename, gamenames[i], sizeof(servernodeptr->gamename) );
+	}
+
+	if( g_mainmenu_list ) {
+		if( !MainMenuServers_IsDevotionMod( servernodeptr->gamename ) ) {
+			if( !existing ) {
+				(*g_arenaservers.numservers)--;
+			}
+			return;
+		}
+
+		MainMenuServers_CacheServer( servernodeptr );
+		ArenaServers_UpdateMainMenuList();
 	}
 }
 
@@ -1132,8 +1920,353 @@ static void ArenaServers_StopRefresh( void )
 	qsort( g_arenaservers.serverlist, *g_arenaservers.numservers, sizeof( servernode_t ), ArenaServers_Compare);
 
 	ArenaServers_UpdateMenu();
+
+	if( g_mainmenu_list ) {
+		MainMenuServers_SaveCache();
+	}
 }
 
+
+/*
+=================
+MainMenuServers_IsMasterDefined
+=================
+*/
+static qboolean MainMenuServers_IsMasterDefined( int masterIndex ) {
+	char	masterstr[64];
+	char	cvarname[sizeof( "sv_master5" )];
+
+	if( masterIndex < UIAS_GLOBAL1 || masterIndex > UIAS_GLOBAL5 ) {
+		return qfalse;
+	}
+
+	Com_sprintf( cvarname, sizeof( cvarname ), "sv_master%d", masterIndex );
+	trap_Cvar_VariableStringBuffer( cvarname, masterstr, sizeof( masterstr ) );
+	return masterstr[0] != '\0';
+}
+
+/*
+=================
+MainMenuServers_MergeFromMasterIncremental
+=================
+*/
+static void MainMenuServers_MergeFromMasterIncremental( int masterIndex ) {
+	int		i;
+	int		count;
+	char	adrstr[MAX_ADDRESSLENGTH];
+
+	count = trap_LAN_GetServerCount( masterIndex );
+	if( count < 0 ) {
+		return;
+	}
+
+	if( count < g_mainmenu_master_merged_idx[masterIndex] ) {
+		g_mainmenu_master_merged_idx[masterIndex] = 0;
+	}
+
+	for( i = g_mainmenu_master_merged_idx[masterIndex]; i < count; i++ ) {
+		trap_LAN_GetServerAddressString( masterIndex, i, adrstr, MAX_ADDRESSLENGTH );
+		if( adrstr[0] ) {
+			MainMenuServers_AddDiscoveryAddress( adrstr );
+		}
+	}
+
+	g_mainmenu_master_merged_idx[masterIndex] = count;
+}
+
+/*
+=================
+MainMenuServers_IssueMasterQuery
+=================
+*/
+static void MainMenuServers_IssueMasterQuery( int masterIndex ) {
+	char	protocol[32];
+
+	g_mainmenu_master_query_time[masterIndex] = uis.realtime;
+	g_mainmenu_master_query_sent[masterIndex] = qtrue;
+	g_mainmenu_active_query_master = masterIndex;
+	g_mainmenu_master_last_count[masterIndex] = -1;
+
+	protocol[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "debug_protocol", protocol, sizeof( protocol ) );
+	if( strlen( protocol ) ) {
+		trap_Cmd_ExecuteText( EXEC_NOW, va( "globalservers %d %s\n", masterIndex - 1, protocol ) );
+	} else {
+		trap_Cmd_ExecuteText( EXEC_NOW, va( "globalservers %d %d\n", masterIndex - 1, (int)trap_Cvar_VariableValue( "protocol" ) ) );
+	}
+}
+
+/*
+=================
+MainMenuServers_AllMastersFinished
+=================
+*/
+static qboolean MainMenuServers_AllMastersFinished( void ) {
+	int			m;
+	qboolean	found;
+
+	found = qfalse;
+	for( m = UIAS_GLOBAL1; m <= UIAS_GLOBAL5; m++ ) {
+		if( !MainMenuServers_IsMasterDefined( m ) ) {
+			continue;
+		}
+		found = qtrue;
+		if( !g_mainmenu_master_done[m] ) {
+			return qfalse;
+		}
+	}
+
+	return found;
+}
+
+/*
+=================
+MainMenuServers_BeginPingPhase
+=================
+*/
+static void MainMenuServers_BeginPingPhase( void ) {
+	g_mainmenu_refresh_phase = MM_REFRESH_PINGING;
+	g_arenaservers.numqueriedservers = g_mainmenu_numaddresses;
+	g_arenaservers.currentping = 0;
+	g_mainmenu_last_ping_time = 0;
+	g_mainmenu_active_query_master = 0;
+
+	if( !g_mainmenu_numaddresses ) {
+		ArenaServers_StopRefresh();
+	}
+}
+
+/*
+=================
+MainMenuServers_PollMasters
+=================
+*/
+static void MainMenuServers_PollMasters( void ) {
+	int		m;
+	int		count;
+
+	for( m = UIAS_GLOBAL1; m <= UIAS_GLOBAL5; m++ ) {
+		if( !MainMenuServers_IsMasterDefined( m ) ) {
+			continue;
+		}
+
+		if( g_mainmenu_master_done[m] ) {
+			continue;
+		}
+
+		if( !g_mainmenu_master_query_sent[m] &&
+			uis.realtime - g_mainmenu_scan_start_time > MAINMENU_MASTER_BOOT_MS &&
+			g_mainmenu_active_query_master == 0 ) {
+			MainMenuServers_IssueMasterQuery( m );
+			continue;
+		}
+
+		count = trap_LAN_GetServerCount( m );
+
+		if( count < 0 ) {
+			if( g_mainmenu_master_query_sent[m] &&
+				uis.realtime - g_mainmenu_master_query_time[m] > MAINMENU_MASTER_TIMEOUT_MS ) {
+				g_mainmenu_master_done[m] = qtrue;
+				if( g_mainmenu_active_query_master == m ) {
+					g_mainmenu_active_query_master = 0;
+				}
+			}
+			continue;
+		}
+
+		MainMenuServers_MergeFromMasterIncremental( m );
+
+		if( g_mainmenu_active_query_master == m ) {
+			g_mainmenu_active_query_master = 0;
+		}
+
+		if( count != g_mainmenu_master_last_count[m] ) {
+			g_mainmenu_master_last_count[m] = count;
+			g_mainmenu_master_stable_time[m] = uis.realtime;
+			continue;
+		}
+
+		if( g_mainmenu_master_query_sent[m] &&
+			uis.realtime - g_mainmenu_master_stable_time[m] >= MAINMENU_MASTER_STABLE_MS ) {
+			g_mainmenu_master_done[m] = qtrue;
+		}
+	}
+
+	if( MainMenuServers_AllMastersFinished() ) {
+		MainMenuServers_BeginPingPhase();
+	}
+}
+
+/*
+=================
+MainMenuServers_StartRefresh
+=================
+*/
+static void MainMenuServers_StartRefresh( void ) {
+	int		i;
+
+	if( g_arenaservers.refreshservers ) {
+		return;
+	}
+
+	memset( g_mainmenu_addresses, 0, sizeof( g_mainmenu_addresses ) );
+	g_mainmenu_numaddresses = 0;
+	g_mainmenu_discovery_addresses = 0;
+	g_mainmenu_last_ping_activity = 0;
+	memset( g_mainmenu_master_last_count, -1, sizeof( g_mainmenu_master_last_count ) );
+	memset( g_mainmenu_master_merged_idx, 0, sizeof( g_mainmenu_master_merged_idx ) );
+	memset( g_mainmenu_master_stable_time, 0, sizeof( g_mainmenu_master_stable_time ) );
+	memset( g_mainmenu_master_query_time, 0, sizeof( g_mainmenu_master_query_time ) );
+	memset( g_mainmenu_master_done, 0, sizeof( g_mainmenu_master_done ) );
+	memset( g_mainmenu_master_query_sent, 0, sizeof( g_mainmenu_master_query_sent ) );
+	g_mainmenu_cache_written_count = 0;
+
+	for( i = 0; i < MAX_PINGREQUESTS; i++ ) {
+		g_arenaservers.pinglist[i].adrstr[0] = '\0';
+		trap_LAN_ClearPing( i );
+	}
+
+	g_arenaservers.refreshservers = qtrue;
+	g_arenaservers.currentping = 0;
+	g_arenaservers.nextpingtime = 0;
+	g_arenaservers.numqueriedservers = 0;
+	g_mainmenu_refresh_phase = MM_REFRESH_MASTERS;
+	g_mainmenu_scan_start_time = uis.realtime;
+	g_mainmenu_active_query_master = 0;
+	g_mainmenu_last_ping_time = 0;
+	g_mainmenu_last_ping_activity = uis.realtime;
+
+	MainMenuServers_AddCachedAddresses();
+
+	ArenaServers_UpdateMainMenuList();
+
+	if( !MainMenuServers_IsMasterDefined( UIAS_GLOBAL1 ) &&
+		!MainMenuServers_IsMasterDefined( UIAS_GLOBAL2 ) &&
+		!MainMenuServers_IsMasterDefined( UIAS_GLOBAL3 ) &&
+		!MainMenuServers_IsMasterDefined( UIAS_GLOBAL4 ) &&
+		!MainMenuServers_IsMasterDefined( UIAS_GLOBAL5 ) ) {
+		MainMenuServers_BeginPingPhase();
+	}
+}
+
+/*
+=================
+MainMenuServers_DoRefresh
+=================
+*/
+static void MainMenuServers_DoRefresh( void ) {
+	int		i;
+	int		j;
+	int		time;
+	int		maxPing;
+	int		pingsSent;
+	char	adrstr[MAX_ADDRESSLENGTH];
+	char	info[MAX_INFO_STRING];
+
+	if( g_mainmenu_refresh_phase == MM_REFRESH_MASTERS ) {
+		MainMenuServers_PollMasters();
+		ArenaServers_UpdateMainMenuList();
+		return;
+	}
+
+	if( uis.realtime - g_mainmenu_scan_start_time > MAINMENU_SCAN_TIMEOUT_MS ) {
+		MainMenuServers_ClearPendingPings();
+		ArenaServers_StopRefresh();
+		ArenaServers_UpdateMainMenuList();
+		return;
+	}
+
+	maxPing = ArenaServers_MaxPing();
+	for( i = 0; i < MAX_PINGREQUESTS; i++ ) {
+		trap_LAN_GetPing( i, adrstr, MAX_ADDRESSLENGTH, &time );
+		if( !adrstr[0] ) {
+			continue;
+		}
+
+		for( j = 0; j < MAX_PINGREQUESTS; j++ ) {
+			if( !Q_stricmp( adrstr, g_arenaservers.pinglist[j].adrstr ) ) {
+				break;
+			}
+		}
+
+		if( j < MAX_PINGREQUESTS ) {
+			if( !time ) {
+				time = uis.realtime - g_arenaservers.pinglist[j].start;
+				if( time < maxPing ) {
+					continue;
+				}
+			}
+
+			if( time > maxPing ) {
+				info[0] = '\0';
+				time = maxPing;
+			} else {
+				trap_LAN_GetPingInfo( i, info, MAX_INFO_STRING );
+			}
+
+			ArenaServers_Insert( adrstr, info, time );
+			g_arenaservers.pinglist[j].adrstr[0] = '\0';
+			g_mainmenu_last_ping_activity = uis.realtime;
+		}
+
+		trap_LAN_ClearPing( i );
+	}
+
+	for( j = 0; j < MAX_PINGREQUESTS; j++ ) {
+		if( !g_arenaservers.pinglist[j].adrstr[0] ) {
+			continue;
+		}
+
+		time = uis.realtime - g_arenaservers.pinglist[j].start;
+		if( time < maxPing ) {
+			continue;
+		}
+
+		ArenaServers_Insert( g_arenaservers.pinglist[j].adrstr, "", maxPing );
+		g_arenaservers.pinglist[j].adrstr[0] = '\0';
+		g_mainmenu_last_ping_activity = uis.realtime;
+	}
+
+	MainMenuServers_FinishRefreshIfDone();
+	if( !g_arenaservers.refreshservers ) {
+		return;
+	}
+
+	if( uis.realtime - g_mainmenu_last_ping_time < MAINMENU_PING_INTERVAL_MS ) {
+		ArenaServers_UpdateMainMenuList();
+		return;
+	}
+
+	g_mainmenu_last_ping_time = uis.realtime;
+
+	pingsSent = 0;
+	while( pingsSent < MAINMENU_PINGS_PER_TICK &&
+		g_arenaservers.currentping < g_arenaservers.numqueriedservers ) {
+		if( trap_LAN_GetPingQueueCount() >= MAX_PINGREQUESTS ) {
+			break;
+		}
+
+		for( j = 0; j < MAX_PINGREQUESTS; j++ ) {
+			if( !g_arenaservers.pinglist[j].adrstr[0] ) {
+				break;
+			}
+		}
+
+		if( j >= MAX_PINGREQUESTS ) {
+			break;
+		}
+
+		Q_strncpyz( adrstr, g_mainmenu_addresses[g_arenaservers.currentping], MAX_ADDRESSLENGTH );
+		Q_strncpyz( g_arenaservers.pinglist[j].adrstr, adrstr, MAX_ADDRESSLENGTH );
+		g_arenaservers.pinglist[j].start = uis.realtime;
+		trap_Cmd_ExecuteText( EXEC_NOW, va( "ping %s\n", adrstr ) );
+		g_arenaservers.currentping++;
+		pingsSent++;
+		g_mainmenu_last_ping_activity = uis.realtime;
+	}
+
+	ArenaServers_UpdateMainMenuList();
+}
 
 /*
 =================
@@ -1148,6 +2281,11 @@ static void ArenaServers_DoRefresh( void )
 	int		maxPing;
 	char	adrstr[MAX_ADDRESSLENGTH];
 	char	info[MAX_INFO_STRING];
+
+	if( g_mainmenu_list ) {
+		MainMenuServers_DoRefresh();
+		return;
+	}
 
 	if (uis.realtime < g_arenaservers.refreshtime)
 	{
@@ -1983,6 +3121,303 @@ UI_ArenaServersMenu
 =================
 */
 void UI_ArenaServersMenu( void ) {
+	UI_MainMenuServers_End();
 	ArenaServers_MenuInit();
 	UI_PushMenu( &g_arenaservers.menu );
+}
+
+/*
+=================
+UI_MainMenuServers_Begin
+=================
+*/
+void UI_MainMenuServers_Begin( menulist_s *list, menubitmap_s *mappic ) {
+	int		i;
+
+	g_mainmenu_list = list;
+	g_mainmenu_mappic = mappic;
+	list->itemnames = (const char **)g_arenaservers.items;
+	for( i = 0; i < MAX_LISTBOXITEMS; i++ ) {
+		g_arenaservers.items[i] = g_arenaservers.table[i].buff;
+	}
+
+	g_gametype = GAMES_DEVOTION;
+	g_sortkey = SORT_HOST;
+	g_emptyservers = 1;
+	g_fullservers = 1;
+	g_onlyhumans = 1;
+	g_hideprivate = 0;
+
+	g_arenaservers.serverlist = g_mainmenu_serverlist;
+	g_arenaservers.numservers = &g_mainmenu_numservers;
+	g_arenaservers.maxservers = MAX_GLOBALSERVERS;
+
+	if( g_arenaservers.refreshservers ) {
+		ArenaServers_StopRefresh();
+	}
+
+	memset( g_mainmenu_serverlist, 0, g_arenaservers.maxservers * sizeof( servernode_t ) );
+	g_mainmenu_numservers = 0;
+	MainMenuServers_LoadCache();
+	ArenaServers_UpdateMainMenuList();
+
+	MainMenuServers_StartRefresh();
+}
+
+/*
+=================
+UI_MainMenuServers_Resume
+=================
+*/
+void UI_MainMenuServers_Resume( menulist_s *list, menubitmap_s *mappic ) {
+	int		i;
+
+	if( g_mainmenu_list ) {
+		return;
+	}
+
+	g_mainmenu_list = list;
+	g_mainmenu_mappic = mappic;
+	list->itemnames = (const char **)g_arenaservers.items;
+	for( i = 0; i < MAX_LISTBOXITEMS; i++ ) {
+		g_arenaservers.items[i] = g_arenaservers.table[i].buff;
+	}
+
+	g_gametype = GAMES_DEVOTION;
+	g_sortkey = SORT_HOST;
+	g_emptyservers = 1;
+	g_fullservers = 1;
+	g_onlyhumans = 1;
+	g_hideprivate = 0;
+
+	g_arenaservers.serverlist = g_mainmenu_serverlist;
+	g_arenaservers.numservers = &g_mainmenu_numservers;
+	g_arenaservers.maxservers = MAX_GLOBALSERVERS;
+
+	if( g_arenaservers.refreshservers ) {
+		ArenaServers_StopRefresh();
+	}
+
+	ArenaServers_UpdateMainMenuList();
+}
+
+/*
+=================
+UI_MainMenuServers_Update
+=================
+*/
+void UI_MainMenuServers_Update( void ) {
+	if( g_arenaservers.refreshservers ) {
+		ArenaServers_DoRefresh();
+	}
+	ArenaServers_UpdateMainMenuList();
+}
+
+/*
+=================
+UI_MainMenuServers_End
+=================
+*/
+void UI_MainMenuServers_End( void ) {
+	if( g_arenaservers.refreshservers && g_mainmenu_list ) {
+		ArenaServers_StopRefresh();
+	}
+
+	g_mainmenu_list = NULL;
+	g_mainmenu_mappic = NULL;
+	g_mainmenu_refresh_phase = 0;
+	g_mainmenu_scan_start_time = 0;
+	g_mainmenu_active_query_master = 0;
+	g_mainmenu_numaddresses = 0;
+	g_mainmenu_discovery_addresses = 0;
+	g_mainmenu_cache_written_count = 0;
+	g_mainmenu_last_ping_activity = 0;
+	g_mainmenu_server_column_focus = qfalse;
+	memset( g_mainmenu_master_done, 0, sizeof( g_mainmenu_master_done ) );
+	memset( g_mainmenu_master_query_sent, 0, sizeof( g_mainmenu_master_query_sent ) );
+}
+
+/*
+=================
+UI_MainMenuServers_IsRefreshing
+=================
+*/
+qboolean UI_MainMenuServers_IsRefreshing( void ) {
+	return g_arenaservers.refreshservers;
+}
+
+/*
+=================
+UI_MainMenuServers_Refresh
+=================
+*/
+void UI_MainMenuServers_Refresh( void ) {
+	if( !g_mainmenu_list ) {
+		return;
+	}
+
+	if( g_arenaservers.refreshservers ) {
+		ArenaServers_StopRefresh();
+	}
+
+	MainMenuServers_StartRefresh();
+	ArenaServers_UpdateMainMenuList();
+}
+
+/*
+=================
+UI_MainMenuServers_Draw
+=================
+*/
+void UI_MainMenuServers_Draw( menulist_s *list ) {
+	int				i;
+	int				y;
+	int				base;
+	int				style;
+	qboolean		hasfocus;
+	float			*color;
+	char			line[MAX_STRING_CHARS];
+	char			friendly[MAX_STRING_CHARS];
+	servernode_t	*servernodeptr;
+	table_t			*tableptr;
+
+	if( !list || !list->numitems ) {
+		return;
+	}
+
+	hasfocus = UI_MainMenuServers_GetColumnFocus();
+
+	base = list->top;
+	y = list->generic.y;
+
+	for( i = base; i < base + list->height && i < list->numitems; i++ ) {
+		int	blockY;
+
+		tableptr = &g_arenaservers.table[i];
+		servernodeptr = tableptr->servernode;
+		if( !servernodeptr ) {
+			continue;
+		}
+
+		blockY = y;
+
+		if( i == list->curvalue && hasfocus ) {
+			UI_FillRect( list->generic.x - 2, blockY - 2,
+				MAIN_MENU_LEVELSHOT_X + MAIN_MENU_LEVELSHOT_WIDTH - list->generic.x + 2,
+				MAIN_MENU_SERVER_BLOCK_HEIGHT, listbar_color );
+			color = text_color_highlight;
+			style = hasfocus ? ( UI_PULSE | UI_SMALLFONT ) : UI_SMALLFONT;
+		} else {
+			color = text_color_normal;
+			style = UI_SMALLFONT;
+		}
+
+		Q_strncpyz( line, servernodeptr->hostname, sizeof( line ) );
+		MainMenuServers_DrawEntryString( MAIN_MENU_SERVER_TEXT_RIGHT_X, y, line, style, color, qfalse );
+		y += MAIN_MENU_SERVER_NAME_LINE_HEIGHT;
+
+		if( MainMenuServers_HasPing( servernodeptr ) ) {
+			Com_sprintf( line, sizeof( line ), "^7Ping: %s%d", MainMenuServers_PingColor( servernodeptr ), servernodeptr->pingtime );
+			MainMenuServers_DrawEntryString( MAIN_MENU_SERVER_TEXT_RIGHT_X, y, line, UI_SMALLFONT, color, qtrue );
+		}
+		y += MAIN_MENU_SERVER_INFO_LINE_HEIGHT;
+
+		Com_sprintf( line, sizeof( line ), "^7Players: %d/%d", servernodeptr->humanclients, servernodeptr->maxclients );
+		MainMenuServers_DrawEntryString( MAIN_MENU_SERVER_TEXT_RIGHT_X, y, line, UI_SMALLFONT, color, qtrue );
+		y += MAIN_MENU_SERVER_INFO_LINE_HEIGHT;
+
+		if( servernodeptr->gametype >= 0 && servernodeptr->gametype < GT_MAX_GAME_TYPE ) {
+			Com_sprintf( line, sizeof( line ), "^7Gametype: %s%s",
+				MainMenuServers_GametypeColor( servernodeptr->gametype ),
+				MainMenuServers_GametypeName( servernodeptr->gametype ) );
+			MainMenuServers_DrawEntryString( MAIN_MENU_SERVER_TEXT_RIGHT_X, y, line, UI_SMALLFONT, color, qtrue );
+		}
+		y += MAIN_MENU_SERVER_INFO_LINE_HEIGHT;
+
+		if( servernodeptr->mapname[0] ) {
+			Com_sprintf( line, sizeof( line ), "^7Map: %s", servernodeptr->mapname );
+			MainMenuServers_DrawEntryString( MAIN_MENU_SERVER_TEXT_RIGHT_X, y, line, UI_SMALLFONT, color, qtrue );
+		}
+		y += MAIN_MENU_SERVER_INFO_LINE_HEIGHT;
+
+		MainMenuServers_GetMapFriendlyName( servernodeptr->mapname, friendly, sizeof( friendly ) );
+		if( friendly[0] ) {
+			Com_sprintf( line, sizeof( line ), "^7%s", friendly );
+			MainMenuServers_DrawEntryString( MAIN_MENU_SERVER_TEXT_RIGHT_X, y, line, UI_SMALLFONT, color, qtrue );
+		}
+		y += MAIN_MENU_SERVER_INFO_LINE_HEIGHT;
+		MainMenuServers_DrawLevelshot( MAIN_MENU_LEVELSHOT_X,
+			blockY + ( MAIN_MENU_SERVER_BLOCK_HEIGHT - MAIN_MENU_LEVELSHOT_HEIGHT ) / 2 + MAIN_MENU_LEVELSHOT_Y_OFFSET,
+			servernodeptr->mapname );
+		y = blockY + MAIN_MENU_SERVER_BLOCK_HEIGHT;
+	}
+}
+
+/*
+=================
+UI_MainMenuServers_Mouse
+=================
+*/
+qboolean UI_MainMenuServers_Mouse( menulist_s *list ) {
+	int		index;
+
+	index = MainMenuServers_MouseIndex( list );
+	if( index < 0 ) {
+		return qfalse;
+	}
+
+	if( index != list->curvalue ) {
+		list->oldvalue = list->curvalue;
+		list->curvalue = index;
+		if( list->generic.callback ) {
+			list->generic.callback( list, QM_GOTFOCUS );
+		}
+	}
+
+	return qtrue;
+}
+
+/*
+=================
+UI_MainMenuServers_MouseClick
+=================
+*/
+qboolean UI_MainMenuServers_MouseClick( menulist_s *list ) {
+	if( !UI_MainMenuServers_Mouse( list ) ) {
+		return qfalse;
+	}
+
+	UI_MainMenuServers_Connect( list );
+	return qtrue;
+}
+
+/*
+=================
+UI_MainMenuServers_Connect
+=================
+*/
+void UI_MainMenuServers_Connect( menulist_s *list ) {
+	servernode_t	*servernodeptr;
+	table_t			*tableptr;
+
+	if( !list || !list->numitems ) {
+		return;
+	}
+
+	tableptr = &g_arenaservers.table[list->curvalue];
+	servernodeptr = tableptr->servernode;
+	if( !servernodeptr ) {
+		return;
+	}
+
+	if( !ui_setupchecked.integer ) {
+		UI_FirstConnectMenu();
+		return;
+	}
+
+	if( servernodeptr->needPass ) {
+		UI_SpecifyPasswordMenu( va( "connect %s\n", servernodeptr->adrstr ), servernodeptr->hostname );
+	} else {
+		trap_Cmd_ExecuteText( EXEC_APPEND, va( "connect %s\n", servernodeptr->adrstr ) );
+	}
 }						  
