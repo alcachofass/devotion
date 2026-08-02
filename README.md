@@ -4,6 +4,20 @@ Devotion is a mod for Quake III: Arena which implements [Unlagged](https://www.r
 
 Devotion began as a port of [RatArena](https://github.com/rdntcntrl/ratoa_gamecode) (v0.15.5) into Q3A.
 
+## Installation
+1. Grab the [Latest Release](https://github.com/alcachofass/devotion/releases)
+2. In your Quake 3 installation, make a new directory parallel to `\baseq3` called `\devotion`
+3. Place the .pk3 file into the new directory
+4. Load the game, select `mods`, and load the mod named `devotion`
+
+### Alternative method
+1. Load Quake 3
+2. Pull down the console (key below ESC)
+3. Enter `\cl_allowdownload 1` then hit enter
+4. Enter `\connect nuegados.com` then hit enter
+
+Q3 will connect to a server running Devotion, and automatically download/install/start the mod.
+
 ## Documentation
 Since this is a partial conversion, not everything previously found in RatArena will work here, namely the extra medals, the Treasure Hunt gametype, Team Arena gametypes, alternate rockets, alternate announcers (here we use the default for Quake III), Team Arena items and weapons, radar, grenade skins and maybe one or another cosmetic setting to achieve consistency. For everything else, the documentation available at the [RatArena website](https://ratmod.github.io/) serves well for Devotion. There is also [a wiki](https://github.com/alcachofass/devotion/wiki) in the works.
 
