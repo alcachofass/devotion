@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "g_local.h"
 #include "ai_bot_enhanced.h"
+#include "bg_cvar_desc.h"
 
 level_locals_t	level;
 
@@ -763,6 +764,8 @@ void G_RegisterCvars( void ) {
 	level.warmupModificationCount = g_warmup.modificationCount;
 
 	BotEnhanced_RegisterCvars();
+
+	BG_RegisterGameCvarDescriptions();
 }
 
 qboolean G_IsTeamGametype(void) {

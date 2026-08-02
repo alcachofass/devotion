@@ -27,6 +27,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #endif
 
 #include "cg_local.h"
+#include "../game/bg_trap_ext.h"
 
 static intptr_t (QDECL *syscall)( intptr_t arg, ... ) = (intptr_t (QDECL *)( intptr_t, ...))-1;
 
@@ -443,4 +444,20 @@ qboolean trap_GetEntityToken( char *buffer, int bufferSize ) {
 
 qboolean trap_R_inPVS( const vec3_t p1, const vec3_t p2 ) {
 	return syscall( CG_R_INPVS, p1, p2 );
+}
+
+qboolean trap_GetValue( char *value, int valueSize, const char *key ) {
+	int trap = BG_TrapExt_GetValueTrap();
+
+	if ( trap <= 0 ) {
+		return qfalse;
+	}
+
+	return (qboolean)syscall( trap, value, valueSize, key );
+}
+
+void trap_Cvar_SetDescription( const char *cvarName, const char *description ) {
+	if ( BG_TrapExt_CvarSetDescriptionSupported() ) {
+		syscall( BG_TrapExt_CvarSetDescriptionTrap(), cvarName, description );
+	}
 }

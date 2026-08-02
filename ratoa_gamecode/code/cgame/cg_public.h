@@ -70,6 +70,8 @@ functions imported from the main executable
 */
 
 #define	CGAME_IMPORT_API_VERSION	4
+#define COM_TRAP_GETVALUE	700
+#define COM_TRAP_GETVALUE	700
 
 typedef enum {
 	CG_PRINT,
@@ -182,7 +184,11 @@ typedef enum {
 	CG_CEIL,
 	CG_TESTPRINTINT,
 	CG_TESTPRINTFLOAT,
-	CG_ACOS
+	CG_ACOS,
+
+	// Quake3e extensions (optional; discovered via trap_GetValue)
+	CG_CVAR_SETDESCRIPTION,
+	CG_TRAP_GETVALUE = COM_TRAP_GETVALUE
 } cgameImport_t;
 
 
