@@ -86,12 +86,16 @@ MULTIPLAYER MENU (SERVER BROWSER)
 #define GR_LETTERS			31
 
 #define UIAS_LOCAL			0
-#define UIAS_GLOBAL1			1
-#define UIAS_GLOBAL2			2
-#define UIAS_GLOBAL3			3
-#define UIAS_GLOBAL4			4
-#define UIAS_GLOBAL5			5
-#define UIAS_FAVORITES			6
+#define UIAS_INTERNET			1
+#define UIAS_FAVORITES			2
+
+/* Engine LAN master source indices (sv_master1..5) */
+#define AS_MASTER1			1
+#define AS_MASTER2			2
+#define AS_MASTER3			3
+#define AS_MASTER4			4
+#define AS_MASTER5			5
+#define AS_MASTER_MAX			5
 
 #define MM_REFRESH_MASTERS		0
 #define MM_REFRESH_PINGING		1
@@ -104,7 +108,6 @@ MULTIPLAYER MENU (SERVER BROWSER)
 #define MAINMENU_PINGS_PER_TICK		4
 #define MAINMENU_PING_INTERVAL_MS	50
 #define MAINMENU_MAX_CACHE_WRITTEN	128
-#define MAINMENU_MAX_DISCOVERY_ADDRESSES	128
 #define MAINMENU_SCAN_TIMEOUT_MS		90000
 #define MAINMENU_PING_STALL_MS		10000
 #define MAINMENU_PING_UNKNOWN		(-1)
@@ -154,10 +157,6 @@ MULTIPLAYER MENU (SERVER BROWSER)
 static const char *master_items[] = {
 	"Local",
 	"Internet",
-	"Internet(2)",
-	"Internet(3)",
-	"Internet(4)",
-	"Internet(5)",
 	"Favorites",
 	NULL
 };
@@ -321,8 +320,6 @@ static arenaservers_t	g_arenaservers;
 
 static servernode_t		g_globalserverlist[MAX_GLOBALSERVERS];
 static int				g_numglobalservers;
-static servernode_t		g_mainmenu_serverlist[MAX_GLOBALSERVERS];
-static int				g_mainmenu_numservers;
 static servernode_t		g_localserverlist[MAX_LOCALSERVERS];
 static int				g_numlocalservers;
 static servernode_t		g_favoriteserverlist[MAX_FAVORITESERVERS];
@@ -338,21 +335,20 @@ static int                              g_hideprivate;
 
 static menulist_s			*g_mainmenu_list = NULL;
 static menubitmap_s			*g_mainmenu_mappic = NULL;
+static qboolean				g_internet_scan;
 static int					g_mainmenu_refresh_phase;
 static int					g_mainmenu_scan_start_time;
-static int					g_mainmenu_active_query_master;
 static int					g_mainmenu_last_ping_time;
-static int					g_mainmenu_master_last_count[UIAS_GLOBAL5 + 1];
-static int					g_mainmenu_master_merged_idx[UIAS_GLOBAL5 + 1];
-static int					g_mainmenu_master_stable_time[UIAS_GLOBAL5 + 1];
-static int					g_mainmenu_master_query_time[UIAS_GLOBAL5 + 1];
-static qboolean				g_mainmenu_master_done[UIAS_GLOBAL5 + 1];
-static qboolean				g_mainmenu_master_query_sent[UIAS_GLOBAL5 + 1];
+static int					g_mainmenu_master_last_count;
+static int					g_mainmenu_master_merged_idx;
+static int					g_mainmenu_master_stable_time;
+static int					g_mainmenu_master_query_time;
+static qboolean				g_mainmenu_master_query_sent;
+static qboolean				g_mainmenu_masters_done;
 static char					g_mainmenu_cache_written[MAINMENU_MAX_CACHE_WRITTEN][MAX_ADDRESSLENGTH];
 static int					g_mainmenu_cache_written_count;
 static char					g_mainmenu_addresses[MAINMENU_MAX_ADDRESSES][MAX_ADDRESSLENGTH];
 static int					g_mainmenu_numaddresses;
-static int					g_mainmenu_discovery_addresses;
 static int					g_mainmenu_last_ping_activity;
 
 static void ArenaServers_StopRefresh( void );
@@ -371,11 +367,16 @@ char *Q_CleanStrWithColor( char *string ) {
 	while ((c = *s) != 0 ) {
 		if ( Q_IsColorString( s ) ) {
 			*d++ = c;
+			*d++ = ( s[1] == '0' ) ? '7' : s[1];
+			s += 2;
 		}
 		else if ( c >= 0x20 && c <= 0x7E ) {
 			*d++ = c;
+			s++;
 		}
-		s++;
+		else {
+			s++;
+		}
 	}
 	*d = '\0';
 
@@ -635,10 +636,6 @@ MainMenuServers_AddDiscoveryAddress
 =================
 */
 static void MainMenuServers_AddDiscoveryAddress( const char *adrstr ) {
-	if( g_mainmenu_discovery_addresses >= MAINMENU_MAX_DISCOVERY_ADDRESSES ) {
-		return;
-	}
-
 	if( !adrstr || !adrstr[0] || MainMenuServers_AddressExists( adrstr ) ) {
 		return;
 	}
@@ -648,7 +645,6 @@ static void MainMenuServers_AddDiscoveryAddress( const char *adrstr ) {
 	}
 
 	MainMenuServers_AddAddress( adrstr );
-	g_mainmenu_discovery_addresses++;
 }
 
 /*
@@ -712,11 +708,11 @@ MainMenuServers_AddCachedAddresses
 static void MainMenuServers_AddCachedAddresses( void ) {
 	int		i;
 
-	for( i = 0; i < *g_arenaservers.numservers; i++ ) {
-		if( !MainMenuServers_IsDevotionMod( g_arenaservers.serverlist[i].gamename ) ) {
+	for( i = 0; i < g_numglobalservers; i++ ) {
+		if( !MainMenuServers_IsDevotionMod( g_globalserverlist[i].gamename ) ) {
 			continue;
 		}
-		MainMenuServers_AddAddress( g_arenaservers.serverlist[i].adrstr );
+		MainMenuServers_AddAddress( g_globalserverlist[i].adrstr );
 	}
 }
 
@@ -731,21 +727,22 @@ static void MainMenuServers_InsertCachedServer( const char *adrstr, const char *
 	servernode_t	*servernodeptr;
 	int				i;
 
-	for( i = 0; i < *g_arenaservers.numservers; i++ ) {
-		if( !Q_stricmp( g_arenaservers.serverlist[i].adrstr, adrstr ) ) {
+	for( i = 0; i < g_numglobalservers; i++ ) {
+		if( !Q_stricmp( g_globalserverlist[i].adrstr, adrstr ) ) {
 			return;
 		}
 	}
 
-	if( *g_arenaservers.numservers >= g_arenaservers.maxservers ) {
+	if( g_numglobalservers >= MAX_GLOBALSERVERS ) {
 		return;
 	}
 
-	servernodeptr = g_arenaservers.serverlist + (*g_arenaservers.numservers);
-	(*g_arenaservers.numservers)++;
+	servernodeptr = &g_globalserverlist[g_numglobalservers];
+	g_numglobalservers++;
 
 	Q_strncpyz( servernodeptr->adrstr, adrstr, MAX_ADDRESSLENGTH );
 	Q_strncpyz( servernodeptr->hostname, hostname, sizeof( servernodeptr->hostname ) );
+	Q_CleanStrWithColor( servernodeptr->hostname );
 	Q_strncpyz( servernodeptr->mapname, mapname, sizeof( servernodeptr->mapname ) );
 	Q_strncpyz( servernodeptr->gamename, "devotion", sizeof( servernodeptr->gamename ) );
 	servernodeptr->pingtime = pingtime;
@@ -866,7 +863,7 @@ static void MainMenuServers_CacheServer( servernode_t *servernodeptr ) {
 	char			line[MAX_ADDRESSLENGTH + MAX_HOSTNAMELENGTH + MAX_MAPNAMELENGTH + 16];
 	char			hostname[MAX_HOSTNAMELENGTH + 3];
 
-	if( !g_mainmenu_list || !servernodeptr ) {
+	if( !servernodeptr ) {
 		return;
 	}
 
@@ -913,8 +910,8 @@ static void MainMenuServers_SaveCache( void ) {
 
 	trap_FS_FOpenFile( MAINMENU_CACHE_FILE, &f, FS_WRITE );
 
-	for( i = 0; i < *g_arenaservers.numservers; i++ ) {
-		servernodeptr = &g_arenaservers.serverlist[i];
+	for( i = 0; i < g_numglobalservers; i++ ) {
+		servernodeptr = &g_globalserverlist[i];
 		if( !MainMenuServers_IsDevotionMod( servernodeptr->gamename ) ) {
 			continue;
 		}
@@ -1244,12 +1241,12 @@ static void ArenaServers_UpdateMainMenuList( void ) {
 
 	curvalue = list->curvalue;
 
-	if( *g_arenaservers.numservers > 0 ) {
-		qsort( g_arenaservers.serverlist, *g_arenaservers.numservers, sizeof( servernode_t ), ArenaServers_Compare );
+	if( g_numglobalservers > 0 ) {
+		qsort( g_globalserverlist, g_numglobalservers, sizeof( servernode_t ), ArenaServers_Compare );
 	}
 
-	servernodeptr = g_arenaservers.serverlist;
-	count = *g_arenaservers.numservers;
+	servernodeptr = g_globalserverlist;
+	count = g_numglobalservers;
 	for( i = 0, j = 0; i < count; i++, servernodeptr++ ) {
 		if( !MainMenuServers_IsDevotionMod( servernodeptr->gamename ) ) {
 			continue;
@@ -1319,7 +1316,7 @@ static void ArenaServers_UpdateMenu( void ) {
 			g_arenaservers.go.generic.flags			&= ~QMF_GRAYED;
 
 			// update status bar
-			if( g_servertype >= UIAS_GLOBAL1 && g_servertype <= UIAS_GLOBAL5 ) {
+			if( g_servertype == UIAS_INTERNET ) {
 				g_arenaservers.statusbar.string = quake3worldMessage;
 			}
 			else {
@@ -1356,7 +1353,7 @@ static void ArenaServers_UpdateMenu( void ) {
 			}
 
 			// update status bar
-			if( g_servertype >= UIAS_GLOBAL1 && g_servertype <= UIAS_GLOBAL5 ) {
+			if( g_servertype == UIAS_INTERNET ) {
 				g_arenaservers.statusbar.string = quake3worldMessage;
 			}
 			else {
@@ -1653,78 +1650,89 @@ ArenaServers_Insert
 static void ArenaServers_Insert( char* adrstr, char* info, int pingtime )
 {
 	servernode_t*	servernodeptr;
+	servernode_t*	serverlist;
 	char*			s;
 	char			savedGamename[64];
 	int				i;
+	int				*numservers;
+	int				maxservers;
 	qboolean		existing;
 
 	existing = qfalse;
 	servernodeptr = NULL;
 	savedGamename[0] = '\0';
 
-	for( i = 0; i < *g_arenaservers.numservers; i++ ) {
-		if( !Q_stricmp( g_arenaservers.serverlist[i].adrstr, adrstr ) ) {
-			servernodeptr = &g_arenaservers.serverlist[i];
+	if( g_internet_scan ) {
+		serverlist = g_globalserverlist;
+		numservers = &g_numglobalservers;
+		maxservers = MAX_GLOBALSERVERS;
+	} else {
+		serverlist = g_arenaservers.serverlist;
+		numservers = g_arenaservers.numservers;
+		maxservers = g_arenaservers.maxservers;
+	}
+
+	for( i = 0; i < *numservers; i++ ) {
+		if( !Q_stricmp( serverlist[i].adrstr, adrstr ) ) {
+			servernodeptr = &serverlist[i];
 			existing = qtrue;
 			break;
 		}
 	}
 
 	if( !existing ) {
-		if ((pingtime >= ArenaServers_MaxPing()) && (g_servertype != UIAS_FAVORITES) && !g_mainmenu_list)
-		{
-			// slow global or local servers do not get entered
+		if( ( pingtime >= ArenaServers_MaxPing() ) && ( g_servertype != UIAS_FAVORITES ) && !g_internet_scan ) {
+			/* slow local servers do not get entered */
 			return;
 		}
 
-		if (*g_arenaservers.numservers >= g_arenaservers.maxservers) {
-			if( g_mainmenu_list ) {
+		if( *numservers >= maxservers ) {
+			if( g_internet_scan ) {
 				return;
 			}
-			// list full;
-			servernodeptr = g_arenaservers.serverlist+(*g_arenaservers.numservers)-1;
+			/* list full; overwrite last */
+			servernodeptr = serverlist + (*numservers) - 1;
 		} else {
-			// next slot
-			servernodeptr = g_arenaservers.serverlist+(*g_arenaservers.numservers);
-			(*g_arenaservers.numservers)++;
+			servernodeptr = serverlist + (*numservers);
+			(*numservers)++;
 		}
 	}
 
-	if( g_mainmenu_list && existing ) {
+	if( g_internet_scan && existing ) {
 		Q_strncpyz( savedGamename, servernodeptr->gamename, sizeof( savedGamename ) );
 	}
 
 	Q_strncpyz( servernodeptr->adrstr, adrstr, MAX_ADDRESSLENGTH );
 
-	if( g_mainmenu_list && !info[0] ) {
+	if( g_internet_scan && !info[0] ) {
 		if( existing ) {
 			if( pingtime < ArenaServers_MaxPing() ) {
 				servernodeptr->pingtime = pingtime;
 			}
-			ArenaServers_UpdateMainMenuList();
+			if( g_mainmenu_list ) {
+				ArenaServers_UpdateMainMenuList();
+			}
 		} else {
-			(*g_arenaservers.numservers)--;
+			(*numservers)--;
 		}
 		return;
 	}
 
 	Q_strncpyz( servernodeptr->hostname, Info_ValueForKey( info, "hostname"), MAX_HOSTNAMELENGTH );
 	Q_CleanStrWithColor( servernodeptr->hostname );
-	//Q_strupr( servernodeptr->hostname );
 
 	Q_strncpyz( servernodeptr->mapname, Info_ValueForKey( info, "mapname"), MAX_MAPNAMELENGTH );
 	Q_CleanStr( servernodeptr->mapname );
 	Q_strupr( servernodeptr->mapname );
 
 	servernodeptr->numclients = atoi( Info_ValueForKey( info, "clients") );
-        servernodeptr->humanclients = atoi( Info_ValueForKey( info, "g_humanplayers") );
-        servernodeptr->needPass = atoi( Info_ValueForKey( info, "g_needpass") );
+	servernodeptr->humanclients = atoi( Info_ValueForKey( info, "g_humanplayers") );
+	servernodeptr->needPass = atoi( Info_ValueForKey( info, "g_needpass") );
 	servernodeptr->maxclients = atoi( Info_ValueForKey( info, "sv_maxclients") );
 	servernodeptr->pingtime   = pingtime;
 	servernodeptr->minPing    = atoi( Info_ValueForKey( info, "minPing") );
 	servernodeptr->maxPing    = atoi( Info_ValueForKey( info, "maxPing") );
 
-	
 	s = Info_ValueForKey( info, "nettype" );
 	for (i=0; ;i++)
 	{
@@ -1757,10 +1765,10 @@ static void ArenaServers_Insert( char* adrstr, char* info, int pingtime )
 	}
 #endif
 	if( *s ) {
-		servernodeptr->gametype = i;//-1;
+		servernodeptr->gametype = i;
 		Q_strncpyz( servernodeptr->gamename, s, sizeof(servernodeptr->gamename) );
 	}
-	else if( g_mainmenu_list && existing && savedGamename[0] ) {
+	else if( g_internet_scan && existing && savedGamename[0] ) {
 		servernodeptr->gametype = i;
 		Q_strncpyz( servernodeptr->gamename, savedGamename, sizeof(servernodeptr->gamename) );
 	}
@@ -1769,16 +1777,13 @@ static void ArenaServers_Insert( char* adrstr, char* info, int pingtime )
 		Q_strncpyz( servernodeptr->gamename, gamenames[i], sizeof(servernodeptr->gamename) );
 	}
 
-	if( g_mainmenu_list ) {
-		if( !MainMenuServers_IsDevotionMod( servernodeptr->gamename ) ) {
-			if( !existing ) {
-				(*g_arenaservers.numservers)--;
-			}
-			return;
+	if( g_internet_scan ) {
+		if( MainMenuServers_IsDevotionMod( servernodeptr->gamename ) ) {
+			MainMenuServers_CacheServer( servernodeptr );
 		}
-
-		MainMenuServers_CacheServer( servernodeptr );
-		ArenaServers_UpdateMainMenuList();
+		if( g_mainmenu_list ) {
+			ArenaServers_UpdateMainMenuList();
+		}
 	}
 }
 
@@ -1901,28 +1906,40 @@ static void ArenaServers_StopRefresh( void )
 		// not currently refreshing
 		return;
 
-	g_arenaservers.refreshservers = qfalse;
+	if (!g_arenaservers.refreshservers)
+		// not currently refreshing
+		return;
 
-	if (g_servertype == UIAS_FAVORITES)
 	{
-		// nonresponsive favorites must be shown
-		ArenaServers_InsertFavorites();
-	}
+		qboolean was_internet = g_internet_scan;
 
-	// final tally
-	if (g_arenaservers.numqueriedservers >= 0)
-	{
-		g_arenaservers.currentping       = *g_arenaservers.numservers;
-		g_arenaservers.numqueriedservers = *g_arenaservers.numservers; 
-	}
+		g_arenaservers.refreshservers = qfalse;
+		g_internet_scan = qfalse;
+
+		if (g_servertype == UIAS_FAVORITES)
+		{
+			// nonresponsive favorites must be shown
+			ArenaServers_InsertFavorites();
+		}
+
+		// final tally
+		if (g_arenaservers.numqueriedservers >= 0)
+		{
+			g_arenaservers.currentping       = *g_arenaservers.numservers;
+			g_arenaservers.numqueriedservers = *g_arenaservers.numservers; 
+		}
 	
-	// sort
-	qsort( g_arenaservers.serverlist, *g_arenaservers.numservers, sizeof( servernode_t ), ArenaServers_Compare);
+		// sort
+		qsort( g_arenaservers.serverlist, *g_arenaservers.numservers, sizeof( servernode_t ), ArenaServers_Compare);
 
-	ArenaServers_UpdateMenu();
+		ArenaServers_UpdateMenu();
 
-	if( g_mainmenu_list ) {
-		MainMenuServers_SaveCache();
+		if( was_internet ) {
+			MainMenuServers_SaveCache();
+			if( g_mainmenu_list ) {
+				ArenaServers_UpdateMainMenuList();
+			}
+		}
 	}
 }
 
@@ -1936,7 +1953,7 @@ static qboolean MainMenuServers_IsMasterDefined( int masterIndex ) {
 	char	masterstr[64];
 	char	cvarname[sizeof( "sv_master5" )];
 
-	if( masterIndex < UIAS_GLOBAL1 || masterIndex > UIAS_GLOBAL5 ) {
+	if( masterIndex < AS_MASTER1 || masterIndex > AS_MASTER_MAX ) {
 		return qfalse;
 	}
 
@@ -1947,76 +1964,77 @@ static qboolean MainMenuServers_IsMasterDefined( int masterIndex ) {
 
 /*
 =================
-MainMenuServers_MergeFromMasterIncremental
+MainMenuServers_AnyMasterDefined
 =================
 */
-static void MainMenuServers_MergeFromMasterIncremental( int masterIndex ) {
+static qboolean MainMenuServers_AnyMasterDefined( void ) {
+	int		m;
+
+	for( m = AS_MASTER1; m <= AS_MASTER_MAX; m++ ) {
+		if( MainMenuServers_IsMasterDefined( m ) ) {
+			return qtrue;
+		}
+	}
+
+	return qfalse;
+}
+
+/*
+=================
+MainMenuServers_MergeFromGlobalIncremental
+
+Copy newly arrived addresses from the engine's combined AS_GLOBAL list.
+ioquake3 dedupes master responses into that list; we still skip addresses
+already present from the devotion cache priority queue.
+=================
+*/
+static void MainMenuServers_MergeFromGlobalIncremental( void ) {
 	int		i;
 	int		count;
 	char	adrstr[MAX_ADDRESSLENGTH];
 
-	count = trap_LAN_GetServerCount( masterIndex );
+	count = trap_LAN_GetServerCount( AS_GLOBAL );
 	if( count < 0 ) {
 		return;
 	}
 
-	if( count < g_mainmenu_master_merged_idx[masterIndex] ) {
-		g_mainmenu_master_merged_idx[masterIndex] = 0;
+	if( count < g_mainmenu_master_merged_idx ) {
+		g_mainmenu_master_merged_idx = 0;
 	}
 
-	for( i = g_mainmenu_master_merged_idx[masterIndex]; i < count; i++ ) {
-		trap_LAN_GetServerAddressString( masterIndex, i, adrstr, MAX_ADDRESSLENGTH );
+	for( i = g_mainmenu_master_merged_idx; i < count; i++ ) {
+		trap_LAN_GetServerAddressString( AS_GLOBAL, i, adrstr, MAX_ADDRESSLENGTH );
 		if( adrstr[0] ) {
 			MainMenuServers_AddDiscoveryAddress( adrstr );
 		}
 	}
 
-	g_mainmenu_master_merged_idx[masterIndex] = count;
+	g_mainmenu_master_merged_idx = count;
 }
 
 /*
 =================
 MainMenuServers_IssueMasterQuery
+
+Ask the engine to query every configured master once (globalservers 0).
 =================
 */
-static void MainMenuServers_IssueMasterQuery( int masterIndex ) {
+static void MainMenuServers_IssueMasterQuery( void ) {
 	char	protocol[32];
 
-	g_mainmenu_master_query_time[masterIndex] = uis.realtime;
-	g_mainmenu_master_query_sent[masterIndex] = qtrue;
-	g_mainmenu_active_query_master = masterIndex;
-	g_mainmenu_master_last_count[masterIndex] = -1;
+	g_mainmenu_master_query_time = uis.realtime;
+	g_mainmenu_master_query_sent = qtrue;
+	g_mainmenu_master_last_count = -1;
+	g_mainmenu_master_merged_idx = 0;
+	g_mainmenu_masters_done = qfalse;
 
 	protocol[0] = '\0';
 	trap_Cvar_VariableStringBuffer( "debug_protocol", protocol, sizeof( protocol ) );
 	if( strlen( protocol ) ) {
-		trap_Cmd_ExecuteText( EXEC_NOW, va( "globalservers %d %s\n", masterIndex - 1, protocol ) );
+		trap_Cmd_ExecuteText( EXEC_NOW, va( "globalservers 0 %s\n", protocol ) );
 	} else {
-		trap_Cmd_ExecuteText( EXEC_NOW, va( "globalservers %d %d\n", masterIndex - 1, (int)trap_Cvar_VariableValue( "protocol" ) ) );
+		trap_Cmd_ExecuteText( EXEC_NOW, va( "globalservers 0 %d\n", (int)trap_Cvar_VariableValue( "protocol" ) ) );
 	}
-}
-
-/*
-=================
-MainMenuServers_AllMastersFinished
-=================
-*/
-static qboolean MainMenuServers_AllMastersFinished( void ) {
-	int			m;
-	qboolean	found;
-
-	found = qfalse;
-	for( m = UIAS_GLOBAL1; m <= UIAS_GLOBAL5; m++ ) {
-		if( !MainMenuServers_IsMasterDefined( m ) ) {
-			continue;
-		}
-		found = qtrue;
-		if( !g_mainmenu_master_done[m] ) {
-			return qfalse;
-		}
-	}
-
-	return found;
 }
 
 /*
@@ -2029,7 +2047,7 @@ static void MainMenuServers_BeginPingPhase( void ) {
 	g_arenaservers.numqueriedservers = g_mainmenu_numaddresses;
 	g_arenaservers.currentping = 0;
 	g_mainmenu_last_ping_time = 0;
-	g_mainmenu_active_query_master = 0;
+	g_mainmenu_masters_done = qtrue;
 
 	if( !g_mainmenu_numaddresses ) {
 		ArenaServers_StopRefresh();
@@ -2042,57 +2060,44 @@ MainMenuServers_PollMasters
 =================
 */
 static void MainMenuServers_PollMasters( void ) {
-	int		m;
 	int		count;
 
-	for( m = UIAS_GLOBAL1; m <= UIAS_GLOBAL5; m++ ) {
-		if( !MainMenuServers_IsMasterDefined( m ) ) {
-			continue;
-		}
-
-		if( g_mainmenu_master_done[m] ) {
-			continue;
-		}
-
-		if( !g_mainmenu_master_query_sent[m] &&
-			uis.realtime - g_mainmenu_scan_start_time > MAINMENU_MASTER_BOOT_MS &&
-			g_mainmenu_active_query_master == 0 ) {
-			MainMenuServers_IssueMasterQuery( m );
-			continue;
-		}
-
-		count = trap_LAN_GetServerCount( m );
-
-		if( count < 0 ) {
-			if( g_mainmenu_master_query_sent[m] &&
-				uis.realtime - g_mainmenu_master_query_time[m] > MAINMENU_MASTER_TIMEOUT_MS ) {
-				g_mainmenu_master_done[m] = qtrue;
-				if( g_mainmenu_active_query_master == m ) {
-					g_mainmenu_active_query_master = 0;
-				}
-			}
-			continue;
-		}
-
-		MainMenuServers_MergeFromMasterIncremental( m );
-
-		if( g_mainmenu_active_query_master == m ) {
-			g_mainmenu_active_query_master = 0;
-		}
-
-		if( count != g_mainmenu_master_last_count[m] ) {
-			g_mainmenu_master_last_count[m] = count;
-			g_mainmenu_master_stable_time[m] = uis.realtime;
-			continue;
-		}
-
-		if( g_mainmenu_master_query_sent[m] &&
-			uis.realtime - g_mainmenu_master_stable_time[m] >= MAINMENU_MASTER_STABLE_MS ) {
-			g_mainmenu_master_done[m] = qtrue;
-		}
+	if( g_mainmenu_masters_done ) {
+		return;
 	}
 
-	if( MainMenuServers_AllMastersFinished() ) {
+	if( !g_mainmenu_master_query_sent &&
+		uis.realtime - g_mainmenu_scan_start_time > MAINMENU_MASTER_BOOT_MS ) {
+		if( !MainMenuServers_AnyMasterDefined() ) {
+			MainMenuServers_BeginPingPhase();
+			return;
+		}
+		MainMenuServers_IssueMasterQuery();
+		return;
+	}
+
+	if( !g_mainmenu_master_query_sent ) {
+		return;
+	}
+
+	count = trap_LAN_GetServerCount( AS_GLOBAL );
+
+	if( count < 0 ) {
+		if( uis.realtime - g_mainmenu_master_query_time > MAINMENU_MASTER_TIMEOUT_MS ) {
+			MainMenuServers_BeginPingPhase();
+		}
+		return;
+	}
+
+	MainMenuServers_MergeFromGlobalIncremental();
+
+	if( count != g_mainmenu_master_last_count ) {
+		g_mainmenu_master_last_count = count;
+		g_mainmenu_master_stable_time = uis.realtime;
+		return;
+	}
+
+	if( uis.realtime - g_mainmenu_master_stable_time >= MAINMENU_MASTER_STABLE_MS ) {
 		MainMenuServers_BeginPingPhase();
 	}
 }
@@ -2111,14 +2116,13 @@ static void MainMenuServers_StartRefresh( void ) {
 
 	memset( g_mainmenu_addresses, 0, sizeof( g_mainmenu_addresses ) );
 	g_mainmenu_numaddresses = 0;
-	g_mainmenu_discovery_addresses = 0;
 	g_mainmenu_last_ping_activity = 0;
-	memset( g_mainmenu_master_last_count, -1, sizeof( g_mainmenu_master_last_count ) );
-	memset( g_mainmenu_master_merged_idx, 0, sizeof( g_mainmenu_master_merged_idx ) );
-	memset( g_mainmenu_master_stable_time, 0, sizeof( g_mainmenu_master_stable_time ) );
-	memset( g_mainmenu_master_query_time, 0, sizeof( g_mainmenu_master_query_time ) );
-	memset( g_mainmenu_master_done, 0, sizeof( g_mainmenu_master_done ) );
-	memset( g_mainmenu_master_query_sent, 0, sizeof( g_mainmenu_master_query_sent ) );
+	g_mainmenu_master_last_count = -1;
+	g_mainmenu_master_merged_idx = 0;
+	g_mainmenu_master_stable_time = 0;
+	g_mainmenu_master_query_time = 0;
+	g_mainmenu_master_query_sent = qfalse;
+	g_mainmenu_masters_done = qfalse;
 	g_mainmenu_cache_written_count = 0;
 
 	for( i = 0; i < MAX_PINGREQUESTS; i++ ) {
@@ -2126,25 +2130,25 @@ static void MainMenuServers_StartRefresh( void ) {
 		trap_LAN_ClearPing( i );
 	}
 
+	g_internet_scan = qtrue;
 	g_arenaservers.refreshservers = qtrue;
 	g_arenaservers.currentping = 0;
 	g_arenaservers.nextpingtime = 0;
 	g_arenaservers.numqueriedservers = 0;
 	g_mainmenu_refresh_phase = MM_REFRESH_MASTERS;
 	g_mainmenu_scan_start_time = uis.realtime;
-	g_mainmenu_active_query_master = 0;
 	g_mainmenu_last_ping_time = 0;
 	g_mainmenu_last_ping_activity = uis.realtime;
 
 	MainMenuServers_AddCachedAddresses();
 
-	ArenaServers_UpdateMainMenuList();
+	if( g_mainmenu_list ) {
+		ArenaServers_UpdateMainMenuList();
+	} else if( g_servertype == UIAS_INTERNET ) {
+		ArenaServers_UpdateMenu();
+	}
 
-	if( !MainMenuServers_IsMasterDefined( UIAS_GLOBAL1 ) &&
-		!MainMenuServers_IsMasterDefined( UIAS_GLOBAL2 ) &&
-		!MainMenuServers_IsMasterDefined( UIAS_GLOBAL3 ) &&
-		!MainMenuServers_IsMasterDefined( UIAS_GLOBAL4 ) &&
-		!MainMenuServers_IsMasterDefined( UIAS_GLOBAL5 ) ) {
+	if( !MainMenuServers_AnyMasterDefined() ) {
 		MainMenuServers_BeginPingPhase();
 	}
 }
@@ -2165,7 +2169,11 @@ static void MainMenuServers_DoRefresh( void ) {
 
 	if( g_mainmenu_refresh_phase == MM_REFRESH_MASTERS ) {
 		MainMenuServers_PollMasters();
-		ArenaServers_UpdateMainMenuList();
+		if( g_mainmenu_list ) {
+			ArenaServers_UpdateMainMenuList();
+		} else if( g_servertype == UIAS_INTERNET ) {
+			ArenaServers_UpdateMenu();
+		}
 		return;
 	}
 
@@ -2233,7 +2241,11 @@ static void MainMenuServers_DoRefresh( void ) {
 	}
 
 	if( uis.realtime - g_mainmenu_last_ping_time < MAINMENU_PING_INTERVAL_MS ) {
-		ArenaServers_UpdateMainMenuList();
+		if( g_mainmenu_list ) {
+			ArenaServers_UpdateMainMenuList();
+		} else if( g_servertype == UIAS_INTERNET ) {
+			ArenaServers_UpdateMenu();
+		}
 		return;
 	}
 
@@ -2265,7 +2277,11 @@ static void MainMenuServers_DoRefresh( void ) {
 		g_mainmenu_last_ping_activity = uis.realtime;
 	}
 
-	ArenaServers_UpdateMainMenuList();
+	if( g_mainmenu_list ) {
+		ArenaServers_UpdateMainMenuList();
+	} else if( g_servertype == UIAS_INTERNET ) {
+		ArenaServers_UpdateMenu();
+	}
 }
 
 /*
@@ -2282,7 +2298,7 @@ static void ArenaServers_DoRefresh( void )
 	char	adrstr[MAX_ADDRESSLENGTH];
 	char	info[MAX_INFO_STRING];
 
-	if( g_mainmenu_list ) {
+	if( g_internet_scan ) {
 		MainMenuServers_DoRefresh();
 		return;
 	}
@@ -2429,9 +2445,16 @@ ArenaServers_StartRefresh
 static void ArenaServers_StartRefresh( void )
 {
 	int		i;
-	char	myargs[32], protocol[32];
 
-	memset( g_arenaservers.serverlist, 0, g_arenaservers.maxservers*sizeof(table_t) );
+	if( g_servertype == UIAS_INTERNET ) {
+		if( g_arenaservers.refreshservers ) {
+			ArenaServers_StopRefresh();
+		}
+		MainMenuServers_StartRefresh();
+		return;
+	}
+
+	memset( g_arenaservers.serverlist, 0, g_arenaservers.maxservers*sizeof(servernode_t) );
 
 	for (i=0; i<MAX_PINGREQUESTS; i++)
 	{
@@ -2439,100 +2462,20 @@ static void ArenaServers_StartRefresh( void )
 		trap_LAN_ClearPing( i );
 	}
 
+	g_internet_scan = qfalse;
 	g_arenaservers.refreshservers    = qtrue;
 	g_arenaservers.currentping       = 0;
 	g_arenaservers.nextpingtime      = 0;
 	*g_arenaservers.numservers       = 0;
 	g_arenaservers.numqueriedservers = 0;
 
-	// allow max 5 seconds for responses
+	/* allow max 5 seconds for responses */
 	g_arenaservers.refreshtime = uis.realtime + 5000;
 
-	// place menu in zeroed state
 	ArenaServers_UpdateMenu();
 
 	if( g_servertype == UIAS_LOCAL ) {
 		trap_Cmd_ExecuteText( EXEC_APPEND, "localservers\n" );
-		return;
-	}
-
-	if( g_servertype >= UIAS_GLOBAL1 && g_servertype <= UIAS_GLOBAL5 ) {
-		switch( g_arenaservers.gametype.curvalue ) {
-		default:
-		case GAMES_ALL:
-			myargs[0] = 0;
-			break;
-
-		case GAMES_FFA:
-			strcpy( myargs, " ffa" );
-			break;
-
-		case GAMES_TEAMPLAY:
-			strcpy( myargs, " team" );
-			break;
-
-		case GAMES_TOURNEY:
-			strcpy( myargs, " tourney" );
-			break;
-
-		case GAMES_CTF:
-			strcpy( myargs, " ctf" );
-			break;
-
-		case GAMES_ELIMINATION:
-			strcpy( myargs, " elimination" );
-			break;
-
-		case GAMES_CTF_ELIMINATION:
-			strcpy( myargs, " ctfelimination" );
-			break;
-
-		case GAMES_LMS:
-			strcpy( myargs, " lms" );
-			break;
-
-#ifdef WITH_DOUBLED_GAMETYPE
-		case GAMES_DOUBLE_D:
-			strcpy( myargs, " dd" );
-			break;
-#endif
-
-#ifdef WITH_DOM_GAMETYPE
-		case GAMES_DOM:
-			strcpy( myargs, " dom" );
-			break;
-#endif
-
-#ifdef WITH_TREASURE_HUNTER_GAMETYPE
-		case GAMES_TH:
-			strcpy( myargs, va(" %d", GT_TREASURE_HUNTER) );
-			break;
-#endif
-
-#ifdef WITH_MULTITOURNAMENT
-		case GAMES_MULTITOURNAMENT:
-			strcpy( myargs, va(" %d", GT_MULTITOURNAMENT) );
-			break;
-#endif
-		}
-
-
-		if (g_emptyservers) {
-			strcat(myargs, " empty");
-		}
-
-		if (g_fullservers) {
-			strcat(myargs, " full");
-		}
-
-		protocol[0] = '\0';
-		trap_Cvar_VariableStringBuffer( "debug_protocol", protocol, sizeof(protocol) );
-		if (strlen(protocol)) {
-			trap_Cmd_ExecuteText( EXEC_APPEND, va( "globalservers %d %s%s\n", g_servertype - 1, protocol, myargs ));
-		}
-		else {
-			trap_Cmd_ExecuteText( EXEC_APPEND, va( "globalservers %d %d%s\n", g_servertype - 1, (int)trap_Cvar_VariableValue( "protocol" ), myargs ) );
-		}
 	}
 }
 
@@ -2576,19 +2519,11 @@ ArenaServers_SetType
 */
 int ArenaServers_SetType( int type )
 {
-	if(type >= UIAS_GLOBAL1 && type <= UIAS_GLOBAL5)
-	{
-		char masterstr[2], cvarname[sizeof("sv_master1")];
-		
-		while(type <= UIAS_GLOBAL5)
-		{
-			Com_sprintf(cvarname, sizeof(cvarname), "sv_master%d", type);
-			trap_Cvar_VariableStringBuffer(cvarname, masterstr, sizeof(masterstr));
-			if(*masterstr)
-				break;
-			
-			type++;
-		}
+	if( type < UIAS_LOCAL ) {
+		type = UIAS_LOCAL;
+	}
+	if( type > UIAS_FAVORITES ) {
+		type = UIAS_FAVORITES;
 	}
 
 	g_servertype = type;
@@ -2602,11 +2537,7 @@ int ArenaServers_SetType( int type )
 		g_arenaservers.maxservers = MAX_LOCALSERVERS;
 		break;
 
-	case UIAS_GLOBAL1:
-	case UIAS_GLOBAL2:
-	case UIAS_GLOBAL3:
-	case UIAS_GLOBAL4:
-	case UIAS_GLOBAL5:
+	case UIAS_INTERNET:
 		g_arenaservers.remove.generic.flags |= (QMF_INACTIVE|QMF_HIDDEN);
 		g_arenaservers.serverlist = g_globalserverlist;
 		g_arenaservers.numservers = &g_numglobalservers;
@@ -2622,13 +2553,25 @@ int ArenaServers_SetType( int type )
 
 	}
 
-	if( !*g_arenaservers.numservers ) {
+	if( type == UIAS_INTERNET ) {
+		if( g_internet_scan ) {
+			ArenaServers_UpdateMenu();
+		} else if( !*g_arenaservers.numservers ) {
+			ArenaServers_StartRefresh();
+		} else {
+			g_arenaservers.currentping       = *g_arenaservers.numservers;
+			g_arenaservers.numqueriedservers = *g_arenaservers.numservers;
+			ArenaServers_UpdateMenu();
+			strcpy( g_arenaservers.status.string, "hit refresh to update" );
+		}
+	} else if( g_internet_scan ) {
+		/* Keep shared internet scan running; don't steal the ping queue. */
+		ArenaServers_UpdateMenu();
+	} else if( !*g_arenaservers.numservers ) {
 		ArenaServers_StartRefresh();
-	}
-	else {
-		// avoid slow operation, use existing results
+	} else {
 		g_arenaservers.currentping       = *g_arenaservers.numservers;
-		g_arenaservers.numqueriedservers = *g_arenaservers.numservers; 
+		g_arenaservers.numqueriedservers = *g_arenaservers.numservers;
 		ArenaServers_UpdateMenu();
 		strcpy(g_arenaservers.status.string,"hit refresh to update");
 	}
@@ -2711,7 +2654,6 @@ static void ArenaServers_Event( void* ptr, int event ) {
 		break;
 
 	case ID_BACK:
-		ArenaServers_StopRefresh();
 		ArenaServers_SaveChanges();
 		UI_PopMenu();
 		break;
@@ -2773,7 +2715,6 @@ static sfxHandle_t ArenaServers_MenuKey( int key ) {
 	}
 
 	if( key == K_MOUSE2 || key == K_ESCAPE ) {
-		ArenaServers_StopRefresh();
 		ArenaServers_SaveChanges();
 	}
         
@@ -2798,11 +2739,41 @@ ArenaServers_MenuInit
 static void ArenaServers_MenuInit( void ) {
 	int			i;
 	int			y;
-	int			value;
 	static char	statusbuffer[MAX_STATUSLENGTH];
+	qboolean	saved_refresh;
+	qboolean	saved_internet;
+	int			saved_currentping;
+	int			saved_nextpingtime;
+	int			saved_numqueried;
+	int			saved_refreshtime;
+	int			saved_phase;
+	pinglist_t	saved_pinglist[MAX_PINGREQUESTS];
 
-	// zero set all our globals
+	/* Preserve in-flight shared internet scan across menu rebuild. */
+	saved_refresh = g_arenaservers.refreshservers;
+	saved_internet = g_internet_scan;
+	saved_currentping = g_arenaservers.currentping;
+	saved_nextpingtime = g_arenaservers.nextpingtime;
+	saved_numqueried = g_arenaservers.numqueriedservers;
+	saved_refreshtime = g_arenaservers.refreshtime;
+	saved_phase = g_mainmenu_refresh_phase;
+	memcpy( saved_pinglist, g_arenaservers.pinglist, sizeof( saved_pinglist ) );
+
+	/* zero set all our globals */
 	memset( &g_arenaservers, 0 ,sizeof(arenaservers_t) );
+
+	if( saved_internet || saved_refresh ) {
+		g_arenaservers.refreshservers = saved_refresh;
+		g_internet_scan = saved_internet;
+		g_arenaservers.currentping = saved_currentping;
+		g_arenaservers.nextpingtime = saved_nextpingtime;
+		g_arenaservers.numqueriedservers = saved_numqueried;
+		g_arenaservers.refreshtime = saved_refreshtime;
+		g_mainmenu_refresh_phase = saved_phase;
+		memcpy( g_arenaservers.pinglist, saved_pinglist, sizeof( saved_pinglist ) );
+	} else {
+		g_internet_scan = qfalse;
+	}
 
 	ArenaServers_Cache();
 
@@ -3058,12 +3029,16 @@ static void ArenaServers_MenuInit( void ) {
 	
 	ArenaServers_LoadFavorites();
 
-	g_servertype = Com_Clamp( 0, 3, ui_browserMaster.integer );
-	// hack to get rid of MPlayer stuff
-	value = g_servertype;
-	if (value >= 1)
-		value--;
-	g_arenaservers.master.curvalue = value;
+	/* Migrate legacy ui_browserMaster values (old 1-5 internet tabs, 6 favorites). */
+	g_servertype = ui_browserMaster.integer;
+	if( g_servertype >= 6 ) {
+		g_servertype = UIAS_FAVORITES;
+	} else if( g_servertype >= 1 ) {
+		g_servertype = UIAS_INTERNET;
+	} else {
+		g_servertype = UIAS_LOCAL;
+	}
+	g_arenaservers.master.curvalue = g_servertype;
 
 	g_gametype = Com_Clamp( 0, 12, ui_browserGameType.integer );
 	g_arenaservers.gametype.curvalue = g_gametype;
@@ -3085,7 +3060,7 @@ static void ArenaServers_MenuInit( void ) {
 
         g_arenaservers.filter.field.buffer[0] = '\0';
 
-	// force to initial state and refresh
+	/* Attach to shared internet results / in-flight scan when possible. */
 	g_arenaservers.master.curvalue = g_servertype = ArenaServers_SetType(g_servertype);
 
 	trap_Cvar_Register(NULL, "debug_protocol", "", 0 );
@@ -3148,20 +3123,18 @@ void UI_MainMenuServers_Begin( menulist_s *list, menubitmap_s *mappic ) {
 	g_onlyhumans = 1;
 	g_hideprivate = 0;
 
-	g_arenaservers.serverlist = g_mainmenu_serverlist;
-	g_arenaservers.numservers = &g_mainmenu_numservers;
+	g_arenaservers.serverlist = g_globalserverlist;
+	g_arenaservers.numservers = &g_numglobalservers;
 	g_arenaservers.maxservers = MAX_GLOBALSERVERS;
 
-	if( g_arenaservers.refreshservers ) {
-		ArenaServers_StopRefresh();
+	if( !g_internet_scan ) {
+		if( g_numglobalservers == 0 ) {
+			MainMenuServers_LoadCache();
+		}
+		MainMenuServers_StartRefresh();
 	}
 
-	memset( g_mainmenu_serverlist, 0, g_arenaservers.maxservers * sizeof( servernode_t ) );
-	g_mainmenu_numservers = 0;
-	MainMenuServers_LoadCache();
 	ArenaServers_UpdateMainMenuList();
-
-	MainMenuServers_StartRefresh();
 }
 
 /*
@@ -3190,13 +3163,9 @@ void UI_MainMenuServers_Resume( menulist_s *list, menubitmap_s *mappic ) {
 	g_onlyhumans = 1;
 	g_hideprivate = 0;
 
-	g_arenaservers.serverlist = g_mainmenu_serverlist;
-	g_arenaservers.numservers = &g_mainmenu_numservers;
+	g_arenaservers.serverlist = g_globalserverlist;
+	g_arenaservers.numservers = &g_numglobalservers;
 	g_arenaservers.maxservers = MAX_GLOBALSERVERS;
-
-	if( g_arenaservers.refreshservers ) {
-		ArenaServers_StopRefresh();
-	}
 
 	ArenaServers_UpdateMainMenuList();
 }
@@ -3219,22 +3188,10 @@ UI_MainMenuServers_End
 =================
 */
 void UI_MainMenuServers_End( void ) {
-	if( g_arenaservers.refreshservers && g_mainmenu_list ) {
-		ArenaServers_StopRefresh();
-	}
-
+	/* Detach main-menu view only; keep the shared internet scan running. */
 	g_mainmenu_list = NULL;
 	g_mainmenu_mappic = NULL;
-	g_mainmenu_refresh_phase = 0;
-	g_mainmenu_scan_start_time = 0;
-	g_mainmenu_active_query_master = 0;
-	g_mainmenu_numaddresses = 0;
-	g_mainmenu_discovery_addresses = 0;
-	g_mainmenu_cache_written_count = 0;
-	g_mainmenu_last_ping_activity = 0;
 	g_mainmenu_server_column_focus = qfalse;
-	memset( g_mainmenu_master_done, 0, sizeof( g_mainmenu_master_done ) );
-	memset( g_mainmenu_master_query_sent, 0, sizeof( g_mainmenu_master_query_sent ) );
 }
 
 /*
@@ -3243,7 +3200,7 @@ UI_MainMenuServers_IsRefreshing
 =================
 */
 qboolean UI_MainMenuServers_IsRefreshing( void ) {
-	return g_arenaservers.refreshservers;
+	return g_internet_scan || g_arenaservers.refreshservers;
 }
 
 /*
