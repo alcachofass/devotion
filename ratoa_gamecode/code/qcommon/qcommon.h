@@ -23,7 +23,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #ifndef _QCOMMON_H_
 #define _QCOMMON_H_
 
+#ifndef Q3_VM
 #include "../qcommon/cm_public.h"
+#endif
 
 //Ignore __attribute__ on non-gcc platforms
 #ifndef __GNUC__
@@ -304,6 +306,7 @@ enum clc_ops_e {
 	clc_voip,   // not wrapped in USE_VOIP, so this value is reserved.
 };
 
+#ifndef Q3_VM
 /*
 ==============================================================
 
@@ -365,6 +368,7 @@ static ID_INLINE float _vmf(intptr_t x)
 }
 #define	VMF(x)	_vmf(args[x])
 
+#endif /* !Q3_VM */
 
 /*
 ==============================================================

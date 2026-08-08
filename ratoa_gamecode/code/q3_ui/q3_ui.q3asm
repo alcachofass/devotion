@@ -8,6 +8,7 @@ ui_cinematics
 ui_connect
 ui_controls2
 ui_demo2
+ui_demo_parse
 ui_mfield
 ui_credits
 ui_menu
@@ -47,5 +48,8 @@ ui_votemenu_map
 ui_votemenu_timelimit
 ..\game\bg_misc
 ..\game\bg_lib
+ui_com_stub
+..\qcommon\msg
+..\qcommon\huffman
 ..\qcommon\q_math
 ..\qcommon\q_shared

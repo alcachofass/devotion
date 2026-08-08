@@ -340,10 +340,60 @@ extern void UI_ControlsMenu( void );
 extern void Controls_Cache( void );
 
 //
-// ui_demo2.c
+// ui_demo2.c / ui_demo_parse.c
 //
+typedef enum {
+	DEMO_PARSE_NONE = 0,
+	DEMO_PARSE_AUTORECORD
+} demoParseType_t;
+
+typedef enum {
+	DEMO_META_NONE = 0,
+	DEMO_META_LOADING,
+	DEMO_META_DONE,
+	DEMO_META_ERROR
+} demoMetaState_t;
+
+typedef struct {
+	char				filename[MAX_OSPATH];
+	char				fsName[MAX_OSPATH];
+	demoParseType_t		parseType;
+	char				date[12];
+	char				time[6];
+	char				server[48];
+	char				gametype[12];
+	char				map[32];
+	char				players[48];
+	int					fileSize;
+	char				label[80];
+	demoMetaState_t		metaState;
+	int					metaDurationMs;
+	char				metaScores[256];
+	char				metaPlayers[256];
+	char				metaPlayerNames[MAX_CLIENTS][MAX_NAME_LENGTH];
+	char				metaPlayerModels[MAX_CLIENTS][MAX_QPATH];
+	int					metaPlayerTeam[MAX_CLIENTS];
+	int					metaPlayerScores[MAX_CLIENTS];
+	int					metaPlayerOrder[MAX_CLIENTS];
+	int					metaNumOrderedPlayers;
+	int					metaFirstServerTime;
+	int					metaLastServerTime;
+	int					metaScore0;
+	int					metaScore1;
+	qboolean			metaHaveScores;
+	int					metaLeftClients[MAX_CLIENTS];
+	int					metaNumLeft;
+	int					metaRightClients[MAX_CLIENTS];
+	int					metaNumRight;
+	qboolean			metaLayoutLocked;
+} demoEntry_t;
+
 extern void UI_DemosMenu( void );
 extern void Demos_Cache( void );
+extern void UI_Demo_ParseStop( void );
+extern void UI_Demo_ParseBegin( demoEntry_t *entry );
+extern void UI_Demo_ParseTick( void );
+
 
 //
 // ui_challenges.c

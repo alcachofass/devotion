@@ -1952,6 +1952,8 @@ Q3UIOBJ_ = \
   $(B)/baseq3/ui/ui_controls2.o \
   $(B)/baseq3/ui/ui_credits.o \
   $(B)/baseq3/ui/ui_demo2.o \
+  $(B)/baseq3/ui/ui_demo_parse.o \
+  $(B)/baseq3/ui/ui_com_stub.o \
   $(B)/baseq3/ui/ui_display.o \
   $(B)/baseq3/ui/ui_firstconnect.o \
   $(B)/baseq3/ui/ui_gameinfo.o \
@@ -1994,7 +1996,9 @@ Q3UIOBJ_ = \
   $(B)/baseq3/ui/ui_votemenu_custom.o \
   \
   $(B)/baseq3/qcommon/q_math.o \
-  $(B)/baseq3/qcommon/q_shared.o
+  $(B)/baseq3/qcommon/q_shared.o \
+  $(B)/baseq3/qcommon/msg.o \
+  $(B)/baseq3/qcommon/huffman.o
 
 Q3UIOBJ = $(Q3UIOBJ_) $(B)/missionpack/ui/ui_syscalls.o
 Q3UIVMOBJ = $(Q3UIOBJ_:%.o=%.asm)

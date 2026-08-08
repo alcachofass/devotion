@@ -63,20 +63,32 @@ Structured view for autorecord/rec filenames; raw file list fallback.
 #define DEMO_LIST_X			120
 #define DEMO_INFO_CARD_Y		76
 #define DEMO_INFO_CARD_W		400
-#define DEMO_INFO_CARD_H		96
-#define DEMO_INFO_LEVELSHOT_W	128
-#define DEMO_INFO_LEVELSHOT_H	96
-#define DEMO_INFO_TEXT_X		( DEMO_LIST_X + DEMO_INFO_LEVELSHOT_W + 12 )
-#define DEMO_HEADER_Y			176
-#define DEMO_LIST_Y_FANCY		194
-#define DEMO_LIST_VISIBLE_FANCY	11
+#define DEMO_INFO_CARD_MAX_H	168
+#define DEMO_INFO_LEVELSHOT_W	96
+#define DEMO_INFO_LEVELSHOT_H	72
+#define DEMO_INFO_COL_LEFT_X	( DEMO_LIST_X + 4 )
+#define DEMO_INFO_COL_RIGHT_X	( DEMO_LIST_X + DEMO_INFO_CARD_W - 4 )
+#define DEMO_INFO_COL_CENTER_X	( DEMO_LIST_X + DEMO_INFO_CARD_W / 2 )
+#define DEMO_PLAYER_ICON_SZ		24
+#define DEMO_PLAYER_ICON_SZ_DUEL	42
+#define DEMO_PLAYER_DUEL_CHAR_W		21
+#define DEMO_PLAYER_DUEL_CHAR_H		21
+#define DEMO_PLAYER_ROW_H		28
+#define DEMO_PLAYER_ROW_H_DUEL		46
+#define DEMO_PLAYER_DUEL_GAP		6
+#define DEMO_PLAYER_DUEL_BLOCK_H	( DEMO_PLAYER_ICON_SZ_DUEL + DEMO_PLAYER_DUEL_GAP + \
+		DEMO_PLAYER_DUEL_CHAR_H + DEMO_PLAYER_DUEL_GAP + DEMO_PLAYER_DUEL_CHAR_H )
+#define DEMO_PARSE_DEBOUNCE_MS		500
+#define DEMO_HEADER_Y			224
+#define DEMO_LIST_Y_FANCY		240
+#define DEMO_LIST_VISIBLE_FANCY	10
 #define DEMO_LIST_WIDTH_FANCY	54
 
 #define DEMO_LIST_Y_ALL			72
 #define DEMO_LIST_VISIBLE_ALL	22
 #define DEMO_LIST_WIDTH_ALL		51
 
-#define DEMO_STATUS_Y			396
+#define DEMO_STATUS_Y			404
 #define DEMO_STATUS_DURATION_MS	3000
 
 #define DEMO_COL_W_DATETIME	16
@@ -94,33 +106,15 @@ Structured view for autorecord/rec filenames; raw file list fallback.
 #define DEMO_ARROWS_BG_W	48
 #define DEMO_ARROWS_BG_H	96
 
-#define DEMO_OPTS_X			400
 #define DEMO_OPTS_DELAG_Y	424
 #define DEMO_OPTS_BBOX_Y	440
+#define DEMO_MENU_CENTER_X	320
 
 static const char *replayView_items[] = {
 	"Fancy",
 	"All",
 	NULL
 };
-
-typedef enum {
-	DEMO_PARSE_NONE = 0,
-	DEMO_PARSE_AUTORECORD
-} demoParseType_t;
-
-typedef struct {
-	char				filename[MAX_OSPATH];
-	demoParseType_t		parseType;
-	char				date[12];
-	char				time[6];
-	char				server[48];
-	char				gametype[12];
-	char				map[32];
-	char				players[48];
-	int					fileSize;
-	char				label[DEMO_LABEL_SIZE];
-} demoEntry_t;
 
 typedef enum {
 	DEMO_SORT_DATETIME = 0,
@@ -167,12 +161,128 @@ typedef struct {
 	int					lastClickTarget;
 	char				statusMessage[MAX_STRING_CHARS];
 	int					statusTime;
+	int					parseDebounceEntryIdx;
+	int					parseDebounceTime;
+	int					lastSelectedEntryIdx;
 } demos_t;
 
 static demos_t	s_demos;
 
-static void Demos_MenuEvent( void *ptr, int event );
+static demoEntry_t *UI_Demo_GetSelectedEntry( void );
+
+static void UI_Demo_FormatDuration( int ms, char *out, int outSize ) {
+	int	sec;
+	int	min;
+
+	if ( ms <= 0 ) {
+		Q_strncpyz( out, "unknown", outSize );
+		return;
+	}
+
+	sec = ms / 1000;
+	min = sec / 60;
+	sec %= 60;
+	Com_sprintf( out, outSize, "%d:%02d", min, sec );
+}
+
+static void UI_Demo_SelectionChanged( void ) {
+	demoEntry_t	*entry;
+	int			idx;
+
+	if ( s_demos.viewMode.curvalue != 0 ) {
+		UI_Demo_ParseStop();
+		s_demos.parseDebounceEntryIdx = -1;
+		return;
+	}
+
+	if ( s_demos.list.curvalue < 0 ||
+			s_demos.list.curvalue >= s_demos.numViewItems ) {
+		UI_Demo_ParseStop();
+		s_demos.parseDebounceEntryIdx = -1;
+		return;
+	}
+
+	idx = s_demos.viewToEntry[s_demos.list.curvalue];
+	if ( idx < 0 ) {
+		UI_Demo_ParseStop();
+		s_demos.parseDebounceEntryIdx = -1;
+		return;
+	}
+
+	entry = &s_demos.entries[idx];
+	UI_Demo_ParseStop();
+	s_demos.parseDebounceEntryIdx = -1;
+
+	if ( entry->metaState == DEMO_META_DONE ) {
+		return;
+	}
+
+	s_demos.parseDebounceEntryIdx = idx;
+	s_demos.parseDebounceTime = uis.realtime + DEMO_PARSE_DEBOUNCE_MS;
+}
+
+static void UI_Demo_ParseDebounceTick( void ) {
+	demoEntry_t	*entry;
+	int			idx;
+
+	if ( s_demos.parseDebounceEntryIdx < 0 ) {
+		return;
+	}
+
+	if ( uis.realtime < s_demos.parseDebounceTime ) {
+		return;
+	}
+
+	idx = s_demos.parseDebounceEntryIdx;
+	s_demos.parseDebounceEntryIdx = -1;
+
+	if ( s_demos.viewMode.curvalue != 0 ) {
+		return;
+	}
+
+	if ( s_demos.list.curvalue < 0 ||
+			s_demos.list.curvalue >= s_demos.numViewItems ) {
+		return;
+	}
+
+	if ( s_demos.viewToEntry[s_demos.list.curvalue] != idx ) {
+		return;
+	}
+
+	entry = &s_demos.entries[idx];
+	if ( entry->metaState == DEMO_META_DONE ) {
+		return;
+	}
+
+	UI_Demo_ParseBegin( entry );
+}
+
+static void UI_Demo_CheckSelectionChanged( void ) {
+	int		idx;
+
+	if ( s_demos.viewMode.curvalue != 0 ) {
+		if ( s_demos.lastSelectedEntryIdx != -1 ) {
+			s_demos.lastSelectedEntryIdx = -1;
+			UI_Demo_SelectionChanged();
+		}
+		return;
+	}
+
+	if ( s_demos.list.curvalue < 0 ||
+			s_demos.list.curvalue >= s_demos.numViewItems ) {
+		idx = -1;
+	} else {
+		idx = s_demos.viewToEntry[s_demos.list.curvalue];
+	}
+
+	if ( idx != s_demos.lastSelectedEntryIdx ) {
+		s_demos.lastSelectedEntryIdx = idx;
+		UI_Demo_SelectionChanged();
+	}
+}
+
 static void UI_Demo_RebuildList( void );
+static void Demos_MenuEvent( void *ptr, int event );
 static int UI_Demo_CompareParsed( const demoEntry_t *a, const demoEntry_t *b );
 
 static const char *demoGametypeSlugs[] = {
@@ -712,7 +822,7 @@ static qboolean UI_Demo_MapIsAvailable( const char *map ) {
 	return UI_Demo_MapLevelshotExists( map );
 }
 
-static void UI_Demo_DrawLevelshot( int x, int y, const char *mapname ) {
+static void UI_Demo_DrawLevelshot( int x, int y, int w, int h, const char *mapname ) {
 	qhandle_t	shader;
 
 	if ( !mapname || !mapname[0] ) {
@@ -732,7 +842,545 @@ static void UI_Demo_DrawLevelshot( int x, int y, const char *mapname ) {
 		shader = s_demos.unknownMapShader;
 	}
 
-	UI_DrawHandlePic( x, y, DEMO_INFO_LEVELSHOT_W, DEMO_INFO_LEVELSHOT_H, shader );
+	UI_DrawHandlePic( x, y, w, h, shader );
+}
+
+static int UI_Demo_VisibleStrLen( const char *str ) {
+	int		len;
+
+	len = 0;
+	if ( !str ) {
+		return 0;
+	}
+
+	while ( *str ) {
+		if ( Q_IsColorString( str ) ) {
+			str += 2;
+			continue;
+		}
+		len++;
+		str++;
+	}
+
+	return len;
+}
+
+static void UI_Demo_DrawStringCentered( int centerX, int y, const char *str,
+		qboolean smallFont, vec4_t color ) {
+	int		charw;
+	int		style;
+	int		x;
+
+	if ( !str || !str[0] ) {
+		return;
+	}
+
+	if ( smallFont ) {
+		charw = SMALLCHAR_WIDTH;
+		style = UI_LEFT | UI_SMALLFONT;
+	} else {
+		charw = BIGCHAR_WIDTH;
+		style = UI_LEFT;
+	}
+
+	x = centerX - ( UI_Demo_VisibleStrLen( str ) * charw ) / 2;
+	UI_DrawString( x, y, str, style, color );
+}
+
+static void UI_Demo_DrawStringCenteredSized( int centerX, int y, const char *str,
+		int charw, int charh, vec4_t color ) {
+	int		x;
+
+	if ( !str || !str[0] ) {
+		return;
+	}
+
+	x = centerX - ( UI_Demo_VisibleStrLen( str ) * charw ) / 2;
+	UI_DrawStringSized( x, y, str, UI_LEFT, color, charw, charh );
+}
+
+static int UI_Demo_CenteredRadioX( const char *label ) {
+	return DEMO_MENU_CENTER_X +
+			strlen( label ) * ( SMALLCHAR_WIDTH / 2 ) -
+			( SMALLCHAR_WIDTH + 16 + 3 * SMALLCHAR_WIDTH ) / 2;
+}
+
+static qboolean UI_Demo_IsTeamGametype( int gametype ) {
+	if ( gametype < GT_TEAM ) {
+		return qfalse;
+	}
+#ifdef WITH_MULTITOURNAMENT
+	if ( gametype == GT_MULTITOURNAMENT ) {
+		return qfalse;
+	}
+#endif
+	if ( gametype == GT_LMS ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+static qhandle_t UI_Demo_GetPlayerIcon( demoEntry_t *entry, int clientNum ) {
+	char		model[MAX_QPATH];
+	char		*skin;
+	char		iconName[MAX_QPATH];
+	qhandle_t	shader;
+
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ||
+			!entry->metaPlayerModels[clientNum][0] ) {
+		return trap_R_RegisterShaderNoMip( "models/players/sarge/icon_default.tga" );
+	}
+
+	Q_strncpyz( model, entry->metaPlayerModels[clientNum], sizeof( model ) );
+	skin = strchr( model, '/' );
+	if ( skin ) {
+		*skin++ = '\0';
+	} else {
+		skin = "default";
+	}
+
+	Com_sprintf( iconName, sizeof( iconName ),
+			"models/players/%s/icon_%s.tga", model, skin );
+	shader = trap_R_RegisterShaderNoMip( iconName );
+	if ( !shader ) {
+		Com_sprintf( iconName, sizeof( iconName ),
+				"models/players/%s/icon_default.tga", model );
+		shader = trap_R_RegisterShaderNoMip( iconName );
+	}
+	if ( !shader ) {
+		shader = trap_R_RegisterShaderNoMip( "models/players/sarge/icon_default.tga" );
+	}
+
+	return shader;
+}
+
+static void UI_Demo_DrawFightDuelPlayer( int centerX, int y, qhandle_t icon,
+		const char *name, int score, int iconSz ) {
+	char	scoreLine[16];
+	int		rowY;
+
+	rowY = y;
+	UI_DrawHandlePic( centerX - iconSz / 2, rowY, iconSz, iconSz, icon );
+	rowY += iconSz + DEMO_PLAYER_DUEL_GAP;
+	UI_Demo_DrawStringCenteredSized( centerX, rowY, name,
+			DEMO_PLAYER_DUEL_CHAR_W, DEMO_PLAYER_DUEL_CHAR_H, menu_text_color );
+	rowY += DEMO_PLAYER_DUEL_CHAR_H + DEMO_PLAYER_DUEL_GAP;
+	Com_sprintf( scoreLine, sizeof( scoreLine ), "%d", score );
+	UI_Demo_DrawStringCenteredSized( centerX, rowY, scoreLine,
+			DEMO_PLAYER_DUEL_CHAR_W, DEMO_PLAYER_DUEL_CHAR_H, text_color_normal );
+}
+
+static void UI_Demo_DrawFightPlayerRow( int edgeX, int y, qboolean rightAlign,
+		qhandle_t icon, const char *name, int score, int iconSz, qboolean largeText ) {
+	char		scorePart[16];
+	int			gap;
+	int			nameLen;
+	int			charW;
+	int			xIcon;
+	int			xText;
+	int			style;
+
+	if ( !name || !name[0] ) {
+		return;
+	}
+
+	gap = largeText ? 6 : 4;
+	charW = largeText ? BIGCHAR_WIDTH : SMALLCHAR_WIDTH;
+	style = largeText ? UI_LEFT : ( UI_LEFT | UI_SMALLFONT );
+	nameLen = UI_Demo_VisibleStrLen( name );
+	Com_sprintf( scorePart, sizeof( scorePart ), "(%d)", score );
+
+	if ( rightAlign ) {
+		xText = edgeX - ( nameLen + strlen( scorePart ) ) * charW;
+		xIcon = xText - gap - iconSz;
+		UI_DrawHandlePic( xIcon, y, iconSz, iconSz, icon );
+		UI_DrawString( xText, y, name, style, menu_text_color );
+		UI_DrawString( xText + nameLen * charW, y, scorePart,
+				largeText ? UI_LEFT : ( UI_LEFT | UI_SMALLFONT ), text_color_normal );
+	} else {
+		xIcon = edgeX;
+		xText = xIcon + iconSz + gap;
+		UI_DrawHandlePic( xIcon, y, iconSz, iconSz, icon );
+		UI_DrawString( xText, y, name, style, menu_text_color );
+		UI_DrawString( xText + nameLen * charW, y, scorePart,
+				largeText ? UI_LEFT : ( UI_LEFT | UI_SMALLFONT ), text_color_normal );
+	}
+}
+
+static void UI_Demo_DrawFightTeamScore( int edgeX, int y, qboolean rightAlign,
+		int score, vec4_t color, qboolean largeText ) {
+	char	line[16];
+	int		style;
+
+	Com_sprintf( line, sizeof( line ), "%d", score );
+	style = largeText ? ( rightAlign ? UI_RIGHT : UI_LEFT )
+			: ( ( rightAlign ? UI_RIGHT : UI_LEFT ) | UI_SMALLFONT );
+	if ( rightAlign ) {
+		UI_DrawString( edgeX, y, line, style, color );
+	} else {
+		UI_DrawString( edgeX, y, line, style, color );
+	}
+}
+
+typedef struct {
+	int			clientNum;
+	const char	*name;
+} demoFightSlot_t;
+
+static char	s_demoFightFallbackNames[2][MAX_NAME_LENGTH];
+
+static qboolean UI_Demo_IsDuelGametype( int gametype, const char *slug );
+
+static void UI_Demo_BuildFightColumnsProvisional( demoEntry_t *entry, int gametype,
+		demoFightSlot_t *leftSlots, int *leftCount,
+		demoFightSlot_t *rightSlots, int *rightCount ) {
+	int		c;
+	int		duelCount;
+
+	*leftCount = 0;
+	*rightCount = 0;
+
+	if ( UI_Demo_IsTeamGametype( gametype ) ) {
+		for ( c = 0; c < MAX_CLIENTS; c++ ) {
+			if ( !entry->metaPlayerNames[c][0] ) {
+				continue;
+			}
+			if ( entry->metaPlayerTeam[c] == TEAM_SPECTATOR ) {
+				continue;
+			}
+			if ( entry->metaPlayerTeam[c] == TEAM_RED ) {
+				leftSlots[*leftCount].clientNum = c;
+				leftSlots[*leftCount].name = entry->metaPlayerNames[c];
+				(*leftCount)++;
+			} else if ( entry->metaPlayerTeam[c] == TEAM_BLUE ) {
+				rightSlots[*rightCount].clientNum = c;
+				rightSlots[*rightCount].name = entry->metaPlayerNames[c];
+				(*rightCount)++;
+			}
+		}
+		return;
+	}
+
+	if ( UI_Demo_IsDuelGametype( gametype, entry->gametype ) ) {
+		duelCount = 0;
+		for ( c = 0; c < MAX_CLIENTS; c++ ) {
+			if ( !entry->metaPlayerNames[c][0] ) {
+				continue;
+			}
+			if ( entry->metaPlayerTeam[c] == TEAM_SPECTATOR ) {
+				continue;
+			}
+			if ( duelCount == 0 ) {
+				leftSlots[0].clientNum = c;
+				leftSlots[0].name = entry->metaPlayerNames[c];
+				*leftCount = 1;
+			} else if ( duelCount == 1 ) {
+				rightSlots[0].clientNum = c;
+				rightSlots[0].name = entry->metaPlayerNames[c];
+				*rightCount = 1;
+			} else {
+				break;
+			}
+			duelCount++;
+		}
+		return;
+	}
+
+	for ( c = 0; c < MAX_CLIENTS; c++ ) {
+		if ( !entry->metaPlayerNames[c][0] ) {
+			continue;
+		}
+		if ( entry->metaPlayerTeam[c] == TEAM_SPECTATOR ) {
+			continue;
+		}
+		if ( *leftCount <= *rightCount ) {
+			leftSlots[*leftCount].clientNum = c;
+			leftSlots[*leftCount].name = entry->metaPlayerNames[c];
+			(*leftCount)++;
+		} else {
+			rightSlots[*rightCount].clientNum = c;
+			rightSlots[*rightCount].name = entry->metaPlayerNames[c];
+			(*rightCount)++;
+		}
+	}
+}
+
+static qboolean UI_Demo_EntryHasParsedNames( demoEntry_t *entry ) {
+	int		c;
+
+	for ( c = 0; c < MAX_CLIENTS; c++ ) {
+		if ( entry->metaPlayerNames[c][0] ) {
+			return qtrue;
+		}
+	}
+
+	return qfalse;
+}
+
+static void UI_Demo_BuildFightColumns( demoEntry_t *entry, int gametype,
+		demoFightSlot_t *leftSlots, int *leftCount,
+		demoFightSlot_t *rightSlots, int *rightCount,
+		qboolean *showTeamScores, int *leftTeamScore, int *rightTeamScore ) {
+	int		i;
+	int		c;
+	char	source[MAX_STRING_CHARS];
+	char	*vs;
+
+	*leftCount = 0;
+	*rightCount = 0;
+	*showTeamScores = qfalse;
+	*leftTeamScore = 0;
+	*rightTeamScore = 0;
+
+	if ( entry->metaLayoutLocked ) {
+		*showTeamScores = UI_Demo_IsTeamGametype( gametype ) && entry->metaHaveScores;
+		*leftTeamScore = entry->metaScore0;
+		*rightTeamScore = entry->metaScore1;
+
+		for ( i = 0; i < entry->metaNumLeft; i++ ) {
+			c = entry->metaLeftClients[i];
+			if ( c < 0 || c >= MAX_CLIENTS || !entry->metaPlayerNames[c][0] ) {
+				continue;
+			}
+			leftSlots[*leftCount].clientNum = c;
+			leftSlots[*leftCount].name = entry->metaPlayerNames[c];
+			(*leftCount)++;
+		}
+
+		for ( i = 0; i < entry->metaNumRight; i++ ) {
+			c = entry->metaRightClients[i];
+			if ( c < 0 || c >= MAX_CLIENTS || !entry->metaPlayerNames[c][0] ) {
+				continue;
+			}
+			rightSlots[*rightCount].clientNum = c;
+			rightSlots[*rightCount].name = entry->metaPlayerNames[c];
+			(*rightCount)++;
+		}
+		return;
+	}
+
+	if ( UI_Demo_EntryHasParsedNames( entry ) ) {
+		UI_Demo_BuildFightColumnsProvisional( entry, gametype,
+				leftSlots, leftCount, rightSlots, rightCount );
+		return;
+	}
+
+	/* Filename fallback before demo scan has read any player configstrings */
+	if ( UI_Demo_IsDuelGametype( gametype, entry->gametype ) ) {
+		if ( entry->metaPlayers[0] ) {
+			Q_strncpyz( source, entry->metaPlayers, sizeof( source ) );
+		} else if ( entry->players[0] ) {
+			Q_strncpyz( source, entry->players, sizeof( source ) );
+		} else {
+			return;
+		}
+
+		vs = strstr( source, " vs " );
+		if ( vs ) {
+			*vs = '\0';
+			Q_strncpyz( s_demoFightFallbackNames[0], source,
+					sizeof( s_demoFightFallbackNames[0] ) );
+			Q_strncpyz( s_demoFightFallbackNames[1], vs + 4,
+					sizeof( s_demoFightFallbackNames[1] ) );
+			leftSlots[0].clientNum = -1;
+			leftSlots[0].name = s_demoFightFallbackNames[0];
+			rightSlots[0].clientNum = -1;
+			rightSlots[0].name = s_demoFightFallbackNames[1];
+			*leftCount = 1;
+			*rightCount = 1;
+		}
+	}
+}
+
+static int UI_Demo_GetFightPlayerScore( demoEntry_t *entry, int clientNum ) {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return 0;
+	}
+
+	return entry->metaPlayerScores[clientNum];
+}
+
+static void UI_Demo_DrawFightColumn( demoEntry_t *entry, int edgeX, int colCenterX,
+		int y, qboolean rightAlign, const demoFightSlot_t *slots, int count,
+		qboolean showTeamScore, int teamScore, vec4_t teamColor,
+		int iconSz, int rowH, qboolean duelStacked ) {
+	int		i;
+	int		rowY;
+	qhandle_t	icon;
+	int		score;
+
+	rowY = y;
+	if ( showTeamScore ) {
+		if ( duelStacked ) {
+			UI_DrawString( colCenterX, rowY, va( "%d", teamScore ),
+					UI_CENTER, teamColor );
+		} else {
+			UI_Demo_DrawFightTeamScore( edgeX, rowY, rightAlign, teamScore,
+					teamColor, qfalse );
+		}
+		rowY += rowH;
+	}
+
+	for ( i = 0; i < count; i++ ) {
+		if ( slots[i].clientNum >= 0 ) {
+			icon = UI_Demo_GetPlayerIcon( entry, slots[i].clientNum );
+			score = UI_Demo_GetFightPlayerScore( entry, slots[i].clientNum );
+		} else {
+			icon = trap_R_RegisterShaderNoMip( "models/players/sarge/icon_default.tga" );
+			score = 0;
+		}
+
+		if ( duelStacked ) {
+			UI_Demo_DrawFightDuelPlayer( colCenterX, rowY, icon,
+					slots[i].name, score, iconSz );
+			rowY += DEMO_PLAYER_DUEL_BLOCK_H;
+		} else {
+			UI_Demo_DrawFightPlayerRow( edgeX, rowY, rightAlign, icon,
+					slots[i].name, score, iconSz, qfalse );
+			rowY += rowH;
+		}
+	}
+}
+
+static qboolean UI_Demo_IsDuelGametype( int gametype, const char *slug ) {
+	if ( gametype == GT_TOURNAMENT ) {
+		return qtrue;
+	}
+#ifdef WITH_MULTITOURNAMENT
+	if ( gametype == GT_MULTITOURNAMENT ) {
+		return qtrue;
+	}
+#endif
+	if ( slug && !Q_stricmp( slug, "1v1" ) ) {
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+static void UI_Demo_DrawFightNightCard( demoEntry_t *entry ) {
+	char		mapLong[MAX_QPATH];
+	char		line[MAX_STRING_CHARS];
+	demoFightSlot_t	leftSlots[MAX_CLIENTS];
+	demoFightSlot_t	rightSlots[MAX_CLIENTS];
+	int			leftCount;
+	int			rightCount;
+	qboolean	showTeamScores;
+	int			leftTeamScore;
+	int			rightTeamScore;
+	int			gametype;
+	const char	*colorPrefix;
+	int			cardX;
+	int			cardY;
+	int			cardH;
+	int			centerY;
+	int			sideY;
+	int			leftRows;
+	int			rightRows;
+	int			centerH;
+	int			sideH;
+	int			levelshotX;
+	int			levelshotY;
+	int			blockH;
+	int			blockTop;
+	qboolean	isDuel;
+	int			iconSz;
+	int			rowH;
+	int			leftCenterX;
+	int			rightCenterX;
+
+	gametype = UI_Demo_SlugToGametype( entry->gametype );
+	isDuel = UI_Demo_IsDuelGametype( gametype, entry->gametype );
+	iconSz = isDuel ? DEMO_PLAYER_ICON_SZ_DUEL : DEMO_PLAYER_ICON_SZ;
+	rowH = isDuel ? DEMO_PLAYER_ROW_H_DUEL : DEMO_PLAYER_ROW_H;
+	leftCenterX = ( DEMO_INFO_COL_LEFT_X +
+			DEMO_INFO_COL_CENTER_X - DEMO_INFO_LEVELSHOT_W / 2 ) / 2;
+	rightCenterX = ( DEMO_INFO_COL_CENTER_X + DEMO_INFO_LEVELSHOT_W / 2 +
+			DEMO_INFO_COL_RIGHT_X ) / 2;
+
+	UI_Demo_BuildFightColumns( entry, gametype, leftSlots, &leftCount,
+			rightSlots, &rightCount, &showTeamScores,
+			&leftTeamScore, &rightTeamScore );
+
+	if ( isDuel ) {
+		sideH = 0;
+		if ( leftCount > 0 || rightCount > 0 ) {
+			sideH = DEMO_PLAYER_DUEL_BLOCK_H;
+		}
+		if ( showTeamScores ) {
+			sideH += rowH;
+		}
+	} else {
+		leftRows = leftCount + ( showTeamScores ? 1 : 0 );
+		rightRows = rightCount + ( showTeamScores ? 1 : 0 );
+		sideH = ( leftRows > rightRows ? leftRows : rightRows ) * rowH;
+	}
+
+	centerH = SMALLCHAR_HEIGHT + 4 + DEMO_INFO_LEVELSHOT_H + 4 +
+			SMALLCHAR_HEIGHT + SMALLCHAR_HEIGHT;
+
+	cardH = sideH > centerH ? sideH : centerH;
+	cardH += 12;
+	if ( cardH > DEMO_INFO_CARD_MAX_H ) {
+		cardH = DEMO_INFO_CARD_MAX_H;
+	}
+
+	blockH = sideH > centerH ? sideH : centerH;
+	blockTop = DEMO_INFO_CARD_Y + ( cardH - blockH ) / 2;
+
+	cardX = DEMO_LIST_X - 4;
+	cardY = DEMO_INFO_CARD_Y - 4;
+	UI_FillRect( cardX, cardY, DEMO_INFO_CARD_W, cardH + 8, listbar_color );
+	UI_DrawRect( cardX, cardY, DEMO_INFO_CARD_W, cardH + 8, color_white );
+
+	centerY = blockTop + ( blockH - centerH ) / 2;
+	colorPrefix = ( gametype >= 0 )
+			? UI_Demo_GametypeColor( gametype ) : S_COLOR_WHITE;
+	Com_sprintf( line, sizeof( line ), "%s%s",
+			colorPrefix, UI_Demo_ExpandedGametype( entry->gametype ) );
+	UI_Demo_DrawStringCentered( DEMO_INFO_COL_CENTER_X, centerY, line,
+			qtrue, menu_text_color );
+	centerY += SMALLCHAR_HEIGHT + 4;
+
+	levelshotX = DEMO_INFO_COL_CENTER_X - DEMO_INFO_LEVELSHOT_W / 2;
+	levelshotY = centerY;
+	UI_Demo_DrawLevelshot( levelshotX, levelshotY,
+			DEMO_INFO_LEVELSHOT_W, DEMO_INFO_LEVELSHOT_H, entry->map );
+	centerY += DEMO_INFO_LEVELSHOT_H + 4;
+
+	mapLong[0] = '\0';
+	UI_Demo_GetMapLongName( entry->map, mapLong, sizeof( mapLong ) );
+	if ( mapLong[0] ) {
+		UI_DrawString( DEMO_INFO_COL_CENTER_X, centerY, mapLong,
+				UI_CENTER | UI_SMALLFONT, menu_text_color );
+	} else {
+		Q_strncpyz( line, entry->map, sizeof( line ) );
+		Q_strupr( line );
+		UI_DrawString( DEMO_INFO_COL_CENTER_X, centerY, line,
+				UI_CENTER | UI_SMALLFONT, menu_text_color );
+	}
+	centerY += SMALLCHAR_HEIGHT;
+
+	if ( entry->metaState == DEMO_META_DONE && entry->metaDurationMs > 0 ) {
+		UI_Demo_FormatDuration( entry->metaDurationMs, line, sizeof( line ) );
+		UI_Demo_DrawStringCentered( DEMO_INFO_COL_CENTER_X, centerY, line,
+				qtrue, text_color_normal );
+	} else if ( entry->metaState == DEMO_META_DONE ) {
+		UI_Demo_DrawStringCentered( DEMO_INFO_COL_CENTER_X, centerY, "unknown",
+				qtrue, text_color_normal );
+	} else {
+		UI_Demo_DrawStringCentered( DEMO_INFO_COL_CENTER_X, centerY,
+				"scanning...", qtrue, text_color_normal );
+	}
+
+	sideY = blockTop + ( blockH - sideH ) / 2;
+	UI_Demo_DrawFightColumn( entry, DEMO_INFO_COL_LEFT_X, leftCenterX, sideY,
+			qfalse, leftSlots, leftCount, showTeamScores, leftTeamScore,
+			color_red, iconSz, rowH, isDuel );
+	UI_Demo_DrawFightColumn( entry, DEMO_INFO_COL_RIGHT_X, rightCenterX, sideY,
+			qtrue, rightSlots, rightCount, showTeamScores, rightTeamScore,
+			color_blue, iconSz, rowH, isDuel );
 }
 
 static void UI_Demo_FormatFileSize( int bytes, char *out, int outSize ) {
@@ -839,8 +1487,6 @@ static int UI_Demo_ListMouseRow( void ) {
 
 static void UI_Demo_DrawInfoCard( void ) {
 	demoEntry_t	*entry;
-	char		mapLong[MAX_QPATH];
-	char		line[MAX_STRING_CHARS];
 	char		sizeText[32];
 	int			x;
 	int			y;
@@ -854,66 +1500,24 @@ static void UI_Demo_DrawInfoCard( void ) {
 		return;
 	}
 
+	if ( entry->parseType == DEMO_PARSE_AUTORECORD ) {
+		UI_Demo_DrawFightNightCard( entry );
+		return;
+	}
+
 	x = DEMO_LIST_X - 4;
 	y = DEMO_INFO_CARD_Y - 4;
-	UI_FillRect( x, y, DEMO_INFO_CARD_W, DEMO_INFO_CARD_H + 8, listbar_color );
-	UI_DrawRect( x, y, DEMO_INFO_CARD_W, DEMO_INFO_CARD_H + 8, color_white );
+	UI_FillRect( x, y, DEMO_INFO_CARD_W, DEMO_INFO_CARD_MAX_H + 8, listbar_color );
+	UI_DrawRect( x, y, DEMO_INFO_CARD_W, DEMO_INFO_CARD_MAX_H + 8, color_white );
 
-	if ( entry->parseType == DEMO_PARSE_AUTORECORD ) {
-		UI_Demo_DrawLevelshot( DEMO_LIST_X, DEMO_INFO_CARD_Y, entry->map );
+	x = DEMO_INFO_COL_LEFT_X;
+	y = DEMO_INFO_CARD_Y;
 
-		x = DEMO_INFO_TEXT_X;
-		y = DEMO_INFO_CARD_Y;
+	UI_Demo_DrawCardRow( x, y, "File: ", entry->filename );
+	y += SMALLCHAR_HEIGHT;
 
-		Com_sprintf( line, sizeof( line ), "%s %s", entry->date, entry->time );
-		UI_Demo_DrawCardRow( x, y, "Date/Time: ", line );
-		y += SMALLCHAR_HEIGHT;
-
-		{
-			int			gametype;
-			const char	*colorPrefix;
-			int			labelWidth;
-
-			gametype = UI_Demo_SlugToGametype( entry->gametype );
-			colorPrefix = ( gametype >= 0 )
-					? UI_Demo_GametypeColor( gametype ) : S_COLOR_WHITE;
-			Com_sprintf( line, sizeof( line ), "%s%s",
-					colorPrefix, UI_Demo_ExpandedGametype( entry->gametype ) );
-			UI_DrawString( x, y, "Gametype: ", UI_LEFT | UI_SMALLFONT, text_color_normal );
-			labelWidth = strlen( "Gametype: " ) * SMALLCHAR_WIDTH;
-			UI_DrawString( x + labelWidth, y, line, UI_LEFT | UI_SMALLFONT, menu_text_color );
-		}
-		y += SMALLCHAR_HEIGHT;
-
-		if ( entry->server[0] ) {
-			UI_Demo_DrawCardRow( x, y, "Server: ", entry->server );
-			y += SMALLCHAR_HEIGHT;
-		}
-
-		mapLong[0] = '\0';
-		UI_Demo_GetMapLongName( entry->map, mapLong, sizeof( mapLong ) );
-		if ( mapLong[0] ) {
-			UI_Demo_DrawCardRow( x, y, "Map: ", mapLong );
-		} else {
-			Q_strncpyz( line, entry->map, sizeof( line ) );
-			Q_strupr( line );
-			UI_Demo_DrawCardRow( x, y, "Map: ", line );
-		}
-		y += SMALLCHAR_HEIGHT;
-
-		if ( entry->players[0] ) {
-			UI_Demo_DrawCardRow( x, y, "Players: ", entry->players );
-		}
-	} else {
-		x = DEMO_INFO_TEXT_X;
-		y = DEMO_INFO_CARD_Y;
-
-		UI_Demo_DrawCardRow( x, y, "File: ", entry->filename );
-		y += SMALLCHAR_HEIGHT;
-
-		UI_Demo_FormatFileSize( entry->fileSize, sizeText, sizeof( sizeText ) );
-		UI_Demo_DrawCardRow( x, y, "Size: ", sizeText );
-	}
+	UI_Demo_FormatFileSize( entry->fileSize, sizeText, sizeof( sizeText ) );
+	UI_Demo_DrawCardRow( x, y, "Size: ", sizeText );
 }
 
 static void UI_Demo_StripExtension( char *name ) {
@@ -986,6 +1590,7 @@ static void UI_Demo_LoadAll( void ) {
 		entry = &s_demos.entries[s_demos.numAll];
 		memset( entry, 0, sizeof( *entry ) );
 
+		Q_strncpyz( entry->fsName, demoname, sizeof( entry->fsName ) );
 		UI_Demo_LoadFileSize( demoname, entry );
 
 		Q_strncpyz( stripped, demoname, sizeof( stripped ) );
@@ -1101,6 +1706,7 @@ static void UI_Demo_RebuildList( void ) {
 	UI_Demo_UpdateSortHeaders();
 	UI_Demo_UpdateReplayOptions();
 	UI_MouseEvent( 0, 0 );
+	UI_Demo_SelectionChanged();
 }
 
 /*
@@ -1109,6 +1715,11 @@ Demos_MenuEvent
 ===============
 */
 static void Demos_MenuEvent( void *ptr, int event ) {
+	if ( event == QM_GOTFOCUS && ((menucommon_s*)ptr)->id == ID_LIST ) {
+		UI_Demo_SelectionChanged();
+		return;
+	}
+
 	if ( event != QM_ACTIVATED ) {
 		return;
 	}
@@ -1118,9 +1729,13 @@ static void Demos_MenuEvent( void *ptr, int event ) {
 		UI_Demo_PlaySelected();
 		break;
 	case ID_BACK:
+		s_demos.parseDebounceEntryIdx = -1;
+		UI_Demo_ParseStop();
 		UI_PopMenu();
 		break;
 	case ID_VIEW:
+		s_demos.parseDebounceEntryIdx = -1;
+		UI_Demo_ParseStop();
 		UI_Demo_RebuildList();
 		break;
 	case ID_SORT_DATETIME:
@@ -1161,7 +1776,7 @@ static sfxHandle_t UI_DemosMenu_Key( int key ) {
 	if ( key == K_MOUSE1 && s_demos.playable ) {
 		if ( s_demos.viewMode.curvalue == 0 &&
 				UI_CursorInRect( DEMO_LIST_X - 4, DEMO_INFO_CARD_Y - 4,
-				DEMO_INFO_CARD_W, DEMO_INFO_CARD_H + 8 ) ) {
+				DEMO_INFO_CARD_W, DEMO_INFO_CARD_MAX_H + 8 ) ) {
 			if ( UI_Demo_IsDoubleClick( DEMO_CLICK_CARD ) ) {
 				UI_Demo_PlaySelected();
 			}
@@ -1204,6 +1819,9 @@ static void UI_Demo_DrawStatus( void ) {
 }
 
 static void Demos_Draw( void ) {
+	UI_Demo_CheckSelectionChanged();
+	UI_Demo_ParseDebounceTick();
+	UI_Demo_ParseTick();
 	Menu_Draw( &s_demos.menu );
 	UI_Demo_DrawInfoCard();
 	UI_Demo_DrawStatus();
@@ -1245,13 +1863,15 @@ static void Demos_MenuInit( void ) {
 	s_demos.viewMode.generic.flags		= QMF_PULSEIFFOCUS | QMF_SMALLFONT;
 	s_demos.viewMode.generic.callback	= Demos_MenuEvent;
 	s_demos.viewMode.generic.id			= ID_VIEW;
-	s_demos.viewMode.generic.x			= 500;
-	s_demos.viewMode.generic.y			= 48;
+	s_demos.viewMode.generic.x			= DEMO_MENU_CENTER_X;
+	s_demos.viewMode.generic.y			= 52;
 	s_demos.viewMode.itemnames			= replayView_items;
 	s_demos.viewMode.curvalue			= 0;
 
 	s_demos.sortColumn = DEMO_SORT_DATETIME;
 	s_demos.sortDescending = qtrue;
+	s_demos.lastSelectedEntryIdx = -1;
+	s_demos.parseDebounceEntryIdx = -1;
 	UI_Demo_InitSortHeaders();
 
 	s_demos.arrows.generic.type		= MTYPE_BITMAP;
@@ -1308,7 +1928,8 @@ static void Demos_MenuInit( void ) {
 	s_demos.replayDelag.generic.flags		= QMF_PULSEIFFOCUS | QMF_SMALLFONT;
 	s_demos.replayDelag.generic.callback	= Demos_MenuEvent;
 	s_demos.replayDelag.generic.id			= ID_REPLAY_DELAG;
-	s_demos.replayDelag.generic.x			= DEMO_OPTS_X;
+	s_demos.replayDelag.generic.x			=
+			UI_Demo_CenteredRadioX( s_demos.replayDelag.generic.name );
 	s_demos.replayDelag.generic.y			= DEMO_OPTS_DELAG_Y;
 
 	s_demos.drawBBox.generic.type		= MTYPE_RADIOBUTTON;
@@ -1316,7 +1937,8 @@ static void Demos_MenuInit( void ) {
 	s_demos.drawBBox.generic.flags		= QMF_PULSEIFFOCUS | QMF_SMALLFONT;
 	s_demos.drawBBox.generic.callback	= Demos_MenuEvent;
 	s_demos.drawBBox.generic.id			= ID_DRAW_BBOX;
-	s_demos.drawBBox.generic.x			= DEMO_OPTS_X;
+	s_demos.drawBBox.generic.x			=
+			UI_Demo_CenteredRadioX( s_demos.drawBBox.generic.name );
 	s_demos.drawBBox.generic.y			= DEMO_OPTS_BBOX_Y;
 
 	s_demos.list.generic.type		= MTYPE_SCROLLLIST;
