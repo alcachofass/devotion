@@ -27,6 +27,8 @@ cd windows\build\q3_ui
 %cc%  ../../../code/q3_ui/ui_controls2.c
 %cc%  ../../../code/q3_ui/ui_credits.c
 %cc%  ../../../code/q3_ui/ui_demo2.c
+%cc%  ../../../code/q3_ui/ui_demo_parse.c
+%cc%  ../../../code/q3_ui/ui_com_stub.c
 %cc%  ../../../code/q3_ui/ui_display.c
 %cc%  ../../../code/q3_ui/ui_firstconnect.c
 %cc%  ../../../code/q3_ui/ui_gameinfo.c
@@ -80,6 +82,8 @@ copy  ..\..\..\code\ui\ui_syscalls.asm ..
 
 %cc%  ../../../code/qcommon/q_math.c
 %cc%  ../../../code/qcommon/q_shared.c
+%cc%  ../../../code/qcommon/msg.c
+%cc%  ../../../code/qcommon/huffman.c
 
 q3asm -f ../q3_ui
 

@@ -8,6 +8,7 @@ ui_connect
 ui_controls2
 ui_challenges
 ui_demo2
+ui_demo_parse
 ui_mfield
 ui_credits
 ui_menu
@@ -49,5 +50,8 @@ ui_votemenu_map
 ui_votemenu_timelimit
 bg_misc
 bg_lib
+ui_com_stub
+msg
+huffman
 q_math
 q_shared
