@@ -32,6 +32,7 @@ USER INTERFACE MAIN
 //#define PRE_RELEASE_TADEMO
 
 #include "ui_local.h"
+#include "../game/bg_cvar_desc.h"
 
 uiInfo_t uiInfo;
 
@@ -5932,6 +5933,10 @@ void UI_RegisterCvars( void ) {
 	for ( i = 0, cv = cvarTable ; i < cvarTableSize ; i++, cv++ ) {
 		trap_Cvar_Register( cv->vmCvar, cv->cvarName, cv->defaultString, cv->cvarFlags );
 	}
+
+	// Push Quake3e cvar descriptions at menu load (before cgame/game init).
+	BG_RegisterCgameCvarDescriptions();
+	BG_RegisterGameCvarDescriptions();
 }
 
 /*

@@ -30,6 +30,7 @@ USER INTERFACE MAIN
 
 
 #include "ui_local.h"
+#include "../game/bg_cvar_desc.h"
 
 #define MASTER_SERVER_NAME "dpmaster.deathmask.net"
 
@@ -132,6 +133,11 @@ void UI_RegisterCvars( void ) {
 	for ( i = 0, cv = cvarTable ; i < cvarTableSize ; i++, cv++ ) {
 		trap_Cvar_Register( cv->vmCvar, cv->cvarName, cv->defaultString, cv->cvarFlags );
 	}
+
+	// Push Quake3e cvar descriptions at menu load (before cgame/game init).
+	// Existing cvars only — SetDescription no-ops if the cvar is missing.
+	BG_RegisterCgameCvarDescriptions();
+	BG_RegisterGameCvarDescriptions();
 }
 
 /*

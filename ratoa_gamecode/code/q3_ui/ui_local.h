@@ -736,6 +736,8 @@ void			trap_Cvar_SetValue( const char *var_name, float value );
 void			trap_Cvar_Reset( const char *name );
 void			trap_Cvar_Create( const char *var_name, const char *var_value, int flags );
 void			trap_Cvar_InfoStringBuffer( int bit, char *buffer, int bufsize );
+qboolean		trap_GetValue( char *value, int valueSize, const char *key );
+void			trap_Cvar_SetDescription( const char *cvarName, const char *description );
 int				trap_Argc( void );
 void			trap_Argv( int n, char *buffer, int bufferLength );
 void			trap_Cmd_ExecuteText( int exec_when, const char *text );	// don't use EXEC_NOW!

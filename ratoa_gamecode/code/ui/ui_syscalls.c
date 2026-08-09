@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 //
 #include "ui_local.h"
+#include "../game/bg_trap_ext.h"
 
 // this file is only included when building a dll
 // syscalls.asm is included instead when building a qvm
@@ -398,4 +399,20 @@ qboolean trap_VerifyCDKey( const char *key, const char *chksum) {
 
 void trap_SetPbClStatus( int status ) {
 	syscall( UI_SET_PBCLSTATUS, status );
+}
+
+qboolean trap_GetValue( char *value, int valueSize, const char *key ) {
+	int trap = BG_TrapExt_GetValueTrap();
+
+	if ( trap <= 0 ) {
+		return qfalse;
+	}
+
+	return (qboolean)syscall( trap, value, valueSize, key );
+}
+
+void trap_Cvar_SetDescription( const char *cvarName, const char *description ) {
+	if ( BG_TrapExt_CvarSetDescriptionSupported() ) {
+		syscall( BG_TrapExt_CvarSetDescriptionTrap(), cvarName, description );
+	}
 }
