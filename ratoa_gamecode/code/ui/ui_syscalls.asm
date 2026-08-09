@@ -99,3 +99,6 @@ equ	sqrt						-107
 equ floor						-108
 equ	ceil						-109
 
+equ trap_GetValue					-701
+equ trap_Cvar_SetDescription_Q3E		-112
+

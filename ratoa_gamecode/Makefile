@@ -1942,6 +1942,8 @@ Q3UIOBJ_ = \
   $(B)/baseq3/ui/ui_main.o \
   $(B)/baseq3/ui/bg_misc.o \
   $(B)/baseq3/ui/bg_lib.o \
+  $(B)/baseq3/ui/bg_cvar_desc.o \
+  $(B)/baseq3/ui/bg_trap_ext.o \
   $(B)/baseq3/ui/ui_addbots.o \
   $(B)/baseq3/ui/ui_atoms.o \
   $(B)/baseq3/ui/ui_cdkey.o \
@@ -2024,6 +2026,8 @@ MPUIOBJ_ = \
   \
   $(B)/missionpack/ui/bg_misc.o \
   $(B)/missionpack/ui/bg_lib.o \
+  $(B)/missionpack/ui/bg_cvar_desc.o \
+  $(B)/missionpack/ui/bg_trap_ext.o \
   \
   $(B)/missionpack/qcommon/q_math.o \
   $(B)/missionpack/qcommon/q_shared.o
