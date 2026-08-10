@@ -677,6 +677,10 @@ extern void			UI_DrawProportionalString_AutoWrapped( int x, int ystart, int xmax
 extern int			UI_ProportionalStringWidth( const char* str );
 extern void			UI_DrawString( int x, int y, const char* str, int style, vec4_t color );
 extern void			UI_DrawStringSized( int x, int y, const char* str, int style, vec4_t color, int charw, int charh );
+extern void			UI_DrawStringFitted( int x, int y, const char *str, int style, vec4_t color,
+					int maxWidth, int preferredCharW, int preferredCharH, int minCharW, int minCharH );
+extern int			UI_FitStringCharWidth( const char *str, int maxWidth, int preferredCharW, int minCharW );
+extern int			UI_FittedStringPixelWidth( const char *str, int maxWidth, int preferredCharW, int minCharW );
 extern void			UI_DrawChar( int x, int y, int ch, int style, vec4_t color );
 extern qboolean 	UI_CursorInRect (int x, int y, int width, int height);
 extern void			UI_AdjustFrom640( float *x, float *y, float *w, float *h );

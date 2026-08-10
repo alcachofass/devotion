@@ -820,6 +820,266 @@ void UI_DrawStringSized( int x, int y, const char* str, int style, vec4_t color,
 
 /*
 =================
+UI_FitStringCharWidth
+
+Pick a monospace char width so str fits in maxWidth pixels.
+Uses Q_PrintStrlen so color codes do not inflate the measured width.
+=================
+*/
+int UI_FitStringCharWidth( const char *str, int maxWidth, int preferredCharW, int minCharW ) {
+	int		visible;
+	int		charw;
+
+	if ( preferredCharW < 1 ) {
+		preferredCharW = SMALLCHAR_WIDTH;
+	}
+	if ( minCharW < 1 ) {
+		minCharW = 1;
+	}
+	if ( minCharW > preferredCharW ) {
+		minCharW = preferredCharW;
+	}
+	if ( maxWidth < 1 ) {
+		return minCharW;
+	}
+
+	visible = Q_PrintStrlen( str );
+	if ( visible < 1 ) {
+		return preferredCharW;
+	}
+
+	charw = preferredCharW;
+	if ( visible * charw > maxWidth ) {
+		charw = maxWidth / visible;
+		if ( charw < minCharW ) {
+			charw = minCharW;
+		}
+	}
+
+	return charw;
+}
+
+/*
+=================
+UI_TruncatePrintString
+
+Copy at most maxVisible printable characters from src into dst, preserving
+color codes. Appends a white "..." when truncated.
+=================
+*/
+static void UI_TruncatePrintString( char *dst, int dstSize, const char *src, int maxVisible ) {
+	const char	*s;
+	char		*d;
+	char		*end;
+	int			visible;
+	qboolean	truncated;
+
+	if ( !dst || dstSize < 1 ) {
+		return;
+	}
+	dst[0] = '\0';
+	if ( !src || maxVisible < 1 ) {
+		return;
+	}
+
+	/* Leave room for "^7...\0" */
+	if ( dstSize < 5 ) {
+		Q_strncpyz( dst, "...", dstSize );
+		return;
+	}
+
+	s = src;
+	d = dst;
+	end = dst + dstSize - 5;
+	visible = 0;
+	truncated = qfalse;
+
+	while ( *s && d < end ) {
+		if ( Q_IsColorString( s ) ) {
+			if ( d + 2 > end ) {
+				break;
+			}
+			*d++ = *s++;
+			*d++ = *s++;
+			continue;
+		}
+		if ( visible >= maxVisible ) {
+			truncated = qtrue;
+			break;
+		}
+		*d++ = *s++;
+		visible++;
+	}
+
+	*d = '\0';
+	if ( truncated || *s ) {
+		Q_strcat( dst, dstSize, S_COLOR_WHITE "..." );
+	}
+}
+
+/*
+=================
+UI_DrawStringFitted
+
+Draw monospace bitmap text scaled to fit within maxWidth.
+Measured width uses Q_PrintStrlen (color codes ignored). Glyph aspect follows
+preferredCharW/H. If still too wide at minCharW, truncates with "...".
+style supports UI_LEFT / UI_CENTER / UI_RIGHT plus dropshadow/pulse/blink.
+=================
+*/
+void UI_DrawStringFitted( int x, int y, const char *str, int style, vec4_t color,
+		int maxWidth, int preferredCharW, int preferredCharH, int minCharW, int minCharH ) {
+	char		truncated[MAX_STRING_CHARS];
+	const char	*drawStr;
+	int			visible;
+	int			charw;
+	int			charh;
+	int			drawW;
+
+	if ( !str || !str[0] ) {
+		return;
+	}
+
+	if ( preferredCharW < 1 ) {
+		preferredCharW = SMALLCHAR_WIDTH;
+	}
+	if ( preferredCharH < 1 ) {
+		preferredCharH = preferredCharW;
+	}
+	if ( minCharW < 1 ) {
+		minCharW = 1;
+	}
+	if ( minCharH < 1 ) {
+		minCharH = minCharW;
+	}
+	if ( minCharW > preferredCharW ) {
+		minCharW = preferredCharW;
+	}
+	if ( minCharH > preferredCharH ) {
+		minCharH = preferredCharH;
+	}
+	if ( maxWidth < 1 ) {
+		maxWidth = preferredCharW;
+	}
+
+	visible = Q_PrintStrlen( str );
+	if ( visible < 1 ) {
+		return;
+	}
+
+	charw = UI_FitStringCharWidth( str, maxWidth, preferredCharW, minCharW );
+	charh = preferredCharH * charw / preferredCharW;
+	if ( charh < minCharH ) {
+		charh = minCharH;
+	}
+	if ( charh > preferredCharH ) {
+		charh = preferredCharH;
+	}
+
+	drawStr = str;
+	if ( visible * charw > maxWidth ) {
+		int		maxVisible;
+
+		maxVisible = maxWidth / charw;
+		if ( maxVisible < 1 ) {
+			maxVisible = 1;
+		}
+		/* Reserve room for "..." when truncating */
+		if ( maxVisible > 3 ) {
+			maxVisible -= 3;
+		}
+		UI_TruncatePrintString( truncated, sizeof( truncated ), str, maxVisible );
+		drawStr = truncated;
+		visible = Q_PrintStrlen( drawStr );
+		if ( visible < 1 ) {
+			return;
+		}
+		charw = UI_FitStringCharWidth( drawStr, maxWidth, charw, minCharW );
+		charh = preferredCharH * charw / preferredCharW;
+		if ( charh < minCharH ) {
+			charh = minCharH;
+		}
+		if ( charh > preferredCharH ) {
+			charh = preferredCharH;
+		}
+	}
+
+	drawW = visible * charw;
+	switch ( style & UI_FORMATMASK ) {
+	case UI_CENTER:
+		x = x - drawW / 2;
+		break;
+	case UI_RIGHT:
+		x = x - drawW;
+		break;
+	default:
+		break;
+	}
+
+	style &= ~UI_FORMATMASK;
+	UI_DrawStringSized( x, y, drawStr, style | UI_LEFT, color, charw, charh );
+}
+
+/*
+=================
+UI_FittedStringPixelWidth
+
+Pixel width UI_DrawStringFitted will occupy for str at the given budget.
+=================
+*/
+int UI_FittedStringPixelWidth( const char *str, int maxWidth, int preferredCharW, int minCharW ) {
+	char		truncated[MAX_STRING_CHARS];
+	const char	*drawStr;
+	int			visible;
+	int			charw;
+
+	if ( !str || !str[0] ) {
+		return 0;
+	}
+	if ( preferredCharW < 1 ) {
+		preferredCharW = SMALLCHAR_WIDTH;
+	}
+	if ( minCharW < 1 ) {
+		minCharW = 1;
+	}
+	if ( minCharW > preferredCharW ) {
+		minCharW = preferredCharW;
+	}
+	if ( maxWidth < 1 ) {
+		maxWidth = preferredCharW;
+	}
+
+	visible = Q_PrintStrlen( str );
+	if ( visible < 1 ) {
+		return 0;
+	}
+
+	charw = UI_FitStringCharWidth( str, maxWidth, preferredCharW, minCharW );
+	drawStr = str;
+	if ( visible * charw > maxWidth ) {
+		int		maxVisible;
+
+		maxVisible = maxWidth / charw;
+		if ( maxVisible < 1 ) {
+			maxVisible = 1;
+		}
+		if ( maxVisible > 3 ) {
+			maxVisible -= 3;
+		}
+		UI_TruncatePrintString( truncated, sizeof( truncated ), str, maxVisible );
+		drawStr = truncated;
+		visible = Q_PrintStrlen( drawStr );
+		if ( visible < 1 ) {
+			return 0;
+		}
+		charw = UI_FitStringCharWidth( drawStr, maxWidth, charw, minCharW );
+	}
+
+	return visible * charw;
+}
+
+/*
+=================
 UI_DrawChar
 =================
 */

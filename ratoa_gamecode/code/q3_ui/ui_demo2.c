@@ -845,60 +845,6 @@ static void UI_Demo_DrawLevelshot( int x, int y, int w, int h, const char *mapna
 	UI_DrawHandlePic( x, y, w, h, shader );
 }
 
-static int UI_Demo_VisibleStrLen( const char *str ) {
-	int		len;
-
-	len = 0;
-	if ( !str ) {
-		return 0;
-	}
-
-	while ( *str ) {
-		if ( Q_IsColorString( str ) ) {
-			str += 2;
-			continue;
-		}
-		len++;
-		str++;
-	}
-
-	return len;
-}
-
-static void UI_Demo_DrawStringCentered( int centerX, int y, const char *str,
-		qboolean smallFont, vec4_t color ) {
-	int		charw;
-	int		style;
-	int		x;
-
-	if ( !str || !str[0] ) {
-		return;
-	}
-
-	if ( smallFont ) {
-		charw = SMALLCHAR_WIDTH;
-		style = UI_LEFT | UI_SMALLFONT;
-	} else {
-		charw = BIGCHAR_WIDTH;
-		style = UI_LEFT;
-	}
-
-	x = centerX - ( UI_Demo_VisibleStrLen( str ) * charw ) / 2;
-	UI_DrawString( x, y, str, style, color );
-}
-
-static void UI_Demo_DrawStringCenteredSized( int centerX, int y, const char *str,
-		int charw, int charh, vec4_t color ) {
-	int		x;
-
-	if ( !str || !str[0] ) {
-		return;
-	}
-
-	x = centerX - ( UI_Demo_VisibleStrLen( str ) * charw ) / 2;
-	UI_DrawStringSized( x, y, str, UI_LEFT, color, charw, charh );
-}
-
 static int UI_Demo_CenteredRadioX( const char *label ) {
 	return DEMO_MENU_CENTER_X +
 			strlen( label ) * ( SMALLCHAR_WIDTH / 2 ) -
@@ -955,30 +901,62 @@ static qhandle_t UI_Demo_GetPlayerIcon( demoEntry_t *entry, int clientNum ) {
 	return shader;
 }
 
+static void UI_Demo_DrawStringCentered( int centerX, int y, const char *str,
+		qboolean smallFont, vec4_t color ) {
+	int		charw;
+	int		charh;
+	int		style;
+
+	if ( !str || !str[0] ) {
+		return;
+	}
+
+	if ( smallFont ) {
+		charw = SMALLCHAR_WIDTH;
+		charh = SMALLCHAR_HEIGHT;
+		style = UI_CENTER | UI_SMALLFONT;
+	} else {
+		charw = BIGCHAR_WIDTH;
+		charh = BIGCHAR_HEIGHT;
+		style = UI_CENTER;
+	}
+
+	UI_DrawStringFitted( centerX, y, str, style, color,
+			DEMO_INFO_CARD_W - 16, charw, charh,
+			SUPERTINYCHAR_WIDTH, SUPERTINYCHAR_HEIGHT );
+}
+
 static void UI_Demo_DrawFightDuelPlayer( int centerX, int y, qhandle_t icon,
-		const char *name, int score, int iconSz ) {
+		const char *name, int score, int iconSz, int nameMaxWidth ) {
 	char	scoreLine[16];
 	int		rowY;
 
 	rowY = y;
 	UI_DrawHandlePic( centerX - iconSz / 2, rowY, iconSz, iconSz, icon );
 	rowY += iconSz + DEMO_PLAYER_DUEL_GAP;
-	UI_Demo_DrawStringCenteredSized( centerX, rowY, name,
-			DEMO_PLAYER_DUEL_CHAR_W, DEMO_PLAYER_DUEL_CHAR_H, menu_text_color );
+	UI_DrawStringFitted( centerX, rowY, name, UI_CENTER, menu_text_color,
+			nameMaxWidth, DEMO_PLAYER_DUEL_CHAR_W, DEMO_PLAYER_DUEL_CHAR_H,
+			SUPERTINYCHAR_WIDTH, SUPERTINYCHAR_HEIGHT );
 	rowY += DEMO_PLAYER_DUEL_CHAR_H + DEMO_PLAYER_DUEL_GAP;
 	Com_sprintf( scoreLine, sizeof( scoreLine ), "%d", score );
-	UI_Demo_DrawStringCenteredSized( centerX, rowY, scoreLine,
-			DEMO_PLAYER_DUEL_CHAR_W, DEMO_PLAYER_DUEL_CHAR_H, text_color_normal );
+	UI_DrawStringFitted( centerX, rowY, scoreLine, UI_CENTER, text_color_normal,
+			nameMaxWidth, DEMO_PLAYER_DUEL_CHAR_W, DEMO_PLAYER_DUEL_CHAR_H,
+			SUPERTINYCHAR_WIDTH, SUPERTINYCHAR_HEIGHT );
 }
 
 static void UI_Demo_DrawFightPlayerRow( int edgeX, int y, qboolean rightAlign,
-		qhandle_t icon, const char *name, int score, int iconSz, qboolean largeText ) {
+		qhandle_t icon, const char *name, int score, int iconSz, qboolean largeText,
+		int colMaxWidth ) {
 	char		scorePart[16];
 	int			gap;
-	int			nameLen;
 	int			charW;
+	int			charH;
+	int			scoreW;
+	int			nameMaxW;
+	int			nameW;
 	int			xIcon;
 	int			xText;
+	int			xScore;
 	int			style;
 
 	if ( !name || !name[0] ) {
@@ -987,24 +965,34 @@ static void UI_Demo_DrawFightPlayerRow( int edgeX, int y, qboolean rightAlign,
 
 	gap = largeText ? 6 : 4;
 	charW = largeText ? BIGCHAR_WIDTH : SMALLCHAR_WIDTH;
+	charH = largeText ? BIGCHAR_HEIGHT : SMALLCHAR_HEIGHT;
 	style = largeText ? UI_LEFT : ( UI_LEFT | UI_SMALLFONT );
-	nameLen = UI_Demo_VisibleStrLen( name );
 	Com_sprintf( scorePart, sizeof( scorePart ), "(%d)", score );
+	scoreW = Q_PrintStrlen( scorePart ) * charW;
+
+	nameMaxW = colMaxWidth - iconSz - gap - scoreW;
+	if ( nameMaxW < SUPERTINYCHAR_WIDTH ) {
+		nameMaxW = SUPERTINYCHAR_WIDTH;
+	}
+
+	nameW = UI_FittedStringPixelWidth( name, nameMaxW, charW, SUPERTINYCHAR_WIDTH );
 
 	if ( rightAlign ) {
-		xText = edgeX - ( nameLen + strlen( scorePart ) ) * charW;
-		xIcon = xText - gap - iconSz;
+		xScore = edgeX - scoreW;
+		xText = xScore;
+		xIcon = xText - nameW - gap - iconSz;
 		UI_DrawHandlePic( xIcon, y, iconSz, iconSz, icon );
-		UI_DrawString( xText, y, name, style, menu_text_color );
-		UI_DrawString( xText + nameLen * charW, y, scorePart,
-				largeText ? UI_LEFT : ( UI_LEFT | UI_SMALLFONT ), text_color_normal );
+		UI_DrawStringFitted( xText, y, name, UI_RIGHT, menu_text_color,
+				nameMaxW, charW, charH, SUPERTINYCHAR_WIDTH, SUPERTINYCHAR_HEIGHT );
+		UI_DrawString( xScore, y, scorePart, style, text_color_normal );
 	} else {
 		xIcon = edgeX;
 		xText = xIcon + iconSz + gap;
+		xScore = xText + nameW;
 		UI_DrawHandlePic( xIcon, y, iconSz, iconSz, icon );
-		UI_DrawString( xText, y, name, style, menu_text_color );
-		UI_DrawString( xText + nameLen * charW, y, scorePart,
-				largeText ? UI_LEFT : ( UI_LEFT | UI_SMALLFONT ), text_color_normal );
+		UI_DrawStringFitted( xText, y, name, style, menu_text_color,
+				nameMaxW, charW, charH, SUPERTINYCHAR_WIDTH, SUPERTINYCHAR_HEIGHT );
+		UI_DrawString( xScore, y, scorePart, style, text_color_normal );
 	}
 }
 
@@ -1204,7 +1192,7 @@ static int UI_Demo_GetFightPlayerScore( demoEntry_t *entry, int clientNum ) {
 static void UI_Demo_DrawFightColumn( demoEntry_t *entry, int edgeX, int colCenterX,
 		int y, qboolean rightAlign, const demoFightSlot_t *slots, int count,
 		qboolean showTeamScore, int teamScore, vec4_t teamColor,
-		int iconSz, int rowH, qboolean duelStacked ) {
+		int iconSz, int rowH, qboolean duelStacked, int colMaxWidth ) {
 	int		i;
 	int		rowY;
 	qhandle_t	icon;
@@ -1213,8 +1201,10 @@ static void UI_Demo_DrawFightColumn( demoEntry_t *entry, int edgeX, int colCente
 	rowY = y;
 	if ( showTeamScore ) {
 		if ( duelStacked ) {
-			UI_DrawString( colCenterX, rowY, va( "%d", teamScore ),
-					UI_CENTER, teamColor );
+			UI_DrawStringFitted( colCenterX, rowY, va( "%d", teamScore ),
+					UI_CENTER, teamColor, colMaxWidth,
+					BIGCHAR_WIDTH, BIGCHAR_HEIGHT,
+					SUPERTINYCHAR_WIDTH, SUPERTINYCHAR_HEIGHT );
 		} else {
 			UI_Demo_DrawFightTeamScore( edgeX, rowY, rightAlign, teamScore,
 					teamColor, qfalse );
@@ -1233,11 +1223,11 @@ static void UI_Demo_DrawFightColumn( demoEntry_t *entry, int edgeX, int colCente
 
 		if ( duelStacked ) {
 			UI_Demo_DrawFightDuelPlayer( colCenterX, rowY, icon,
-					slots[i].name, score, iconSz );
+					slots[i].name, score, iconSz, colMaxWidth );
 			rowY += DEMO_PLAYER_DUEL_BLOCK_H;
 		} else {
 			UI_Demo_DrawFightPlayerRow( edgeX, rowY, rightAlign, icon,
-					slots[i].name, score, iconSz, qfalse );
+					slots[i].name, score, iconSz, qfalse, colMaxWidth );
 			rowY += rowH;
 		}
 	}
@@ -1289,6 +1279,9 @@ static void UI_Demo_DrawFightNightCard( demoEntry_t *entry ) {
 	int			rowH;
 	int			leftCenterX;
 	int			rightCenterX;
+	int			sideColMaxW;
+	int			mapMaxW;
+	const char	*mapTitle;
 
 	gametype = UI_Demo_SlugToGametype( entry->gametype );
 	isDuel = UI_Demo_IsDuelGametype( gametype, entry->gametype );
@@ -1298,6 +1291,12 @@ static void UI_Demo_DrawFightNightCard( demoEntry_t *entry ) {
 			DEMO_INFO_COL_CENTER_X - DEMO_INFO_LEVELSHOT_W / 2 ) / 2;
 	rightCenterX = ( DEMO_INFO_COL_CENTER_X + DEMO_INFO_LEVELSHOT_W / 2 +
 			DEMO_INFO_COL_RIGHT_X ) / 2;
+	sideColMaxW = ( DEMO_INFO_COL_CENTER_X - DEMO_INFO_LEVELSHOT_W / 2 ) -
+			DEMO_INFO_COL_LEFT_X - 4;
+	if ( sideColMaxW < SUPERTINYCHAR_WIDTH ) {
+		sideColMaxW = SUPERTINYCHAR_WIDTH;
+	}
+	mapMaxW = DEMO_INFO_CARD_W - 24;
 
 	UI_Demo_BuildFightColumns( entry, gametype, leftSlots, &leftCount,
 			rightSlots, &rightCount, &showTeamScores,
@@ -1352,14 +1351,16 @@ static void UI_Demo_DrawFightNightCard( demoEntry_t *entry ) {
 	mapLong[0] = '\0';
 	UI_Demo_GetMapLongName( entry->map, mapLong, sizeof( mapLong ) );
 	if ( mapLong[0] ) {
-		UI_DrawString( DEMO_INFO_COL_CENTER_X, centerY, mapLong,
-				UI_CENTER | UI_SMALLFONT, menu_text_color );
+		mapTitle = mapLong;
 	} else {
 		Q_strncpyz( line, entry->map, sizeof( line ) );
 		Q_strupr( line );
-		UI_DrawString( DEMO_INFO_COL_CENTER_X, centerY, line,
-				UI_CENTER | UI_SMALLFONT, menu_text_color );
+		mapTitle = line;
 	}
+	UI_DrawStringFitted( DEMO_INFO_COL_CENTER_X, centerY, mapTitle,
+			UI_CENTER | UI_SMALLFONT, menu_text_color, mapMaxW,
+			SMALLCHAR_WIDTH, SMALLCHAR_HEIGHT,
+			SUPERTINYCHAR_WIDTH, SUPERTINYCHAR_HEIGHT );
 	centerY += SMALLCHAR_HEIGHT;
 
 	if ( entry->metaState == DEMO_META_DONE && entry->metaDurationMs > 0 ) {
@@ -1377,10 +1378,10 @@ static void UI_Demo_DrawFightNightCard( demoEntry_t *entry ) {
 	sideY = blockTop + ( blockH - sideH ) / 2;
 	UI_Demo_DrawFightColumn( entry, DEMO_INFO_COL_LEFT_X, leftCenterX, sideY,
 			qfalse, leftSlots, leftCount, showTeamScores, leftTeamScore,
-			color_red, iconSz, rowH, isDuel );
+			color_red, iconSz, rowH, isDuel, sideColMaxW );
 	UI_Demo_DrawFightColumn( entry, DEMO_INFO_COL_RIGHT_X, rightCenterX, sideY,
 			qtrue, rightSlots, rightCount, showTeamScores, rightTeamScore,
-			color_blue, iconSz, rowH, isDuel );
+			color_blue, iconSz, rowH, isDuel, sideColMaxW );
 }
 
 static void UI_Demo_FormatFileSize( int bytes, char *out, int outSize ) {
@@ -1400,10 +1401,17 @@ static void UI_Demo_FormatFileSize( int bytes, char *out, int outSize ) {
 
 static void UI_Demo_DrawCardRow( int x, int y, const char *label, const char *value ) {
 	int	labelWidth;
+	int	valueMaxW;
 
 	UI_DrawString( x, y, label, UI_LEFT | UI_SMALLFONT, text_color_normal );
-	labelWidth = strlen( label ) * SMALLCHAR_WIDTH;
-	UI_DrawString( x + labelWidth, y, value, UI_LEFT | UI_SMALLFONT, menu_text_color );
+	labelWidth = Q_PrintStrlen( label ) * SMALLCHAR_WIDTH;
+	valueMaxW = DEMO_INFO_COL_RIGHT_X - ( x + labelWidth );
+	if ( valueMaxW < SUPERTINYCHAR_WIDTH ) {
+		valueMaxW = SUPERTINYCHAR_WIDTH;
+	}
+	UI_DrawStringFitted( x + labelWidth, y, value, UI_LEFT | UI_SMALLFONT, menu_text_color,
+			valueMaxW, SMALLCHAR_WIDTH, SMALLCHAR_HEIGHT,
+			SUPERTINYCHAR_WIDTH, SUPERTINYCHAR_HEIGHT );
 }
 
 static void UI_Demo_ShowMapMissing( const char *map ) {
