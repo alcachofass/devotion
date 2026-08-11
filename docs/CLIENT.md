@@ -29,3 +29,13 @@ hud 0                            // Legacy RatMod HUD
 hud 1                            // Futuristic HUD
 hud 2                            // Quake 3 HUD (default)
 ```
+
+### SuperHUD (CPMA-style configs)
+
+Opt-in scripted HUD. Place `.cfg` files in `devotion/hud/` and select with `ch_file` (no `.cfg` suffix). When active, SuperHUD replaces overlapping legacy status/FPS/timer/chat widgets. See [SUPERHUD.md](SUPERHUD.md).
+
+```
+seta ch_file "devotion_default"
+reloadHUD
+sh_dumpHud                       // debug loaded elements
+```

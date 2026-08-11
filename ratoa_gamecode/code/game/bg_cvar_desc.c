@@ -656,6 +656,8 @@ static const cvarDesc_t cgameCvarDescriptions[] = {
 	{ "cg_zoomToggle", "When `1`, the zoom key toggles zoom on and off instead of needing to be held." },
 	{ "cg_zoomfov", "Field of view while zoomed." },
 	{ "cg_zoomfovTmp", "Temporary storage of your FOV before zooming; restored on zoom-out. Leave alone." },
+	{ "ch_file", "SuperHUD config basename under `hud/` (without `.cfg`). Empty disables SuperHUD. See [SUPERHUD.md](SUPERHUD.md)." },
+	{ "ch_hiddenElements", "Space-separated SuperHUD element names to hide (`hud_hide` / `hud_show` update this)." },
 	{ "cl_paused", "Read-only: `1` while the game is paused." },
 	{ "cl_timeNudge", "Milliseconds to shift incoming snapshots for smoother playback, at the cost of added delay." },
 	{ "com_blood", "When `1`, shows blood and gore effects." },

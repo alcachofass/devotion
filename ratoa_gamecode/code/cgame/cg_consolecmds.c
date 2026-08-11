@@ -1442,6 +1442,10 @@ static consoleCommand_t	commands[] = {
         { "hud", CG_HUD_f },
         { "rules", CG_Rules_f },
 		{ "pro", CG_PRO_f},
+		{ "reloadHUD", CG_ReloadHUD_f },
+		{ "hud_hide", CG_HudHide_f },
+		{ "hud_show", CG_HudShow_f },
+		{ "sh_dumpHud", CG_SH_Dump_f },
 //        { "ratversion", CG_RatVersion_f }
 };
 

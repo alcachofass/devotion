@@ -1717,6 +1717,7 @@ Q3CGOBJ_ = \
   $(B)/baseq3/cgame/cg_servercmds.o \
   $(B)/baseq3/cgame/cg_snapshot.o \
   $(B)/baseq3/cgame/cg_demo_history.o \
+  $(B)/baseq3/cgame/cg_superhud.o \
   $(B)/baseq3/cgame/cg_unlagged.o \
   $(B)/baseq3/cgame/cg_view.o \
   $(B)/baseq3/cgame/cg_weapons.o \
@@ -1765,6 +1766,7 @@ MPCGOBJ_ = \
   $(B)/missionpack/cgame/cg_servercmds.o \
   $(B)/missionpack/cgame/cg_snapshot.o \
   $(B)/missionpack/cgame/cg_demo_history.o \
+  $(B)/missionpack/cgame/cg_superhud.o \
   $(B)/missionpack/cgame/cg_unlagged.o \
   $(B)/missionpack/cgame/cg_view.o \
   $(B)/missionpack/cgame/cg_weapons.o \

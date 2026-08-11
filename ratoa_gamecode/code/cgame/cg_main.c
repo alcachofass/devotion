@@ -2656,6 +2656,8 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	CG_LoadHudMenu();      // load new hud stuff
 #endif
 
+	CG_SH_Init();
+
 	cg.loading = qfalse;	// future players will be deferred
 
 	CG_InitPMissilles();

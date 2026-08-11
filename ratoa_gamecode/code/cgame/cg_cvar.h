@@ -173,6 +173,8 @@ CG_CVAR( cg_altScoreboard, "cg_altScoreboard", "1", CVAR_ARCHIVE )
 CG_CVAR( cg_altScoreboardAccuracy, "cg_altScoreboardAccuracy", "1", CVAR_ARCHIVE )
 CG_CVAR( cg_altStatusbar, "cg_altStatusbar", "0", CVAR_ARCHIVE )
 CG_CVAR( cg_altStatusbarOldNumbers, "cg_altStatusbarOldNumbers", "0", CVAR_ARCHIVE )
+CG_CVAR( ch_file, "ch_file", "", CVAR_ARCHIVE )
+CG_CVAR( ch_hiddenElements, "ch_hiddenElements", "", CVAR_ARCHIVE )
 
 CG_CVAR( cg_printDuelStats, "cg_printDuelStats", "1", CVAR_ARCHIVE )
 
