@@ -1792,6 +1792,23 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 
 //
+// cg_superhud.c
+//
+void CG_SH_Init( void );
+void CG_SH_Load( void );
+void CG_SH_CheckCvars( void );
+void CG_SH_DrawFrame( void );
+qboolean CG_SH_Active( void );
+qboolean CG_SH_HasWeaponList( void );
+qboolean CG_SH_HasChat( void );
+qboolean CG_SH_HasNetGraph( void );
+qboolean CG_SH_HasCenterMessages( void );
+void CG_ReloadHUD_f( void );
+void CG_SH_Dump_f( void );
+void CG_HudHide_f( void );
+void CG_HudShow_f( void );
+
+//
 // cg_drawtools.c
 //
 void CG_AdjustFrom640( float *x, float *y, float *w, float *h );

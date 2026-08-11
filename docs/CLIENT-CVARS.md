@@ -21,6 +21,8 @@ Client-side variables registered by the **cgame** module (`cg_*`, plus related n
 | `cg_altScoreboardAccuracy` | Devotion | `1` | 0 or 1 | When `1`, shows weapon accuracy on the RatMod scoreboard. |
 | `cg_altStatusbar` | Devotion | `0` | 0 or 1 | Health/armor/ammo HUD layout: `0` classic, other values select RatMod status bar styles. |
 | `cg_altStatusbarOldNumbers` | Devotion | `0` | 0 or 1 | When `1`, uses the older number style on the alternate status bar. |
+| `ch_file` | Devotion | `""` | string | SuperHUD config basename under `hud/` (without `.cfg`). Empty disables SuperHUD. See [SUPERHUD.md](SUPERHUD.md). |
+| `ch_hiddenElements` | Devotion | `""` | string | Space-separated SuperHUD element names to hide (`hud_hide` / `hud_show` update this). |
 | `cg_alwaysWeaponBar` | RatMod | `1` | 0 or 1 | When `1`, keeps the weapon bar visible at all times instead of only while switching. |
 | `cg_animspeed` | Vanilla | `1` | 0 or 1 | Player animation playback speed (`1` = normal). Mostly a debug option. |
 | `cg_announcer` | RatMod | `quake3` | string or numeric (see default) | Announcer voice pack for match callouts (e.g. `quake3`). |

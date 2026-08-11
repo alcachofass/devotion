@@ -6577,12 +6577,16 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		CG_DrawEmptyIndicator();
 		CG_DrawCrosshairNames();
 	} else {
+		qboolean shActive = CG_SH_Active();
+
 		// don't draw any status if dead or the scoreboard is being explicitly shown
 		if ( !cg.showScores && cg.snap->ps.stats[STAT_HEALTH] > 0 ) {
 			CG_DrawZoomScope();
-			// if ((cg_altStatusbar.integer >= 4 && cg_altStatusbar.integer <= 5) && cgs.gametype != GT_HARVESTER && cgs.gametype != GT_TREASURE_HUNTER) {
-			if ((cg_altStatusbar.integer >= 4 && cg_altStatusbar.integer <= 5)) {
-				CG_DrawRatStatusBar4Bg();
+			if ( !shActive ) {
+				// if ((cg_altStatusbar.integer >= 4 && cg_altStatusbar.integer <= 5) && cgs.gametype != GT_HARVESTER && cgs.gametype != GT_TREASURE_HUNTER) {
+				if ((cg_altStatusbar.integer >= 4 && cg_altStatusbar.integer <= 5)) {
+					CG_DrawRatStatusBar4Bg();
+				}
 			}
 			CG_DrawHudDamageIndicator();
 			CG_DrawMovementKeys();
@@ -6593,32 +6597,36 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 				CG_DrawTimedMenus();
 			}
 #else
-			// if (cg_altStatusbar.integer && cgs.gametype != GT_HARVESTER && cgs.gametype != GT_TREASURE_HUNTER) {
-			if (cg_altStatusbar.integer) {
-				switch (cg_altStatusbar.integer) {
-					case 4:
-					case 5:
-						CG_DrawRatStatusBar4();
-						break;
-					case 1:
-					case 2:
-						CG_DrawRatStatusBar();
-						break;
-					case 3:
-						CG_DrawRatStatusBar3();
-						break;
-					default:
-						CG_DrawRatStatusBar();
-						break;
+			if ( !shActive ) {
+				// if (cg_altStatusbar.integer && cgs.gametype != GT_HARVESTER && cgs.gametype != GT_TREASURE_HUNTER) {
+				if (cg_altStatusbar.integer) {
+					switch (cg_altStatusbar.integer) {
+						case 4:
+						case 5:
+							CG_DrawRatStatusBar4();
+							break;
+						case 1:
+						case 2:
+							CG_DrawRatStatusBar();
+							break;
+						case 3:
+							CG_DrawRatStatusBar3();
+							break;
+						default:
+							CG_DrawRatStatusBar();
+							break;
+					}
+				} else {
+					CG_DrawStatusBar();
 				}
-			} else {
-				CG_DrawStatusBar();
 			}
 #endif
 
      			CG_DrawThawing(); 
 
-			CG_DrawAmmoWarning();
+			if ( !shActive ) {
+				CG_DrawAmmoWarning();
+			}
 
 			CG_DrawProxWarning();
 			if(stereoFrame == STEREO_CENTER)
@@ -6626,11 +6634,15 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 			CG_DrawReloadIndicator();
 			CG_DrawEmptyIndicator();
 			CG_DrawCrosshairNames();
-			CG_DrawWeaponSelect();
+			if ( !shActive || !CG_SH_HasWeaponList() ) {
+				CG_DrawWeaponSelect();
+			}
 
                         #ifndef MISSIONPACK
-			CG_DrawHoldableItem();
-			CG_DrawPersistantPowerup();
+			if ( !shActive ) {
+				CG_DrawHoldableItem();
+				CG_DrawPersistantPowerup();
+			}
 			#endif
 
 			if (cg_drawRewards.integer) {
@@ -6645,32 +6657,48 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 	}
 
 #ifndef MISSIONPACK
-	CG_DrawTeamChat();
+	if ( !CG_SH_Active() || !CG_SH_HasChat() ) {
+		CG_DrawTeamChat();
+	}
 #endif
 
 
 	CG_DrawVote();
 	CG_DrawTeamVote();
 
-	CG_DrawLagometer();
-	if (cg_drawFPS.integer == 2) {
-		CG_DrawFPS(0);
-	} else if (cg_drawFPS.integer == 3) {
-		CG_DrawBottomFPS();
+	if ( !CG_SH_Active() || !CG_SH_HasNetGraph() ) {
+		CG_DrawLagometer();
+	}
+	if ( !CG_SH_Active() ) {
+		if (cg_drawFPS.integer == 2) {
+			CG_DrawFPS(0);
+		} else if (cg_drawFPS.integer == 3) {
+			CG_DrawBottomFPS();
+		}
 	}
 
 #ifdef MISSIONPACK
 	if (!cg_paused.integer) {
-		CG_DrawUpperRight(stereoFrame);
+		if ( !CG_SH_Active() ) {
+			CG_DrawUpperRight(stereoFrame);
+		}
 	}
 #else
-	CG_DrawUpperRight(stereoFrame);
+	if ( !CG_SH_Active() ) {
+		CG_DrawUpperRight(stereoFrame);
+	}
 #endif
 
 #ifndef MISSIONPACK
-	CG_DrawLowerRight();
-	CG_DrawLowerLeft();
+	if ( !CG_SH_Active() ) {
+		CG_DrawLowerRight();
+		CG_DrawLowerLeft();
+	}
 #endif
+
+	if ( CG_SH_Active() ) {
+		CG_SH_DrawFrame();
+	}
 
 	//if ( !CG_DrawFollow() ) {
 	//	CG_DrawWarmup();
@@ -6693,7 +6721,9 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		CG_DrawPushNotify();
                 //CG_DrawCenterDDString();
                 //CG_DrawCenter1FctfString();
-		CG_DrawCenterString();
+		if ( !CG_SH_HasCenterMessages() ) {
+			CG_DrawCenterString();
+		}
 
 
 		if ( cgs.clientinfo[cg.clientNum].team != TEAM_SPECTATOR )
