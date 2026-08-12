@@ -24,7 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "cg_local.h"
 #include "../game/bg_cvar_desc.h"
 
-#ifdef MISSIONPACK
+#if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
 #include "../ui/ui_shared.h"
 // display context for new ui stuff
 displayContextDef_t cgDC;
@@ -83,7 +83,7 @@ intptr_t vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, 
 		CG_KeyEvent(arg0, arg1);
 		return 0;
 	case CG_MOUSE_EVENT:
-#ifdef MISSIONPACK
+#if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
 		cgDC.cursorx = cgs.cursorX;
 		cgDC.cursory = cgs.cursorY;
 #endif
@@ -1771,7 +1771,6 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.teamLeaderShader = trap_R_RegisterShaderNoMip("ui/assets/statusbar/team_leader.tga");
 	cgs.media.retrieveShader = trap_R_RegisterShaderNoMip("ui/assets/statusbar/retrieve.tga");
 	cgs.media.escortShader = trap_R_RegisterShaderNoMip("ui/assets/statusbar/escort.tga");
-        cgs.media.deathShader = trap_R_RegisterShaderNoMip("ui/assets/statusbar/death.tga");
 
 	cgs.media.cursor = trap_R_RegisterShaderNoMip( "menu/art/3_cursor2" );
 	cgs.media.sizeCursor = trap_R_RegisterShaderNoMip( "ui/assets/sizecursor.tga" );
@@ -1788,6 +1787,9 @@ static void CG_RegisterGraphics( void ) {
 	trap_R_RegisterModel( "models/players/crash/upper.md3" );
 	trap_R_RegisterModel( "models/players/crash/head.md3" );
 
+#endif
+#if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
+	cgs.media.deathShader = trap_R_RegisterShaderNoMip( "gfx/2d/defer" );
 #endif
 	CG_ClearParticles ();
 /*
@@ -1901,7 +1903,7 @@ void CG_StartMusic( void ) {
 	trap_S_StartBackgroundTrack( parm1, parm2 );
         }
 }
-#ifdef MISSIONPACK
+#if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
 char *CG_GetMenuBuffer(const char *filename) {
 	int	len;
 	fileHandle_t	f;
@@ -2162,11 +2164,20 @@ void CG_LoadMenus(const char *menuFile) {
 
 	len = trap_FS_FOpenFile( menuFile, &f, FS_READ );
 	if ( !f ) {
+#if defined(CGAME_MENU_HUD) && !defined(MISSIONPACK)
+		trap_Print( va( S_COLOR_YELLOW "menu file not found: %s\n", menuFile ) );
+		len = trap_FS_FOpenFile( "ui/hud.txt", &f, FS_READ );
+		if (!f) {
+			trap_Print( S_COLOR_RED "default menu file not found: ui/hud.txt\n" );
+			return;
+		}
+#else
 		trap_Error( va( S_COLOR_YELLOW "menu file not found: %s, using default\n", menuFile ) );
 		len = trap_FS_FOpenFile( "ui/hud.txt", &f, FS_READ );
 		if (!f) {
 			trap_Error( va( S_COLOR_RED "default menu file not found: ui/hud.txt, unable to continue!\n") );
 		}
+#endif
 	}
 
 	if ( len >= MAX_MENUDEFFILE ) {
@@ -2301,7 +2312,6 @@ static clientInfo_t * CG_InfoFromScoreIndex(int index, int team, int *scoreIndex
 }
 
 static const char *CG_FeederItemText(float feederID, int index, int column, qhandle_t *handle) {
-	gitem_t *item;
 	int scoreIndex = 0;
 	clientInfo_t *info = NULL;
 	int team = -1;
@@ -2316,70 +2326,48 @@ static const char *CG_FeederItemText(float feederID, int index, int column, qhan
 	}
 
 	info = CG_InfoFromScoreIndex(index, team, &scoreIndex);
+	if ( scoreIndex < 0 || scoreIndex >= cg.numScores ) {
+		return "";
+	}
 	sp = &cg.scores[scoreIndex];
 
-	if (info && info->infoValid) {
-		switch (column) {
-			case 0:
-				if ( info->powerups & ( 1 << PW_NEUTRALFLAG ) ) {
-					item = BG_FindItemForPowerup( PW_NEUTRALFLAG );
-					*handle = cg_items[ ITEM_INDEX(item) ].icon;
-				} else if ( info->powerups & ( 1 << PW_REDFLAG ) ) {
-					item = BG_FindItemForPowerup( PW_REDFLAG );
-					*handle = cg_items[ ITEM_INDEX(item) ].icon;
-				} else if ( info->powerups & ( 1 << PW_BLUEFLAG ) ) {
-					item = BG_FindItemForPowerup( PW_BLUEFLAG );
-					*handle = cg_items[ ITEM_INDEX(item) ].icon;
-				} else {
-					if ( info->botSkill > 0 && info->botSkill <= 5 ) {
-						*handle = cgs.media.botSkillShaders[ info->botSkill - 1 ];
-					} else if ( info->handicap < 100 ) {
-					return va("%i", info->handicap );
-					}
-				}
-			break;
-			case 1:
-				if (team == -1) {
-					return "";
-				} else if (info->isDead) {
-                                        *handle = cgs.media.deathShader;
-                                } else {
-					*handle = CG_StatusHandle(info->teamTask);
-				}
-		  break;
-			case 2:
-				if ( cg.snap->ps.stats[ STAT_CLIENTS_READY ] & ( 1 << sp->client ) ) {
-					return "Ready";
-				}
-				if (team == -1) {
-					if (cgs.gametype == GT_TOURNAMENT) {
-						return va("%i/%i", info->wins, info->losses);
-					} else if (info->infoValid && info->team == TEAM_SPECTATOR ) {
-						return "Spectator";
-					} else {
-						return "";
-					}
-				} else {
-					if (info->teamLeader) {
-						return "Leader";
-					}
-				}
-			break;
-			case 3:
-				return info->name;
-			break;
-			case 4:
-				return va("%i", info->score);
-			break;
-			case 5:
-				return va("%4i", sp->time);
-			break;
-			case 6:
-				if ( sp->ping == -1 ) {
-					return "connecting";
-				} 
-				return va("%4i", CG_ScoreboardDisplayPing( sp->client, sp->ping ));
-			break;
+	if ( !info || !info->infoValid ) {
+		return "";
+	}
+
+	/* Simplified column map for Devotion menu scoreboards (name/score/time/ping).
+	 * Stock TA used icon/status columns; our panels are text-first. */
+	if ( feederID == FEEDER_SCOREBOARD ) {
+		switch ( column ) {
+		case 0:
+			return info->name;
+		case 1:
+			return va( "%i", sp->score );
+		case 2:
+			return va( "%i", sp->time );
+		case 3:
+			if ( sp->ping == -1 ) {
+				return "cnct";
+			}
+			return va( "%i", CG_ScoreboardDisplayPing( sp->client, sp->ping ) );
+		default:
+			return "";
+		}
+	}
+
+	if ( feederID == FEEDER_REDTEAM_LIST || feederID == FEEDER_BLUETEAM_LIST ) {
+		switch ( column ) {
+		case 0:
+			return info->name;
+		case 1:
+			return va( "%i", sp->score );
+		case 2:
+			if ( sp->ping == -1 ) {
+				return "cnct";
+			}
+			return va( "%i", CG_ScoreboardDisplayPing( sp->client, sp->ping ) );
+		default:
+			return "";
 		}
 	}
 
@@ -2416,7 +2404,7 @@ static float CG_Cvar_Get(const char *cvar) {
 	return atof(buff);
 }
 
-#ifdef MISSIONPACK
+#if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
 void CG_Text_PaintWithCursor(float x, float y, float scale, vec4_t color, const char *text, int cursorPos, char cursor, int limit, int style) {
 	CG_Text_Paint(x, y, scale, color, text, 0, limit, style);
 }
@@ -2556,6 +2544,7 @@ void CG_AssetCache( void ) {
 	cgDC.Assets.scrollBarThumb = trap_R_RegisterShaderNoMip( ASSET_SCROLL_THUMB );
 	cgDC.Assets.sliderBar = trap_R_RegisterShaderNoMip( ASSET_SLIDER_BAR );
 	cgDC.Assets.sliderThumb = trap_R_RegisterShaderNoMip( ASSET_SLIDER_THUMB );
+	/* Skip trap_R_RegisterFont — this engine has no FreeType; ownerdraws use bitmap chars */
 }
 #endif
 /*
@@ -2633,7 +2622,7 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 
 	trap_CM_LoadMap( cgs.mapname );
 
-#ifdef MISSIONPACK
+#if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
 	String_Init();
 #endif
 
@@ -2651,9 +2640,8 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 
 	CG_RegisterClients();		// if low on memory, some clients will be deferred
 
-#ifdef MISSIONPACK
-	CG_AssetCache();
-	CG_LoadHudMenu();      // load new hud stuff
+#if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
+	CG_MenuHud_Init();
 #endif
 
 	CG_SH_Init();
@@ -2675,7 +2663,7 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 
 	CG_LoadingString( "" );
 
-#ifdef MISSIONPACK
+#if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
 	CG_InitTeamChat();
 #endif
 
@@ -2709,6 +2697,7 @@ Called before every level change or subsystem restart
 void CG_Shutdown( void ) {
 	// some mods may need to do cleanup work here,
 	// like closing files or archiving session data
+	CG_MenuHud_Shutdown();
 	CG_DemoHistory_Clear();
 	challenges_save();
 }

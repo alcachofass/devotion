@@ -1,0 +1,585 @@
+#include "ui/menudef.h"
+
+/*
+ * Devotion Menu HUD — stock Q3 art + Quake Live dual-bar vitals:
+ *  Top-left: fraglimit + tourney/team/FFA callouts + clock
+ *  Left:     CG_WP_VERTICAL weapon + ammo bar
+ *  Bottom:   health/armor dual bars (BAR_100 + BAR_200 geometry from hud_ql.menu)
+ *
+ * For the unmodified retail QL script (needs QL ui/assets/hud art):
+ *   seta cg_hudFiles "ui/hud_ql.txt"
+ */
+{
+	assetGlobalDef {
+		fadeClamp 1.0
+		fadeCycle 1
+		fadeAmount 0.1
+		shadowX 5
+		shadowY 5
+		shadowColor 0.1 0.1 0.1 0.25
+	}
+
+	/* ===== TOP-LEFT: frag/cap limit pill ===== */
+	menuDef {
+		name "FragLimitPill"
+		widescreen WIDESCREEN_LEFT
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 4 4 36 36
+
+		itemDef {
+			name "limitBg"
+			rect 0 0 36 36
+			visible 1
+			decoration
+			style WINDOW_STYLE_FILLED
+			backcolor 0 0 0 0.6
+			background "white"
+		}
+		itemDef {
+			name "fragLimit"
+			rect 0 8 36 20
+			visible 1
+			decoration
+			align ITEM_ALIGN_CENTER
+			textscale 0.38
+			forecolor 1 1 1 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			ownerdraw CG_CAPFRAGLIMIT
+		}
+	}
+
+	/* ===== TOURNEY / FFA: player name + score callout (collapses to 1 row) ===== */
+	menuDef {
+		name "DuelScoreboard"
+		widescreen WIDESCREEN_LEFT
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 44 4 190 40
+		ownerdrawflag CG_SHOW_DUEL
+
+		itemDef {
+			name "duelPlayers"
+			rect 0 0 190 38
+			visible 1
+			decoration
+			forecolor 1 1 1 1
+			textscale 0.26
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			ownerdraw CG_MINI_PLYR_SCORES
+		}
+	}
+
+	/* ===== TEAM GAMES: red/blue bars ===== */
+	menuDef {
+		name "TeamScoreRed"
+		widescreen WIDESCREEN_LEFT
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 44 4 190 18
+		ownerdrawflag CG_SHOW_ANYTEAMGAME
+
+		itemDef {
+			name "redBar"
+			rect 0 0 190 16
+			visible 1
+			decoration
+			style WINDOW_STYLE_FILLED
+			backcolor 0.55 0.08 0.08 0.7
+			background "white"
+		}
+		itemDef {
+			name "redCount"
+			rect 2 0 18 16
+			visible 1
+			decoration
+			align ITEM_ALIGN_CENTER
+			textscale 0.26
+			forecolor 1 1 1 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			ownerdraw CG_RED_CLAN_PLYRS
+		}
+		itemDef {
+			name "redName"
+			rect 22 0 120 16
+			visible 1
+			decoration
+			align ITEM_ALIGN_LEFT
+			textscale 0.24
+			forecolor 1 0.9 0.9 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			ownerdraw CG_RED_NAME
+		}
+		itemDef {
+			name "redScore"
+			rect 144 0 42 16
+			visible 1
+			decoration
+			align ITEM_ALIGN_RIGHT
+			textscale 0.30
+			forecolor 1 1 1 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			ownerdraw CG_RED_SCORE
+		}
+	}
+
+	menuDef {
+		name "TeamScoreBlue"
+		widescreen WIDESCREEN_LEFT
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 44 22 190 18
+		ownerdrawflag CG_SHOW_ANYTEAMGAME
+
+		itemDef {
+			name "blueBar"
+			rect 0 0 190 16
+			visible 1
+			decoration
+			style WINDOW_STYLE_FILLED
+			backcolor 0.08 0.15 0.55 0.7
+			background "white"
+		}
+		itemDef {
+			name "blueCount"
+			rect 2 0 18 16
+			visible 1
+			decoration
+			align ITEM_ALIGN_CENTER
+			textscale 0.26
+			forecolor 1 1 1 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			ownerdraw CG_BLUE_CLAN_PLYRS
+		}
+		itemDef {
+			name "blueName"
+			rect 22 0 120 16
+			visible 1
+			decoration
+			align ITEM_ALIGN_LEFT
+			textscale 0.24
+			forecolor 0.9 0.92 1 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			ownerdraw CG_BLUE_NAME
+		}
+		itemDef {
+			name "blueScore"
+			rect 144 0 42 16
+			visible 1
+			decoration
+			align ITEM_ALIGN_RIGHT
+			textscale 0.30
+			forecolor 1 1 1 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			ownerdraw CG_BLUE_SCORE
+		}
+	}
+
+	/* ===== FFA (not duel): same collapsing callout ===== */
+	menuDef {
+		name "FfaScores"
+		widescreen WIDESCREEN_LEFT
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 44 4 190 40
+		ownerdrawflag CG_SHOW_FFA
+
+		itemDef {
+			name "ffaPlayers"
+			rect 0 0 190 38
+			visible 1
+			decoration
+			forecolor 1 1 1 1
+			textscale 0.26
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			ownerdraw CG_MINI_PLYR_SCORES
+		}
+	}
+
+	/* Clock under scoreboard */
+	menuDef {
+		name "MatchTimer"
+		widescreen WIDESCREEN_LEFT
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 44 46 80 16
+
+		itemDef {
+			name "timer"
+			rect 0 0 80 16
+			visible 1
+			decoration
+			align ITEM_ALIGN_LEFT
+			textscale 0.28
+			forecolor 1 1 1 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			ownerdraw CG_LEVELTIMER
+		}
+	}
+
+	menuDef {
+		name "CtfFlags"
+		widescreen WIDESCREEN_LEFT
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 130 46 48 16
+		ownerdrawflag CG_SHOW_CTF
+
+		itemDef {
+			name "redflag"
+			rect 0 0 14 14
+			visible 1
+			decoration
+			ownerdraw CG_RED_FLAGSTATUS
+		}
+		itemDef {
+			name "blueflag"
+			rect 20 0 14 14
+			visible 1
+			decoration
+			ownerdraw CG_BLUE_FLAGSTATUS
+		}
+	}
+
+	/* ===== LEFT WEAPON + AMMO BAR (all held guns) ===== */
+	menuDef {
+		name "WeaponLoadout"
+		widescreen WIDESCREEN_LEFT
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 4 70 90 320
+
+		itemDef {
+			name "wpVertical"
+			rect 0 0 88 26
+			visible 1
+			decoration
+			forecolor 1 1 1 1
+			textscale 0.34
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			special 4
+			ownerdraw CG_WP_VERTICAL
+		}
+	}
+
+	/* ===== BOTTOM VITALS ===== */
+	/*
+	 * Health frame — QL dual-bar (hud_ql.menu), retail bar art.
+	 * Engine loads TGA; PNG companions are ignored if present.
+	 */
+	menuDef {
+		name "HealthFrame"
+		widescreen WIDESCREEN_CENTER
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 130 435 142 32
+
+		itemDef {
+			name "healthshadow"
+			rect 1 8 142 33
+			visible 1
+			decoration
+			style WINDOW_STYLE_FILLED
+			backcolor 0 0 0 0.4
+			background "white"
+		}
+		itemDef {
+			name "healthFill200"
+			rect 85 0 64 32
+			visible 1
+			decoration
+			ownerdraw CG_PLAYER_HEALTH_BAR_200
+			style WINDOW_STYLE_FILLED
+			forecolor 1 1 1 1
+			background "ui/assets/hud/h200.tga"
+		}
+		itemDef {
+			name "healthFill100"
+			rect 0 27 128 16
+			visible 1
+			decoration
+			ownerdraw CG_PLAYER_HEALTH_BAR_100
+			style WINDOW_STYLE_FILLED
+			forecolor 1 1 1 1
+			background "ui/assets/hud/h100.tga"
+		}
+		itemDef {
+			name "healthLine200"
+			rect 85 0 64 32
+			visible 1
+			decoration
+			backcolor 0 0 0 1
+			ownerdraw CG_TEAM_COLORIZED
+			style WINDOW_STYLE_FILLED
+			background "ui/assets/hud/h200line.tga"
+		}
+		itemDef {
+			name "healthLine100"
+			rect 0 27 128 16
+			visible 1
+			decoration
+			backcolor 0 0 0 1
+			ownerdraw CG_TEAM_COLORIZED
+			style WINDOW_STYLE_FILLED
+			background "ui/assets/hud/h100line.tga"
+		}
+		itemDef {
+			name "healthLine200hi"
+			rect 85 0 64 32
+			visible 1
+			decoration
+			backcolor 1 1 1 0.5
+			style WINDOW_STYLE_FILLED
+			background "ui/assets/hud/h200line.tga"
+		}
+		itemDef {
+			name "healthLine100hi"
+			rect 0 27 128 16
+			visible 1
+			decoration
+			backcolor 1 1 1 0.5
+			style WINDOW_STYLE_FILLED
+			background "ui/assets/hud/h100line.tga"
+		}
+	}
+
+	menuDef {
+		name "Health"
+		widescreen WIDESCREEN_CENTER
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 160 431 95 36
+
+		itemDef {
+			name "hVal"
+			rect 0 0 58 32
+			visible 1
+			decoration
+			align ITEM_ALIGN_RIGHT
+			textscale 0.55
+			forecolor 1 1 1 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			ownerdraw CG_PLAYER_HEALTH
+			addColorRange -999 25 1 0 0 1
+		}
+		itemDef {
+			name "hIcon"
+			rect 62 6 22 22
+			visible 1
+			decoration
+			style WINDOW_STYLE_FILLED
+			ownerdraw CG_TEAM_COLORIZED
+			background "icons/iconh_yellow"
+		}
+	}
+
+	menuDef {
+		name "Ammo"
+		widescreen WIDESCREEN_CENTER
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 280 430 90 44
+
+		itemDef {
+			name "aIcon"
+			rect 0 8 24 24
+			visible 1
+			decoration
+			ownerdraw CG_PLAYER_AMMO_ICON2D
+		}
+		itemDef {
+			name "aVal"
+			rect 28 4 58 28
+			visible 1
+			decoration
+			align ITEM_ALIGN_LEFT
+			textscale 0.58
+			forecolor 1 1 1 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			ownerdraw CG_PLAYER_AMMO_VALUE
+			addColorRange -999 5 1 0 0 1
+		}
+	}
+
+	/*
+	 * Armor frame — QL dual-bar (hud_ql.menu), retail bar art.
+	 * Fills grow from the right (ITEM_ALIGN_RIGHT).
+	 */
+	menuDef {
+		name "ArmorFrame"
+		widescreen WIDESCREEN_CENTER
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 363 435 142 32
+
+		itemDef {
+			name "armorshadow"
+			rect 6 8 142 33
+			visible 1
+			decoration
+			style WINDOW_STYLE_FILLED
+			backcolor 0 0 0 0.4
+			background "white"
+		}
+		itemDef {
+			name "armorFill200"
+			rect 0 0 64 32
+			visible 1
+			decoration
+			ownerdraw CG_PLAYER_ARMOR_BAR_200
+			style WINDOW_STYLE_FILLED
+			align ITEM_ALIGN_RIGHT
+			forecolor 1 1 1 1
+			background "ui/assets/hud/a200.tga"
+		}
+		itemDef {
+			name "armorFill100"
+			rect 21 27 128 16
+			visible 1
+			decoration
+			ownerdraw CG_PLAYER_ARMOR_BAR_100
+			style WINDOW_STYLE_FILLED
+			align ITEM_ALIGN_RIGHT
+			forecolor 1 1 1 1
+			background "ui/assets/hud/a100.tga"
+		}
+		itemDef {
+			name "armorLine200"
+			rect 0 0 64 32
+			visible 1
+			decoration
+			backcolor 0 0 0 1
+			ownerdraw CG_TEAM_COLORIZED
+			style WINDOW_STYLE_FILLED
+			background "ui/assets/hud/a200line.tga"
+		}
+		itemDef {
+			name "armorLine100"
+			rect 21 27 128 16
+			visible 1
+			decoration
+			backcolor 0 0 0 1
+			ownerdraw CG_TEAM_COLORIZED
+			style WINDOW_STYLE_FILLED
+			background "ui/assets/hud/a100line.tga"
+		}
+		itemDef {
+			name "armorLine200hi"
+			rect 0 0 64 32
+			visible 1
+			decoration
+			backcolor 1 1 1 0.5
+			style WINDOW_STYLE_FILLED
+			background "ui/assets/hud/a200line.tga"
+		}
+		itemDef {
+			name "armorLine100hi"
+			rect 21 27 128 16
+			visible 1
+			decoration
+			backcolor 1 1 1 0.5
+			style WINDOW_STYLE_FILLED
+			background "ui/assets/hud/a100line.tga"
+		}
+	}
+
+	menuDef {
+		name "Armor"
+		widescreen WIDESCREEN_CENTER
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 400 433 95 32
+
+		itemDef {
+			name "aIcon"
+			rect 0 7 22 22
+			visible 1
+			decoration
+			style WINDOW_STYLE_FILLED
+			ownerdraw CG_TEAM_COLORIZED
+			background "icons/iconr_yellow"
+		}
+		itemDef {
+			name "aVal"
+			rect 28 0 65 32
+			visible 1
+			decoration
+			align ITEM_ALIGN_LEFT
+			textscale 0.55
+			forecolor 1 1 1 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			ownerdraw CG_PLAYER_ARMOR_VALUE
+			addColorRange -999 25 0.67 0 0 1
+		}
+	}
+
+	menuDef {
+		name "powerup"
+		widescreen WIDESCREEN_RIGHT
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 560 200 70 180
+
+		itemDef {
+			name "powerupArea"
+			rect 0 0 32 32
+			visible 1
+			decoration
+			ownerdraw CG_AREA_POWERUP
+			special 4
+			align HUD_VERTICAL
+		}
+	}
+
+	menuDef {
+		name "pickups"
+		widescreen WIDESCREEN_RIGHT
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 520 452 40 32
+
+		itemDef {
+			name "playeritem"
+			rect 0 0 28 28
+			visible 1
+			decoration
+			ownerdraw CG_PLAYER_ITEM
+		}
+	}
+
+	menuDef {
+		name "playerHasFlag"
+		widescreen WIDESCREEN_CENTER
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 300 8 40 36
+		ownerdrawflag CG_SHOW_IF_PLAYER_HAS_FLAG
+
+		itemDef {
+			name "playerFlag"
+			rect 0 0 36 36
+			visible 1
+			decoration
+			ownerdraw CG_PLAYER_HASFLAG2D
+		}
+	}
+
+	menuDef {
+		name "chatArea"
+		widescreen WIDESCREEN_LEFT
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 100 320 280 90
+
+		itemDef {
+			name "newChat"
+			rect 0 0 280 90
+			visible 1
+			decoration
+			forecolor 1 1 1 1
+			textscale 0.22
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			ownerdraw CG_AREA_NEW_CHAT
+		}
+	}
+}

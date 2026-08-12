@@ -957,7 +957,7 @@ endef
 
 define DO_CGAME_CC
 $(echo_cmd) "CGAME_CC $<"
-$(Q)$(CC) -DCGAME $(CFLAGS) $(SHLIBCFLAGS) -o $@ -c $<
+$(Q)$(CC) -DCGAME -DCGAME_MENU_HUD $(CFLAGS) $(SHLIBCFLAGS) -o $@ -c $<
 $(Q)$(DO_QVM_DEP)
 endef
 
@@ -1223,7 +1223,7 @@ endef
 
 define DO_CGAME_Q3LCC
 $(echo_cmd) "CGAME_Q3LCC $<"
-$(Q)$(Q3LCC) -DCGAME $(QVM_CFLAGS) -o $@ $<
+$(Q)$(Q3LCC) -DCGAME -DCGAME_MENU_HUD $(QVM_CFLAGS) -o $@ $<
 endef
 
 define DO_GAME_Q3LCC
@@ -1718,6 +1718,9 @@ Q3CGOBJ_ = \
   $(B)/baseq3/cgame/cg_snapshot.o \
   $(B)/baseq3/cgame/cg_demo_history.o \
   $(B)/baseq3/cgame/cg_superhud.o \
+  $(B)/baseq3/cgame/cg_menuhud.o \
+  $(B)/baseq3/cgame/cg_menuhud_draw.o \
+  $(B)/baseq3/cgame/ui_shared.o \
   $(B)/baseq3/cgame/cg_unlagged.o \
   $(B)/baseq3/cgame/cg_view.o \
   $(B)/baseq3/cgame/cg_weapons.o \
@@ -2127,10 +2130,16 @@ $(B)/baseq3/cgame/bg_%.o: $(GDIR)/bg_%.c
 $(B)/baseq3/cgame/%.o: $(CGDIR)/%.c
 	$(DO_CGAME_CC)
 
+$(B)/baseq3/cgame/ui_shared.o: $(UIDIR)/ui_shared.c
+	$(DO_CGAME_CC)
+
 $(B)/baseq3/cgame/bg_%.asm: $(GDIR)/bg_%.c $(Q3LCC)
 	$(DO_CGAME_Q3LCC)
 
 $(B)/baseq3/cgame/%.asm: $(CGDIR)/%.c $(Q3LCC)
+	$(DO_CGAME_Q3LCC)
+
+$(B)/baseq3/cgame/ui_shared.asm: $(UIDIR)/ui_shared.c $(Q3LCC)
 	$(DO_CGAME_Q3LCC)
 
 $(B)/missionpack/cgame/bg_%.o: $(GDIR)/bg_%.c

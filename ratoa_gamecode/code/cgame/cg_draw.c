@@ -25,15 +25,15 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "cg_local.h"
 
-#ifdef MISSIONPACK
+#if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
 #include "../ui/ui_shared.h"
 
 // used for scoreboard
 extern displayContextDef_t cgDC;
 menuDef_t *menuScoreboard = NULL;
-#else
-int drawTeamOverlayModificationCount = -1;
 #endif
+
+int drawTeamOverlayModificationCount = -1;
 
 int sortedTeamPlayers[TEAM_MAXOVERLAY];
 int	numSortedTeamPlayers;
@@ -45,21 +45,56 @@ char teamChat2[256];
 static float CG_DrawPickupItem( float y );
 void CG_GetScoreColor(int team, float *color);
 
-#ifdef MISSIONPACK
+#if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
+
+/* TrueType fonts unavailable on this engine — detect empty glyph tables */
+static qboolean CG_MenuFontReady( fontInfo_t *font ) {
+	return font && font->glyphs[(unsigned char)'A'].glyph != 0;
+}
+
+static float CG_BitmapCharWidth( float scale ) {
+	float cw = SMALLCHAR_WIDTH * ( scale / 0.25f );
+	if ( cw < 4.0f ) {
+		cw = 4.0f;
+	}
+	return cw;
+}
+
+static float CG_BitmapCharHeight( float scale ) {
+	float ch = SMALLCHAR_HEIGHT * ( scale / 0.25f );
+	if ( ch < 6.0f ) {
+		ch = 6.0f;
+	}
+	return ch;
+}
 
 int CG_Text_Width(const char *text, float scale, int limit) {
   int count,len;
 	float out;
 	glyphInfo_t *glyph;
 	float useScale;
-// FIXME: see ui_main.c, same problem
-//	const unsigned char *s = text;
 	const char *s = text;
 	fontInfo_t *font = &cgDC.Assets.textFont;
 	if (scale <= cg_smallFont.value) {
 		font = &cgDC.Assets.smallFont;
 	} else if (scale > cg_bigFont.value) {
 		font = &cgDC.Assets.bigFont;
+	}
+	if ( !CG_MenuFontReady( font ) ) {
+		count = 0;
+		if ( !text ) {
+			return 0;
+		}
+		s = text;
+		while ( *s && ( limit <= 0 || count < limit ) ) {
+			if ( Q_IsColorString( s ) ) {
+				s += 2;
+				continue;
+			}
+			s++;
+			count++;
+		}
+		return (int)( count * CG_BitmapCharWidth( scale ) );
 	}
 	useScale = scale * font->glyphScale;
   out = 0;
@@ -74,7 +109,7 @@ int CG_Text_Width(const char *text, float scale, int limit) {
 				s += 2;
 				continue;
 			} else {
-				glyph = &font->glyphs[(int)*s]; // TTimo: FIXME: getting nasty warnings without the cast, hopefully this doesn't break the VM build
+				glyph = &font->glyphs[(int)*s];
 				out += glyph->xSkip;
 				s++;
 				count++;
@@ -89,14 +124,17 @@ int CG_Text_Height(const char *text, float scale, int limit) {
 	float max;
 	glyphInfo_t *glyph;
 	float useScale;
-// TTimo: FIXME
-//	const unsigned char *s = text;
 	const char *s = text;
 	fontInfo_t *font = &cgDC.Assets.textFont;
 	if (scale <= cg_smallFont.value) {
 		font = &cgDC.Assets.smallFont;
 	} else if (scale > cg_bigFont.value) {
 		font = &cgDC.Assets.bigFont;
+	}
+	if ( !CG_MenuFontReady( font ) ) {
+		(void)text;
+		(void)limit;
+		return (int)CG_BitmapCharHeight( scale );
 	}
 	useScale = scale * font->glyphScale;
   max = 0;
@@ -111,7 +149,7 @@ int CG_Text_Height(const char *text, float scale, int limit) {
 				s += 2;
 				continue;
 			} else {
-				glyph = &font->glyphs[(int)*s]; // TTimo: FIXME: getting nasty warnings without the cast, hopefully this doesn't break the VM build
+				glyph = &font->glyphs[(int)*s];
 	      if (max < glyph->height) {
 		      max = glyph->height;
 			  }
@@ -142,10 +180,20 @@ void CG_Text_Paint(float x, float y, float scale, vec4_t color, const char *text
 	} else if (scale > cg_bigFont.value) {
 		font = &cgDC.Assets.bigFont;
 	}
+	if ( !CG_MenuFontReady( font ) ) {
+		float cw = CG_BitmapCharWidth( scale );
+		float ch = CG_BitmapCharHeight( scale );
+		qboolean shadow = ( style == ITEM_TEXTSTYLE_SHADOWED || style == ITEM_TEXTSTYLE_SHADOWEDMORE );
+		if ( !text || !text[0] ) {
+			return;
+		}
+		/* drawText callers pass baseline-ish y; bitmap uses top-left */
+		CG_DrawStringExt( (int)x, (int)( y - ch ), text, color, qfalse, shadow,
+				(int)cw, (int)ch, limit );
+		return;
+	}
 	useScale = scale * font->glyphScale;
   if (text) {
-// TTimo: FIXME
-//		const unsigned char *s = text;
 		const char *s = text;
 		trap_R_SetColor( color );
 		memcpy(&newColor[0], &color[0], sizeof(vec4_t));
@@ -155,9 +203,7 @@ void CG_Text_Paint(float x, float y, float scale, vec4_t color, const char *text
 		}
 		count = 0;
 		while (s && *s && count < len) {
-			glyph = &font->glyphs[(int)*s]; // TTimo: FIXME: getting nasty warnings without the cast, hopefully this doesn't break the VM build
-      //int yadj = Assets.textFont.glyphs[text[i]].bottom + Assets.textFont.glyphs[text[i]].top;
-      //float yadj = scale * (Assets.textFont.glyphs[text[i]].imageHeight - Assets.textFont.glyphs[text[i]].height);
+			glyph = &font->glyphs[(int)*s];
 			if ( Q_IsColorString( s ) ) {
 				memcpy( newColor, g_color_table[ColorIndex(*(s+1))], sizeof( newColor ) );
 				newColor[3] = color[3];
@@ -191,7 +237,6 @@ void CG_Text_Paint(float x, float y, float scale, vec4_t color, const char *text
 													glyph->s2,
 													glyph->t2,
 													glyph->glyph);
-				// CG_DrawPic(x, y - yadj, scale * cgDC.Assets.textFont.glyphs[text[i]].imageWidth, scale * cgDC.Assets.textFont.glyphs[text[i]].imageHeight, cgDC.Assets.textFont.glyphs[text[i]].glyph);
 				x += (glyph->xSkip * useScale) + adjust;
 				s++;
 				count++;
@@ -5929,95 +5974,113 @@ static qboolean CG_DrawThawing(void) {
 
 
 static qboolean CG_DrawScoreboard( void ) {
-#ifdef MISSIONPACK
+#if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
 	static qboolean firstTime = qtrue;
-	float fade, *fadeColor;
+	float *fadeColor;
+	qboolean useMenuScoreboard = qtrue;
 
-	if (menuScoreboard) {
-		menuScoreboard->window.flags &= ~WINDOW_FORCED;
-	}
-	if (cg_paused.integer) {
-		cg.deferredPlayerLoading = 0;
-		firstTime = qtrue;
-		return qfalse;
-	}
+#if defined(CGAME_MENU_HUD) && !defined(MISSIONPACK)
+	useMenuScoreboard = CG_MenuHudActive();
+#endif
 
-	// should never happen in Team Arena
-	if (cgs.gametype == GT_SINGLE_PLAYER && cg.predictedPlayerState.pm_type == PM_INTERMISSION ) {
-		cg.deferredPlayerLoading = 0;
-		firstTime = qtrue;
-		return qfalse;
-	}
-
-	// don't draw scoreboard during death while warmup up
-	if ( cg.warmup && !cg.showScores ) {
-		return qfalse;
-	}
-
-	if ( cg.showScores || cg.predictedPlayerState.pm_type == PM_DEAD || cg.predictedPlayerState.pm_type == PM_INTERMISSION ) {
-		fade = 1.0;
-		fadeColor = colorWhite;
-	} else {
-		fadeColor = CG_FadeColor( cg.scoreFadeTime, FADE_TIME );
-		if ( !fadeColor ) {
-			// next time scoreboard comes up, don't print killer
+	if ( useMenuScoreboard ) {
+		if (menuScoreboard) {
+			menuScoreboard->window.flags &= ~WINDOW_FORCED;
+		}
+		if (cg_paused.integer) {
 			cg.deferredPlayerLoading = 0;
-			cg.killerName[0] = 0;
 			firstTime = qtrue;
 			return qfalse;
 		}
-		fade = *fadeColor;
-	}																					  
 
+		if (cgs.gametype == GT_SINGLE_PLAYER && cg.predictedPlayerState.pm_type == PM_INTERMISSION ) {
+			cg.deferredPlayerLoading = 0;
+			firstTime = qtrue;
+			return qfalse;
+		}
 
-	if (menuScoreboard == NULL) {
-		if (CG_IsTeamGametype()) {
-			menuScoreboard = Menus_FindByName("teamscore_menu");
+		if ( cg.warmup && !cg.showScores ) {
+			return qfalse;
+		}
+
+		if ( cg.showScores || cg.predictedPlayerState.pm_type == PM_DEAD || cg.predictedPlayerState.pm_type == PM_INTERMISSION ) {
+			fadeColor = colorWhite;
 		} else {
-			menuScoreboard = Menus_FindByName("score_menu");
+			fadeColor = CG_FadeColor( cg.scoreFadeTime, FADE_TIME );
+			if ( !fadeColor ) {
+				cg.deferredPlayerLoading = 0;
+				cg.killerName[0] = 0;
+				firstTime = qtrue;
+				return qfalse;
+			}
 		}
-	}
 
-	if (menuScoreboard) {
-		if (firstTime) {
-			CG_SetScoreSelection(menuScoreboard);
-			firstTime = qfalse;
+		if (menuScoreboard == NULL) {
+			if (CG_IsTeamGametype()) {
+				menuScoreboard = Menus_FindByName("teamscore_menu");
+			} else {
+				menuScoreboard = Menus_FindByName("score_menu");
+			}
 		}
-		Menu_Paint(menuScoreboard, qtrue);
-	}
 
-	// load any models that have been deferred
-	if ( ++cg.deferredPlayerLoading > 10 ) {
-		CG_LoadDeferredPlayers();
-	}
+		if (menuScoreboard) {
+			/* Keep scores fresh (legacy scoreboards do this) */
+			if ( cg.scoresRequestTime + 1000 < cg.time ) {
+				cg.scoresRequestTime = cg.time;
+				if ( !cg.demoPlayback ) {
+					trap_SendClientCommand( "score" );
+				}
+			}
+			if (firstTime) {
+				CG_SetScoreSelection(menuScoreboard);
+				firstTime = qfalse;
+			}
+			Menu_Paint(menuScoreboard, qtrue);
+			if ( ++cg.deferredPlayerLoading > 10 ) {
+				CG_LoadDeferredPlayers();
+			}
+			return qtrue;
+		}
 
-	return qtrue;
-#else
-        char        *s;
-        int w;
-	if (!CG_DrawThawing() && cg.respawnTime && cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR 
-			&& (cgs.gametype < GT_CTF_ELIMINATION || cgs.gametype > GT_LMS) ) {
-		if (cgs.gametype == GT_ELIMINATION) {
-			if (cg.respawnTime > 0 && cg.respawnTime > cg.time) {
+#ifdef MISSIONPACK
+		if ( ++cg.deferredPlayerLoading > 10 ) {
+			CG_LoadDeferredPlayers();
+		}
+		return qtrue;
+#endif
+	}
+#endif
+
+#ifndef MISSIONPACK
+	{
+		char        *s;
+		int w;
+		if (!CG_DrawThawing() && cg.respawnTime && cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR 
+				&& (cgs.gametype < GT_CTF_ELIMINATION || cgs.gametype > GT_LMS) ) {
+			if (cgs.gametype == GT_ELIMINATION) {
+				if (cg.respawnTime > 0 && cg.respawnTime > cg.time) {
+					s = va("Respawn in: %2.2f",((double)cg.respawnTime-(double)cg.time)/1000.0);
+					w = CG_DrawStrlen( s ) * SMALLCHAR_WIDTH;
+					CG_DrawSmallStringColor(320-w/2,350, s, colorYellow);
+				}
+			} else if (cg.respawnTime>cg.time) {
 				s = va("Respawn in: %2.2f",((double)cg.respawnTime-(double)cg.time)/1000.0);
 				w = CG_DrawStrlen( s ) * SMALLCHAR_WIDTH;
-				CG_DrawSmallStringColor(320-w/2,350, s, colorYellow);
+				CG_DrawSmallStringColor(320-w/2,400, s, colorYellow);
+			} else {
+				s = va("Click FIRE to respawn");
+				w = CG_DrawStrlen( s ) * SMALLCHAR_WIDTH;
+				CG_DrawSmallStringColor(320-w/2,400, "Click FIRE to respawn", colorGreen);
 			}
-		} else if (cg.respawnTime>cg.time) {
-			s = va("Respawn in: %2.2f",((double)cg.respawnTime-(double)cg.time)/1000.0);
-			w = CG_DrawStrlen( s ) * SMALLCHAR_WIDTH;
-			CG_DrawSmallStringColor(320-w/2,400, s, colorYellow);
-		} else {
-			s = va("Click FIRE to respawn");
-			w = CG_DrawStrlen( s ) * SMALLCHAR_WIDTH;
-			CG_DrawSmallStringColor(320-w/2,400, "Click FIRE to respawn", colorGreen);
 		}
-        }
-	if (cg_altScoreboard.integer) {
-		return CG_DrawRatScoreboard();
-	} else {
-		return CG_DrawOldScoreboard();
+		if (cg_altScoreboard.integer) {
+			return CG_DrawRatScoreboard();
+		} else {
+			return CG_DrawOldScoreboard();
+		}
 	}
+#else
+	return qfalse;
 #endif
 }
 
@@ -6351,7 +6414,7 @@ static void CG_DrawWarmup( void ) {
 }
 
 //==================================================================================
-#ifdef MISSIONPACK
+#if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
 /* 
 =================
 CG_DrawTimedMenus
@@ -6577,12 +6640,15 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		CG_DrawEmptyIndicator();
 		CG_DrawCrosshairNames();
 	} else {
-		qboolean shActive = CG_SH_Active();
+		qboolean shActive;
+
+		CG_SH_CheckCvars();
+		shActive = CG_SH_Active();
 
 		// don't draw any status if dead or the scoreboard is being explicitly shown
 		if ( !cg.showScores && cg.snap->ps.stats[STAT_HEALTH] > 0 ) {
 			CG_DrawZoomScope();
-			if ( !shActive ) {
+			if ( !shActive && !CG_MenuHudActive() ) {
 				// if ((cg_altStatusbar.integer >= 4 && cg_altStatusbar.integer <= 5) && cgs.gametype != GT_HARVESTER && cgs.gametype != GT_TREASURE_HUNTER) {
 				if ((cg_altStatusbar.integer >= 4 && cg_altStatusbar.integer <= 5)) {
 					CG_DrawRatStatusBar4Bg();
@@ -6591,14 +6657,10 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 			CG_DrawHudDamageIndicator();
 			CG_DrawMovementKeys();
 
-#ifdef MISSIONPACK
-			if ( cg_drawStatus.integer ) {
-				Menu_PaintAll();
-				CG_DrawTimedMenus();
-			}
-#else
-			if ( !shActive ) {
-				// if (cg_altStatusbar.integer && cgs.gametype != GT_HARVESTER && cgs.gametype != GT_TREASURE_HUNTER) {
+			CG_MenuHud_CheckCvars();
+			if ( CG_MenuHudActive() ) {
+				CG_MenuHud_Draw();
+			} else if ( !shActive ) {
 				if (cg_altStatusbar.integer) {
 					switch (cg_altStatusbar.integer) {
 						case 4:
@@ -6620,11 +6682,10 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 					CG_DrawStatusBar();
 				}
 			}
-#endif
 
      			CG_DrawThawing(); 
 
-			if ( !shActive ) {
+			if ( !shActive && !CG_MenuHudActive() ) {
 				CG_DrawAmmoWarning();
 			}
 
@@ -6634,16 +6695,14 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 			CG_DrawReloadIndicator();
 			CG_DrawEmptyIndicator();
 			CG_DrawCrosshairNames();
-			if ( !shActive || !CG_SH_HasWeaponList() ) {
+			if ( ( !shActive || !CG_SH_HasWeaponList() ) && !CG_MenuHudActive() ) {
 				CG_DrawWeaponSelect();
 			}
 
-                        #ifndef MISSIONPACK
-			if ( !shActive ) {
+			if ( !shActive && !CG_MenuHudActive() ) {
 				CG_DrawHoldableItem();
 				CG_DrawPersistantPowerup();
 			}
-			#endif
 
 			if (cg_drawRewards.integer) {
 				if (cg_drawRewards.integer == 2) {
@@ -6656,12 +6715,9 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
     
 	}
 
-#ifndef MISSIONPACK
-	if ( !CG_SH_Active() || !CG_SH_HasChat() ) {
+	if ( ( !CG_SH_Active() || !CG_SH_HasChat() ) && !CG_MenuHudActive() ) {
 		CG_DrawTeamChat();
 	}
-#endif
-
 
 	CG_DrawVote();
 	CG_DrawTeamVote();
@@ -6677,25 +6733,14 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		}
 	}
 
-#ifdef MISSIONPACK
-	if (!cg_paused.integer) {
-		if ( !CG_SH_Active() ) {
-			CG_DrawUpperRight(stereoFrame);
-		}
-	}
-#else
-	if ( !CG_SH_Active() ) {
+	if ( !CG_ScriptedHudActive() ) {
 		CG_DrawUpperRight(stereoFrame);
 	}
-#endif
 
-#ifndef MISSIONPACK
-	if ( !CG_SH_Active() ) {
+	if ( !CG_ScriptedHudActive() ) {
 		CG_DrawLowerRight();
 		CG_DrawLowerLeft();
 	}
-#endif
-
 	if ( CG_SH_Active() ) {
 		CG_SH_DrawFrame();
 	}

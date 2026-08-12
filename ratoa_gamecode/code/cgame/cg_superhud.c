@@ -85,6 +85,9 @@ typedef enum {
 	SH_WarmupInfo,
 	SH_WeaponList,
 	SH_Console,
+	SH_LocalTime,
+	SH_Name_OWN,
+	SH_Name_NME,
 	SH_NAMED_MAX,
 
 	/* Stubs / OOS names still accepted by parser */
@@ -106,7 +109,7 @@ typedef struct {
 	qboolean	inuse;
 	qboolean	hidden;
 	qboolean	isStub;
-	float		xpos, ypos, width, height;
+	float		xpos, ypos, width, height;	/* cfg anchor + size (pre-align) */
 	vec4_t		color;
 	vec4_t		bgcolor;
 	vec4_t		fade;
@@ -114,7 +117,9 @@ typedef struct {
 	qboolean	fill;
 	qboolean	monospace;
 	qboolean	doublebar;
-	int			textAlign;
+	int			textAlign;		/* L/C/R text justify inside draw rect */
+	int			alignH;			/* L/C/R: which edge/center xpos refers to */
+	int			alignV;			/* T/C/B: which edge/center ypos refers to (T=L, B=R) */
 	int			fontWidth;
 	int			fontHeight;
 	int			textstyle;
@@ -122,6 +127,15 @@ typedef struct {
 	int			font;
 	int			teamColor;		/* 0 none, 1 T, 2 E */
 	int			teamBgColor;
+	float		textOffsetX;
+	float		textOffsetY;
+	vec4_t		hlcolor;		/* WeaponList / list highlight */
+	float		hlSize;			/* % of min(w,h); 0 = off; >=50 = fill */
+	int			hlEdges;		/* bit0 L, bit1 R, bit2 T, bit3 B; 0 = all */
+	qboolean	hasHlColor;
+	float		spacing;		/* gap between WeaponList rows */
+	float		margins[4];		/* L T R B; positive = inward */
+	qboolean	hasMargins;
 	char		text[SH_MAX_TEXT];
 	char		image[SH_MAX_IMAGE];
 	qhandle_t	imageHandle;
@@ -136,6 +150,7 @@ typedef struct {
 	int				preCount;
 	int				postCount;
 	int				chFileModificationCount;
+	int				hudModeSeen;
 	char			warnedUnknown[512];
 } shState_t;
 
@@ -146,6 +161,9 @@ static shState_t sh;
 /* -------------------------------------------------------------------------- */
 
 qboolean CG_SH_Active( void ) {
+	if ( CG_HudMode() != 1 ) {
+		return qfalse;
+	}
 	return sh.active;
 }
 
@@ -155,7 +173,13 @@ static void SH_ClearElement( shElement_t *e ) {
 	e->fontWidth = 8;
 	e->fontHeight = 8;
 	e->textAlign = SH_ALIGN_L;
+	e->alignH = SH_ALIGN_L;
+	e->alignV = SH_ALIGN_L; /* top */
 	e->textstyle = 0;
+	e->hlcolor[0] = e->hlcolor[1] = e->hlcolor[2] = e->hlcolor[3] = 1.0f;
+	e->hlSize = 0.0f; /* WeaponList default: highlights off until cfg sets them */
+	e->hlEdges = 0;   /* 0 = all edges */
+	e->spacing = 0.0f;
 }
 
 static void SH_ClearAll( void ) {
@@ -250,6 +274,9 @@ static const shNameMap_t shNames[] = {
 	{ "WarmupInfo", SH_WarmupInfo, qfalse },
 	{ "WeaponList", SH_WeaponList, qfalse },
 	{ "Console", SH_Console, qfalse },
+	{ "LocalTime", SH_LocalTime, qfalse },
+	{ "Name_OWN", SH_Name_OWN, qfalse },
+	{ "Name_NME", SH_Name_NME, qfalse },
 	{ "PreDecorate", -1, qfalse },
 	{ "PostDecorate", -2, qfalse },
 	/* stubs */
@@ -289,9 +316,6 @@ static const shNameMap_t shNames[] = {
 	{ "PowerUp6_Time", SH_PowerUpHigh, qtrue },
 	{ "PowerUp7_Time", SH_PowerUpHigh, qtrue },
 	{ "PowerUp8_Time", SH_PowerUpHigh, qtrue },
-	{ "LocalTime", SH_ItemTimers, qtrue },
-	{ "Name_OWN", SH_Score_OWN, qtrue },
-	{ "Name_NME", SH_Score_NME, qtrue },
 };
 
 static int SH_LookupName( const char *name, qboolean *isStub, int *decorKind ) {
@@ -376,7 +400,26 @@ static int SH_Tokenize( char *buffer, int len, shToken_t *tokens, int maxTokens 
 	i = 0;
 	while ( flat[i] && tokenNum < maxTokens ) {
 		int j = 0;
-		while ( flat[i] && flat[i] != ' ' && j < SH_TOKEN_SIZE - 1 ) {
+
+		/* Quoted strings: "white", "vs", "gfx/2d/foo" — strip the quotes */
+		if ( flat[i] == '"' ) {
+			i++;
+			while ( flat[i] && flat[i] != '"' && j < SH_TOKEN_SIZE - 1 ) {
+				tokens[tokenNum].value[j++] = flat[i++];
+			}
+			tokens[tokenNum].value[j] = '\0';
+			if ( flat[i] == '"' ) {
+				i++;
+			}
+			if ( flat[i] == ' ' ) {
+				i++;
+			}
+			tokens[tokenNum].type = SH_TOT_WORD;
+			tokenNum++;
+			continue;
+		}
+
+		while ( flat[i] && flat[i] != ' ' && flat[i] != '"' && j < SH_TOKEN_SIZE - 1 ) {
 			tokens[tokenNum].value[j++] = flat[i++];
 		}
 		tokens[tokenNum].value[j] = '\0';
@@ -484,6 +527,36 @@ static void SH_ApplyInherit( shElement_t *e, const shElement_t *def, unsigned fi
 	}
 	if ( !( filledMask & 16384 ) ) {
 		e->teamBgColor = def->teamBgColor;
+	}
+	if ( !( filledMask & 32768 ) ) {
+		e->alignH = def->alignH;
+	}
+	if ( !( filledMask & 65536 ) ) {
+		e->alignV = def->alignV;
+	}
+	if ( !( filledMask & 131072 ) ) {
+		e->textOffsetX = def->textOffsetX;
+		e->textOffsetY = def->textOffsetY;
+	}
+	if ( !( filledMask & 262144 ) ) {
+		Vector4Copy( def->hlcolor, e->hlcolor );
+		e->hasHlColor = def->hasHlColor;
+	}
+	if ( !( filledMask & 524288 ) ) {
+		e->hlSize = def->hlSize;
+	}
+	if ( !( filledMask & 1048576 ) ) {
+		e->hlEdges = def->hlEdges;
+	}
+	if ( !( filledMask & 2097152 ) ) {
+		e->spacing = def->spacing;
+	}
+	if ( !( filledMask & 4194304 ) ) {
+		e->margins[0] = def->margins[0];
+		e->margins[1] = def->margins[1];
+		e->margins[2] = def->margins[2];
+		e->margins[3] = def->margins[3];
+		e->hasMargins = def->hasMargins;
 	}
 }
 
@@ -618,11 +691,87 @@ static unsigned SH_ApplyProps( shElement_t *e, shToken_t *tok, int start, int en
 				e->hasFade = qtrue;
 				mask |= 8192;
 			}
+		} else if ( !Q_stricmp( p, "textoffset" ) && i + 2 <= end ) {
+			e->textOffsetX = atof( tok[i + 1].value );
+			e->textOffsetY = atof( tok[i + 2].value );
+			mask |= 131072;
+			i += 2;
+		} else if ( !Q_stricmp( p, "alignh" ) && i + 1 <= end ) {
+			if ( !Q_stricmp( tok[i + 1].value, "C" ) ) {
+				e->alignH = SH_ALIGN_C;
+			} else if ( !Q_stricmp( tok[i + 1].value, "R" ) ) {
+				e->alignH = SH_ALIGN_R;
+			} else {
+				e->alignH = SH_ALIGN_L;
+			}
+			mask |= 32768;
+			i += 1;
+		} else if ( !Q_stricmp( p, "alignv" ) && i + 1 <= end ) {
+			/* T=top(L), C=center, B=bottom(R) — reuse SH_ALIGN_* values */
+			if ( !Q_stricmp( tok[i + 1].value, "C" ) ) {
+				e->alignV = SH_ALIGN_C;
+			} else if ( !Q_stricmp( tok[i + 1].value, "B" ) ) {
+				e->alignV = SH_ALIGN_R;
+			} else {
+				e->alignV = SH_ALIGN_L;
+			}
+			mask |= 65536;
+			i += 1;
+		} else if ( !Q_stricmp( p, "reset" ) ) {
+			/* !DEFAULT { reset; } — wipe inherited defaults (CPMA) */
+			SH_ClearElement( e );
+			mask = ~0u;
+		} else if ( !Q_stricmp( p, "hlcolor" ) && i + 4 <= end ) {
+			e->hlcolor[0] = atof( tok[i + 1].value );
+			e->hlcolor[1] = atof( tok[i + 2].value );
+			e->hlcolor[2] = atof( tok[i + 3].value );
+			e->hlcolor[3] = atof( tok[i + 4].value );
+			e->hasHlColor = qtrue;
+			mask |= 262144;
+			i += 4;
+		} else if ( !Q_stricmp( p, "hlsize" ) && i + 1 <= end ) {
+			e->hlSize = atof( tok[i + 1].value );
+			mask |= 524288;
+			i += 1;
+		} else if ( !Q_stricmp( p, "hledges" ) && i + 1 <= end ) {
+			int edges = 0;
+			while ( i + 1 <= end ) {
+				const char *edge = tok[i + 1].value;
+				if ( !Q_stricmp( edge, "left" ) || !Q_stricmp( edge, "L" ) ) {
+					edges |= 1;
+				} else if ( !Q_stricmp( edge, "right" ) || !Q_stricmp( edge, "R" ) ) {
+					edges |= 2;
+				} else if ( !Q_stricmp( edge, "top" ) || !Q_stricmp( edge, "T" ) ) {
+					edges |= 4;
+				} else if ( !Q_stricmp( edge, "bottom" ) || !Q_stricmp( edge, "B" ) ) {
+					edges |= 8;
+				} else if ( !Q_stricmp( edge, "all" ) ) {
+					edges = 15;
+				} else if ( !Q_stricmp( edge, "none" ) ) {
+					edges = -1; /* sentinel: no edges */
+				} else {
+					break;
+				}
+				i += 1;
+			}
+			e->hlEdges = edges;
+			mask |= 1048576;
+		} else if ( !Q_stricmp( p, "spacing" ) && i + 1 <= end ) {
+			e->spacing = atof( tok[i + 1].value );
+			mask |= 2097152;
+			i += 1;
+		} else if ( !Q_stricmp( p, "margins" ) && i + 4 <= end ) {
+			e->margins[0] = atof( tok[i + 1].value );
+			e->margins[1] = atof( tok[i + 2].value );
+			e->margins[2] = atof( tok[i + 3].value );
+			e->margins[3] = atof( tok[i + 4].value );
+			e->hasMargins = qtrue;
+			mask |= 4194304;
+			i += 4;
 		} else if ( !Q_stricmp( p, "model" ) || !Q_stricmp( p, "angles" ) ||
 					!Q_stricmp( p, "offset" ) || !Q_stricmp( p, "visflags" ) ||
-					!Q_stricmp( p, "alignh" ) || !Q_stricmp( p, "alignv" ) ||
-					!Q_stricmp( p, "direction" ) || !Q_stricmp( p, "margins" ) ||
-					!Q_stricmp( p, "textoffset" ) || !Q_stricmp( p, "imagetc" ) ||
+					!Q_stricmp( p, "direction" ) ||
+					!Q_stricmp( p, "imagetc" ) ||
 					!Q_stricmp( p, "itteam" ) || !Q_stricmp( p, "fadedelay" ) ) {
 			/* skip known optional args loosely */
 			while ( i + 1 <= end && tok[i + 1].type != SH_TOT_WORD &&
@@ -638,7 +787,15 @@ static unsigned SH_ApplyProps( shElement_t *e, shToken_t *tok, int start, int en
 					Q_stricmp( tok[i + 1].value, "font" ) &&
 					Q_stricmp( tok[i + 1].value, "fade" ) &&
 					Q_stricmp( tok[i + 1].value, "monospace" ) &&
-					Q_stricmp( tok[i + 1].value, "doublebar" ) ) {
+					Q_stricmp( tok[i + 1].value, "doublebar" ) &&
+					Q_stricmp( tok[i + 1].value, "alignh" ) &&
+					Q_stricmp( tok[i + 1].value, "alignv" ) &&
+					Q_stricmp( tok[i + 1].value, "textoffset" ) &&
+					Q_stricmp( tok[i + 1].value, "hlcolor" ) &&
+					Q_stricmp( tok[i + 1].value, "hlsize" ) &&
+					Q_stricmp( tok[i + 1].value, "hledges" ) &&
+					Q_stricmp( tok[i + 1].value, "spacing" ) &&
+					Q_stricmp( tok[i + 1].value, "reset" ) ) {
 				i++;
 				if ( tok[i].type == SH_TOT_WORD ) {
 					break;
@@ -780,16 +937,20 @@ void CG_SH_Load( void ) {
 	fileHandle_t f;
 	int len;
 	int n;
+	const char *base;
 
 	SH_ClearAll();
 	sh.chFileModificationCount = ch_file.modificationCount;
+	sh.hudModeSeen = CG_HudMode();
 
-	if ( !ch_file.string[0] ) {
+	/* Mode 1 = SuperHUD. Empty ch_file → ship default. Other modes stay off. */
+	if ( CG_HudMode() != 1 ) {
 		sh.active = qfalse;
 		return;
 	}
 
-	Com_sprintf( path, sizeof( path ), "hud/%s.cfg", ch_file.string );
+	base = ch_file.string[0] ? ch_file.string : "devotion_default";
+	Com_sprintf( path, sizeof( path ), "hud/%s.cfg", base );
 	len = trap_FS_FOpenFile( path, &f, FS_READ );
 	if ( !f ) {
 		CG_Printf( S_COLOR_YELLOW "SuperHUD: %s not found, trying devotion_default\n", path );
@@ -825,19 +986,42 @@ void CG_SH_Load( void ) {
 
 void CG_SH_Init( void ) {
 	SH_ClearAll();
-	if ( ch_file.string[0] ) {
+	sh.hudModeSeen = -1;
+	if ( CG_HudMode() == 1 ) {
 		CG_SH_Load();
 	}
 }
 
 void CG_SH_CheckCvars( void ) {
-	if ( ch_file.modificationCount != sh.chFileModificationCount ) {
+	int mode = CG_HudMode();
+
+	if ( mode != 1 ) {
+		if ( sh.active || sh.hudModeSeen != mode ) {
+			SH_ClearAll();
+			sh.active = qfalse;
+			sh.hudModeSeen = mode;
+			sh.chFileModificationCount = ch_file.modificationCount;
+		}
+		return;
+	}
+
+	if ( !sh.active
+			|| sh.hudModeSeen != mode
+			|| ch_file.modificationCount != sh.chFileModificationCount ) {
 		CG_SH_Load();
 	}
 }
 
 void CG_ReloadHUD_f( void ) {
-	CG_SH_Load();
+	if ( CG_HudMode() == 1 ) {
+		CG_SH_Load();
+	} else {
+		SH_ClearAll();
+		sh.active = qfalse;
+	}
+	if ( CG_HudMode() == 2 ) {
+		CG_MenuHud_Load();
+	}
 }
 
 void CG_SH_Dump_f( void ) {
@@ -948,6 +1132,10 @@ static void SH_ResolveColor( const shElement_t *e, vec4_t out, qboolean bg ) {
 	if ( team != TEAM_RED && team != TEAM_BLUE ) {
 		team = cgs.clientinfo[cg.clientNum].team;
 	}
+	/*
+	 * In FFA/1v1 (TEAM_FREE), T = red / E = blue so OWN/NME accents match CPMA.
+	 * In team modes, T = your team / E = enemy.
+	 */
 	if ( mode == 1 ) { /* T */
 		if ( team == TEAM_BLUE ) {
 			out[0] = 0.2f; out[1] = 0.2f; out[2] = 1.0f;
@@ -968,26 +1156,117 @@ static void SH_ResolveColor( const shElement_t *e, vec4_t out, qboolean bg ) {
 	}
 }
 
-static void SH_DrawFill( const shElement_t *e ) {
-	vec4_t c;
-	if ( !e->fill && e->bgcolor[3] <= 0.0f && !e->teamColor ) {
+static void SH_GetRect( const shElement_t *e, float *x, float *y, float *w, float *h ) {
+	float rx = e->xpos;
+	float ry = e->ypos;
+	float rw = e->width;
+	float rh = e->height;
+
+	/* CPMA: negative w/h mirrors the rect */
+	if ( rw < 0.0f ) {
+		rx += rw;
+		rw = -rw;
+	}
+	if ( rh < 0.0f ) {
+		ry += rh;
+		rh = -rh;
+	}
+
+	/*
+	 * rect x,y is an *anchor*; alignh/alignv select which edge/center it names.
+	 *   alignh L (default): x = left
+	 *   alignh C:           x = horizontal center
+	 *   alignh R:           x = right
+	 *   alignv T (default): y = top
+	 *   alignv C:           y = vertical center
+	 *   alignv B:           y = bottom
+	 */
+	if ( e->alignH == SH_ALIGN_C ) {
+		rx -= rw * 0.5f;
+	} else if ( e->alignH == SH_ALIGN_R ) {
+		rx -= rw;
+	}
+	if ( e->alignV == SH_ALIGN_C ) {
+		ry -= rh * 0.5f;
+	} else if ( e->alignV == SH_ALIGN_R ) {
+		ry -= rh;
+	}
+
+	*x = rx;
+	*y = ry;
+	*w = rw;
+	*h = rh;
+}
+
+/* Positive margins inset; negative expand (CPMA). */
+static void SH_ApplyMargins( float *x, float *y, float *w, float *h, const shElement_t *e ) {
+	if ( !e->hasMargins ) {
 		return;
 	}
+	*x += e->margins[0];
+	*y += e->margins[1];
+	*w -= e->margins[0] + e->margins[2];
+	*h -= e->margins[1] + e->margins[3];
+}
+
+static void SH_DrawFill( const shElement_t *e ) {
+	vec4_t c;
+	float x, y, w, h;
+
 	if ( !e->fill && e->bgcolor[3] <= 0.0f ) {
 		return;
 	}
-	SH_ResolveColor( e, c, qtrue );
-	if ( e->teamColor && e->fill ) {
-		/* CPMA: color T/E modulates bgcolor for fill */
+	SH_GetRect( e, &x, &y, &w, &h );
+	SH_ApplyMargins( &x, &y, &w, &h, e );
+	if ( w <= 0.0f || h <= 0.0f ) {
+		return;
+	}
+
+	/*
+	 * CPMA: color T/E modulates bgcolor (docs: "Set bgcolor for these, even for images").
+	 * Accents often use bgcolor + color T without an explicit fill bit.
+	 */
+	if ( e->teamColor ) {
 		SH_ResolveColor( e, c, qfalse );
-		c[3] = e->bgcolor[3] > 0 ? e->bgcolor[3] : e->color[3];
+		c[3] = e->bgcolor[3] > 0.0f ? e->bgcolor[3] : e->color[3];
+	} else {
+		SH_ResolveColor( e, c, qtrue );
 	}
 	if ( c[3] <= 0.0f && !e->fill ) {
 		return;
 	}
-	if ( e->fill || e->bgcolor[3] > 0.0f || e->teamColor ) {
-		CG_FillRect( e->xpos, e->ypos, e->width, e->height, c );
+	CG_FillRect( x, y, w, h, c );
+}
+
+/*
+ * Width-0 elements (TeamN, etc.): size the fill to the string, then apply
+ * margins so negative L/R expand the tinted backdrop around the text.
+ */
+static void SH_DrawFillForText( const shElement_t *e, const char *str ) {
+	shElement_t tmp;
+	int cw, len;
+
+	if ( !e || !str || !str[0] ) {
+		return;
 	}
+	if ( e->width > 0.0f ) {
+		SH_DrawFill( e );
+		return;
+	}
+	tmp = *e;
+	cw = tmp.fontWidth > 0 ? tmp.fontWidth : 8;
+	if ( !tmp.monospace && cw > 1 ) {
+		cw = ( cw * 3 ) / 4;
+		if ( cw < 1 ) {
+			cw = 1;
+		}
+	}
+	len = CG_DrawStrlen( str );
+	tmp.width = (float)( len * cw );
+	if ( tmp.height <= 0.0f ) {
+		tmp.height = tmp.fontHeight > 0 ? (float)tmp.fontHeight : 8.0f;
+	}
+	SH_DrawFill( &tmp );
 }
 
 /* Returns qfalse when the element is fully faded out. */
@@ -1015,22 +1294,31 @@ static qboolean SH_ApplyFade( const shElement_t *e, int startTime, vec4_t c ) {
 
 static void SH_DrawImage( const shElement_t *e, qhandle_t overrideHandle, int startTime ) {
 	vec4_t c;
-	qhandle_t h = overrideHandle ? overrideHandle : e->imageHandle;
-	if ( !h ) {
+	float x, y, w, h;
+	qhandle_t handle = overrideHandle ? overrideHandle : e->imageHandle;
+
+	if ( !handle ) {
 		return;
 	}
 	SH_ResolveColor( e, c, qfalse );
 	if ( !SH_ApplyFade( e, startTime, c ) ) {
 		return;
 	}
+	SH_GetRect( e, &x, &y, &w, &h );
+	if ( w <= 0.0f ) {
+		w = 32.0f;
+	}
+	if ( h <= 0.0f ) {
+		h = 32.0f;
+	}
 	trap_R_SetColor( c );
-	CG_DrawPic( e->xpos, e->ypos, e->width > 0 ? e->width : 32, e->height > 0 ? e->height : 32, h );
+	CG_DrawPic( x, y, w, h, handle );
 	trap_R_SetColor( NULL );
 }
 
 static void SH_DrawString( const shElement_t *e, const char *str, int startTime ) {
 	vec4_t c;
-	float x, y;
+	float x, y, w, h;
 	int cw, ch;
 	int len;
 	qboolean shadow;
@@ -1043,23 +1331,53 @@ static void SH_DrawString( const shElement_t *e, const char *str, int startTime 
 		return;
 	}
 
+	SH_GetRect( e, &x, &y, &w, &h );
 	cw = e->fontWidth > 0 ? e->fontWidth : 8;
 	ch = e->fontHeight > 0 ? e->fontHeight : 8;
-	len = CG_DrawStrlen( str );
-	x = e->xpos;
-	y = e->ypos;
-	if ( e->textAlign == SH_ALIGN_C ) {
-		x = e->xpos + ( e->width - len * cw ) * 0.5f;
-	} else if ( e->textAlign == SH_ALIGN_R ) {
-		x = e->xpos + e->width - len * cw;
+	/*
+	 * CPMA proportional fonts (cpma/sansman) are narrower than ID's fixed cells.
+	 * When monospace is not set, use a tighter advance so layouts that pack
+	 * LocalTime next to FPS (etc.) still fit under the ID-font fallback.
+	 */
+	if ( !e->monospace && cw > 1 ) {
+		cw = ( cw * 3 ) / 4;
+		if ( cw < 1 ) {
+			cw = 1;
+		}
 	}
+	len = CG_DrawStrlen( str );
+
+	/* textalign justifies within the resolved draw rect; width 0 = anchor point */
+	if ( e->textAlign == SH_ALIGN_C ) {
+		if ( w > 0.0f ) {
+			x = x + ( w - len * cw ) * 0.5f;
+		} else {
+			x = x - ( len * cw ) * 0.5f;
+		}
+	} else if ( e->textAlign == SH_ALIGN_R ) {
+		if ( w > 0.0f ) {
+			x = x + w - len * cw;
+		} else {
+			x = x - len * cw;
+		}
+	}
+	/* optional vertical placement when rect has height taller than the glyph */
+	if ( h > (float)ch && e->alignV == SH_ALIGN_C ) {
+		y += ( h - (float)ch ) * 0.5f;
+	} else if ( h > (float)ch && e->alignV == SH_ALIGN_R ) {
+		y += h - (float)ch;
+	}
+
+	x += e->textOffsetX;
+	y += e->textOffsetY;
+
 	shadow = ( e->textstyle & 1 ) ? qtrue : qfalse;
 	CG_DrawStringExt( (int)x, (int)y, str, c, qfalse, shadow, cw, ch, 0 );
 }
 
 static void SH_DrawBar( const shElement_t *e, float frac ) {
 	vec4_t c;
-	float w, h;
+	float x, y, w, h;
 
 	if ( frac < 0.0f ) {
 		frac = 0.0f;
@@ -1069,19 +1387,18 @@ static void SH_DrawBar( const shElement_t *e, float frac ) {
 	}
 	SH_ResolveColor( e, c, qfalse );
 	SH_DrawFill( e );
-	w = e->width;
-	h = e->height;
+	SH_GetRect( e, &x, &y, &w, &h );
 	if ( e->doublebar && h >= 6 ) {
 		float half = ( h - 4 ) * 0.5f;
-		CG_FillRect( e->xpos, e->ypos, w * frac, half, c );
-		CG_FillRect( e->xpos, e->ypos + half + 4, w * frac, half, c );
+		CG_FillRect( x, y, w * frac, half, c );
+		CG_FillRect( x, y + half + 4, w * frac, half, c );
 	} else {
 		if ( e->textAlign == SH_ALIGN_R ) {
-			CG_FillRect( e->xpos + w * ( 1.0f - frac ), e->ypos, w * frac, h, c );
+			CG_FillRect( x + w * ( 1.0f - frac ), y, w * frac, h, c );
 		} else if ( e->textAlign == SH_ALIGN_C ) {
-			CG_FillRect( e->xpos, e->ypos + h * ( 1.0f - frac ), w, h * frac, c );
+			CG_FillRect( x, y + h * ( 1.0f - frac ), w, h * frac, c );
 		} else {
-			CG_FillRect( e->xpos, e->ypos, w * frac, h, c );
+			CG_FillRect( x, y, w * frac, h, c );
 		}
 	}
 }
@@ -1091,7 +1408,7 @@ static qboolean SH_Visible( const shElement_t *e ) {
 }
 
 static int SH_OwnScore( void ) {
-	if ( cgs.gametype >= GT_TEAM ) {
+	if ( CG_IsTeamGametype() ) {
 		if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_RED ) {
 			return cgs.scores1;
 		}
@@ -1103,7 +1420,9 @@ static int SH_OwnScore( void ) {
 }
 
 static int SH_NmeScore( void ) {
-	if ( cgs.gametype >= GT_TEAM ) {
+	int own;
+
+	if ( CG_IsTeamGametype() ) {
 		if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_RED ) {
 			return cgs.scores2;
 		}
@@ -1112,20 +1431,77 @@ static int SH_NmeScore( void ) {
 		}
 		return cgs.scores2;
 	}
-	/* FFA/tourney: best other score */
-	{
-		int best = 0;
-		int i;
+
+	/* FFA/tourney: the other of CS_SCORES1/2 (live, not scoreboard snapshot) */
+	own = cg.snap->ps.persistant[PERS_SCORE];
+	if ( cgs.scores1 != SCORE_NOT_PRESENT && cgs.scores1 != own ) {
+		return cgs.scores1;
+	}
+	if ( cgs.scores2 != SCORE_NOT_PRESENT && cgs.scores2 != own ) {
+		return cgs.scores2;
+	}
+	return SCORE_NOT_PRESENT;
+}
+
+static int SH_NmeClientNum( void ) {
+	int i;
+	int own = cg.snap->ps.clientNum;
+
+	if ( cg.numScores > 0 ) {
 		for ( i = 0; i < cg.numScores; i++ ) {
-			if ( cg.scores[i].client == cg.snap->ps.clientNum ) {
+			clientInfo_t *ci = &cgs.clientinfo[cg.scores[i].client];
+			if ( cg.scores[i].client == own ) {
 				continue;
 			}
-			if ( cg.scores[i].score > best ) {
-				best = cg.scores[i].score;
+			if ( !ci->infoValid || ci->team == TEAM_SPECTATOR ) {
+				continue;
 			}
+			return cg.scores[i].client;
 		}
-		return best;
 	}
+	for ( i = 0; i < cgs.maxclients; i++ ) {
+		if ( i == own ) {
+			continue;
+		}
+		if ( !cgs.clientinfo[i].infoValid || cgs.clientinfo[i].team == TEAM_SPECTATOR ) {
+			continue;
+		}
+		return i;
+	}
+	return -1;
+}
+
+static const char *SH_OwnName( void ) {
+	if ( CG_IsTeamGametype() ) {
+		int team = cg.snap->ps.persistant[PERS_TEAM];
+		if ( team == TEAM_RED ) {
+			return cg_redTeamName.string[0] ? cg_redTeamName.string : "Red";
+		}
+		if ( team == TEAM_BLUE ) {
+			return cg_blueTeamName.string[0] ? cg_blueTeamName.string : "Blue";
+		}
+	}
+	return cgs.clientinfo[cg.snap->ps.clientNum].name;
+}
+
+static const char *SH_NmeName( void ) {
+	int cl;
+
+	if ( CG_IsTeamGametype() ) {
+		int team = cg.snap->ps.persistant[PERS_TEAM];
+		if ( team == TEAM_RED ) {
+			return cg_blueTeamName.string[0] ? cg_blueTeamName.string : "Blue";
+		}
+		if ( team == TEAM_BLUE ) {
+			return cg_redTeamName.string[0] ? cg_redTeamName.string : "Red";
+		}
+		return "Enemy";
+	}
+	cl = SH_NmeClientNum();
+	if ( cl < 0 ) {
+		return "";
+	}
+	return cgs.clientinfo[cl].name;
 }
 
 static const char *SH_GameTypeString( void ) {
@@ -1154,8 +1530,27 @@ static const char *SH_GameTypeString( void ) {
 /* Element drawers                                                            */
 /* -------------------------------------------------------------------------- */
 
+/* Fraglimit, or capturelimit for flag/objective team modes. */
+static int SH_GameLimit( void ) {
+	if ( CG_IsTeamGametype() && cgs.gametype != GT_TEAM ) {
+		return cgs.capturelimit;
+	}
+	return cgs.fraglimit;
+}
+
+/*
+ * CPMA HUDs put a PreDecorate { text "vs" } in the same slot as Score_Limit.
+ * Show "vs" only when there is no frag/capture limit; otherwise show the limit.
+ */
+static qboolean SH_IsVsDecor( const shElement_t *e ) {
+	return e->text[0] && !Q_stricmp( e->text, "vs" );
+}
+
 static void SH_DrawDecor( const shElement_t *e ) {
 	if ( !SH_Visible( e ) ) {
+		return;
+	}
+	if ( SH_IsVsDecor( e ) && SH_GameLimit() > 0 ) {
 		return;
 	}
 	SH_DrawFill( e );
@@ -1173,7 +1568,6 @@ static void SH_DrawStatusCounts( void ) {
 	char buf[32];
 	int ammo = 0;
 	float hfrac, afrac, mfrac;
-	const int maxH = ps->stats[STAT_MAX_HEALTH] > 0 ? ps->stats[STAT_MAX_HEALTH] : 100;
 
 	if ( cent->currentState.weapon ) {
 		ammo = ps->ammo[cent->currentState.weapon];
@@ -1204,7 +1598,7 @@ static void SH_DrawStatusCounts( void ) {
 		SH_DrawImage( &sh.named[SH_StatusBar_AmmoIcon], cg_weapons[cent->currentState.weapon].ammoIcon, 0 );
 	}
 
-	hfrac = (float)ps->stats[STAT_HEALTH] / (float)( maxH > 100 ? maxH : 100 );
+	hfrac = (float)ps->stats[STAT_HEALTH] / 200.0f;
 	afrac = (float)ps->stats[STAT_ARMOR] / 200.0f;
 	mfrac = ammo > 0 ? ( ammo / 200.0f ) : 0.0f;
 	if ( SH_Visible( &sh.named[SH_StatusBar_HealthBar] ) ) {
@@ -1267,20 +1661,37 @@ static void SH_DrawGameTime( void ) {
 
 static void SH_DrawScores( void ) {
 	char buf[32];
+	int nme;
+	int limit;
+
 	if ( SH_Visible( &sh.named[SH_Score_OWN] ) ) {
 		SH_DrawFill( &sh.named[SH_Score_OWN] );
 		Com_sprintf( buf, sizeof( buf ), "%i", SH_OwnScore() );
 		SH_DrawString( &sh.named[SH_Score_OWN], buf, 0 );
 	}
 	if ( SH_Visible( &sh.named[SH_Score_NME] ) ) {
-		SH_DrawFill( &sh.named[SH_Score_NME] );
-		Com_sprintf( buf, sizeof( buf ), "%i", SH_NmeScore() );
-		SH_DrawString( &sh.named[SH_Score_NME], buf, 0 );
+		nme = SH_NmeScore();
+		if ( nme != SCORE_NOT_PRESENT ) {
+			SH_DrawFill( &sh.named[SH_Score_NME] );
+			Com_sprintf( buf, sizeof( buf ), "%i", nme );
+			SH_DrawString( &sh.named[SH_Score_NME], buf, 0 );
+		}
 	}
-	if ( SH_Visible( &sh.named[SH_Score_Limit] ) && cgs.fraglimit ) {
+	/* Mutually exclusive with PreDecorate text "vs" (see SH_DrawDecor). */
+	limit = SH_GameLimit();
+	if ( SH_Visible( &sh.named[SH_Score_Limit] ) && limit > 0 ) {
 		SH_DrawFill( &sh.named[SH_Score_Limit] );
-		Com_sprintf( buf, sizeof( buf ), "%i", cgs.fraglimit );
+		Com_sprintf( buf, sizeof( buf ), "%i", limit );
 		SH_DrawString( &sh.named[SH_Score_Limit], buf, 0 );
+	}
+	if ( SH_Visible( &sh.named[SH_Name_OWN] ) ) {
+		SH_DrawString( &sh.named[SH_Name_OWN], SH_OwnName(), 0 );
+	}
+	if ( SH_Visible( &sh.named[SH_Name_NME] ) ) {
+		const char *n = SH_NmeName();
+		if ( n && n[0] ) {
+			SH_DrawString( &sh.named[SH_Name_NME], n, 0 );
+		}
 	}
 }
 
@@ -1295,14 +1706,30 @@ static void SH_DrawSpeed( void ) {
 	VectorCopy( cg.snap->ps.velocity, vel );
 	vel[2] = 0;
 	speed = (int)VectorLength( vel );
-	Com_sprintf( buf, sizeof( buf ), "%i", speed );
+	Com_sprintf( buf, sizeof( buf ), "%i ups", speed );
 	SH_DrawFill( &sh.named[SH_PlayerSpeed] );
 	SH_DrawString( &sh.named[SH_PlayerSpeed], buf, 0 );
+}
+
+static void SH_DrawLocalTime( void ) {
+	qtime_t now;
+	char buf[16];
+
+	if ( !SH_Visible( &sh.named[SH_LocalTime] ) ) {
+		return;
+	}
+	trap_RealTime( &now );
+	Com_sprintf( buf, sizeof( buf ), "%02i:%02i", now.tm_hour, now.tm_min );
+	SH_DrawString( &sh.named[SH_LocalTime], buf, 0 );
 }
 
 static void SH_DrawPing( void ) {
 	char buf[32];
 	if ( !SH_Visible( &sh.named[SH_NetGraphPing] ) ) {
+		return;
+	}
+	/* CPMA: not displayed on listen servers */
+	if ( cgs.localServer ) {
 		return;
 	}
 	Com_sprintf( buf, sizeof( buf ), "%i", cg.snap->ping );
@@ -1322,6 +1749,9 @@ static void SH_DrawNetGraph( void ) {
 	if ( !SH_Visible( e ) ) {
 		return;
 	}
+	if ( cgs.localServer ) {
+		return;
+	}
 	/* Only paint a backdrop when the cfg asked for fill/bg — a later
 	 * !DEFAULT often leaves bgcolor alpha > 0 which looked like an empty box. */
 	if ( e->fill || e->bgcolor[3] > 0.01f ) {
@@ -1331,10 +1761,13 @@ static void SH_DrawNetGraph( void ) {
 	pingHist[pingHistCount % 64] = cg.snap->ping;
 	pingHistCount++;
 
-	x = e->xpos;
-	y = e->ypos;
-	w = e->width > 0 ? e->width : 48;
-	h = e->height > 0 ? e->height : 24;
+	SH_GetRect( e, &x, &y, &w, &h );
+	if ( w <= 0.0f ) {
+		w = 48.0f;
+	}
+	if ( h <= 0.0f ) {
+		h = 24.0f;
+	}
 	samples = (int)w;
 	if ( samples > 64 ) {
 		samples = 64;
@@ -1373,27 +1806,52 @@ static void SH_DrawPowerups( void ) {
 	playerState_t *ps = &cg.snap->ps;
 	int slots[4] = { 0, 0, 0, 0 };
 	int times[4] = { 0, 0, 0, 0 };
+	qboolean showTime[4] = { qfalse, qfalse, qfalse, qfalse };
 	int n = 0;
 	int i;
 	int iconIds[4] = { SH_PowerUp1_Icon, SH_PowerUp2_Icon, SH_PowerUp3_Icon, SH_PowerUp4_Icon };
 	int timeIds[4] = { SH_PowerUp1_Time, SH_PowerUp2_Time, SH_PowerUp3_Time, SH_PowerUp4_Time };
 
 	for ( i = 0; i < PW_NUM_POWERUPS && n < 4; i++ ) {
-		if ( ps->powerups[i] > cg.time ) {
-			gitem_t *item = BG_FindItemForPowerup( i );
-			if ( !item ) {
-				continue;
-			}
-			slots[n] = trap_R_RegisterShader( item->icon );
-			times[n] = ( ps->powerups[i] - cg.time ) / 1000;
-			n++;
+		gitem_t *item;
+		int t;
+		qboolean isKey;
+
+		if ( !ps->powerups[i] ) {
+			continue;
 		}
+		item = BG_FindItemForPowerup( i );
+		if ( !item ) {
+			continue;
+		}
+		if ( item->giType == IT_PERSISTANT_POWERUP ) {
+			continue;
+		}
+		isKey = ( item->giType == IT_KEY );
+		t = ps->powerups[i] - cg.time;
+		/* Unlimited-duration items (flags etc.): skip. Keys still show icon, no timer. */
+		if ( !isKey && ( t < 0 || t > 999000 ) ) {
+			continue;
+		}
+		if ( !isKey && t <= 0 ) {
+			continue;
+		}
+
+		slots[n] = trap_R_RegisterShader( item->icon );
+		if ( isKey ) {
+			times[n] = 0;
+			showTime[n] = qfalse;
+		} else {
+			times[n] = ( t + 999 ) / 1000;
+			showTime[n] = qtrue;
+		}
+		n++;
 	}
 	for ( i = 0; i < 4; i++ ) {
 		if ( i < n && SH_Visible( &sh.named[iconIds[i]] ) ) {
 			SH_DrawImage( &sh.named[iconIds[i]], slots[i], 0 );
 		}
-		if ( i < n && SH_Visible( &sh.named[timeIds[i]] ) ) {
+		if ( i < n && showTime[i] && SH_Visible( &sh.named[timeIds[i]] ) ) {
 			char buf[16];
 			Com_sprintf( buf, sizeof( buf ), "%i", times[i] );
 			SH_DrawString( &sh.named[timeIds[i]], buf, 0 );
@@ -1405,17 +1863,34 @@ static void SH_DrawWeaponList( void ) {
 	shElement_t *e = &sh.named[SH_WeaponList];
 	int i;
 	float x, y, w, h;
+	float gap;
 	int bits;
+	int cur;
+	vec4_t rowBg;
+	vec4_t hl;
+	float thick;
+	int edges;
+	float padL, padT, padB;
+	float iconSz;
+	float contentX;
+	int ammoCw, ammoCh;
 
 	if ( !SH_Visible( e ) ) {
 		return;
 	}
-	w = e->width > 0 ? e->width : 32;
-	h = e->height > 0 ? e->height : 16;
+	SH_GetRect( e, &x, &y, &w, &h );
+	if ( w <= 0.0f ) {
+		w = 32.0f;
+	}
+	if ( h <= 0.0f ) {
+		h = 16.0f;
+	}
+	gap = e->spacing > 0.0f ? e->spacing : 0.0f;
 	bits = cg.snap->ps.stats[STAT_WEAPONS];
-	x = e->xpos;
-	y = e->ypos;
-	if ( e->textAlign == SH_ALIGN_C ) {
+	cur = cg.snap->ps.weapon;
+
+	/* Legacy: textalign C centers a horizontal list around the anchor */
+	if ( e->textAlign == SH_ALIGN_C || e->alignH == SH_ALIGN_C ) {
 		int count = 0;
 		for ( i = WP_MACHINEGUN; i <= WP_BFG; i++ ) {
 			if ( bits & ( 1 << i ) ) {
@@ -1424,25 +1899,135 @@ static void SH_DrawWeaponList( void ) {
 		}
 		x = e->xpos - ( count * w ) * 0.5f;
 	}
+
+	/* CPMA: hlsize is % of the smaller cell dimension */
+	thick = 0.0f;
+	if ( e->hlSize > 0.0f && e->hlcolor[3] > 0.0f ) {
+		float dim = ( w < h ) ? w : h;
+		thick = dim * ( e->hlSize / 100.0f );
+		if ( thick < 1.0f ) {
+			thick = 1.0f;
+		}
+	}
+	edges = e->hlEdges;
+	if ( edges == 0 ) {
+		edges = 15; /* default outline: all edges */
+	} else if ( edges < 0 ) {
+		edges = 0; /* "none" */
+	}
+	Vector4Copy( e->hlcolor, hl );
+	Vector4Copy( e->bgcolor, rowBg );
+
+	/* Content insets: leave room for left highlight; margins expand the row bg */
+	padL = 2.0f;
+	padT = 1.0f;
+	padB = 1.0f;
+	if ( thick > 0.0f && ( edges & 1 ) ) {
+		padL = thick + 2.0f;
+	}
+
+	ammoCw = e->fontWidth > 0 ? e->fontWidth : 8;
+	ammoCh = e->fontHeight > 0 ? e->fontHeight : 8;
+	if ( !e->monospace && ammoCw > 1 ) {
+		ammoCw = ( ammoCw * 3 ) / 4;
+		if ( ammoCw < 1 ) {
+			ammoCw = 1;
+		}
+	}
+	/* Prefer fitting 3 ammo digits; allow ammo to extend past cell width if needed */
+	iconSz = h - padT - padB;
+	if ( iconSz > h * 0.85f ) {
+		iconSz = h * 0.85f;
+	}
+	if ( iconSz > w - padL - (float)( 3 * ammoCw ) - 4.0f ) {
+		iconSz = w - padL - (float)( 3 * ammoCw ) - 4.0f;
+	}
+	if ( iconSz < 8.0f ) {
+		iconSz = 8.0f;
+		/* Shrink ammo advance so three digits still read inside a narrow cell */
+		ammoCw = (int)( ( w - padL - iconSz - 4.0f ) / 3.0f );
+		if ( ammoCw < 4 ) {
+			ammoCw = 4;
+		}
+		if ( ammoCh > (int)iconSz ) {
+			ammoCh = (int)iconSz;
+		}
+	}
+
 	for ( i = WP_GAUNTLET; i <= WP_BFG; i++ ) {
 		char buf[16];
+		float rowY = y;
+		float iconX, iconY;
+		qboolean active = ( i == cur );
+		vec4_t drawColor;
+		float bgX, bgW;
+
 		if ( !( bits & ( 1 << i ) ) && !e->fill ) {
 			continue;
 		}
 		if ( !cg_weapons[i].weaponIcon ) {
 			continue;
 		}
-		trap_R_SetColor( e->color );
-		CG_DrawPic( x, y, h, h, cg_weapons[i].weaponIcon );
+
+		Vector4Copy( e->color, drawColor );
+		if ( active ) {
+			drawColor[0] = drawColor[1] = drawColor[2] = 1.0f;
+			drawColor[3] = 1.0f;
+		}
+
+		/* Row background (margins may expand outward) */
+		bgX = x;
+		bgW = w;
+		if ( e->hasMargins ) {
+			bgX += e->margins[0];
+			bgW -= e->margins[0] + e->margins[2];
+		}
+		if ( rowBg[3] > 0.01f && bgW > 0.0f ) {
+			CG_FillRect( bgX, rowY, bgW, h, rowBg );
+		}
+
+		if ( active && thick > 0.0f ) {
+			if ( e->hlSize >= 50.0f ) {
+				CG_FillRect( x, rowY, w, h, hl );
+			} else {
+				if ( edges & 1 ) {
+					CG_FillRect( x, rowY, thick, h, hl );
+				}
+				if ( edges & 2 ) {
+					CG_FillRect( x + w - thick, rowY, thick, h, hl );
+				}
+				if ( edges & 4 ) {
+					CG_FillRect( x, rowY, w, thick, hl );
+				}
+				if ( edges & 8 ) {
+					CG_FillRect( x, rowY + h - thick, w, thick, hl );
+				}
+			}
+		}
+
+		contentX = x + padL;
+		iconX = contentX;
+		iconY = rowY + ( h - iconSz ) * 0.5f;
+		trap_R_SetColor( drawColor );
+		CG_DrawPic( iconX, iconY, iconSz, iconSz, cg_weapons[i].weaponIcon );
 		trap_R_SetColor( NULL );
-		Com_sprintf( buf, sizeof( buf ), "%i", cg.snap->ps.ammo[i] );
-		CG_DrawStringExt( (int)( x + h ), (int)y, buf, e->color, qfalse,
-				( e->textstyle & 1 ) ? qtrue : qfalse,
-				e->fontWidth > 0 ? e->fontWidth : 8,
-				e->fontHeight > 0 ? e->fontHeight : 8, 0 );
-		y += h;
-		if ( y + h > 480 ) {
+
+		if ( i != WP_GAUNTLET && cg.snap->ps.ammo[i] >= 0 ) {
+			Com_sprintf( buf, sizeof( buf ), "%i", cg.snap->ps.ammo[i] );
+			CG_DrawStringExt( (int)( iconX + iconSz + 2.0f + e->textOffsetX ),
+					(int)( rowY + e->textOffsetY + ( h - ammoCh ) * 0.5f ),
+					buf, drawColor, qfalse,
+					( e->textstyle & 1 ) ? qtrue : qfalse,
+					ammoCw, ammoCh, 0 );
+		}
+		y += h + gap;
+		if ( y + h > 480.0f ) {
 			y = e->ypos;
+			if ( e->alignV == SH_ALIGN_C ) {
+				y -= h * 0.5f;
+			} else if ( e->alignV == SH_ALIGN_R ) {
+				y -= h;
+			}
 			x += w;
 		}
 	}
@@ -1517,16 +2102,18 @@ static void SH_DrawFlags( void ) {
 	}
 	if ( SH_Visible( &sh.named[SH_FlagStatus_OWN] ) ) {
 		int team = cg.snap->ps.persistant[PERS_TEAM];
+		float x, y, w, h;
 		SH_DrawFill( &sh.named[SH_FlagStatus_OWN] );
-		CG_DrawFlagModel( sh.named[SH_FlagStatus_OWN].xpos, sh.named[SH_FlagStatus_OWN].ypos,
-				sh.named[SH_FlagStatus_OWN].width, sh.named[SH_FlagStatus_OWN].height, team, qtrue );
+		SH_GetRect( &sh.named[SH_FlagStatus_OWN], &x, &y, &w, &h );
+		CG_DrawFlagModel( x, y, w, h, team, qtrue );
 	}
 	if ( SH_Visible( &sh.named[SH_FlagStatus_NME] ) ) {
 		int team = cg.snap->ps.persistant[PERS_TEAM];
 		int enemy = ( team == TEAM_RED ) ? TEAM_BLUE : TEAM_RED;
+		float x, y, w, h;
 		SH_DrawFill( &sh.named[SH_FlagStatus_NME] );
-		CG_DrawFlagModel( sh.named[SH_FlagStatus_NME].xpos, sh.named[SH_FlagStatus_NME].ypos,
-				sh.named[SH_FlagStatus_NME].width, sh.named[SH_FlagStatus_NME].height, enemy, qtrue );
+		SH_GetRect( &sh.named[SH_FlagStatus_NME], &x, &y, &w, &h );
+		CG_DrawFlagModel( x, y, w, h, enemy, qtrue );
 	}
 }
 
@@ -1593,6 +2180,7 @@ static void SH_DrawTeamOverlay( void ) {
 	for ( i = 0; i < cgs.maxclients && n < 8; i++ ) {
 		clientInfo_t *ci = &cgs.clientinfo[i];
 		char buf[128];
+		shElement_t slot;
 		shElement_t *e;
 		if ( !ci->infoValid || ci->team != myTeam ) {
 			continue;
@@ -1603,8 +2191,17 @@ static void SH_DrawTeamOverlay( void ) {
 			continue;
 		}
 		Com_sprintf( buf, sizeof( buf ), "%-12s %3i %3i", ci->name, ci->health, ci->armor );
-		SH_DrawFill( e );
-		SH_DrawString( e, buf, 0 );
+		slot = *e;
+		/*
+		 * color T/E + bgcolor: team-tinted row behind the name. Width 0 means
+		 * text-sized; margins expand that fill. Cfg often uses ~0.25 alpha —
+		 * bump faint fills toward ~50% so the tint reads clearly.
+		 */
+		if ( slot.teamColor && slot.bgcolor[3] > 0.01f && slot.bgcolor[3] < 0.45f ) {
+			slot.bgcolor[3] = 0.5f;
+		}
+		SH_DrawFillForText( &slot, buf );
+		SH_DrawString( &slot, buf, 0 );
 		n++;
 	}
 }
@@ -1665,6 +2262,7 @@ static void SH_DrawMessages( void ) {
 	}
 	if ( SH_Visible( &sh.named[SH_WarmupInfo] ) ) {
 		if ( cg.warmup < 0 ) {
+			SH_DrawFill( &sh.named[SH_WarmupInfo] );
 			SH_DrawString( &sh.named[SH_WarmupInfo], "Waiting for players", 0 );
 		} else if ( cg.warmup > 0 ) {
 			int sec = ( cg.warmup - cg.time ) / 1000;
@@ -1673,11 +2271,31 @@ static void SH_DrawMessages( void ) {
 				sec = 0;
 			}
 			Com_sprintf( buf, sizeof( buf ), "Starts in: %i", sec + 1 );
+			SH_DrawFill( &sh.named[SH_WarmupInfo] );
 			SH_DrawString( &sh.named[SH_WarmupInfo], buf, 0 );
 		}
 	}
 	if ( SH_Visible( &sh.named[SH_GameType] ) && ( cg.warmup || !cg.snap->ps.stats[STAT_HEALTH] ) ) {
-		SH_DrawString( &sh.named[SH_GameType], SH_GameTypeString(), 0 );
+		shElement_t gt = sh.named[SH_GameType];
+		vec4_t white = { 1.0f, 1.0f, 1.0f, 1.0f };
+		/* Accent underline uses color T via bgcolor; label itself is white */
+		SH_DrawFill( &gt );
+		gt.teamColor = 0;
+		Vector4Copy( white, gt.color );
+		/* Slightly smaller than fontsize so the accent does not collide */
+		if ( gt.fontWidth > 0 ) {
+			gt.fontWidth = ( gt.fontWidth * 5 ) / 6;
+			if ( gt.fontWidth < 1 ) {
+				gt.fontWidth = 1;
+			}
+		}
+		if ( gt.fontHeight > 0 ) {
+			gt.fontHeight = ( gt.fontHeight * 5 ) / 6;
+			if ( gt.fontHeight < 1 ) {
+				gt.fontHeight = 1;
+			}
+		}
+		SH_DrawString( &gt, SH_GameTypeString(), 0 );
 	}
 	if ( SH_Visible( &sh.named[SH_VoteMessageWorld] ) && cgs.voteTime ) {
 		char buf[256];
@@ -1719,6 +2337,7 @@ void CG_SH_DrawFrame( void ) {
 
 	SH_DrawFPSElem();
 	SH_DrawGameTime();
+	SH_DrawLocalTime();
 	SH_DrawScores();
 	SH_DrawSpeed();
 	SH_DrawPing();
