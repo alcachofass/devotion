@@ -1450,7 +1450,6 @@ typedef struct {
 	qhandle_t teamLeaderShader;
 	qhandle_t retrieveShader;
 	qhandle_t escortShader;
-        qhandle_t deathShader;
 	qhandle_t flagShaders[3];
 	sfxHandle_t	countPrepareTeamSound;
 
@@ -1458,6 +1457,9 @@ typedef struct {
 	sfxHandle_t doublerSound;
 	sfxHandle_t guardSound;
 	sfxHandle_t scoutSound;
+#endif
+#if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
+	qhandle_t deathShader;
 #endif
 	qhandle_t cursor;
 	qhandle_t selectCursor;
@@ -1792,7 +1794,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 
 //
-// cg_superhud.c
+// cg_superhud.c / cg_menuhud.c
 //
 void CG_SH_Init( void );
 void CG_SH_Load( void );
@@ -1807,6 +1809,17 @@ void CG_ReloadHUD_f( void );
 void CG_SH_Dump_f( void );
 void CG_HudHide_f( void );
 void CG_HudShow_f( void );
+
+int CG_HudMode( void );
+qboolean CG_MenuHudActive( void );
+qboolean CG_ScriptedHudActive( void );
+void CG_MenuHud_Init( void );
+void CG_MenuHud_Load( void );
+void CG_MenuHud_CheckCvars( void );
+void CG_MenuHud_Draw( void );
+void CG_MenuHud_Shutdown( void );
+void CG_AssetCache( void );
+void CG_LoadHudMenu( void );
 
 //
 // cg_drawtools.c

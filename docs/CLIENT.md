@@ -22,7 +22,9 @@ set cg_brightShells "1"          // Sets brightshells on. Shells honor cg_enemyC
 
 ## Selecting a HUD
 
-The "hud" console command can be used to toggle between available HUDs. Each HUD sets four cvars: cg_hudDamageIndicator, cg_emptyIndicator, cg_weaponbarStyle, and cg_drawFPS. After executing the command, a vid_restart is executed to prevent display errors on screen.
+Devotion has three HUD **backends** (legacy, SuperHUD, Quake Live–style Menu HUD). See [HUD.md](HUD.md) for how to switch them with `cg_hudMode`.
+
+Separately, the older `hud` console command only toggles **legacy** look presets. Each preset sets `cg_hudDamageIndicator`, `cg_emptyIndicator`, `cg_weaponbarStyle`, and `cg_drawFPS`, then runs `vid_restart`:
 
 ```
 hud 0                            // Legacy RatMod HUD
@@ -30,12 +32,8 @@ hud 1                            // Futuristic HUD
 hud 2                            // Quake 3 HUD (default)
 ```
 
-### SuperHUD (CPMA-style configs)
-
-Opt-in scripted HUD. Place `.cfg` files in `devotion/hud/` and select with `ch_file` (no `.cfg` suffix). When active, SuperHUD replaces overlapping legacy status/FPS/timer/chat widgets. See [SUPERHUD.md](SUPERHUD.md).
-
 ```
+seta cg_hudMode "1"              // SuperHUD (CPMA .cfg) — see HUD.md
 seta ch_file "devotion_default"
 reloadHUD
-sh_dumpHud                       // debug loaded elements
 ```

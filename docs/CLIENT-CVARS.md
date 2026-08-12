@@ -21,7 +21,7 @@ Client-side variables registered by the **cgame** module (`cg_*`, plus related n
 | `cg_altScoreboardAccuracy` | Devotion | `1` | 0 or 1 | When `1`, shows weapon accuracy on the RatMod scoreboard. |
 | `cg_altStatusbar` | Devotion | `0` | 0 or 1 | Health/armor/ammo HUD layout: `0` classic, other values select RatMod status bar styles. |
 | `cg_altStatusbarOldNumbers` | Devotion | `0` | 0 or 1 | When `1`, uses the older number style on the alternate status bar. |
-| `ch_file` | Devotion | `""` | string | SuperHUD config basename under `hud/` (without `.cfg`). Empty disables SuperHUD. See [SUPERHUD.md](SUPERHUD.md). |
+| `ch_file` | Devotion | `""` | string | SuperHUD config basename under `hud/` (without `.cfg`). In mode `1`, empty loads `devotion_default`. See [HUD.md](HUD.md). |
 | `ch_hiddenElements` | Devotion | `""` | string | Space-separated SuperHUD element names to hide (`hud_hide` / `hud_show` update this). |
 | `cg_alwaysWeaponBar` | RatMod | `1` | 0 or 1 | When `1`, keeps the weapon bar visible at all times instead of only while switching. |
 | `cg_animspeed` | Vanilla | `1` | 0 or 1 | Player animation playback speed (`1` = normal). Mostly a debug option. |
@@ -179,7 +179,8 @@ Client-side variables registered by the **cgame** module (`cg_*`, plus related n
 | `cg_hudDamageIndicatorAlpha` | RatMod | `1.0` | float | Opacity of the directional damage indicator. |
 | `cg_hudDamageIndicatorOffset` | RatMod | `0.0` | float | How far the edge damage flash sits from the screen border (style `1`). |
 | `cg_hudDamageIndicatorScale` | RatMod | `1.0` | float | Size of the directional damage indicator. |
-| `cg_hudFiles` | Vanilla | `ui/hud.txt` | filename | Path to the classic HUD layout definition file. |
+| `cg_hudFiles` | Vanilla / Devotion | `ui/hud.txt` | filename | Menu HUD loader script (mode `cg_hudMode 2`). See [HUD.md](HUD.md). |
+| `cg_hudMode` | Devotion | `0` | `0`-`2` | HUD backend: `0` legacy Rat, `1` SuperHUD, `2` QL-style menu HUD. See [HUD.md](HUD.md). |
 | `cg_hudMovementKeys` | RatMod | `0` | 0 or 1 | When `1`, shows an on-screen WASD/crouch key display (handy for demos and streams). |
 | `cg_hudMovementKeysAlpha` | RatMod | `0.75` | float | Opacity of the on-screen movement-key display. |
 | `cg_hudMovementKeysColor` | RatMod | `H192 1.0 1.0` | HSV color string (e.g. `H120 1.0 0.5`) or color digits | Color of the on-screen movement-key display. |

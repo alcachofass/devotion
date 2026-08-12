@@ -34,7 +34,7 @@ Here's an exhaustive listing of valid client console commands for the Devotion m
 | `god` | Server | Vanilla | — | Toggle god mode (cheat). |
 | `help` | Server | RatMod | — | Show MOTD/help text (same as `motd`). |
 | `hud` | Local | RatMod | <0-2> | Apply HUD preset 0=Q3, 1=futuristic, 2=legacy RatMod; runs `vid_restart`. |
-| `reloadHUD` | Local | Devotion | | Reload the SuperHUD file named by `ch_file`. |
+| `reloadHUD` | Local | Devotion | | Reload SuperHUD / Menu HUD for the current `cg_hudMode`. See [HUD.md](HUD.md). |
 | `hud_hide` | Local | Devotion | <element> | Hide a SuperHUD element (adds to `ch_hiddenElements`). |
 | `hud_show` | Local | Devotion | <element> | Show a previously hidden SuperHUD element. |
 | `sh_dumpHud` | Local | Devotion | | Debug: print loaded SuperHUD element slots. |

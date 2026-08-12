@@ -1,0 +1,104 @@
+#include "ui/menudef.h"
+
+/*
+ * Simple FFA scoreboard panel for Menu HUD mode (score_menu).
+ */
+{
+	menuDef {
+		name "score_menu"
+		fullScreen MENU_FALSE
+		visible MENU_FALSE
+		rect 120 60 400 360
+		style WINDOW_STYLE_FILLED
+		backcolor 0 0 0 0.7
+		border 1
+		bordercolor 1 1 1 0.35
+
+		itemDef {
+			name "title"
+			rect 0 8 400 24
+			visible 1
+			decoration
+			text "SCOREBOARD"
+			textalign ITEM_ALIGN_CENTER
+			textscale 0.40
+			forecolor 1 1 1 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+		}
+		itemDef {
+			name "killer"
+			rect 20 36 360 18
+			visible 1
+			decoration
+			textalign ITEM_ALIGN_CENTER
+			textscale 0.28
+			forecolor 1 0.7 0.3 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			ownerdraw CG_KILLER
+		}
+		/* Column headers — aligned with listbox columns (name/score/time/ping) */
+		itemDef {
+			name "hdrName"
+			rect 24 58 180 14
+			visible 1
+			decoration
+			text "NAME"
+			textalign ITEM_ALIGN_LEFT
+			textscale 0.20
+			forecolor 0.75 0.75 0.75 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+		}
+		itemDef {
+			name "hdrScore"
+			rect 224 58 48 14
+			visible 1
+			decoration
+			text "SCORE"
+			textalign ITEM_ALIGN_LEFT
+			textscale 0.20
+			forecolor 0.75 0.75 0.75 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+		}
+		itemDef {
+			name "hdrTime"
+			rect 274 58 44 14
+			visible 1
+			decoration
+			text "TIME"
+			textalign ITEM_ALIGN_LEFT
+			textscale 0.20
+			forecolor 0.75 0.75 0.75 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+		}
+		itemDef {
+			name "hdrPing"
+			rect 324 58 44 14
+			visible 1
+			decoration
+			text "PING"
+			textalign ITEM_ALIGN_LEFT
+			textscale 0.20
+			forecolor 0.75 0.75 0.75 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+		}
+		itemDef {
+			name "playerlist"
+			rect 20 74 360 270
+			type ITEM_TYPE_LISTBOX
+			style WINDOW_STYLE_FILLED
+			background "white"
+			backcolor 0.05 0.05 0.05 0.5
+			forecolor 1 1 1 1
+			border 1
+			bordercolor 0.4 0.4 0.4 0.5
+			textscale 0.22
+			feeder FEEDER_SCOREBOARD
+			elementwidth 360
+			elementheight 16
+			elementtype LISTBOX_TEXT
+			/* N then N*(pos, width, maxChars): name score time ping */
+			columns 4 0 0 22 200 0 6 250 0 6 300 0 5
+			visible 1
+		}
+	}
+}

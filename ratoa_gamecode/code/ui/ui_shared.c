@@ -5058,6 +5058,16 @@ qboolean ItemParse_hideCvar( itemDef_t *item, int handle ) {
 	return qfalse;
 }
 
+/* QL item keyword: font index (FONT_DEFAULT etc.) — consume and ignore */
+qboolean ItemParse_font( itemDef_t *item, int handle ) {
+	int unused;
+	(void)item;
+	if (!PC_Int_Parse(handle, &unused)) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
 
 keywordHash_t itemParseKeywords[] = {
 	{"name", ItemParse_name, NULL},
@@ -5122,6 +5132,7 @@ keywordHash_t itemParseKeywords[] = {
 	{"hideCvar", ItemParse_hideCvar, NULL},
 	{"cinematic", ItemParse_cinematic, NULL},
 	{"doubleclick", ItemParse_doubleClick, NULL},
+	{"font", ItemParse_font, NULL},
 	{NULL, 0, NULL}
 };
 
@@ -5479,6 +5490,16 @@ qboolean MenuParse_fadeCycle( itemDef_t *item, int handle ) {
 	return qtrue;
 }
 
+/* QL dialect: widescreen pin; ignored in classic 640x480 virtual HUD space */
+qboolean MenuParse_widescreen( itemDef_t *item, int handle ) {
+	int unused;
+	(void)item;
+	if (!PC_Int_Parse(handle, &unused)) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
 
 qboolean MenuParse_itemDef( itemDef_t *item, int handle ) {
 	menuDef_t *menu = (menuDef_t*)item;
@@ -5523,6 +5544,7 @@ keywordHash_t menuParseKeywords[] = {
 	{"fadeClamp", MenuParse_fadeClamp, NULL},
 	{"fadeCycle", MenuParse_fadeCycle, NULL},
 	{"fadeAmount", MenuParse_fadeAmount, NULL},
+	{"widescreen", MenuParse_widescreen, NULL},
 	{NULL, 0, NULL}
 };
 
