@@ -949,7 +949,12 @@ void CG_SH_Load( void ) {
 		return;
 	}
 
-	base = ch_file.string[0] ? ch_file.string : "devotion_default";
+	if ( !ch_file.string[0] ) {
+		trap_Cvar_Set( "ch_file", "devotion_default" );
+		base = "devotion_default";
+	} else {
+		base = ch_file.string;
+	}
 	Com_sprintf( path, sizeof( path ), "hud/%s.cfg", base );
 	len = trap_FS_FOpenFile( path, &f, FS_READ );
 	if ( !f ) {
