@@ -80,8 +80,15 @@ typedef enum {
 	SH_StatusBar_HealthIcon,
 	SH_TargetName,
 	SH_TargetStatus,
+	SH_Chat,
 	SH_Team1, SH_Team2, SH_Team3, SH_Team4, SH_Team5, SH_Team6, SH_Team7, SH_Team8,
+	SH_Team1_NME, SH_Team2_NME, SH_Team3_NME, SH_Team4_NME,
+	SH_Team5_NME, SH_Team6_NME, SH_Team7_NME, SH_Team8_NME,
 	SH_VoteMessageWorld,
+	SH_VoteMessageArena,
+	SH_GameEvents,
+	SH_RewardIcons,
+	SH_RewardNumbers,
 	SH_WarmupInfo,
 	SH_WeaponList,
 	SH_Console,
@@ -136,6 +143,10 @@ typedef struct {
 	float		spacing;		/* gap between WeaponList rows */
 	float		margins[4];		/* L T R B; positive = inward */
 	qboolean	hasMargins;
+	int			visFlags;		/* 0 = default; bit0 all, bit1 follow, bit2 free, bit3 team */
+	int			fadeDelay;		/* ms before fade starts */
+	int			fadeIn;			/* ms fade-in (parsed; appearance delay) */
+	int			direction;		/* T=0 B=1 L=2 R=3 */
 	char		text[SH_MAX_TEXT];
 	char		image[SH_MAX_IMAGE];
 	qhandle_t	imageHandle;
@@ -152,6 +163,9 @@ typedef struct {
 	int				chFileModificationCount;
 	int				hudModeSeen;
 	char			warnedUnknown[512];
+	char			events[8][128];
+	int				eventTimes[8];
+	int				eventPos;
 } shState_t;
 
 static shState_t sh;
@@ -199,7 +213,17 @@ static void SH_CopyElement( shElement_t *dst, const shElement_t *src ) {
 	*dst = *src;
 }
 
+static qboolean SH_Developer( void ) {
+	char buf[16];
+
+	trap_Cvar_VariableStringBuffer( "developer", buf, sizeof( buf ) );
+	return atoi( buf ) != 0;
+}
+
 static void SH_WarnOnce( const char *msg ) {
+	if ( !SH_Developer() ) {
+		return;
+	}
 	if ( strstr( sh.warnedUnknown, msg ) ) {
 		return;
 	}
@@ -225,6 +249,7 @@ static const shNameMap_t shNames[] = {
 	{ "AmmoMessage", SH_AmmoMessage, qfalse },
 	{ "AttackerIcon", SH_AttackerIcon, qfalse },
 	{ "AttackerName", SH_AttackerName, qfalse },
+	{ "Chat", SH_Chat, qfalse },
 	{ "Chat1", SH_Chat1, qfalse }, { "Chat2", SH_Chat2, qfalse },
 	{ "Chat3", SH_Chat3, qfalse }, { "Chat4", SH_Chat4, qfalse },
 	{ "Chat5", SH_Chat5, qfalse }, { "Chat6", SH_Chat6, qfalse },
@@ -269,8 +294,16 @@ static const shNameMap_t shNames[] = {
 	{ "Team3", SH_Team3, qfalse }, { "Team4", SH_Team4, qfalse },
 	{ "Team5", SH_Team5, qfalse }, { "Team6", SH_Team6, qfalse },
 	{ "Team7", SH_Team7, qfalse }, { "Team8", SH_Team8, qfalse },
+	{ "Team1_NME", SH_Team1_NME, qfalse }, { "Team2_NME", SH_Team2_NME, qfalse },
+	{ "Team3_NME", SH_Team3_NME, qfalse }, { "Team4_NME", SH_Team4_NME, qfalse },
+	{ "Team5_NME", SH_Team5_NME, qfalse }, { "Team6_NME", SH_Team6_NME, qfalse },
+	{ "Team7_NME", SH_Team7_NME, qfalse }, { "Team8_NME", SH_Team8_NME, qfalse },
 	{ "VoteMessageWorld", SH_VoteMessageWorld, qfalse },
 	{ "VoteMessage", SH_VoteMessageWorld, qfalse },
+	{ "VoteMessageArena", SH_VoteMessageArena, qfalse },
+	{ "GameEvents", SH_GameEvents, qfalse },
+	{ "RewardIcons", SH_RewardIcons, qfalse },
+	{ "RewardNumbers", SH_RewardNumbers, qfalse },
 	{ "WarmupInfo", SH_WarmupInfo, qfalse },
 	{ "WeaponList", SH_WeaponList, qfalse },
 	{ "Console", SH_Console, qfalse },
@@ -558,6 +591,16 @@ static void SH_ApplyInherit( shElement_t *e, const shElement_t *def, unsigned fi
 		e->margins[3] = def->margins[3];
 		e->hasMargins = def->hasMargins;
 	}
+	if ( !( filledMask & 8388608 ) ) {
+		e->visFlags = def->visFlags;
+	}
+	if ( !( filledMask & 16777216 ) ) {
+		e->fadeDelay = def->fadeDelay;
+		e->fadeIn = def->fadeIn;
+	}
+	if ( !( filledMask & 33554432 ) ) {
+		e->direction = def->direction;
+	}
 }
 
 static unsigned SH_ApplyProps( shElement_t *e, shToken_t *tok, int start, int end ) {
@@ -768,11 +811,55 @@ static unsigned SH_ApplyProps( shElement_t *e, shToken_t *tok, int start, int en
 			e->hasMargins = qtrue;
 			mask |= 4194304;
 			i += 4;
+		} else if ( !Q_stricmp( p, "visflags" ) ) {
+			e->visFlags = 0;
+			while ( i + 1 <= end && tok[i + 1].type == SH_TOT_WORD ) {
+				const char *vf = tok[i + 1].value;
+				if ( !Q_stricmp( vf, "all" ) ) {
+					e->visFlags |= 1;
+				} else if ( !Q_stricmp( vf, "follow" ) ) {
+					e->visFlags |= 2;
+				} else if ( !Q_stricmp( vf, "free" ) ) {
+					e->visFlags |= 4;
+				} else if ( !Q_stricmp( vf, "team" ) ) {
+					e->visFlags |= 8;
+				} else if ( !Q_stricmp( vf, "alive" ) || !Q_stricmp( vf, "dead" ) ||
+						!Q_stricmp( vf, "warmup" ) || !Q_stricmp( vf, "intermission" ) ||
+						!Q_stricmp( vf, "enemy" ) ) {
+					/* accepted, not separately gated yet */
+				} else {
+					break;
+				}
+				i++;
+			}
+			if ( e->visFlags == 0 ) {
+				e->visFlags = 1;
+			}
+			mask |= 8388608;
+		} else if ( !Q_stricmp( p, "fadein" ) && i + 1 <= end ) {
+			e->fadeIn = atoi( tok[i + 1].value );
+			mask |= 16777216;
+			i += 1;
+		} else if ( !Q_stricmp( p, "fadedelay" ) && i + 1 <= end ) {
+			e->fadeDelay = atoi( tok[i + 1].value );
+			mask |= 16777216;
+			i += 1;
+		} else if ( !Q_stricmp( p, "direction" ) && i + 1 <= end ) {
+			if ( !Q_stricmp( tok[i + 1].value, "B" ) ) {
+				e->direction = 1;
+			} else if ( !Q_stricmp( tok[i + 1].value, "L" ) ) {
+				e->direction = 2;
+			} else if ( !Q_stricmp( tok[i + 1].value, "R" ) ) {
+				e->direction = 3;
+			} else {
+				e->direction = 0; /* T */
+			}
+			mask |= 33554432;
+			i += 1;
 		} else if ( !Q_stricmp( p, "model" ) || !Q_stricmp( p, "angles" ) ||
-					!Q_stricmp( p, "offset" ) || !Q_stricmp( p, "visflags" ) ||
-					!Q_stricmp( p, "direction" ) ||
+					!Q_stricmp( p, "offset" ) ||
 					!Q_stricmp( p, "imagetc" ) ||
-					!Q_stricmp( p, "itteam" ) || !Q_stricmp( p, "fadedelay" ) ) {
+					!Q_stricmp( p, "itteam" ) ) {
 			/* skip known optional args loosely */
 			while ( i + 1 <= end && tok[i + 1].type != SH_TOT_WORD &&
 					Q_stricmp( tok[i + 1].value, "rect" ) &&
@@ -799,6 +886,16 @@ static unsigned SH_ApplyProps( shElement_t *e, shToken_t *tok, int start, int en
 				i++;
 				if ( tok[i].type == SH_TOT_WORD ) {
 					break;
+				}
+			}
+			if ( !Q_stricmp( p, "itteam" ) && i + 1 <= end && tok[i + 1].type == SH_TOT_WORD ) {
+				i += 1;
+			}
+			if ( !Q_stricmp( p, "imagetc" ) ) {
+				int nskip = 0;
+				while ( nskip < 4 && i + 1 <= end && tok[i + 1].type == SH_TOT_NUMBER ) {
+					i++;
+					nskip++;
 				}
 			}
 		} else if ( tok[i].type == SH_TOT_WORD ) {
@@ -843,6 +940,12 @@ static void SH_ParseTokens( shToken_t *tok, int n ) {
 			char buf[128];
 			Com_sprintf( buf, sizeof( buf ), "unknown element %s", tok[i].value );
 			SH_WarnOnce( buf );
+			if ( i + 1 < n && !strcmp( tok[i + 1].value, "{" ) ) {
+				rpar = SH_FindToken( tok, n, i + 2, "}" );
+				if ( rpar >= 0 ) {
+					i = rpar;
+				}
+			}
 			continue;
 		}
 		if ( i + 1 >= n || strcmp( tok[i + 1].value, "{" ) != 0 ) {
@@ -1276,8 +1379,34 @@ static void SH_DrawFillForText( const shElement_t *e, const char *str ) {
 
 /* Returns qfalse when the element is fully faded out. */
 static qboolean SH_ApplyFade( const shElement_t *e, int startTime, vec4_t c ) {
-	if ( e->hasFade && e->time > 0 && startTime > 0 ) {
-		float f = CG_FadeScale( startTime, e->time );
+	int delay;
+	int fadeMs;
+	int fadeStart;
+	float f;
+
+	if ( startTime <= 0 ) {
+		return qtrue;
+	}
+	if ( e->fadeIn > 0 && cg.time < startTime + e->fadeIn ) {
+		f = (float)( cg.time - startTime ) / (float)e->fadeIn;
+		if ( f < 0.0f ) {
+			f = 0.0f;
+		}
+		c[3] *= f;
+	}
+	delay = e->fadeDelay > 0 ? e->fadeDelay : 0;
+	fadeMs = e->time > 0 ? e->time : 0;
+	fadeStart = startTime + delay;
+	if ( delay > 0 ) {
+		if ( cg.time < fadeStart ) {
+			return qtrue;
+		}
+		if ( fadeMs <= 0 ) {
+			fadeMs = 200;
+		}
+	}
+	if ( e->hasFade && fadeMs > 0 ) {
+		f = CG_FadeScale( fadeStart, fadeMs );
 		if ( f <= 0.0f ) {
 			return qfalse;
 		}
@@ -1287,8 +1416,8 @@ static qboolean SH_ApplyFade( const shElement_t *e, int startTime, vec4_t c ) {
 		c[3] = e->fade[3] + ( c[3] - e->fade[3] ) * f;
 		return qtrue;
 	}
-	if ( e->time > 0 && startTime > 0 ) {
-		float *fc = CG_FadeColor( startTime, e->time );
+	if ( fadeMs > 0 ) {
+		float *fc = CG_FadeColor( fadeStart, fadeMs );
 		if ( !fc ) {
 			return qfalse;
 		}
@@ -1409,7 +1538,33 @@ static void SH_DrawBar( const shElement_t *e, float frac ) {
 }
 
 static qboolean SH_Visible( const shElement_t *e ) {
-	return e->inuse && !e->hidden && !e->isStub;
+	int flags;
+	qboolean follow, spec, freeSpec;
+
+	if ( !e->inuse || e->hidden || e->isStub ) {
+		return qfalse;
+	}
+	flags = e->visFlags;
+	if ( !flags || ( flags & 1 ) ) {
+		return qtrue; /* unset or "all" */
+	}
+	if ( !cg.snap ) {
+		return qtrue;
+	}
+	follow = ( cg.snap->ps.pm_flags & PMF_FOLLOW ) ? qtrue : qfalse;
+	spec = ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ||
+			cg.snap->ps.pm_type == PM_SPECTATOR ) ? qtrue : qfalse;
+	freeSpec = ( spec && !follow ) ? qtrue : qfalse;
+	if ( ( flags & 2 ) && ( follow || spec ) ) {
+		return qtrue;
+	}
+	if ( ( flags & 4 ) && freeSpec ) {
+		return qtrue;
+	}
+	if ( ( flags & 8 ) && CG_IsTeamGametype() ) {
+		return qtrue;
+	}
+	return qfalse;
 }
 
 static int SH_OwnScore( void ) {
@@ -2146,10 +2301,127 @@ static void SH_DrawTarget( void ) {
 	}
 }
 
+#define SH_STACK_MAX 12
+
+static int SH_ChatLifeMs( const shElement_t *e, int fallback ) {
+	int life = e->fadeDelay + ( e->time > 0 ? e->time : 0 );
+	if ( life <= 0 ) {
+		life = fallback > 0 ? fallback : 3000;
+	}
+	return life;
+}
+
+static int SH_CollectConsole( const console_t *con, int lifeMs, const char **outStr, int *outTime, int maxn ) {
+	int i, n = 0;
+	int start;
+
+	if ( !con || maxn <= 0 ) {
+		return 0;
+	}
+	start = con->insertIdx - CONSOLE_MAXHEIGHT;
+	if ( start < con->displayIdx ) {
+		start = con->displayIdx;
+	}
+	if ( start < 0 ) {
+		start = 0;
+	}
+	for ( i = con->insertIdx - 1; i >= start && n < maxn; i-- ) {
+		int idx = i % CONSOLE_MAXHEIGHT;
+		if ( idx < 0 ) {
+			idx += CONSOLE_MAXHEIGHT;
+		}
+		if ( !con->msgs[idx][0] ) {
+			continue;
+		}
+		if ( lifeMs > 0 && con->msgTimes[idx] + lifeMs < cg.time ) {
+			continue;
+		}
+		outStr[n] = con->msgs[idx];
+		outTime[n] = con->msgTimes[idx];
+		n++;
+	}
+	return n;
+}
+
+static void SH_DrawLineStack( const shElement_t *base, const char **lines, const int *times, int n ) {
+	int i;
+	int ch;
+	float step;
+	float y0, x, y, w, h;
+	shElement_t slot;
+
+	if ( n <= 0 || !base ) {
+		return;
+	}
+	slot = *base;
+	slot.alignV = SH_ALIGN_L; /* we place rows ourselves */
+	ch = slot.fontHeight > 0 ? slot.fontHeight : 8;
+	step = (float)ch + ( slot.spacing > 0.0f ? slot.spacing : 1.0f );
+	SH_GetRect( base, &x, &y, &w, &h );
+	/* Newest at the anchor; older grow up (direction B) or down (T). */
+	if ( base->direction == 1 || base->alignV == SH_ALIGN_R ) {
+		y0 = y - (float)ch;
+		for ( i = 0; i < n; i++ ) {
+			slot.xpos = base->xpos;
+			slot.ypos = y0 - i * step;
+			slot.width = base->width;
+			slot.height = (float)ch;
+			SH_DrawFillForText( &slot, lines[i] );
+			SH_DrawString( &slot, lines[i], times[i] );
+		}
+	} else {
+		y0 = y;
+		for ( i = n - 1; i >= 0; i-- ) {
+			slot.xpos = base->xpos;
+			slot.ypos = y0;
+			slot.width = base->width;
+			slot.height = (float)ch;
+			SH_DrawFillForText( &slot, lines[i] );
+			SH_DrawString( &slot, lines[i], times[i] );
+			y0 += step;
+		}
+	}
+}
+
 static void SH_DrawChat( void ) {
 	int i;
 	int ids[8] = { SH_Chat1, SH_Chat2, SH_Chat3, SH_Chat4, SH_Chat5, SH_Chat6, SH_Chat7, SH_Chat8 };
 	int chatHeight = TEAMCHAT_HEIGHT;
+	shElement_t *chat;
+	const char *lines[SH_STACK_MAX];
+	int times[SH_STACK_MAX];
+	int n = 0;
+	int life;
+
+	chat = &sh.named[SH_Chat];
+	if ( SH_Visible( chat ) ) {
+		life = SH_ChatLifeMs( chat, cg_chatTime.integer );
+		if ( cg_newConsole.integer ) {
+			if ( !cg_teamChatsOnly.integer ) {
+				n = SH_CollectConsole( &cgs.chat, life, lines, times, SH_STACK_MAX );
+			}
+			if ( n < SH_STACK_MAX ) {
+				n += SH_CollectConsole( &cgs.teamChat, life, lines + n, times + n, SH_STACK_MAX - n );
+			}
+		} else {
+			for ( i = 0; i < SH_STACK_MAX && cgs.teamLastChatPos != cgs.teamChatPos; i++ ) {
+				int msgIndex = cgs.teamChatPos - 1 - i;
+				int idx;
+				if ( msgIndex < cgs.teamLastChatPos ) {
+					break;
+				}
+				idx = msgIndex % chatHeight;
+				if ( cg.time - cgs.teamChatMsgTimes[idx] > life ) {
+					continue;
+				}
+				lines[n] = cgs.teamChatMsgs[idx];
+				times[n] = cgs.teamChatMsgTimes[idx];
+				n++;
+			}
+		}
+		SH_DrawLineStack( chat, lines, times, n );
+		return;
+	}
 
 	if ( cgs.teamLastChatPos == cgs.teamChatPos ) {
 		return;
@@ -2174,12 +2446,10 @@ static void SH_DrawChat( void ) {
 	}
 }
 
-static void SH_DrawTeamOverlay( void ) {
+static void SH_DrawTeamList( int *ids, int wantTeam ) {
 	int i, n = 0;
-	int ids[8] = { SH_Team1, SH_Team2, SH_Team3, SH_Team4, SH_Team5, SH_Team6, SH_Team7, SH_Team8 };
-	int myTeam = cg.snap->ps.persistant[PERS_TEAM];
 
-	if ( cgs.gametype < GT_TEAM || myTeam == TEAM_SPECTATOR ) {
+	if ( cgs.gametype < GT_TEAM ) {
 		return;
 	}
 	for ( i = 0; i < cgs.maxclients && n < 8; i++ ) {
@@ -2187,7 +2457,7 @@ static void SH_DrawTeamOverlay( void ) {
 		char buf[128];
 		shElement_t slot;
 		shElement_t *e;
-		if ( !ci->infoValid || ci->team != myTeam ) {
+		if ( !ci->infoValid || ci->team != wantTeam ) {
 			continue;
 		}
 		e = &sh.named[ids[n]];
@@ -2197,11 +2467,6 @@ static void SH_DrawTeamOverlay( void ) {
 		}
 		Com_sprintf( buf, sizeof( buf ), "%-12s %3i %3i", ci->name, ci->health, ci->armor );
 		slot = *e;
-		/*
-		 * color T/E + bgcolor: team-tinted row behind the name. Width 0 means
-		 * text-sized; margins expand that fill. Cfg often uses ~0.25 alpha —
-		 * bump faint fills toward ~50% so the tint reads clearly.
-		 */
 		if ( slot.teamColor && slot.bgcolor[3] > 0.01f && slot.bgcolor[3] < 0.45f ) {
 			slot.bgcolor[3] = 0.5f;
 		}
@@ -2209,6 +2474,136 @@ static void SH_DrawTeamOverlay( void ) {
 		SH_DrawString( &slot, buf, 0 );
 		n++;
 	}
+}
+
+static void SH_DrawTeamOverlay( void ) {
+	int ownIds[8] = { SH_Team1, SH_Team2, SH_Team3, SH_Team4, SH_Team5, SH_Team6, SH_Team7, SH_Team8 };
+	int nmeIds[8] = { SH_Team1_NME, SH_Team2_NME, SH_Team3_NME, SH_Team4_NME,
+			SH_Team5_NME, SH_Team6_NME, SH_Team7_NME, SH_Team8_NME };
+	int myTeam = cg.snap->ps.persistant[PERS_TEAM];
+	int enemy;
+
+	if ( myTeam == TEAM_SPECTATOR ) {
+		if ( cg.snap->ps.pm_flags & PMF_FOLLOW ) {
+			myTeam = cgs.clientinfo[cg.snap->ps.clientNum].team;
+		} else {
+			SH_DrawTeamList( ownIds, TEAM_RED );
+			SH_DrawTeamList( nmeIds, TEAM_BLUE );
+			return;
+		}
+	}
+	if ( myTeam != TEAM_RED && myTeam != TEAM_BLUE ) {
+		return;
+	}
+	enemy = ( myTeam == TEAM_RED ) ? TEAM_BLUE : TEAM_RED;
+	SH_DrawTeamList( ownIds, myTeam );
+	SH_DrawTeamList( nmeIds, enemy );
+}
+
+static void SH_DrawRewards( void ) {
+	shElement_t *icons = &sh.named[SH_RewardIcons];
+	shElement_t *nums = &sh.named[SH_RewardNumbers];
+	int i, n = 0;
+	int idx[MAX_REWARDROW];
+	float x, y, w, h, gap;
+	qboolean haveIcons = SH_Visible( icons );
+	qboolean haveNums = SH_Visible( nums );
+
+	if ( !haveIcons && !haveNums ) {
+		return;
+	}
+	for ( i = 0; i < MAX_REWARDROW; i++ ) {
+		if ( cg.reward2RowTimes[i] == -1 ) {
+			cg.reward2RowTimes[i] = cg.time;
+		}
+		if ( cg.reward2RowTimes[i] != 0 &&
+				cg.reward2RowTimes[i] + CG_Reward2Time( i ) > cg.time ) {
+			idx[n++] = i;
+		}
+	}
+	if ( n <= 0 ) {
+		return;
+	}
+	if ( haveIcons ) {
+		SH_GetRect( icons, &x, &y, &w, &h );
+		if ( w <= 0.0f ) {
+			w = 24.0f;
+		}
+		if ( h <= 0.0f ) {
+			h = 24.0f;
+		}
+		gap = icons->spacing;
+		if ( icons->alignH == SH_ALIGN_C ) {
+			x -= ( n * w + ( n - 1 ) * gap ) * 0.5f;
+		} else if ( icons->alignH == SH_ALIGN_R || icons->direction == 2 ) {
+			x -= n * w + ( n - 1 ) * gap;
+		}
+		for ( i = 0; i < n; i++ ) {
+			int id = idx[i];
+			float *fc = CG_FadeColor( cg.reward2RowTimes[id], CG_Reward2Time( id ) );
+			float px = x + i * ( w + gap );
+			if ( !fc || !cg.reward2Shader[id] ) {
+				continue;
+			}
+			trap_R_SetColor( fc );
+			CG_DrawPic( px, y, w, h, cg.reward2Shader[id] );
+			trap_R_SetColor( NULL );
+		}
+	}
+	if ( haveNums ) {
+		SH_GetRect( nums, &x, &y, &w, &h );
+		if ( w <= 0.0f ) {
+			w = 24.0f;
+		}
+		if ( h <= 0.0f ) {
+			h = 12.0f;
+		}
+		gap = nums->spacing;
+		if ( nums->alignH == SH_ALIGN_C ) {
+			x -= ( n * w + ( n - 1 ) * gap ) * 0.5f;
+		} else if ( nums->alignH == SH_ALIGN_R || nums->direction == 2 ) {
+			x -= n * w + ( n - 1 ) * gap;
+		}
+		for ( i = 0; i < n; i++ ) {
+			int id = idx[i];
+			char buf[16];
+			shElement_t slot = *nums;
+			Com_sprintf( buf, sizeof( buf ), "%i", cg.reward2Count[id] );
+			slot.xpos = x + i * ( w + gap ) + nums->textOffsetX;
+			slot.ypos = y + nums->textOffsetY;
+			slot.width = w;
+			slot.height = h;
+			slot.alignH = SH_ALIGN_L;
+			SH_DrawString( &slot, buf, cg.reward2RowTimes[id] );
+		}
+	}
+}
+
+static void SH_DrawGameEvents( void ) {
+	shElement_t *e = &sh.named[SH_GameEvents];
+	const char *lines[8];
+	int times[8];
+	int n = 0;
+	int i, life, pos;
+
+	if ( !SH_Visible( e ) ) {
+		return;
+	}
+	life = SH_ChatLifeMs( e, 3000 );
+	pos = sh.eventPos;
+	for ( i = 0; i < 8 && n < 8; i++ ) {
+		int idx = ( pos - 1 - i + 8 ) % 8;
+		if ( !sh.events[idx][0] ) {
+			continue;
+		}
+		if ( sh.eventTimes[idx] + life < cg.time ) {
+			continue;
+		}
+		lines[n] = sh.events[idx];
+		times[n] = sh.eventTimes[idx];
+		n++;
+	}
+	SH_DrawLineStack( e, lines, times, n );
 }
 
 static void SH_SplitCenterPrint( char *line1, int line1Size, char *line2, int line2Size ) {
@@ -2304,16 +2699,41 @@ static void SH_DrawMessages( void ) {
 	}
 	if ( SH_Visible( &sh.named[SH_VoteMessageWorld] ) && cgs.voteTime ) {
 		char buf[256];
-		Com_sprintf( buf, sizeof( buf ), "VOTE(%i): %s",
-				( cgs.voteTime + VOTE_TIME - cg.time ) / 1000, cgs.voteString );
+		int sec = ( VOTE_TIME - ( cg.time - cgs.voteTime ) ) / 1000;
+		if ( sec < 0 ) {
+			sec = 0;
+		}
+		Com_sprintf( buf, sizeof( buf ), "VOTE(%i): %s yes:%i no:%i",
+				sec, cgs.voteString, cgs.voteYes, cgs.voteNo );
 		SH_DrawString( &sh.named[SH_VoteMessageWorld], buf, cgs.voteTime );
 	}
-	if ( SH_Visible( &sh.named[SH_Console] ) ) {
-		/* best-effort: last team chat line as notify stand-in */
-		int idx = ( cgs.teamChatPos - 1 + TEAMCHAT_HEIGHT ) % TEAMCHAT_HEIGHT;
-		if ( cgs.teamChatMsgs[idx][0] ) {
-			SH_DrawString( &sh.named[SH_Console], cgs.teamChatMsgs[idx], cgs.teamChatMsgTimes[idx] );
+	if ( SH_Visible( &sh.named[SH_VoteMessageArena] ) ) {
+		int cs_offset = -1;
+		int team = cgs.clientinfo[cg.clientNum].team;
+		if ( team == TEAM_RED ) {
+			cs_offset = 0;
+		} else if ( team == TEAM_BLUE ) {
+			cs_offset = 1;
 		}
+		if ( cs_offset >= 0 && cgs.teamVoteTime[cs_offset] ) {
+			char buf[256];
+			int sec = ( VOTE_TIME - ( cg.time - cgs.teamVoteTime[cs_offset] ) ) / 1000;
+			if ( sec < 0 ) {
+				sec = 0;
+			}
+			Com_sprintf( buf, sizeof( buf ), "TEAMVOTE(%i): %s yes:%i no:%i",
+					sec, cgs.teamVoteString[cs_offset],
+					cgs.teamVoteYes[cs_offset], cgs.teamVoteNo[cs_offset] );
+			SH_DrawString( &sh.named[SH_VoteMessageArena], buf, cgs.teamVoteTime[cs_offset] );
+		}
+	}
+	if ( SH_Visible( &sh.named[SH_Console] ) ) {
+		const char *lines[SH_STACK_MAX];
+		int times[SH_STACK_MAX];
+		int n;
+		int life = SH_ChatLifeMs( &sh.named[SH_Console], cg_consoleTime.integer );
+		n = SH_CollectConsole( &cgs.console, life, lines, times, SH_STACK_MAX );
+		SH_DrawLineStack( &sh.named[SH_Console], lines, times, n );
 	}
 }
 
@@ -2351,6 +2771,8 @@ void CG_SH_DrawFrame( void ) {
 	SH_DrawTarget();
 	SH_DrawChat();
 	SH_DrawTeamOverlay();
+	SH_DrawGameEvents();
+	SH_DrawRewards();
 	SH_DrawMessages();
 
 	for ( i = 0; i < sh.postCount; i++ ) {
@@ -2363,7 +2785,44 @@ qboolean CG_SH_HasWeaponList( void ) {
 }
 
 qboolean CG_SH_HasChat( void ) {
-	return sh.active && SH_Visible( &sh.named[SH_Chat1] );
+	return sh.active && ( SH_Visible( &sh.named[SH_Chat] ) || SH_Visible( &sh.named[SH_Chat1] ) );
+}
+
+qboolean CG_SH_HasConsole( void ) {
+	return sh.active && SH_Visible( &sh.named[SH_Console] );
+}
+
+qboolean CG_SH_HasRewards( void ) {
+	return sh.active && ( SH_Visible( &sh.named[SH_RewardIcons] ) ||
+			SH_Visible( &sh.named[SH_RewardNumbers] ) );
+}
+
+qboolean CG_SH_HasVote( void ) {
+	return sh.active && SH_Visible( &sh.named[SH_VoteMessageWorld] );
+}
+
+qboolean CG_SH_HasTeamVote( void ) {
+	return sh.active && SH_Visible( &sh.named[SH_VoteMessageArena] );
+}
+
+void CG_SH_AddGameEvent( const char *text ) {
+	int i, o;
+	char *dst;
+
+	if ( !text || !text[0] ) {
+		return;
+	}
+	dst = sh.events[sh.eventPos % 8];
+	o = 0;
+	for ( i = 0; text[i] && o < 127; i++ ) {
+		if ( text[i] == '\n' || text[i] == '\r' ) {
+			continue;
+		}
+		dst[o++] = text[i];
+	}
+	dst[o] = '\0';
+	sh.eventTimes[sh.eventPos % 8] = cg.time;
+	sh.eventPos++;
 }
 
 qboolean CG_SH_HasNetGraph( void ) {

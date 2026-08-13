@@ -218,6 +218,7 @@ static void CG_Obituary( entityState_t *ent ) {
 			       	message,
 				S_COLOR_WHITE
 				);
+		CG_SH_AddGameEvent( va( "%s %s", targetName, message ) );
 		return;
 	}
         
@@ -374,6 +375,7 @@ static void CG_Obituary( entityState_t *ent ) {
 			       	message2,
 			       	S_COLOR_WHITE
 				);
+			CG_SH_AddGameEvent( va( "%s %s %s%s", targetName, message, attackerName, message2 ) );
 			return;
 		}
 	}
@@ -386,6 +388,7 @@ static void CG_Obituary( entityState_t *ent ) {
 			S_COLOR_YELLOW,
 			S_COLOR_WHITE
 		 );
+	CG_SH_AddGameEvent( va( "%s died", targetName ) );
 }
 
 static void CG_PushNotify( entityState_t *ent ) {

@@ -70,7 +70,7 @@ Custom HUD support in Devo is only partial. Most everyday CPMA HUD pieces (e.g. 
 Some specific limitations:
 - No custom font rendering, so text will look and be spaced a bit different than in CPMA.
 - Item timers, keyboard indicators, and multiview are not implemented (yet).
-- Unknown lines in a `.cfg` are skipped (with a one-time warning) so community HUDs still mostly load.
+- Unknown SuperHUD names are skipped. Set `developer 1` to see a one-time warning list when a HUD loads.
 
 ---
 
