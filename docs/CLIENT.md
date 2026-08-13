@@ -34,6 +34,5 @@ hud 2                            // Quake 3 HUD (default)
 
 ```
 seta cg_hudMode "1"              // SuperHUD (CPMA .cfg) — see HUD.md
-seta ch_file "devotion_default"
-reloadHUD
+reloadHUD                        // ch_file defaults to devotion_default
 ```

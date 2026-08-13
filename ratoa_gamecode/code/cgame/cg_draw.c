@@ -6566,27 +6566,31 @@ static void CG_DrawConsoles(void) {
 				qfalse
 				);
 	} else {
-		CG_DrawGenericConsole(&cgs.console, consoleLines, cg_consoleTime.integer, 
-				0, 0, 
-				consoleSizeX,
-				consoleSizeY,
-				qfalse
-				);
-		CG_DrawGenericConsole(&cgs.chat, chatLines, cg_chatTime.integer, 
-				0, 
-				CG_ConsoleChatPositionY(consoleSizeY, chatSizeY),
-				chatSizeX,
-				chatSizeY,
-				qfalse
-				);
+		if ( !CG_SH_HasConsole() ) {
+			CG_DrawGenericConsole(&cgs.console, consoleLines, cg_consoleTime.integer, 
+					0, 0, 
+					consoleSizeX,
+					consoleSizeY,
+					qfalse
+					);
+		}
+		if ( !CG_SH_HasChat() ) {
+			CG_DrawGenericConsole(&cgs.chat, chatLines, cg_chatTime.integer, 
+					0, 
+					CG_ConsoleChatPositionY(consoleSizeY, chatSizeY),
+					chatSizeX,
+					chatSizeY,
+					qfalse
+					);
 
-		CG_DrawGenericConsole(&cgs.teamChat, teamChatLines, cg_teamChatTime.integer, 
-				0, 
-				cg_teamChatY.integer - teamChatLines*teamChatSizeY,
-				teamChatSizeX,
-				teamChatSizeY,
-				qfalse
-				);
+			CG_DrawGenericConsole(&cgs.teamChat, teamChatLines, cg_teamChatTime.integer, 
+					0, 
+					cg_teamChatY.integer - teamChatLines*teamChatSizeY,
+					teamChatSizeX,
+					teamChatSizeY,
+					qfalse
+					);
+		}
 	}
 
 }
@@ -6704,7 +6708,7 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 				CG_DrawPersistantPowerup();
 			}
 
-			if (cg_drawRewards.integer) {
+			if ( cg_drawRewards.integer && !CG_SH_HasRewards() ) {
 				if (cg_drawRewards.integer == 2) {
 					CG_DrawReward2();
 				} else {
@@ -6719,8 +6723,12 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		CG_DrawTeamChat();
 	}
 
-	CG_DrawVote();
-	CG_DrawTeamVote();
+	if ( !CG_SH_HasVote() ) {
+		CG_DrawVote();
+	}
+	if ( !CG_SH_HasTeamVote() ) {
+		CG_DrawTeamVote();
+	}
 
 	if ( !CG_SH_Active() || !CG_SH_HasNetGraph() ) {
 		CG_DrawLagometer();

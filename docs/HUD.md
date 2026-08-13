@@ -34,11 +34,10 @@ SuperHUD loads a text config that places health, scores, weapon list, chat, and 
 
 ```
 seta cg_hudMode "1"
-seta ch_file "devotion_default"
 reloadHUD
 ```
 
-If you leave `ch_file` empty in mode `1`, Devotion still loads `devotion_default`.
+`ch_file` defaults to `devotion_default` (`hud/devotion_default.cfg`). If you clear it, SuperHUD still loads that file and restores the cvar.
 
 ### Installing a custom SuperHUD
 
@@ -71,7 +70,7 @@ Custom HUD support in Devo is only partial. Most everyday CPMA HUD pieces (e.g. 
 Some specific limitations:
 - No custom font rendering, so text will look and be spaced a bit different than in CPMA.
 - Item timers, keyboard indicators, and multiview are not implemented (yet).
-- Unknown lines in a `.cfg` are skipped (with a one-time warning) so community HUDs still mostly load.
+- Unknown SuperHUD names are skipped. Set `developer 1` to see a one-time warning list when a HUD loads.
 
 ---
 
