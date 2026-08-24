@@ -363,6 +363,8 @@ static void ArenaServers_UpdateMenu( void );
 static void ArenaServers_MarkListDirty( void );
 static void ArenaServers_FlushListUI( qboolean force );
 
+#define ARENA_DEFAULT_PORT		27960
+
 /*
 =================
 ArenaServers_NormalizeAddress
@@ -401,6 +403,56 @@ static void ArenaServers_NormalizeAddress( char *adrstr ) {
 
 /*
 =================
+ArenaServers_SplitHostPort
+
+Host is everything before a trailing :digits port. Missing port => 27960.
+=================
+*/
+static void ArenaServers_SplitHostPort( const char *adrstr, char *host, int hostSize, int *portOut ) {
+	char		buf[MAX_ADDRESSLENGTH];
+	char		*colon;
+	char		*p;
+	qboolean	digits;
+
+	if( host && hostSize > 0 ) {
+		host[0] = '\0';
+	}
+	if( portOut ) {
+		*portOut = ARENA_DEFAULT_PORT;
+	}
+	if( !adrstr || !adrstr[0] ) {
+		return;
+	}
+
+	Q_strncpyz( buf, adrstr, sizeof( buf ) );
+	ArenaServers_NormalizeAddress( buf );
+
+	colon = strrchr( buf, ':' );
+	digits = qfalse;
+	if( colon && colon[1] ) {
+		digits = qtrue;
+		for( p = colon + 1; *p; p++ ) {
+			if( *p < '0' || *p > '9' ) {
+				digits = qfalse;
+				break;
+			}
+		}
+	}
+
+	if( colon && digits ) {
+		if( portOut ) {
+			*portOut = atoi( colon + 1 );
+		}
+		*colon = '\0';
+	}
+
+	if( host && hostSize > 0 ) {
+		Q_strncpyz( host, buf, hostSize );
+	}
+}
+
+/*
+=================
 ArenaServers_SameAddress
 =================
 */
@@ -421,70 +473,72 @@ static qboolean ArenaServers_SameAddress( const char *a, const char *b ) {
 
 /*
 =================
+ArenaServers_SameHost
+
+True when both addresses share the same host (port ignored).
+=================
+*/
+static qboolean ArenaServers_SameHost( const char *a, const char *b ) {
+	char	hostA[MAX_ADDRESSLENGTH];
+	char	hostB[MAX_ADDRESSLENGTH];
+
+	ArenaServers_SplitHostPort( a, hostA, sizeof( hostA ), NULL );
+	ArenaServers_SplitHostPort( b, hostB, sizeof( hostB ), NULL );
+	if( !hostA[0] || !hostB[0] ) {
+		return qfalse;
+	}
+	return !Q_stricmp( hostA, hostB );
+}
+
+/*
+=================
 ArenaServers_ParsePort
 =================
 */
 static int ArenaServers_ParsePort( const char *adrstr ) {
-	const char	*colon;
+	int		port;
 
-	if( !adrstr ) {
-		return 0;
-	}
-
-	colon = strrchr( adrstr, ':' );
-	if( !colon || !colon[1] ) {
-		return 0;
-	}
-
-	return atoi( colon + 1 );
+	ArenaServers_SplitHostPort( adrstr, NULL, 0, &port );
+	return port;
 }
 
 /*
 =================
 ArenaServers_PreferAddress
 
-When the same server is advertised on many ports (A51 registers ~32 decoy
-ports in the 32000s on masters), prefer a real game port and/or better ping.
+Keep the advertisement whose port is closest to the default Q3 port (27960).
+Ties keep the current row.
 =================
 */
-static qboolean ArenaServers_PreferAddress( const char *candidate, int candPing,
-	const char *current, int curPing ) {
-	int			candPort;
-	int			curPort;
-	qboolean	candGame;
-	qboolean	curGame;
-
-	if( candPing > 0 && ( curPing <= 0 || candPing < curPing ) ) {
-		return qtrue;
-	}
-	if( curPing > 0 && ( candPing <= 0 || curPing < candPing ) ) {
-		return qfalse;
-	}
+static qboolean ArenaServers_PreferAddress( const char *candidate, const char *current ) {
+	int		candPort;
+	int		curPort;
+	int		candDist;
+	int		curDist;
 
 	candPort = ArenaServers_ParsePort( candidate );
 	curPort = ArenaServers_ParsePort( current );
-	candGame = ( candPort >= 26000 && candPort < 30000 );
-	curGame = ( curPort >= 26000 && curPort < 30000 );
-	if( candGame != curGame ) {
-		return candGame;
+	candDist = candPort - ARENA_DEFAULT_PORT;
+	curDist = curPort - ARENA_DEFAULT_PORT;
+	if( candDist < 0 ) {
+		candDist = -candDist;
 	}
-	if( candPort > 0 && curPort > 0 && candPort != curPort ) {
-		return candPort < curPort;
+	if( curDist < 0 ) {
+		curDist = -curDist;
 	}
-
-	return qfalse;
+	return candDist < curDist;
 }
 
 /*
 =================
 ArenaServers_SameIdentity
 
-True when two replies describe the same logical server (hostname+map+gametype),
-even if advertised on different ports.
+True when two replies describe the same logical server: cleaned name, map,
+gametype, and the same host (port ignored).
 =================
 */
-static qboolean ArenaServers_SameIdentity( const char *hostnameA, const char *mapnameA, int gametypeA,
-	const char *hostnameB, const char *mapnameB, int gametypeB ) {
+static qboolean ArenaServers_SameIdentity( const char *hostnameA, const char *mapnameA, int gametypeA, const char *adrA,
+	const char *hostnameB, const char *mapnameB, int gametypeB, const char *adrB ) {
 	char	hostA[MAX_HOSTNAMELENGTH + 3];
 	char	hostB[MAX_HOSTNAMELENGTH + 3];
 
@@ -498,6 +552,9 @@ static qboolean ArenaServers_SameIdentity( const char *hostnameA, const char *ma
 		return qfalse;
 	}
 	if( !mapnameA || !mapnameB || Q_stricmp( mapnameA, mapnameB ) ) {
+		return qfalse;
+	}
+	if( !ArenaServers_SameHost( adrA, adrB ) ) {
 		return qfalse;
 	}
 
@@ -516,8 +573,8 @@ static qboolean ArenaServers_SameIdentity( const char *hostnameA, const char *ma
 =================
 ArenaServers_DedupeServerList
 
-Remove duplicate addresses and same-identity clones (multi-port decoys),
-keeping the better address/ping.
+Remove duplicate addresses and same-host clones (multi-port decoys),
+keeping the advertisement closest to port 27960.
 =================
 */
 static void ArenaServers_DedupeServerList( servernode_t *serverlist, int *numservers ) {
@@ -534,17 +591,15 @@ static void ArenaServers_DedupeServerList( servernode_t *serverlist, int *numser
 			same = ArenaServers_SameAddress( serverlist[i].adrstr, serverlist[j].adrstr );
 			if( !same ) {
 				same = ArenaServers_SameIdentity(
-					serverlist[i].hostname, serverlist[i].mapname, serverlist[i].gametype,
-					serverlist[j].hostname, serverlist[j].mapname, serverlist[j].gametype );
+					serverlist[i].hostname, serverlist[i].mapname, serverlist[i].gametype, serverlist[i].adrstr,
+					serverlist[j].hostname, serverlist[j].mapname, serverlist[j].gametype, serverlist[j].adrstr );
 			}
 			if( !same ) {
 				j++;
 				continue;
 			}
 
-			if( ArenaServers_PreferAddress(
-					serverlist[j].adrstr, serverlist[j].pingtime,
-					serverlist[i].adrstr, serverlist[i].pingtime ) ) {
+			if( ArenaServers_PreferAddress( serverlist[j].adrstr, serverlist[i].adrstr ) ) {
 				serverlist[i] = serverlist[j];
 			}
 
@@ -562,11 +617,12 @@ static void ArenaServers_DedupeServerList( servernode_t *serverlist, int *numser
 =================
 ArenaServers_PrepareHostname
 
-Keep color codes, map black (^0) to white (^7), truncate to a fixed visible
-length (color codes do not count), strip leading spaces, collapse runs of
-spaces to a single space, and append a white reset.
+Keep Q3 color codes (^0-^8), map black (^0) to white (^7) for the dark UI,
+truncate to a fixed visible length (color codes do not count), strip leading
+spaces, collapse runs of spaces, and append a white reset.
 
-Some servers (e.g. Area 51) encode colours as "^^0X" instead of "^X".
+Area 51 style "^^0X" / "^0X" (black then a second colour digit) is treated as
+colour X so the extra digit is not shown as text.
 =================
 */
 static void ArenaServers_PrepareHostname( char *hostname ) {
@@ -595,7 +651,7 @@ static void ArenaServers_PrepareHostname( char *hostname ) {
 
 	/* leave room for trailing ^7 and NUL */
 	while( *s && visible < HOSTNAME_DISPLAY_LEN && written + 3 < MAX_HOSTNAMELENGTH ) {
-		/* Area 51 / OSP style: ^^0X means colour X */
+		/* Area 51: ^^0X => colour X */
 		if( s[0] == '^' && s[1] == '^' && s[2] == '0' &&
 			s[3] >= '0' && s[3] <= '8' ) {
 			if( written + 2 >= MAX_HOSTNAMELENGTH - 1 ) {
@@ -607,29 +663,27 @@ static void ArenaServers_PrepareHostname( char *hostname ) {
 			written += 2;
 			continue;
 		}
-		if( s[0] == '^' && s[1] == '^' ) {
-			/* escaped caret */
+		/* ^0X with no extra caret (e.g. ^07Name => ^7Name) */
+		if( Q_IsColorString( s ) && s[1] == '0' &&
+			s[2] >= '0' && s[2] <= '8' ) {
+			if( written + 2 >= MAX_HOSTNAMELENGTH - 1 ) {
+				break;
+			}
 			*d++ = '^';
-			s += 2;
-			visible++;
-			written++;
-			lastWasSpace = qfalse;
+			*d++ = ( s[2] == '0' ) ? '7' : s[2];
+			s += 3;
+			written += 2;
 			continue;
 		}
-		if( s[0] == '^' && s[1] >= '0' && s[1] <= '8' ) {
+		if( Q_IsColorString( s ) ) {
+			if( written + 2 >= MAX_HOSTNAMELENGTH - 1 ) {
+				break;
+			}
 			*d++ = '^';
 			*d++ = ( s[1] == '0' ) ? '7' : s[1];
 			s += 2;
 			written += 2;
 			continue;
-		}
-		if( s[0] == '^' && s[1] ) {
-			/* unknown ^X — drop the caret, keep the character */
-			s++;
-			continue;
-		}
-		if( s[0] == '^' ) {
-			break;
 		}
 		if( *s == ' ' || *s == '\t' ) {
 			if( lastWasSpace ) {
@@ -679,7 +733,7 @@ static int ArenaServers_CopyField( const char *src, char *dest, int destBytes, i
 	written = 0;
 
 	while( *s && visible < visibleWidth && written + 1 < destBytes ) {
-		if( s[0] == '^' && s[1] >= '0' && s[1] <= '8' ) {
+		if( Q_IsColorString( s ) ) {
 			if( written + 2 >= destBytes ) {
 				break;
 			}
@@ -2061,8 +2115,8 @@ static void ArenaServers_Insert( char* adrstr, char* info, int pingtime )
 		if( !existing ) {
 			for( i = 0; i < *numservers; i++ ) {
 				if( ArenaServers_SameIdentity(
-						serverlist[i].hostname, serverlist[i].mapname, serverlist[i].gametype,
-						hostname, mapname, gametype ) ) {
+						serverlist[i].hostname, serverlist[i].mapname, serverlist[i].gametype, serverlist[i].adrstr,
+						hostname, mapname, gametype, normalized ) ) {
 					servernodeptr = &serverlist[i];
 					existing = qtrue;
 					break;
@@ -2095,9 +2149,9 @@ static void ArenaServers_Insert( char* adrstr, char* info, int pingtime )
 
 	if( existing && servernodeptr->hostname[0] &&
 		ArenaServers_SameIdentity(
-			servernodeptr->hostname, servernodeptr->mapname, servernodeptr->gametype,
-			hostname, mapname, gametype ) &&
-		!ArenaServers_PreferAddress( normalized, pingtime, servernodeptr->adrstr, servernodeptr->pingtime ) ) {
+			servernodeptr->hostname, servernodeptr->mapname, servernodeptr->gametype, servernodeptr->adrstr,
+			hostname, mapname, gametype, normalized ) &&
+		!ArenaServers_PreferAddress( normalized, servernodeptr->adrstr ) ) {
 		keepExistingAddress = qtrue;
 	}
 
