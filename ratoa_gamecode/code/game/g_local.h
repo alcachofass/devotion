@@ -712,6 +712,9 @@ struct gclient_s {
 	int	teamKnockback;
 	int	teamKnockbackTime;
 	int	teamKnockbackClientNum;
+
+	// throttle "you need the key" centerprints while standing in a door trigger
+	int	lastKeyDeniedTime;
 };
 
 

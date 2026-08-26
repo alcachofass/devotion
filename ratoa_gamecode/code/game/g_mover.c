@@ -615,6 +615,14 @@ static void G_MoverKeyDenied( gentity_t *ent, gentity_t *activator ) {
 	if ( !activator || !activator->client ) {
 		return;
 	}
+	// Door triggers fire every frame; repeating cp resets the fade timer and strobes.
+	// Resend just before the default cg_centertime (3s) fade so the message stays up
+	// while the player remains in the trigger without flickering.
+	if ( activator->client->lastKeyDeniedTime &&
+			level.time - activator->client->lastKeyDeniedTime < 2500 ) {
+		return;
+	}
+	activator->client->lastKeyDeniedTime = level.time;
 	if ( ( ent->spawnflags & 16 ) && ( ent->spawnflags & 32 ) ) {
 		msg = "You need the silver and gold keys";
 	} else if ( ent->spawnflags & 16 ) {
