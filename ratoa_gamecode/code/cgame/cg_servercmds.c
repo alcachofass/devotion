@@ -738,6 +738,7 @@ static void CG_ParseElimination( void ) {
 	cgs.roundStartTime = atoi( CG_Argv( 3 ) );
 	cgs.elimStartHealth = atoi( CG_Argv( 4 ) );
 	cgs.elimStartArmor = atoi( CG_Argv( 5 ) );
+	cgs.roundNumber = atoi( CG_Argv( 6 ) );
 }
 
 static void CG_ParseCustomVotes( void ) {

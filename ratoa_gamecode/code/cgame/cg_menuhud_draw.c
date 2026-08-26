@@ -103,6 +103,12 @@ const char *CG_GameTypeString( void ) {
 	if ( cgs.gametype == GT_TOURNAMENT ) {
 		return "Tournament";
 	}
+	if ( cgs.gametype == GT_ELIMINATION ) {
+		return "Elimination";
+	}
+	if ( cgs.gametype == GT_LMS ) {
+		return "Last Man Standing";
+	}
 	return "";
 }
 
@@ -286,6 +292,38 @@ static void MH_TeamColorize( vec4_t color ) {
 	} else {
 		color[0] = color[1] = color[2] = 1.0f;
 	}
+}
+
+static void MH_DrawClockMsec( rectDef_t *rect, float scale, vec4_t color, int align, int textStyle, int msec ) {
+	int mins, seconds, tens;
+	const char *s;
+
+	if ( msec < 0 ) {
+		msec = 0;
+	}
+	seconds = msec / 1000;
+	mins = seconds / 60;
+	seconds -= mins * 60;
+	tens = seconds / 10;
+	seconds -= tens * 10;
+	s = va( "%i:%i%i", mins, tens, seconds );
+	MH_DrawString( rect, scale, color, s, align, textStyle );
+}
+
+static void MH_DrawRoundTimer( rectDef_t *rect, float scale, vec4_t color, int align, int textStyle ) {
+	int msec;
+
+	if ( !BG_IsElimGT( cgs.gametype ) || cgs.roundStartTime <= 0 ) {
+		return;
+	}
+	if ( cg.time < cgs.roundStartTime ) {
+		msec = cgs.roundStartTime - cg.time;
+	} else if ( cgs.roundtime > 0 ) {
+		msec = cgs.roundtime * 1000 - ( cg.time - cgs.roundStartTime );
+	} else {
+		return;
+	}
+	MH_DrawClockMsec( rect, scale, color, align, textStyle, msec );
 }
 
 static void MH_DrawLevelTimer( rectDef_t *rect, float scale, vec4_t color, int align, int textStyle ) {
@@ -613,10 +651,10 @@ qboolean CG_OwnerDrawVisible( int flags ) {
 	if ( !flags ) {
 		return qtrue;
 	}
-	if ( ( flags & CG_SHOW_IF_WARMUP ) && !( cg.warmup ) ) {
+	if ( ( flags & CG_SHOW_IF_WARMUP ) && !CG_IsHudWarmup() ) {
 		return qfalse;
 	}
-	if ( ( flags & CG_SHOW_IF_NOT_WARMUP ) && cg.warmup ) {
+	if ( ( flags & CG_SHOW_IF_NOT_WARMUP ) && CG_IsHudWarmup() ) {
 		return qfalse;
 	}
 	if ( ( flags & CG_SHOW_HEALTHCRITICAL ) && cg.snap->ps.stats[STAT_HEALTH] > 25 ) {
@@ -722,6 +760,9 @@ void CG_OwnerDraw( float x, float y, float w, float h, float text_x, float text_
 	case CG_PLAYER_AMMO_VALUE:
 		if ( cent->currentState.weapon ) {
 			value = cg.snap->ps.ammo[cent->currentState.weapon];
+			if ( value < 0 ) {
+				break;
+			}
 			if ( value <= 5 ) {
 				c[0] = 1; c[1] = 0; c[2] = 0;
 			}
@@ -780,6 +821,22 @@ void CG_OwnerDraw( float x, float y, float w, float h, float text_x, float text_
 	case CG_LEVELTIMER:
 		MH_DrawLevelTimer( &rect, scale, c, align, textStyle );
 		break;
+	case CG_ROUNDTIMER:
+		MH_DrawRoundTimer( &rect, scale, c, align, textStyle );
+		break;
+	case CG_ROUND:
+		if ( BG_IsElimGT( cgs.gametype ) && cgs.roundNumber > 0 ) {
+			MH_DrawValue( &rect, scale, c, cgs.roundNumber, align, textStyle );
+		}
+		break;
+	case CG_MATCH_STATE:
+	case CG_MATCH_STATUS: {
+		const char *info = CG_WarmupInfoString();
+		if ( info ) {
+			MH_DrawString( &rect, scale, c, info, align, textStyle );
+		}
+		break;
+	}
 	case CG_GAME_TYPE:
 		MH_DrawString( &rect, scale, c, CG_GameTypeString(), align, textStyle );
 		break;

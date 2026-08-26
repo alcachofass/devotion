@@ -143,7 +143,7 @@ typedef struct {
 	float		spacing;		/* gap between WeaponList rows */
 	float		margins[4];		/* L T R B; positive = inward */
 	qboolean	hasMargins;
-	int			visFlags;		/* 0 = default; bit0 all, bit1 follow, bit2 free, bit3 team */
+	int			visFlags;		/* 0 = default; bit0 all, bit1 follow, bit2 free, bit3 team, bit4 warmup */
 	int			fadeDelay;		/* ms before fade starts */
 	int			fadeIn;			/* ms fade-in (parsed; appearance delay) */
 	int			direction;		/* T=0 B=1 L=2 R=3 */
@@ -823,8 +823,10 @@ static unsigned SH_ApplyProps( shElement_t *e, shToken_t *tok, int start, int en
 					e->visFlags |= 4;
 				} else if ( !Q_stricmp( vf, "team" ) ) {
 					e->visFlags |= 8;
+				} else if ( !Q_stricmp( vf, "warmup" ) ) {
+					e->visFlags |= 16;
 				} else if ( !Q_stricmp( vf, "alive" ) || !Q_stricmp( vf, "dead" ) ||
-						!Q_stricmp( vf, "warmup" ) || !Q_stricmp( vf, "intermission" ) ||
+						!Q_stricmp( vf, "intermission" ) ||
 						!Q_stricmp( vf, "enemy" ) ) {
 					/* accepted, not separately gated yet */
 				} else {
@@ -1564,6 +1566,9 @@ static qboolean SH_Visible( const shElement_t *e ) {
 	if ( ( flags & 8 ) && CG_IsTeamGametype() ) {
 		return qtrue;
 	}
+	if ( ( flags & 16 ) && CG_IsHudWarmup() ) {
+		return qtrue;
+	}
 	return qfalse;
 }
 
@@ -1580,8 +1585,6 @@ static int SH_OwnScore( void ) {
 }
 
 static int SH_NmeScore( void ) {
-	int own;
-
 	if ( CG_IsTeamGametype() ) {
 		if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_RED ) {
 			return cgs.scores2;
@@ -1592,15 +1595,12 @@ static int SH_NmeScore( void ) {
 		return cgs.scores2;
 	}
 
-	/* FFA/tourney: the other of CS_SCORES1/2 (live, not scoreboard snapshot) */
-	own = cg.snap->ps.persistant[PERS_SCORE];
-	if ( cgs.scores1 != SCORE_NOT_PRESENT && cgs.scores1 != own ) {
-		return cgs.scores1;
-	}
-	if ( cgs.scores2 != SCORE_NOT_PRESENT && cgs.scores2 != own ) {
+	/* FFA/tourney: CS_SCORES1 is first place, CS_SCORES2 is second.
+	   Do not compare against own score — a tie makes both values equal. */
+	if ( ( cg.snap->ps.persistant[PERS_RANK] & ~RANK_TIED_FLAG ) == 0 ) {
 		return cgs.scores2;
 	}
-	return SCORE_NOT_PRESENT;
+	return cgs.scores1;
 }
 
 static int SH_NmeClientNum( void ) {
@@ -1743,7 +1743,7 @@ static void SH_DrawStatusCounts( void ) {
 		Com_sprintf( buf, sizeof( buf ), "%i", ps->stats[STAT_ARMOR] );
 		SH_DrawString( &sh.named[SH_StatusBar_ArmorCount], buf, 0 );
 	}
-	if ( SH_Visible( &sh.named[SH_StatusBar_AmmoCount] ) ) {
+	if ( SH_Visible( &sh.named[SH_StatusBar_AmmoCount] ) && ammo >= 0 ) {
 		SH_DrawFill( &sh.named[SH_StatusBar_AmmoCount] );
 		Com_sprintf( buf, sizeof( buf ), "%i", ammo );
 		SH_DrawString( &sh.named[SH_StatusBar_AmmoCount], buf, 0 );
@@ -2227,6 +2227,9 @@ static void SH_DrawAmmoMessage( void ) {
 		return;
 	}
 	ammo = cg.snap->ps.ammo[cent->currentState.weapon];
+	if ( ammo < 0 ) {
+		return;
+	}
 	if ( ammo == 0 ) {
 		msg = "OUT OF AMMO";
 	} else if ( ammo <= 5 ) {
@@ -2661,21 +2664,13 @@ static void SH_DrawMessages( void ) {
 		SH_DrawString( &sh.named[SH_SpecMessage], "SPECTATOR", 0 );
 	}
 	if ( SH_Visible( &sh.named[SH_WarmupInfo] ) ) {
-		if ( cg.warmup < 0 ) {
+		const char *info = CG_WarmupInfoString();
+		if ( info ) {
 			SH_DrawFill( &sh.named[SH_WarmupInfo] );
-			SH_DrawString( &sh.named[SH_WarmupInfo], "Waiting for players", 0 );
-		} else if ( cg.warmup > 0 ) {
-			int sec = ( cg.warmup - cg.time ) / 1000;
-			char buf[32];
-			if ( sec < 0 ) {
-				sec = 0;
-			}
-			Com_sprintf( buf, sizeof( buf ), "Starts in: %i", sec + 1 );
-			SH_DrawFill( &sh.named[SH_WarmupInfo] );
-			SH_DrawString( &sh.named[SH_WarmupInfo], buf, 0 );
+			SH_DrawString( &sh.named[SH_WarmupInfo], info, 0 );
 		}
 	}
-	if ( SH_Visible( &sh.named[SH_GameType] ) && ( cg.warmup || !cg.snap->ps.stats[STAT_HEALTH] ) ) {
+	if ( SH_Visible( &sh.named[SH_GameType] ) && ( CG_IsHudWarmup() || !cg.snap->ps.stats[STAT_HEALTH] ) ) {
 		shElement_t gt = sh.named[SH_GameType];
 		vec4_t white = { 1.0f, 1.0f, 1.0f, 1.0f };
 		/* Accent underline uses color T via bgcolor; label itself is white */
@@ -2803,6 +2798,11 @@ qboolean CG_SH_HasVote( void ) {
 
 qboolean CG_SH_HasTeamVote( void ) {
 	return sh.active && SH_Visible( &sh.named[SH_VoteMessageArena] );
+}
+
+qboolean CG_SH_HasWarmupInfo( void ) {
+	const shElement_t *e = &sh.named[SH_WarmupInfo];
+	return CG_SH_Active() && e->inuse && !e->hidden && !e->isStub;
 }
 
 void CG_SH_AddGameEvent( const char *text ) {

@@ -450,7 +450,7 @@
 			textscale .14
 			ownerdraw CG_ROUND
 			cvarTest "cg_gametype"
-			showCvar { "12" }
+			showCvar { "5" "6" "7" "12" }
 		}
 		
 		//GAME TIME
@@ -1260,7 +1260,7 @@
 			decoration
 			textscale .22
 			cvarTest "cg_gametype"
-			showCvar { "12" }
+			showCvar { "5" "6" "7" "12" }
 		}
 	}
 

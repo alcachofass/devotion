@@ -2863,6 +2863,122 @@ static float CG_DrawDomStatus( float y ) {
 }
 
 
+qboolean CG_ElimRoundPending( void ) {
+	if ( !BG_IsElimGT( cgs.gametype ) ) {
+		return qfalse;
+	}
+	if ( cgs.roundStartTime <= 0 ) {
+		return qfalse;
+	}
+	return cg.time < cgs.roundStartTime;
+}
+
+qboolean CG_IsHudWarmup( void ) {
+	return ( cg.warmup != 0 ) || CG_ElimRoundPending();
+}
+
+const char *CG_WarmupInfoString( void ) {
+	static char buf[64];
+	int sec;
+
+	if ( cg.warmup < 0 ) {
+		return "Waiting for players";
+	}
+	if ( cg.warmup > 0 ) {
+		sec = ( cg.warmup - cg.time ) / 1000;
+		if ( sec < 0 ) {
+			sec = 0;
+		}
+		Com_sprintf( buf, sizeof( buf ), "Starts in: %i", sec + 1 );
+		return buf;
+	}
+	if ( CG_ElimRoundPending() ) {
+		sec = ( cgs.roundStartTime - cg.time ) / 1000;
+		if ( sec < 0 ) {
+			sec = 0;
+		}
+		Com_sprintf( buf, sizeof( buf ), "Round in: %i", sec + 1 );
+		return buf;
+	}
+	return NULL;
+}
+
+static void CG_PlayWarmupCountBeep( int sec ) {
+	switch ( sec ) {
+	case 0:
+		trap_S_StartLocalSound( cgs.media.count1Sound, CHAN_ANNOUNCER );
+		break;
+	case 1:
+		trap_S_StartLocalSound( cgs.media.count2Sound, CHAN_ANNOUNCER );
+		break;
+	case 2:
+		trap_S_StartLocalSound( cgs.media.count3Sound, CHAN_ANNOUNCER );
+		break;
+	default:
+		break;
+	}
+}
+
+/*
+=================
+CG_DrawElimRoundCountIn
+
+Announcer + center "Round in: N" for elimination/LMS. Sounds always play.
+Center text is skipped when SuperHUD WarmupInfo is drawing the same string.
+=================
+*/
+void CG_DrawElimRoundCountIn( void ) {
+	static qboolean elimCountInWasActive;
+	const char *st;
+	int sec, cw, w;
+
+	if ( cg.warmup != 0 ) {
+		elimCountInWasActive = qfalse;
+		return;
+	}
+
+	if ( CG_ElimRoundPending() ) {
+		sec = ( cgs.roundStartTime - cg.time ) / 1000;
+		if ( sec < 0 ) {
+			sec = 0;
+		}
+		if ( sec != cg.warmupCount ) {
+			cg.warmupCount = sec;
+			CG_PlayWarmupCountBeep( sec );
+		}
+		elimCountInWasActive = qtrue;
+
+		if ( CG_SH_HasWarmupInfo() ) {
+			return;
+		}
+
+		st = va( "Round in: %i", sec + 1 );
+		switch ( cg.warmupCount ) {
+		case 0:
+			cw = 28;
+			break;
+		case 1:
+			cw = 24;
+			break;
+		case 2:
+			cw = 20;
+			break;
+		default:
+			cw = 16;
+			break;
+		}
+		w = CG_DrawStrlen( st );
+		CG_DrawStringExt( 320 - CG_HeightToWidth( w * (float)cw / 2.0 ), 70, st, colorWhite,
+				qfalse, qtrue, (int)CG_HeightToWidth( cw ), (int)( cw * 1.5 ), 0 );
+		return;
+	}
+
+	if ( elimCountInWasActive && cgs.roundStartTime && cg.time >= cgs.roundStartTime ) {
+		trap_S_StartLocalSound( cgs.media.countFightSound, CHAN_ANNOUNCER );
+	}
+	elimCountInWasActive = qfalse;
+}
+
 /*
 =================
 CG_DrawEliminationTimer
@@ -2871,15 +2987,10 @@ CG_DrawEliminationTimer
 static float CG_DrawEliminationTimer( float y ) {
 	char		*s;
 	float			w;
-	int			mins, seconds, tens, sec;
+	int			mins, seconds, tens;
 	int			msec;
 	vec4_t			color;
-	const char	*st;
-	//float scale;
-	int cw;
-	int rst;
-
-        
+	int			rst;
 
 	rst = cgs.roundStartTime;
 
@@ -2890,7 +3001,6 @@ static float CG_DrawEliminationTimer( float y ) {
 	//default color is white
 	memcpy(color,g_color_table[ColorIndex(COLOR_WHITE)],sizeof(color));
 
-	//msec = cg.time - cgs.levelStartTime;
 	if(cg.time>rst) //We are started
 	{
 		msec = cgs.roundtime*1000 - (cg.time -rst);
@@ -2902,66 +3012,9 @@ static float CG_DrawEliminationTimer( float y ) {
 	}
 	else
 	{
-		//Warmup
 		msec = -cg.time +rst;
 		memcpy(color,g_color_table[ColorIndex(COLOR_GREEN)],sizeof(color));
-		sec = msec/1000;
 		msec += 1000; //5-1 instead of 4-0
-/***
-Lots of stuff
-****/
-	if(cg.warmup == 0)
-	{
-		st = va( "Round in: %i", sec + 1 );
-		if ( sec != cg.warmupCount ) {
-			cg.warmupCount = sec;
-			switch ( sec ) {
-			case 0:
-				trap_S_StartLocalSound( cgs.media.count1Sound, CHAN_ANNOUNCER );
-				break;
-			case 1:
-				trap_S_StartLocalSound( cgs.media.count2Sound, CHAN_ANNOUNCER );
-				break;
-			case 2:
-				trap_S_StartLocalSound( cgs.media.count3Sound, CHAN_ANNOUNCER );
-				break;
-			default:
-				break;
-			}
-		} 
-		//scale = 0.45f;
-		switch ( cg.warmupCount ) {
-		case 0:
-			cw = 28;
-			//scale = 0.54f;
-			break;
-		case 1:
-			cw = 24;
-			//scale = 0.51f;
-			break;
-		case 2:
-			cw = 20;
-			//scale = 0.48f;
-			break;
-		default:
-			cw = 16;
-			//scale = 0.45f;
-			break;
-		}
-
-	#ifdef MISSIONPACK
-			//w = CG_Text_Width(s, scale, 0);
-			//CG_Text_Paint(320 - w / 2, 125, scale, colorWhite, st, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
-	#else
-                
-                    w = CG_DrawStrlen( st );
-                    CG_DrawStringExt( 320 - CG_HeightToWidth(w * (float)cw/2.0), 70, st, colorWhite,
-				qfalse, qtrue, (int)CG_HeightToWidth(cw), (int)(cw * 1.5), 0 );
-	#endif
-	}
-/*
-Lots of stuff
-*/
 	}
 
 	seconds = msec / 1000;
@@ -6181,6 +6234,7 @@ CG_DrawAmmoWarning
 static void CG_DrawAmmoWarning( void ) {
 	const char	*s;
 	int			w;
+	int			weapon;
 
 	//Don't report in instant gib same with RA
 	if(cgs.nopickup)
@@ -6191,6 +6245,11 @@ static void CG_DrawAmmoWarning( void ) {
 	}
 
 	if ( !cg.lowAmmoWarning ) {
+		return;
+	}
+
+	weapon = cg.snap->ps.weapon;
+	if ( weapon > 0 && weapon < WP_NUM_WEAPONS && cg.snap->ps.ammo[weapon] < 0 ) {
 		return;
 	}
 
@@ -6270,11 +6329,11 @@ static void CG_DrawWarmup( void ) {
 		if (cgs.voteTime) {
 			return;
 		}
-		s = "Waiting for players";		
-		w = CG_DrawStrlen( s ) * SMALLCHAR_WIDTH; 
-		//CG_DrawBigString(248 - w / 2, 24, s, 1.0F);
-		//CG_DrawMediumString(320 - w / 2, 48, s, 0.75F);
-		CG_DrawSmallString(320 - w / 2, 300, s, 1.0F);
+		if ( !CG_SH_HasWarmupInfo() ) {
+			s = "Waiting for players";		
+			w = CG_DrawStrlen( s ) * SMALLCHAR_WIDTH; 
+			CG_DrawSmallString(320 - w / 2, 300, s, 1.0F);
+		}
 		cg.warmupCount = 0;
 		return;
 	}
@@ -6293,7 +6352,7 @@ static void CG_DrawWarmup( void ) {
 			}
 		}
 
-		if ( ci1 && ci2 ) {
+		if ( ci1 && ci2 && !CG_SH_HasWarmupInfo() ) {
 			s = va( "%s %svs %s", ci1->name, S_COLOR_WHITE, ci2->name );
 #ifdef MISSIONPACK
 			w = CG_Text_Width(s, 0.6f, 0);
@@ -6359,19 +6418,7 @@ static void CG_DrawWarmup( void ) {
 	s = va( "Starts in: %i", sec + 1 );
 	if ( sec != cg.warmupCount ) {
 		cg.warmupCount = sec;
-		switch ( sec ) {
-		case 0:
-			trap_S_StartLocalSound( cgs.media.count1Sound, CHAN_ANNOUNCER );
-			break;
-		case 1:
-			trap_S_StartLocalSound( cgs.media.count2Sound, CHAN_ANNOUNCER );
-			break;
-		case 2:
-			trap_S_StartLocalSound( cgs.media.count3Sound, CHAN_ANNOUNCER );
-			break;
-		default:
-			break;
-		}
+		CG_PlayWarmupCountBeep( sec );
 	}
 #ifdef MISSIONPACK
 	scale = 0.45f;
@@ -6407,9 +6454,11 @@ static void CG_DrawWarmup( void ) {
 		w = CG_Text_Width(s, scale, 0);
 		CG_Text_Paint(320 - w / 2, 125, scale, colorWhite, s, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
 #else
-	w = CG_DrawStrlen( s );
-	CG_DrawStringExt( 320 - w * cw/2, 68, s, colorWhite, // was 90
-			qfalse, qtrue, cw, (int)(cw * 1.5), 0 );
+	if ( !CG_SH_HasWarmupInfo() ) {
+		w = CG_DrawStrlen( s );
+		CG_DrawStringExt( 320 - w * cw/2, 68, s, colorWhite, // was 90
+				qfalse, qtrue, cw, (int)(cw * 1.5), 0 );
+	}
 #endif
 }
 
@@ -6759,6 +6808,7 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 	
 	CG_DrawFollow();
 	CG_DrawWarmup();
+	CG_DrawElimRoundCountIn();
 
 	if (cg_radar.integer == 1) {
 		//CG_DrawRadar(0);

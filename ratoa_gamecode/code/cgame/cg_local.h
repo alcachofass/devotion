@@ -1566,6 +1566,7 @@ typedef struct {
 //Elimination
 	int				roundStartTime;	
 	int				roundtime;
+	int				roundNumber;
 
 // Treasure Hunter
 	treasurehunter_t th_phase;
@@ -1809,6 +1810,7 @@ qboolean CG_SH_HasCenterMessages( void );
 qboolean CG_SH_HasRewards( void );
 qboolean CG_SH_HasVote( void );
 qboolean CG_SH_HasTeamVote( void );
+qboolean CG_SH_HasWarmupInfo( void );
 void CG_SH_AddGameEvent( const char *text );
 void CG_ReloadHUD_f( void );
 void CG_SH_Dump_f( void );
@@ -1912,6 +1914,10 @@ void CG_Draw3DModel(float x, float y, float w, float h, qhandle_t model, qhandle
 void CG_Text_PaintChar(float x, float y, float width, float height, float scale, float s, float t, float s2, float t2, qhandle_t hShader);
 void CG_CheckOrderPending( void );
 const char *CG_GameTypeString( void );
+qboolean CG_IsHudWarmup( void );
+qboolean CG_ElimRoundPending( void );
+const char *CG_WarmupInfoString( void );
+void CG_DrawElimRoundCountIn( void );
 qboolean CG_YourTeamHasFlag( void );
 qboolean CG_OtherTeamHasFlag( void );
 qhandle_t CG_StatusHandle(int task);
