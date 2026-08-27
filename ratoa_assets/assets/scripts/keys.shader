@@ -1,81 +1,134 @@
-models/powerups/keys/key_master
-{
-	{
-		map textures/sfx/portalfog.tga
-		rgbGen identity
-	}
-	{
-		map textures/sfx/mirror.tga
-		blendfunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
-		rgbGen wave sin 0.5 0.5 0 0.4
-		tcMod rotate 30
-		tcMod scroll 0.1 0.2
-	}
-}
-models/powerups/keys/key_silver
-{
-	{
-		map textures/sfx/portalfog.tga
-		rgbGen identity
-	}
-	{
-		map textures/effects/tinfx.tga
-		blendfunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
-		rgbGen wave sin 0.5 0.5 0 0.4
-		tcMod rotate 30
-		tcMod scroll 0.1 0.2
-	}
-}
-models/powerups/keys/key_golden
-{
-	{
-		map textures/sfx/portalfog.tga
-		rgbGen identity
-	}
-	{
-		map textures/effects/envmapgold.tga
-		blendfunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
-		rgbGen wave sin 0.5 0.5 0 0.4
-		tcMod rotate 30
-		tcMod scroll 0.1 0.2
-	}
-}
-//outer wrap texture around key
+//
+// SKELETON KEY SHADERS
+// By Hipshot (http://www.zfight.com/)
+// Note iron key shaders are removed, since we don't implement it.
+//
+
 models/powerups/keys/key_master_snake
 {
-        q3map_surfacelight	1000
-        surfaceparm	trans
-	surfaceparm nomarks
-	surfaceparm nolightmap
-	qer_editorimage textures/sfx/zap_scroll.tga
-	cull none
-	
+	surfaceparm trans	
+	cull none	
 	{
-		map textures/sfx/zap_scroll.tga
-		blendFunc GL_ONE GL_ONE
-                rgbgen wave triangle .8 2 0 7
-                tcMod scroll 0 1
-	}	
-        {
-		map textures/sfx/zap_scroll.tga
-		blendFunc GL_ONE GL_ONE
-                rgbgen wave triangle 1 1.4 0 5
-                tcMod scale  -1 1
-                tcMod scroll 0 1
-	}	
-        {
-		map textures/sfx/zap_scroll2.tga
-		blendFunc GL_ONE GL_ONE
-                rgbgen wave triangle 1 1.4 0 6.3
-                tcMod scale  -1 1
-                tcMod scroll 2 1
-	}	
-        {
-		map textures/sfx/zap_scroll2.tga
-		blendFunc GL_ONE GL_ONE
-                rgbgen wave triangle 1 1.4 0 7.7
-                tcMod scroll -1.3 1
-	}	
+		map models/powerups/keys/key_master_snake.tga
+		blendFunc add	
+		tcMod scroll -1 .5
+		rgbGen wave sin 0 1 0 .5	
+	}
+
+}
+
+models/powerups/keys/key_gold_snake
+{
+	surfaceparm trans	
+	cull none	
+	qer_trans 0.5	
+	{
+		map models/powerups/keys/key_gold_snake.tga
+		blendFunc add	
+		tcMod scroll -1 .5
+		rgbGen wave sin 0 1 0 .5	
+	}
+
+}
+
+models/powerups/keys/key_silver_snake
+{
+	surfaceparm trans	
+	cull none	
+	{
+		map models/powerups/keys/key_silver_snake.tga
+		blendFunc add	
+		tcMod scroll -1 .5
+		rgbGen wave sin 0 1 0 .5	
+	}
+
+}
+
+models/powerups/keys/key_master
+{
+   {
+      map models/powerups/keys/key_gold.tga
+      rgbGen lightingDiffuse      
+   }
+   {
+      map models/powerups/keys/envmap-r.tga
+      blendFunc add         
+      tcGen environment
+      rgbGen lightingDiffuse
+      tcMod scroll .05 .05
+      tcmod scale 2 2
+   }
+   {
+      map models/powerups/keys/envmap-r.tga
+      blendFunc add
+      tcGen environment
+      tcMod scroll .05 .05
+      tcmod scale 2 2
+      rgbGen wave sin 0 1 0 .5
+   }
+   {
+      map models/powerups/keys/key_master.tga
+      blendFunc blend
+      rgbGen lightingDiffuse
+   }
+}
+
+models/powerups/keys/key_gold
+{
+   {
+      map models/powerups/keys/key_gold.tga
+      rgbGen lightingDiffuse      
+   }
+   {
+      map models/powerups/keys/envmap-y.tga
+      blendFunc add      
+      tcGen environment
+      rgbGen lightingDiffuse
+      tcMod scroll .05 .05
+      tcmod scale 2 2
+   }
+   {
+      map models/powerups/keys/envmap-y.tga
+      blendFunc add
+      tcGen environment
+      tcMod scroll .05 .05
+      tcmod scale 2 2
+      rgbGen wave sin 0 1 0 .5
+   }
+   {
+      map models/powerups/keys/key_gold.tga
+      blendFunc blend
+      rgbGen lightingDiffuse
+   }
+}
+
+models/powerups/keys/key_silver
+{
+   {
+      map models/powerups/keys/key_silver.tga
+      rgbGen lightingDiffuse      
+   }
+   {
+      map models/powerups/keys/envmap-b.tga
+      blendFunc add      
+      tcGen environment
+      rgbGen lightingDiffuse
+      tcMod scroll .05 .05
+      tcmod scale 2 2
+   }
+   {
+      map models/powerups/keys/envmap-b.tga
+      blendFunc add
+      tcGen environment
+      tcMod scroll .05 .05
+      tcmod scale 2 2
+      rgbGen wave sin 0 1 0 .5
+   }
+   {
+      map models/powerups/keys/key_silver.tga
+      blendFunc blend
+      rgbGen lightingDiffuse
+   }
 }
 
 // HUD / cg_simpleItems sprites. alphaGen oneMinusEntity is required so
