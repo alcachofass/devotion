@@ -49,6 +49,26 @@
 		}
 	}
 
+	menuDef {
+		name "ElimRoundTimer"
+		widescreen WIDESCREEN_LEFT
+		fullScreen MENU_FALSE
+		visible MENU_TRUE
+		rect 4 42 36 12
+
+		itemDef {
+			name "roundTimer"
+			rect 0 0 36 12
+			visible 1
+			decoration
+			align ITEM_ALIGN_CENTER
+			textscale 0.18
+			forecolor 0.85 0.85 0.85 1
+			textstyle ITEM_TEXTSTYLE_SHADOWED
+			ownerdraw CG_ROUNDTIMER
+		}
+	}
+
 	/* ===== TOURNEY / FFA: player name + score callout (collapses to 1 row) ===== */
 	menuDef {
 		name "DuelScoreboard"

@@ -3256,7 +3256,7 @@ void ClientSpawn(gentity_t *ent) {
 	gentity_t	*spawnPoint;
 	//gentity_t *tent;
 	int		flags;
-	int		savedPing;
+	int		savedPing, savedWeapon;
 //	char	*savedAreaBits;
 	int		accuracy_hits, accuracy_shots,vote;
         int		accuracy[WP_NUM_WEAPONS][2];
@@ -3513,6 +3513,7 @@ void ClientSpawn(gentity_t *ent) {
 	saved = client->pers;
 	savedSess = client->sess;
 	savedPing = client->ps.ping;
+	savedWeapon = client->ps.weapon;
 	inactivityTimeSaved = client->inactivityTime;
 	vote = client->vote;
 //	savedAreaBits = client->areabits;
@@ -3529,6 +3530,7 @@ void ClientSpawn(gentity_t *ent) {
 	client->pers = saved;
 	client->sess = savedSess;
 	client->ps.ping = savedPing;
+	client->ps.weapon = savedWeapon;
 	client->inactivityTime = inactivityTimeSaved;
 	client->vote = vote;
 //	client->areabits = savedAreaBits;
@@ -3756,8 +3758,6 @@ else
 		}
 		trap_LinkEntity (ent);
 
-		// force the base weapon up
-		client->ps.weapon = WP_MACHINEGUN;
 		client->ps.weaponstate = WEAPON_READY;
 
 	}
@@ -3786,14 +3786,13 @@ else
 		// fire the targets of the spawn point
 		G_UseTargets( spawnPoint, ent );
 
-		// select the highest weapon number available, after any
-		// spawn given items have fired
-		client->ps.weapon = 1;
-		for ( i = WP_NUM_WEAPONS - 1 ; i > 0 ; i-- ) {
-			// if ( client->ps.stats[STAT_WEAPONS] & ( 1 << i ) && i !=WP_GRAPPLING_HOOK ) {
-			if ( client->ps.stats[STAT_WEAPONS] & ( 1 << i ) ) {
-				client->ps.weapon = i;
-				break;
+		if ( !( client->ps.stats[STAT_WEAPONS] & ( 1 << client->ps.weapon ) ) ) {
+			client->ps.weapon = 1;
+			for ( i = WP_NUM_WEAPONS - 1 ; i > 0 ; i-- ) {
+				if ( client->ps.stats[STAT_WEAPONS] & ( 1 << i ) ) {
+					client->ps.weapon = i;
+					break;
+				}
 			}
 		}
 	}

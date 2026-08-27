@@ -680,10 +680,11 @@ EliminationMessage
 */
 
 void EliminationMessage(gentity_t *ent) {
-	trap_SendServerCommand( ent-g_entities, va("elimination %i %i %i %i %i", 
+	trap_SendServerCommand( ent-g_entities, va("elimination %i %i %i %i %i %i", 
 		level.teamScores[TEAM_RED], level.teamScores[TEAM_BLUE], level.roundStartTime,
 		g_elimination_startHealth.integer,
-		g_elimination_startArmor.integer) );
+		g_elimination_startArmor.integer,
+		level.roundNumber) );
 }
 
 void RespawnTimeMessage(gentity_t *ent, int time) {

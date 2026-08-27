@@ -77,3 +77,35 @@ models/powerups/keys/key_master_snake
                 tcMod scroll -1.3 1
 	}	
 }
+
+// HUD / cg_simpleItems sprites. alphaGen oneMinusEntity is required so
+// CG_Item can draw them in-world with entity alpha 0 (full opacity).
+icons/key_silver
+{
+	nopicmip
+	{
+		map icons/key_silver.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		alphaGen oneMinusEntity
+	}
+}
+
+icons/key_gold
+{
+	nopicmip
+	{
+		map icons/key_gold.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		alphaGen oneMinusEntity
+	}
+}
+
+icons/key_master
+{
+	nopicmip
+	{
+		map icons/key_master.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		alphaGen oneMinusEntity
+	}
+}
