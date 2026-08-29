@@ -1,8 +1,12 @@
-![Devotion Logo](/docs/logo.png)
+![Devotion Logo](/docs/logo2.png)
 
 Devotion is a mod for Quake III: Arena which implements [Unlagged](https://www.ra.is/unlagged/). It aims to retain the core gameplay of vanilla Q3 multiplayer while adding useful features and enhancements.
 
 Devotion began as a port of [RatArena](https://github.com/rdntcntrl/ratoa_gamecode) (v0.15.5) into Q3A.
+
+## Features
+
+Unlagged Netcode - Customise or import your HUDs (from QL or CPM) - Voteable QL/CPM/VQ3 Movement - Clan Arena/Elimination/Last Man Standing Gamemode - Enhanced Bots - Demo Autorecording - Enhanced Demo Browser - Alt Footstep Sounds (Wood/Snow) - Keys & Locked Doors (Elder) - Delagged demo playback - Client-side hit sound prediction
 
 ## Installation
 1. Grab the [Latest Release](https://github.com/alcachofass/devotion/releases)
@@ -11,7 +15,7 @@ Devotion began as a port of [RatArena](https://github.com/rdntcntrl/ratoa_gameco
 4. Load the game, select `mods`, and load the mod named `devotion`
 
 ### Alternative method
-1. Load Quake 3
+1. Load Quake 3 (Quake3e or IOQ3 client recommended)
 2. Pull down the console (key below ESC)
 3. Enter `\cl_allowdownload 1` then hit enter
 4. Enter `\connect nuegados.com` then hit enter
@@ -62,7 +66,7 @@ Clone the repo to your local drive:
 - Copy the PK3 to your Quake III installation and place it in `\devotion`, parallel to `\baseq3`. If you have any older Devotion PK3 files in the mod folder, delete them.
 
 ## Credits
-Many have contributed in different ways over the 20+ years since the game was originaly released:
+Many have contributed in different ways over the 20+ years since the game was originally released:
 - [id Software](https://github.com/id-Software/Quake-III-Arena)
 - [ioQuake3]() contributors
 - [Open Arena](https://github.com/OpenArena/) contributors
@@ -81,11 +85,20 @@ Many have contributed in different ways over the 20+ years since the game was or
 - Foo ([Level Design](https://lvlworld.com/review/id:2507) & [Code](https://github.com/br33zy59))
 
 ## Contributing
-Pull requests are welcome! A few of us discuss opportunitites on the Quake3World Discord and occasionally play on nuegados.com.
+Pull requests are welcome! Most contributors hang out in the Quake3World Discord and play on nuegados.com or play.ur-face.com.
 ```
 /connect nuegados.com
+or
+/connect play.ur-face.com
 ```
 
-
 ## Licensing
-Please note that despite the license applied to this mod, such license is obviously not valid for High Quality Quake. They are only here due to insistence of a few friends. [This commit](https://github.com/ceular/devotion/commit/b3ddf1a6f04633add631ff5c4b75eda7448ee7c5) references all such assets that aren't GPLv2, thankfully, ZerTerO is fine with its usage. In addition to that, the model used for green armor is not GPLv2 because the model itself comes from OSP which is still taken from Quake III itself, the only difference is the path contained within the md3 file to a different skin, and such skin is a derivative of the yellow armor skin, just changed to green.
+The [GPLv2 License](LICENSE.md) covers the code and novel assets.
+
+[id's Q3 SDK License](SDK-LICENSE.md) OR the Q3 EULA cover any derivative assets. This includes:
+- Assets from High Quality Quake. [This commit](https://github.com/ceular/devotion/commit/b3ddf1a6f04633add631ff5c4b75eda7448ee7c5) lists them. The author of HQQ `ZerTerO` has approved their inclusion here.
+- The Green armor skin from OSP.
+
+The Skeleton Key Models by `Hipshot` are licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License. See [KEYS.md](docs\keys.md)
+
+![Devotion Footer Logo](/docs/logo.png)
