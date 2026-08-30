@@ -366,7 +366,7 @@ static const cvarDesc_t cgameCvarDescriptions[] = {
 	{ "cg_announcer", "Announcer voice pack for match callouts (e.g. `quake3`)." },
 	{ "cg_announcerNewAwards", "Announcer pack for newer award callouts; empty uses `cg_announcer`." },
 	{ "cg_attackerScale", "Size of the last-attacker icon/name shown when `cg_drawAttacker` is on." },
-	{ "cg_autorecord", "When `1`, automatically records demos for supported matches (such as duels)." },
+	{ "cg_autorecord", "When `1`, automatically records a demo/replay for each match. Starts 10 seconds before match start, ends after final scoreboard." },
 	{ "cg_autoswitch", "When `1`, automatically switches to a newly picked-up weapon if it is better." },
 	{ "cg_autovertex", "When `1`, enables vertex lighting on maps that need it, restoring your old setting when turned off." },
 	{ "cg_backupDrawflat", "Temporary backup of `r_drawFlat` while video settings are locked; leave alone." },

@@ -1353,14 +1353,14 @@ static void CG_Rec_f( void ) {
 	char demoName[MAX_OSPATH];
 	char cmd[MAX_STRING_CHARS];
 
+	if ( cg.demoPlayback || cg.demoRecording ) {
+		return;
+	}
+
 	if ( trap_Argc() > 1 ) {
 		Com_sprintf( cmd, sizeof( cmd ), "record %s\n", ConcatArgs( 1 ) );
 		trap_SendConsoleCommand( cmd );
 		cg.demoRecording = qtrue;
-		return;
-	}
-
-	if ( cg.demoPlayback ) {
 		return;
 	}
 
@@ -1463,6 +1463,20 @@ qboolean CG_ConsoleCommand( void ) {
 	int		i;
 
 	cmd = CG_Argv(0);
+
+	if ( !Q_stricmp( cmd, "stoprecord" ) ) {
+		cg.autoRecording = qfalse;
+		cg.demoRecording = qfalse;
+		return qfalse;
+	}
+
+	if ( !Q_stricmp( cmd, "record" ) ) {
+		if ( !cg.demoRecording ) {
+			cg.demoRecording = qtrue;
+			cg.autoRecording = qfalse;
+		}
+		return qfalse;
+	}
 
 	for ( i = 0 ; i < sizeof( commands ) / sizeof( commands[0] ) ; i++ ) {
 		if ( !Q_stricmp( cmd, commands[i].cmd ) ) {

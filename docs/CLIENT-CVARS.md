@@ -28,7 +28,7 @@ Client-side variables registered by the **cgame** module (`cg_*`, plus related n
 | `cg_announcer` | RatMod | `quake3` | string or numeric (see default) | Announcer voice pack for match callouts (e.g. `quake3`). |
 | `cg_announcerNewAwards` | RatMod | `` | string or numeric (see default) | Announcer pack for newer award callouts; empty uses `cg_announcer`. |
 | `cg_attackerScale` | RatMod | `0.75` | float | Size of the last-attacker icon/name shown when `cg_drawAttacker` is on. |
-| `cg_autorecord` | RatMod | `0` | 0 or 1 | When `1`, automatically records demos for supported matches (such as duels). |
+| `cg_autorecord` | RatMod | `0` | 0 or 1 | When `1`, automatically records a demo/replay for each match. Starts 10 seconds before match start, ends after final scoreboard |
 | `cg_autoswitch` | Vanilla | `0` | 0 or 1 | When `1`, automatically switches to a newly picked-up weapon if it is better. |
 | `cg_autovertex` | RatMod | `0` | 0 or 1 | When `1`, enables vertex lighting on maps that need it, restoring your old setting when turned off. |
 | `cg_backupDrawflat` | RatMod | `-1` | integer >= 0 (typical) | Temporary backup of `r_drawFlat` while video settings are locked; leave alone. |

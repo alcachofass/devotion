@@ -2697,6 +2697,7 @@ Called before every level change or subsystem restart
 void CG_Shutdown( void ) {
 	// some mods may need to do cleanup work here,
 	// like closing files or archiving session data
+	CG_AutoRecordStop();
 	CG_MenuHud_Shutdown();
 	CG_DemoHistory_Clear();
 	challenges_save();
@@ -3092,14 +3093,16 @@ void CG_BuildDemoFilename( char *demoName, int demoNameSize ) {
 	CG_SanitizeDemoFilenameChars( demoName );
 }
 
+#define CG_AUTORECORD_PREFIGHT_MS 10000
+
 void CG_AutoRecordStart(void) {
 	char demoName[MAX_OSPATH];
 
-	if (cg.demoPlayback) {
+	if (cg.demoPlayback || cg.demoRecording || !cg_autorecord.integer) {
 		return;
 	}
 
-	if (!cg_autorecord.integer) {
+	if (!cg.snap) {
 		return;
 	}
 
@@ -3107,16 +3110,29 @@ void CG_AutoRecordStart(void) {
 		return;
 	}
 
+	// Waiting for players / ready-up. CS_WARMUP is a timestamp; start
+	// 10s before it elapses so this tracks g_warmup and ready rules.
+	if (cg.warmup < 0) {
+		return;
+	}
+	if (cg.warmup > 0 && cg.warmup - cg.time > CG_AUTORECORD_PREFIGHT_MS) {
+		return;
+	}
+
 	CG_BuildDemoFilename( demoName, sizeof( demoName ) );
 	trap_SendConsoleCommand(va("record \"%s\"\n", demoName));
 	cg.demoRecording = qtrue;
+	cg.autoRecording = qtrue;
 }
 
 void CG_AutoRecordStop(void) {
-	if (cg.demoRecording) {
-		trap_SendConsoleCommand("stoprecord\n");
-		cg.demoRecording = qfalse;
+	if (!cg.autoRecording) {
+		return;
 	}
+
+	trap_SendConsoleCommand("stoprecord\n");
+	cg.autoRecording = qfalse;
+	cg.demoRecording = qfalse;
 }
 
 qboolean CG_IsTeamGametype(void) {
