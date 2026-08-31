@@ -1341,6 +1341,10 @@ static void CG_ParseWarmup( void ) {
 	}
 
 	cg.warmup = warmup;
+
+	if ( cg.warmup > 0 ) {
+		CG_AutoRecordStart();
+	}
 }
 
 #ifdef WITH_MULTITOURNAMENT
@@ -1683,7 +1687,14 @@ static void CG_MapRestart( void ) {
 
 	cg.timelimitWarnings = 0;
 
-	cg.intermissionStarted = qfalse;
+	{
+		qboolean wasIntermission = cg.intermissionStarted;
+
+		cg.intermissionStarted = qfalse;
+		if ( wasIntermission ) {
+			CG_AutoRecordStop();
+		}
+	}
 
 	cgs.voteTime = 0;
 
@@ -1705,8 +1716,8 @@ static void CG_MapRestart( void ) {
 		CG_AutoRecordStart();
 		trap_S_StartLocalSound( cgs.media.countFightSound, CHAN_ANNOUNCER );
 		CG_CenterPrint( "FIGHT!", 120, GIANTCHAR_WIDTH*2 );
-	} else {
-		CG_AutoRecordStop();
+	} else if ( cg.warmup > 0 ) {
+		CG_AutoRecordStart();
 	}
 #ifdef MISSIONPACK
 	if (cg_singlePlayerActive.integer) {

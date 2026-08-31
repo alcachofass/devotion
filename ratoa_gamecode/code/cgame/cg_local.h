@@ -653,6 +653,7 @@ typedef struct {
 	
 	qboolean	demoPlayback;
 	qboolean	demoRecording;
+	qboolean	autoRecording;			// demoRecording was started by cg_autorecord
 	qboolean	levelShot;			// taking a level menu screenshot
 	int			deferredPlayerLoading;
 	qboolean	loading;			// don't defer players at initial startup
