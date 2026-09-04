@@ -1044,12 +1044,18 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	//
 	case EV_PLAYER_TELEPORT_IN:
 		DEBUGNAME("EV_PLAYER_TELEPORT_IN");
+		if ( CG_DemoHistory_SuppressLivePlayerTeleportEvent( es->clientNum ) ) {
+			break;
+		}
 		trap_S_StartSound (NULL, es->number, CHAN_AUTO, cgs.media.teleInSound );
 		CG_SpawnEffect( position);
 		break;
 
 	case EV_PLAYER_TELEPORT_OUT:
 		DEBUGNAME("EV_PLAYER_TELEPORT_OUT");
+		if ( CG_DemoHistory_SuppressLivePlayerTeleportEvent( es->clientNum ) ) {
+			break;
+		}
 		trap_S_StartSound (NULL, es->number, CHAN_AUTO, cgs.media.teleOutSound );
 		CG_SpawnEffect(  position);
 		break;

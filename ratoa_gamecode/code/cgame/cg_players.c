@@ -1824,6 +1824,30 @@ static void CG_ClearLerpFrame( clientInfo_t *ci, lerpFrame_t *lf, int animationN
 	lf->oldFrame = lf->frame = lf->animation->firstFrame;
 }
 
+void CG_DemoDelagResetPlayerAnims( centity_t *cent, int legsAnim, int torsoAnim ) {
+	int clientNum;
+
+	clientNum = cent->currentState.clientNum;
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+
+	CG_ClearLerpFrame( &cgs.clientinfo[ clientNum ], &cent->pe.legs, legsAnim );
+	CG_ClearLerpFrame( &cgs.clientinfo[ clientNum ], &cent->pe.torso, torsoAnim );
+
+	memset( &cent->pe.legs, 0, sizeof( cent->pe.legs ) );
+	cent->pe.legs.yawAngle = cent->lerpAngles[YAW];
+	cent->pe.legs.yawing = qfalse;
+	cent->pe.legs.pitchAngle = 0;
+	cent->pe.legs.pitching = qfalse;
+
+	memset( &cent->pe.torso, 0, sizeof( cent->pe.torso ) );
+	cent->pe.torso.yawAngle = cent->lerpAngles[YAW];
+	cent->pe.torso.yawing = qfalse;
+	cent->pe.torso.pitchAngle = cent->lerpAngles[PITCH];
+	cent->pe.torso.pitching = qfalse;
+}
+
 
 /*
 ===============
@@ -4127,12 +4151,21 @@ A player just came into view or teleported, so reset all animation info
 ===============
 */
 void CG_ResetPlayerEntity( centity_t *cent ) {
+	qboolean delayAnims;
+
 	cent->demoDelagVisualCached = qfalse;
 	cent->errorTime = -99999;		// guarantee no error decay added
-	cent->extrapolated = qfalse;	
+	cent->extrapolated = qfalse;
 
-	CG_ClearLerpFrame( &cgs.clientinfo[ cent->currentState.clientNum ], &cent->pe.legs, cent->currentState.legsAnim );
-	CG_ClearLerpFrame( &cgs.clientinfo[ cent->currentState.clientNum ], &cent->pe.torso, cent->currentState.torsoAnim );
+	delayAnims = CG_DemoHistory_DemoDelagActive()
+		&& cent->currentState.number < MAX_CLIENTS
+		&& cent->currentState.number != cg.predictedPlayerState.clientNum
+		&& cent->demoDelagLastVisualEFlagsValid;
+
+	if ( !delayAnims ) {
+		CG_ClearLerpFrame( &cgs.clientinfo[ cent->currentState.clientNum ], &cent->pe.legs, cent->currentState.legsAnim );
+		CG_ClearLerpFrame( &cgs.clientinfo[ cent->currentState.clientNum ], &cent->pe.torso, cent->currentState.torsoAnim );
+	}
 
 	BG_EvaluateTrajectory( &cent->currentState.pos, cg.time, cent->lerpOrigin );
 	BG_EvaluateTrajectory( &cent->currentState.apos, cg.time, cent->lerpAngles );
@@ -4142,17 +4175,19 @@ void CG_ResetPlayerEntity( centity_t *cent ) {
 	VectorCopy( cent->lerpOrigin, cent->rawOrigin );
 	VectorCopy( cent->lerpAngles, cent->rawAngles );
 
-	memset( &cent->pe.legs, 0, sizeof( cent->pe.legs ) );
-	cent->pe.legs.yawAngle = cent->rawAngles[YAW];
-	cent->pe.legs.yawing = qfalse;
-	cent->pe.legs.pitchAngle = 0;
-	cent->pe.legs.pitching = qfalse;
+	if ( !delayAnims ) {
+		memset( &cent->pe.legs, 0, sizeof( cent->pe.legs ) );
+		cent->pe.legs.yawAngle = cent->rawAngles[YAW];
+		cent->pe.legs.yawing = qfalse;
+		cent->pe.legs.pitchAngle = 0;
+		cent->pe.legs.pitching = qfalse;
 
-	memset( &cent->pe.torso, 0, sizeof( cent->pe.legs ) );
-	cent->pe.torso.yawAngle = cent->rawAngles[YAW];
-	cent->pe.torso.yawing = qfalse;
-	cent->pe.torso.pitchAngle = cent->rawAngles[PITCH];
-	cent->pe.torso.pitching = qfalse;
+		memset( &cent->pe.torso, 0, sizeof( cent->pe.torso ) );
+		cent->pe.torso.yawAngle = cent->rawAngles[YAW];
+		cent->pe.torso.yawing = qfalse;
+		cent->pe.torso.pitchAngle = cent->rawAngles[PITCH];
+		cent->pe.torso.pitching = qfalse;
+	}
 
 	cent->pe.crouchSlideSndCounter = rand() % CROUCHSLIDE_SOUNDS;
 

@@ -1221,6 +1221,9 @@ CG_AddCEntity
 ===============
 */
 static void CG_AddCEntity( centity_t *cent ) {
+	entityState_t savedState;
+	qboolean swappedDrawState;
+
 	// event-only entities will have been dealt with already
 	if ( cent->currentState.eType >= ET_EVENTS ) {
 		return;
@@ -1228,6 +1231,17 @@ static void CG_AddCEntity( centity_t *cent ) {
 
 	// calculate the current origin
 	CG_CalcEntityLerpPositions( cent );
+
+	if ( cent->demoDelagMissileNotYet && cent->currentState.eType == ET_MISSILE ) {
+		return;
+	}
+
+	swappedDrawState = qfalse;
+	if ( cent->demoDelagDrawStateValid && cent->currentState.eType == ET_PLAYER ) {
+		savedState = cent->currentState;
+		cent->currentState = cent->demoDelagDrawState;
+		swappedDrawState = qtrue;
+	}
 
 	// add automatic effects
 	CG_EntityEffects( cent );
@@ -1272,6 +1286,10 @@ static void CG_AddCEntity( centity_t *cent ) {
 	case ET_TEAM:
 		CG_TeamBase( cent );
 		break;
+	}
+
+	if ( swappedDrawState ) {
+		cent->currentState = savedState;
 	}
 }
 

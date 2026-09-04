@@ -1338,14 +1338,27 @@ CG_RefreshDemoPovDisplayPing
 
 Sample CG_ReliablePing() for scoreboard display. Called from the scoreboard's
 1 Hz refresh (scoresRequestTime) and when opening scores during demo playback.
+
+During intermission commandTime stops advancing, so ReliablePing walks up to 999.
+Keep the last in-match sample instead of showing that sentinel.
 =================
  */
 void CG_RefreshDemoPovDisplayPing( void ) {
-	if ( !cg.demoPlayback || !cg.snap ) {
+	int ping;
+
+	if ( !cg.demoPlayback ) {
 		cg.demoPovDisplayPingValid = qfalse;
 		return;
 	}
-	cg.demoPovDisplayPing = CG_ReliablePing();
+	if ( !cg.snap ) {
+		return;
+	}
+	ping = CG_ReliablePing();
+	/* Same junk threshold as demo delag ping (commandTime freeze / snap->ping 999). */
+	if ( ping < 0 || ping >= 900 ) {
+		return;
+	}
+	cg.demoPovDisplayPing = ping;
 	cg.demoPovDisplayPingValid = qtrue;
 }
 
