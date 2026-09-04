@@ -280,6 +280,10 @@ typedef struct centity_s {
 	qboolean		demoDelagVisualCached;
 	vec3_t			demoDelagVisualOrigin;
 	vec3_t			demoDelagVisualAngles;
+	qboolean		demoDelagDrawStateValid;
+	entityState_t	demoDelagDrawState;
+	int				demoDelagLastVisualEFlags;
+	qboolean		demoDelagLastVisualEFlagsValid;
 
 	// for cg_projectileNudgeAuto
 	int			projectileNudge;
@@ -1940,6 +1944,7 @@ int CG_GetScoresMtrn(int scoreNum);
 void CG_Player( centity_t *cent );
 void CG_PlayerGetColors(clientInfo_t *ci, qboolean isDead, int bodyPart, byte *outColor);
 void CG_ResetPlayerEntity( centity_t *cent );
+void CG_DemoDelagResetPlayerAnims( centity_t *cent, int legsAnim, int torsoAnim );
 void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int team, qboolean isMissile,
 	       	clientInfo_t *ci, int orderIndicator, qboolean useBlendBrightshell );
 void CG_NewClientInfo( int clientNum );

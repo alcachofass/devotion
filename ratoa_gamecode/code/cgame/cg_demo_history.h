@@ -22,6 +22,7 @@ const snapshot_t *CG_DemoHistory_GetNewest( void );
 const snapshot_t *CG_DemoHistory_GetByFramesAgo( int framesAgo );
 
 qboolean CG_DemoHistory_DemoDelagActive( void );
+qboolean CG_DemoHistory_SuppressLivePlayerTeleportEvent( int clientNum );
 void CG_DemoHistory_BeginHitscanRewind( int rewindToServerTime, int skipEntityNum );
 void CG_DemoHistory_EndHitscanRewind( void );
 void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( struct centity_s *cent );
