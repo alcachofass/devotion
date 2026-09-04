@@ -43,6 +43,7 @@ void CG_DemoHistory_Clear( void ) {
 		cg_entities[i].demoDelagVisualCached = qfalse;
 		cg_entities[i].demoDelagDrawStateValid = qfalse;
 		cg_entities[i].demoDelagLastVisualEFlagsValid = qfalse;
+		cg_entities[i].demoDelagMissileNotYet = qfalse;
 	}
 	Com_Memset( cg_demoHistoryBuf, 0, sizeof( cg_demoHistoryBuf ) );
 }
@@ -773,15 +774,86 @@ void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( centity_t *cent ) {
 	}
 }
 
+static qboolean demoDelagNewestHistoryEsAtOrBefore( int entityNum, int t, entityState_t *outEs ) {
+	int c;
+	int i;
+	const snapshot_t *sn;
+
+	c = CG_DemoHistory_GetCount();
+	for ( i = 0; i < c; i++ ) {
+		sn = CG_DemoHistory_GetByFramesAgo( i );
+		if ( sn->serverTime > t ) {
+			continue;
+		}
+		/* First snap at or before t. Do not search older (entity number reuse). */
+		return findEntityInSnapshot( sn, entityNum, outEs );
+	}
+	return qfalse;
+}
+
+static qboolean demoDelagMissilePathUnchanged( const entityState_t *a, const entityState_t *b ) {
+	if ( demoDelagEFlagsTeleported( a->eFlags, b->eFlags ) ) {
+		return qfalse;
+	}
+	if ( a->pos.trType != b->pos.trType || a->pos.trTime != b->pos.trTime ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+/*
+Pick the entityState whose trajectory should be evaluated at delayed time t.
+History at t is preferred (bounce/portal). Otherwise the live missile state.
+notYet: delayed time is before this missile's trTime — caller should not draw.
+*/
+static qboolean demoDelagMissileEsForTime( const centity_t *cent, int t, entityState_t *outEs, qboolean *notYet ) {
+	*notYet = qfalse;
+
+	if ( demoDelagNewestHistoryEsAtOrBefore( cent->currentState.number, t, outEs ) ) {
+		if ( t < outEs->pos.trTime ) {
+			*notYet = qtrue;
+		}
+		return qtrue;
+	}
+
+	if ( cent->currentState.eType == ET_MISSILE ) {
+		if ( t < cent->currentState.pos.trTime ) {
+			*outEs = cent->currentState;
+			*notYet = qtrue;
+			return qtrue;
+		}
+		*outEs = cent->currentState;
+		return qtrue;
+	}
+
+	if ( cg.nextSnap && cent->nextState.eType == ET_MISSILE ) {
+		if ( t < cent->nextState.pos.trTime ) {
+			*outEs = cent->nextState;
+			*notYet = qtrue;
+			return qtrue;
+		}
+		*outEs = cent->nextState;
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+static void demoDelagEvalMissileEs( const entityState_t *es, int t, vec3_t origin, vec3_t angles ) {
+	BG_EvaluateTrajectory( &es->pos, t, origin );
+	BG_EvaluateTrajectory( &es->apos, t, angles );
+}
+
 qboolean CG_DemoHistory_AdjustMissileLerpForDemoDelag( centity_t *cent ) {
 	int ping;
-	int tLo, tHi;
-	vec3_t originLo, anglesLo;
-	vec3_t originHi, anglesHi;
+	int tLo, tHi, tEval;
 	vec3_t origin, angles;
+	entityState_t esLo, esHi;
 	float f;
 	qboolean okLo, okHi;
-	int flagsLo, flagsHi;
+	qboolean notYetLo, notYetHi;
+
+	cent->demoDelagMissileNotYet = qfalse;
 
 	if ( !CG_DemoHistory_DemoDelagActive() || !cg.snap ) {
 		return qfalse;
@@ -806,41 +878,71 @@ qboolean CG_DemoHistory_AdjustMissileLerpForDemoDelag( centity_t *cent ) {
 	if ( cg.nextSnap && cg.nextSnap->serverTime > cg.snap->serverTime ) {
 		tLo = cg.snap->serverTime - ping;
 		tHi = cg.nextSnap->serverTime - ping;
-		okLo = demoDelagSamplePoseAtTime( cent, cent->currentState.number, tLo, originLo, anglesLo, &flagsLo, NULL );
-		okHi = demoDelagSamplePoseAtTime( cent, cent->currentState.number, tHi, originHi, anglesHi, &flagsHi, NULL );
-		if ( okLo && okHi ) {
-			if ( demoDelagEFlagsTeleported( flagsLo, flagsHi ) ) {
-				VectorCopy( originLo, cent->lerpOrigin );
-				VectorCopy( anglesLo, cent->lerpAngles );
+		okLo = demoDelagMissileEsForTime( cent, tLo, &esLo, &notYetLo );
+		okHi = demoDelagMissileEsForTime( cent, tHi, &esHi, &notYetHi );
+
+		if ( okLo && notYetLo && okHi && notYetHi ) {
+			cent->demoDelagMissileNotYet = qtrue;
+			return qtrue;
+		}
+		if ( okLo && notYetLo && okHi && !notYetHi ) {
+			if ( f < 1.0f ) {
+				cent->demoDelagMissileNotYet = qtrue;
 				return qtrue;
 			}
-			origin[0] = originLo[0] + f * ( originHi[0] - originLo[0] );
-			origin[1] = originLo[1] + f * ( originHi[1] - originLo[1] );
-			origin[2] = originLo[2] + f * ( originHi[2] - originLo[2] );
-			angles[0] = LerpAngle( anglesLo[0], anglesHi[0], f );
-			angles[1] = LerpAngle( anglesLo[1], anglesHi[1], f );
-			angles[2] = LerpAngle( anglesLo[2], anglesHi[2], f );
+			demoDelagEvalMissileEs( &esHi, tHi, origin, angles );
 			VectorCopy( origin, cent->lerpOrigin );
 			VectorCopy( angles, cent->lerpAngles );
 			return qtrue;
 		}
-		if ( okLo ) {
-			VectorCopy( originLo, cent->lerpOrigin );
-			VectorCopy( anglesLo, cent->lerpAngles );
+		if ( okLo && !notYetLo && okHi && notYetHi ) {
+			demoDelagEvalMissileEs( &esLo, tLo, origin, angles );
+			VectorCopy( origin, cent->lerpOrigin );
+			VectorCopy( angles, cent->lerpAngles );
 			return qtrue;
 		}
-		if ( okHi ) {
-			VectorCopy( originHi, cent->lerpOrigin );
-			VectorCopy( anglesHi, cent->lerpAngles );
+		if ( okLo && !notYetLo && okHi && !notYetHi ) {
+			if ( demoDelagMissilePathUnchanged( &esLo, &esHi ) ) {
+				tEval = tLo + (int)( f * (float)( tHi - tLo ) );
+				demoDelagEvalMissileEs( &esLo, tEval, origin, angles );
+			} else if ( f < 1.0f ) {
+				demoDelagEvalMissileEs( &esLo, tLo, origin, angles );
+			} else {
+				demoDelagEvalMissileEs( &esHi, tHi, origin, angles );
+			}
+			VectorCopy( origin, cent->lerpOrigin );
+			VectorCopy( angles, cent->lerpAngles );
+			return qtrue;
+		}
+		if ( okLo && !notYetLo ) {
+			demoDelagEvalMissileEs( &esLo, tLo, origin, angles );
+			VectorCopy( origin, cent->lerpOrigin );
+			VectorCopy( angles, cent->lerpAngles );
+			return qtrue;
+		}
+		if ( okHi && !notYetHi ) {
+			demoDelagEvalMissileEs( &esHi, tHi, origin, angles );
+			VectorCopy( origin, cent->lerpOrigin );
+			VectorCopy( angles, cent->lerpAngles );
+			return qtrue;
+		}
+		if ( ( okLo && notYetLo ) || ( okHi && notYetHi ) ) {
+			cent->demoDelagMissileNotYet = qtrue;
 			return qtrue;
 		}
 		return qfalse;
 	}
 
 	tLo = cg.snap->serverTime - ping;
-	if ( !demoDelagSamplePoseAtTime( cent, cent->currentState.number, tLo, origin, angles, NULL, NULL ) ) {
+	okLo = demoDelagMissileEsForTime( cent, tLo, &esLo, &notYetLo );
+	if ( !okLo ) {
 		return qfalse;
 	}
+	if ( notYetLo ) {
+		cent->demoDelagMissileNotYet = qtrue;
+		return qtrue;
+	}
+	demoDelagEvalMissileEs( &esLo, tLo, origin, angles );
 	VectorCopy( origin, cent->lerpOrigin );
 	VectorCopy( angles, cent->lerpAngles );
 	return qtrue;

@@ -1232,6 +1232,10 @@ static void CG_AddCEntity( centity_t *cent ) {
 	// calculate the current origin
 	CG_CalcEntityLerpPositions( cent );
 
+	if ( cent->demoDelagMissileNotYet && cent->currentState.eType == ET_MISSILE ) {
+		return;
+	}
+
 	swappedDrawState = qfalse;
 	if ( cent->demoDelagDrawStateValid && cent->currentState.eType == ET_PLAYER ) {
 		savedState = cent->currentState;

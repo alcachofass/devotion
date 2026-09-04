@@ -292,6 +292,7 @@ typedef struct centity_s {
 	qboolean		quiet;
 	qboolean		missileTeleported;
 	predictedMissileStatus_t missileStatus;
+	qboolean		demoDelagMissileNotYet;
 } centity_t;
 
 
