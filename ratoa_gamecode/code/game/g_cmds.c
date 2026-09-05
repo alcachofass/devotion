@@ -3851,6 +3851,8 @@ void G_PrintVoteCommands(gentity_t *ent) {
 		strcat(buffer, " votenextmap\n");
 	if(allowedVote("custom"))
 		strcat(buffer, " custom <special>\n");
+	if(allowedVote("deathpit_mercy"))
+		strcat(buffer, " deathpit_mercy <0|1>\n");
 	buffer[strlen(buffer)-1] = 0;
 	strcat(buffer, "\n\"");
 	trap_SendServerCommand( ent-g_entities, buffer);
@@ -3925,6 +3927,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
         } else if ( !Q_stricmp( arg1, "unlock" ) ) {
         } else if ( !Q_stricmp( arg1, "arena" ) ) {
         } else if ( !Q_stricmp( arg1, "votenextmap" ) ) {
+	} else if ( !Q_stricmp( arg1, "deathpit_mercy" ) ) {
 	} else {
 		trap_SendServerCommand( ent-g_entities, "print \"Invalid vote string.\n\"" );
 		G_PrintVoteCommands(ent);
@@ -4108,6 +4111,16 @@ void Cmd_CallVote_f( gentity_t *ent ) {
                 else {
                     Com_sprintf( level.voteString, sizeof( level.voteString ), "g_doWarmup \"0\"" );
                     Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable warmup?" );
+                }
+        } else if ( !Q_stricmp( arg1, "deathpit_mercy" ) ) {
+                i = atoi(arg2);
+                if(i) {
+                    Com_sprintf( level.voteString, sizeof( level.voteString ), "g_deathpitMercy \"1\"" );
+                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Enable death pit mercy?" );
+                }
+                else {
+                    Com_sprintf( level.voteString, sizeof( level.voteString ), "g_deathpitMercy \"0\"" );
+                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable death pit mercy?" );
                 }
         } else if ( !Q_stricmp( arg1, "clientkick" ) ) {
 		for( c = arg2; *c; ++c) {

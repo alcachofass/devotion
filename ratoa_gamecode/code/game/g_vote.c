@@ -28,7 +28,7 @@ allowedVote
  *Note: Keep this in sync with allowedVote in ui_votemenu.c (except for cg_voteNames and g_voteNames)
 ==================
  */
-#define MAX_VOTENAME_LENGTH 15 //currently the longest string is "/capturelimit/\0" (15 chars)
+#define MAX_VOTENAME_LENGTH 24 // longest slash-wrapped name is "/deathpit_mercy/\0"
 int allowedVote(char *commandStr) {
     char tempStr[MAX_VOTENAME_LENGTH];
     int length;
@@ -51,6 +51,45 @@ int allowedVote(char *commandStr) {
         return qtrue;
     else
         return qfalse;
+}
+
+/*
+==================
+G_EnsureVoteName
+
+Archived g_voteNames keeps the old factory list across updates. Add a newly
+supported vote verb if it is missing (unless the server uses "*" or an empty list).
+==================
+ */
+void G_EnsureVoteName( const char *commandStr ) {
+	char voteNames[MAX_CVAR_VALUE_STRING];
+	char wrapped[MAX_VOTENAME_LENGTH];
+	int len;
+
+	if ( !commandStr || !commandStr[0] ) {
+		return;
+	}
+	trap_Cvar_VariableStringBuffer( "g_voteNames", voteNames, sizeof( voteNames ) );
+	if ( !voteNames[0] || !Q_stricmp( voteNames, "*" ) ) {
+		return;
+	}
+
+	wrapped[0] = '/';
+	wrapped[1] = '\0';
+	Q_strcat( wrapped, sizeof( wrapped ), commandStr );
+	Q_strcat( wrapped, sizeof( wrapped ), "/" );
+	if ( Q_stristr( voteNames, wrapped ) != NULL ) {
+		return;
+	}
+
+	len = strlen( voteNames );
+	if ( voteNames[len - 1] != '/' ) {
+		Q_strcat( voteNames, sizeof( voteNames ), "/" );
+	}
+	Q_strcat( voteNames, sizeof( voteNames ), commandStr );
+	Q_strcat( voteNames, sizeof( voteNames ), "/" );
+	trap_Cvar_Set( "g_voteNames", voteNames );
+	trap_Cvar_Update( &g_voteNames );
 }
 
 /*

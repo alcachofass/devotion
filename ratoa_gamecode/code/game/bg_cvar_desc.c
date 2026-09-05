@@ -98,6 +98,7 @@ static const cvarDesc_t gameCvarDescriptions[] = {
 	{ "g_debugAlloc", "Debug memory allocator logging." },
 	{ "g_debugDamage", "Debug damage calculation output." },
 	{ "g_debugMove", "Debug player movement and pmove logging." },
+	{ "g_deathpitMercy", "When `1`, falling into a lethal trigger_hurt (damage over 200) teleports the player to a spawn with inventory intact." },
 	{ "g_delagAllowHitsAfterTele", "When `1`, delagged hits still count shortly after teleporting." },
 	{ "g_delagHitscan", "When `1`, rewinds players for hitscan hit detection (unlagged)." },
 	{ "g_delagMissileBaseNudge", "Base milliseconds nudged for missile lag compensation." },

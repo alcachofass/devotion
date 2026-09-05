@@ -766,6 +766,8 @@ void G_RegisterCvars( void ) {
 	BotEnhanced_RegisterCvars();
 
 	BG_RegisterGameCvarDescriptions();
+
+	G_EnsureVoteName( "deathpit_mercy" );
 }
 
 qboolean G_IsTeamGametype(void) {

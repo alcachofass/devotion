@@ -439,6 +439,13 @@ void hurt_touch( gentity_t *self, gentity_t *other, trace_t *trace ) {
 		return;
 	}
 
+	if ( g_deathpitMercy.integer && other->client && self->damage > 200
+			&& other->client->ps.groundEntityNum == ENTITYNUM_NONE
+			&& other->client->ps.velocity[2] < 0 ) {
+		G_DeathpitMercyRespawn( other );
+		return;
+	}
+
 	if ( self->timestamp > level.time ) {
 		return;
 	}
