@@ -6692,6 +6692,9 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		CG_DrawReloadIndicator();
 		CG_DrawEmptyIndicator();
 		CG_DrawCrosshairNames();
+		if ( !cg.showScores ) {
+			CG_DrawVisualSounds();
+		}
 	} else {
 		qboolean shActive;
 
@@ -6709,6 +6712,7 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 			}
 			CG_DrawHudDamageIndicator();
 			CG_DrawMovementKeys();
+			CG_DrawVisualSounds();
 
 			CG_MenuHud_CheckCvars();
 			if ( CG_MenuHudActive() ) {

@@ -37,6 +37,7 @@ cd windows\build\cgame
 %cc%  ../../../code/cgame/cg_servercmds.c
 %cc%  ../../../code/cgame/cg_snapshot.c
 %cc%  ../../../code/cgame/cg_demo_history.c
+%cc%  ../../../code/cgame/cg_visualsounds.c
 %cc%  ../../../code/cgame/cg_superhud.c
 %cc%  ../../../code/cgame/cg_unlagged.c
 %cc%  ../../../code/cgame/cg_view.c

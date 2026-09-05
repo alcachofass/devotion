@@ -1095,7 +1095,7 @@ Quake Live silver key. Unlocks func_door / func_button with spawnflags 16.
 */
 	{
 		"item_key_silver",
-		"sound/items/n_health.wav",
+		"sound/misc/menu3.wav",
 		{ "models/powerups/keys/key_silver.md3",
 		NULL, NULL, NULL },
 /* icon */		"icons/key_silver",
@@ -1112,7 +1112,7 @@ Quake Live gold key. Unlocks func_door / func_button with spawnflags 32.
 */
 	{
 		"item_key_gold",
-		"sound/items/n_health.wav",
+		"sound/misc/menu3.wav",
 		{ "models/powerups/keys/key_gold.md3",
 		NULL, NULL, NULL },
 /* icon */		"icons/key_gold",
@@ -1129,7 +1129,7 @@ Quake Live master key. Unlocks silver and gold locked doors/buttons.
 */
 	{
 		"item_key_master",
-		"sound/items/n_health.wav",
+		"sound/misc/menu3.wav",
 		{ "models/powerups/keys/key_master.md3",
 		NULL, NULL, NULL },
 /* icon */		"icons/key_master",

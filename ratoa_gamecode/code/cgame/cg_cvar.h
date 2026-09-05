@@ -42,6 +42,7 @@ CG_CVAR( cg_zoomScopeRGColor, "cg_zoomScopeRGColor", "H120 1.0 0.5", CVAR_ARCHIV
 CG_CVAR( cg_zoomScopeMGColor, "cg_zoomScopeMGColor", "H60 1.0 0.5", CVAR_ARCHIVE )
 CG_CVAR( cg_drawCrosshair, "cg_drawCrosshair", "3", CVAR_ARCHIVE )
 CG_CVAR( cg_drawCrosshairNames, "cg_drawCrosshairNames", "1", CVAR_ARCHIVE )
+CG_CVAR( cg_visualSounds, "cg_visualSounds", "0", CVAR_ARCHIVE )
 CG_CVAR( cg_drawRewards, "cg_drawRewards", "1", CVAR_ARCHIVE|CVAR_LATCH )
 CG_CVAR( cg_crosshairSize, "cg_crosshairSize", "30", CVAR_ARCHIVE )
 CG_CVAR( cg_crosshairHealth, "cg_crosshairHealth", "1", CVAR_ARCHIVE )

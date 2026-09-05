@@ -1317,6 +1317,23 @@ static void CG_RegisterGraphics( void ) {
 
 	cgs.media.backTileShader = trap_R_RegisterShader( "gfx/2d/backtile" );
 	cgs.media.noammoShader = trap_R_RegisterShaderNoMip( "icons/noammo" );
+	cgs.media.vsExplosionIcon = trap_R_RegisterShaderNoMip( "icons/vsound/explosion" );
+	cgs.media.vsFootstepsIcon = trap_R_RegisterShaderNoMip( "icons/vsound/footsteps" );
+	cgs.media.vsAmmoGenericIcon = trap_R_RegisterShaderNoMip( "icons/vsound/icona_generic" );
+	cgs.media.vsWeaponGenericIcon = trap_R_RegisterShaderNoMip( "icons/vsound/iconw_generic" );
+	cgs.media.vsArmorGenericIcon = trap_R_RegisterShaderNoMip( "icons/vsound/iconr_generic" );
+	cgs.media.vsJumpIcon = trap_R_RegisterShaderNoMip( "icons/vsound/jump" );
+	cgs.media.vsLandIcon = trap_R_RegisterShaderNoMip( "icons/vsound/landing" );
+	cgs.media.vsPain100Icon = trap_R_RegisterShaderNoMip( "icons/vsound/pain_100" );
+	cgs.media.vsPain75Icon = trap_R_RegisterShaderNoMip( "icons/vsound/pain_75" );
+	cgs.media.vsPain50Icon = trap_R_RegisterShaderNoMip( "icons/vsound/pain_50" );
+	cgs.media.vsPain25Icon = trap_R_RegisterShaderNoMip( "icons/vsound/pain_25" );
+	cgs.media.vsDeadIcon = trap_R_RegisterShaderNoMip( "icons/vsound/dead" );
+	cgs.media.vsTeleportIcon = trap_R_RegisterShaderNoMip( "icons/vsound/teleport" );
+	cgs.media.vsSpawnIcon = trap_R_RegisterShaderNoMip( "icons/vsound/spawn" );
+	cgs.media.vsJumpPadIcon = trap_R_RegisterShaderNoMip( "icons/vsound/jumppad" );
+	cgs.media.vsKeyIcon = trap_R_RegisterShaderNoMip( "icons/vsound/key" );
+	cgs.media.vsWeaponSwapIcon = trap_R_RegisterShaderNoMip( "icons/vsound/weapon_swap" );
 
 	// powerup shaders
 	cgs.media.quadShader = trap_R_RegisterShader("powerups/quad" );
@@ -2568,6 +2585,7 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	CG_DemoResetScorePingCache();
 
 	CG_DemoHistory_Init();
+	CG_VisualSounds_Reset();
 
 	cg.clientNum = clientNum;
 

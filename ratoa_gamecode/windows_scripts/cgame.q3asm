@@ -18,6 +18,7 @@ cg_scoreboard
 cg_servercmds
 cg_snapshot
 cg_demo_history
+cg_visualsounds
 cg_superhud
 cg_menuhud
 cg_menuhud_draw

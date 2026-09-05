@@ -644,6 +644,7 @@ static const cvarDesc_t cgameCvarDescriptions[] = {
 	{ "cg_trueLightning", "How much the lightning beam bends to the true hit point (`0` = never, `1` = always)." },
 	{ "cg_ui_clientCommand", "Internal command string queued by UI menus; leave alone." },
 	{ "cg_viewsize", "3D view size as a percentage; below `100` shrinks the view and shows a border." },
+	{ "cg_visualSounds", "When `1`, shows a text compass around the crosshair for nearby world sounds." },
 	{ "cg_voipTeamOnly", "When `1`, only teammates' voice chat is heard; enemy VoIP is muted." },
 	{ "cg_vote_custom_commands", "Read-only list of custom callvote commands allowed by the server." },
 	{ "cg_voteflags", "Read-only bitfield of which callvote types the server currently allows." },

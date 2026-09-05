@@ -1180,7 +1180,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			break;
 		}
 		ByteToDir( es->eventParm, dir );
-		CG_MissileHitWall( es->weapon, 0, position, dir, IMPACTSOUND_DEFAULT,
+		CG_MissileHitWall( es->weapon, es->otherEntityNum, position, dir, IMPACTSOUND_DEFAULT,
 			       cent->currentState.eType == ET_MISSILE ? &cent->missileStatus : NULL);
 		if (cent->currentState.eType == ET_MISSILE) {
 			CG_UpdateMissileStatus(&cent->missileStatus,
@@ -1198,7 +1198,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			break;
 		}
 		ByteToDir( es->eventParm, dir );
-		CG_MissileHitWall( es->weapon, 0, position, dir, IMPACTSOUND_METAL,
+		CG_MissileHitWall( es->weapon, es->otherEntityNum, position, dir, IMPACTSOUND_METAL,
 			       cent->currentState.eType == ET_MISSILE ? &cent->missileStatus : NULL);
 		if (cent->currentState.eType == ET_MISSILE) {
 			CG_UpdateMissileStatus(&cent->missileStatus, 
@@ -1542,10 +1542,11 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		// with the kamikaze sound, downside is that the gib sound will also
 		// not be played when someone is gibbed while just carrying the kamikaze
 #ifdef MISSIONPACK
-		if ( !(es->eFlags & EF_KAMIKAZE) ) {
+		if ( !(es->eFlags & EF_KAMIKAZE) )
+#endif
+		{
 			trap_S_StartSound( NULL, es->number, CHAN_BODY, cgs.media.gibSound );
 		}
-#endif
 		CG_GibPlayer( cent->lerpOrigin );
 		break;
 

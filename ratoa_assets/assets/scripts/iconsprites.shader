@@ -1285,3 +1285,190 @@ menu/art/skill5 {
 		blendFunc blend
 	}
 }
+
+icons/vsound/explosion
+{
+	nopicmip
+	{
+		clampmap icons/vsound/explosion.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/footsteps
+{
+	nopicmip
+	{
+		clampmap icons/vsound/footsteps.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/icona_generic
+{
+	nopicmip
+	{
+		clampmap icons/vsound/icona_generic.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/iconw_generic
+{
+	nopicmip
+	{
+		clampmap icons/vsound/iconw_generic.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/iconr_generic
+{
+	nopicmip
+	{
+		clampmap icons/vsound/iconr_generic.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/jump
+{
+	nopicmip
+	{
+		clampmap icons/vsound/jump.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/landing
+{
+	nopicmip
+	{
+		clampmap icons/vsound/landing.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/pain_100
+{
+	nopicmip
+	{
+		clampmap icons/vsound/pain_100.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/pain_75
+{
+	nopicmip
+	{
+		clampmap icons/vsound/pain_75.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/pain_50
+{
+	nopicmip
+	{
+		clampmap icons/vsound/pain_50.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/pain_25
+{
+	nopicmip
+	{
+		clampmap icons/vsound/pain_25.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/dead
+{
+	nopicmip
+	{
+		clampmap icons/vsound/dead.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/teleport
+{
+	nopicmip
+	{
+		clampmap icons/vsound/teleport.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/spawn
+{
+	nopicmip
+	{
+		clampmap icons/vsound/spawn.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/jumppad
+{
+	nopicmip
+	{
+		clampmap icons/vsound/jumppad.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/key
+{
+	nopicmip
+	{
+		clampmap icons/vsound/key.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/weapon_swap
+{
+	nopicmip
+	{
+		clampmap icons/vsound/weapon_swap.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}

@@ -61,6 +61,7 @@ GAME OPTIONS MENU
 #define ID_CHATBEEP             145
 #define ID_TEAMCHATBEEP         146
 #define ID_TRACKCONSENT		147
+#define ID_VISUALSOUNDS		148
 
 #define	NUM_CROSSHAIRS			64
 
@@ -95,6 +96,7 @@ typedef struct {
 //	menuradiobutton_s	trackconsent;
         menuradiobutton_s       chatbeep;
         menuradiobutton_s       teamchatbeep;
+        menuradiobutton_s       visualsounds;
 	menubitmap_s		back;
 
 	qhandle_t			crosshairShader[NUM_CROSSHAIRS];
@@ -132,6 +134,7 @@ static void Preferences_SetMenuItems( void ) {
         s_preferences.delaghitscan.curvalue	= trap_Cvar_VariableValue( "cg_delag" ) != 0;
         s_preferences.chatbeep.curvalue         = trap_Cvar_VariableValue( "cg_chatBeep" ) != 0;
         s_preferences.teamchatbeep.curvalue     = trap_Cvar_VariableValue( "cg_teamChatBeep" ) != 0;
+        s_preferences.visualsounds.curvalue     = trap_Cvar_VariableValue( "cg_visualSounds" ) != 0;
 }
 
 /*
@@ -252,6 +255,10 @@ static void Preferences_Event( void* ptr, int notification ) {
                 
         case ID_TEAMCHATBEEP:
                 trap_Cvar_SetValue( "cg_teamChatBeep", s_preferences.teamchatbeep.curvalue );
+                break;
+
+        case ID_VISUALSOUNDS:
+                trap_Cvar_SetValue( "cg_visualSounds", s_preferences.visualsounds.curvalue );
                 break;
 
 	case ID_BACK:
@@ -552,6 +559,15 @@ static void Preferences_MenuInit( void ) {
 	s_preferences.teamchatbeep.generic.x	       = PREFERENCES_X_POS;
 	s_preferences.teamchatbeep.generic.y	       = y;
 
+        y += BIGCHAR_HEIGHT+2;
+	s_preferences.visualsounds.generic.type     = MTYPE_RADIOBUTTON;
+	s_preferences.visualsounds.generic.name	   = "Visual Sounds:";
+	s_preferences.visualsounds.generic.flags	   = QMF_PULSEIFFOCUS|QMF_SMALLFONT;
+	s_preferences.visualsounds.generic.callback = Preferences_Event;
+	s_preferences.visualsounds.generic.id       = ID_VISUALSOUNDS;
+	s_preferences.visualsounds.generic.x	       = PREFERENCES_X_POS;
+	s_preferences.visualsounds.generic.y	       = y;
+
 	y += BIGCHAR_HEIGHT+2;
 	s_preferences.back.generic.type	    = MTYPE_BITMAP;
 	s_preferences.back.generic.name     = ART_BACK0;
@@ -588,6 +604,7 @@ static void Preferences_MenuInit( void ) {
 	//Menu_AddItem( &s_preferences.menu, &s_preferences.trackconsent );
         Menu_AddItem( &s_preferences.menu, &s_preferences.teamchatbeep );
         Menu_AddItem( &s_preferences.menu, &s_preferences.chatbeep );
+        Menu_AddItem( &s_preferences.menu, &s_preferences.visualsounds );
 
 	Menu_AddItem( &s_preferences.menu, &s_preferences.back );
 

@@ -1121,6 +1121,23 @@ typedef struct {
 	qhandle_t	lagometerShader;
 	qhandle_t	backTileShader;
 	qhandle_t	noammoShader;
+	qhandle_t	vsExplosionIcon;
+	qhandle_t	vsFootstepsIcon;
+	qhandle_t	vsAmmoGenericIcon;
+	qhandle_t	vsWeaponGenericIcon;
+	qhandle_t	vsArmorGenericIcon;
+	qhandle_t	vsJumpIcon;
+	qhandle_t	vsLandIcon;
+	qhandle_t	vsPain100Icon;
+	qhandle_t	vsPain75Icon;
+	qhandle_t	vsPain50Icon;
+	qhandle_t	vsPain25Icon;
+	qhandle_t	vsDeadIcon;
+	qhandle_t	vsTeleportIcon;
+	qhandle_t	vsSpawnIcon;
+	qhandle_t	vsJumpPadIcon;
+	qhandle_t	vsKeyIcon;
+	qhandle_t	vsWeaponSwapIcon;
 
 	qhandle_t	zoomScopeMGShader;
 	qhandle_t	zoomScopeRGShader;
@@ -2114,6 +2131,17 @@ void CG_PingHudMarker ( vec3_t pingOrigin, float alpha, qhandle_t shader );
 void CG_HudBorderMarker ( vec3_t origin, float alpha, float radius, qhandle_t shader, int baseAngle );
 
 //
+// cg_visualsounds.c
+//
+void CG_VisualSounds_Reset( void );
+void CG_VisualSounds_Note( const vec3_t origin, int entityNum, sfxHandle_t sfx, qboolean looping );
+void CG_VisualSounds_NoteExplosion( const vec3_t origin, int clientNum, int weapon );
+void CG_DrawVisualSounds( void );
+void CG_WrappedStartSound( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx );
+void CG_WrappedAddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx );
+void CG_WrappedAddRealLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx );
+
+//
 // cg_demo_history.c (declarations in cg_demo_history.h)
 //
 
@@ -2270,6 +2298,15 @@ void		trap_S_StartLocalSound( sfxHandle_t sfx, int channelNum );
 void		trap_S_ClearLoopingSounds( qboolean killall );
 void		trap_S_AddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx );
 void		trap_S_AddRealLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx );
+#ifndef CG_SKIP_SOUND_WRAP
+#define trap_S_StartSound( origin, entityNum, entchannel, sfx ) \
+	CG_WrappedStartSound( (origin), (entityNum), (entchannel), (sfx) )
+#define trap_S_AddLoopingSound( entityNum, origin, velocity, sfx ) \
+	CG_WrappedAddLoopingSound( (entityNum), (origin), (velocity), (sfx) )
+#define trap_S_AddRealLoopingSound( entityNum, origin, velocity, sfx ) \
+	CG_WrappedAddRealLoopingSound( (entityNum), (origin), (velocity), (sfx) )
+#endif
+
 void		trap_S_UpdateEntityPosition( int entityNum, const vec3_t origin );
 
 // respatialize recalculates the volumes of sound as they should be heard by the
