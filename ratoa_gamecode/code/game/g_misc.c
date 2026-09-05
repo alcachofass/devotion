@@ -150,6 +150,69 @@ void TeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles ) {
 	player->client->lastTeleportTime = level.time;
 }
 
+/*
+================
+G_DeathpitMercyRespawn
+
+Move a living player to a spawn point without wiping inventory, health, armor,
+or powerups. Velocity (including downward fall) is cleared so they do not take
+fall damage on arrival.
+================
+*/
+void G_DeathpitMercyRespawn( gentity_t *player ) {
+	vec3_t		origin, angles;
+	gclient_t	*client;
+
+	if ( !player || !player->client ) {
+		return;
+	}
+
+	client = player->client;
+	SelectSpawnPoint( player, client->ps.origin, origin, angles, 0 );
+
+	trap_UnlinkEntity( player );
+
+	VectorCopy( origin, client->ps.origin );
+	client->ps.origin[2] += 1;
+
+	VectorClear( client->ps.velocity );
+	client->ps.pm_time = 0;
+	client->ps.pm_flags &= ~PMF_ALL_TIMES;
+	client->ps.groundEntityNum = ENTITYNUM_WORLD;
+	client->lastGroundTime = level.time;
+
+	SetClientViewAngle( player, angles );
+
+	client->ps.eFlags ^= EF_TELEPORT_BIT;
+
+	client->ps.stats[STAT_EXTFLAGS] &= ~EXTFL_SLIDING;
+	client->ps.stats[STAT_SLIDETIMEOUT] = 0;
+
+	if ( client->sess.sessionTeam != TEAM_SPECTATOR && client->ps.pm_type != PM_SPECTATOR ) {
+		G_KillBox( player );
+	}
+
+	BG_PlayerStateToEntityState( &client->ps, &player->s, (qboolean)!g_floatPlayerPosition.integer );
+	VectorCopy( client->ps.origin, player->r.currentOrigin );
+
+	if ( !g_delagAllowHitsAfterTele.integer ) {
+		G_ResetHistory( player );
+	}
+
+	if ( client->sess.sessionTeam != TEAM_SPECTATOR && client->ps.pm_type != PM_SPECTATOR ) {
+		trap_LinkEntity( player );
+	}
+
+	client->ps.persistant[PERS_SPAWN_COUNT]++;
+	{
+		gentity_t *tent;
+		tent = G_TempEntity( client->ps.origin, EV_PLAYER_TELEPORT_IN );
+		tent->s.clientNum = player->s.clientNum;
+	}
+
+	client->lastTeleportTime = level.time;
+}
+
 
 /*QUAKED misc_teleporter_dest (1 0 0) (-32 -32 -24) (32 32 -16)
 Point teleporters at these.

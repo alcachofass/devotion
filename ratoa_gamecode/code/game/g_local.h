@@ -1158,6 +1158,7 @@ void G_SetTeleporterDestinations(void);
 // g_misc.c
 //
 void TeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles );
+void G_DeathpitMercyRespawn( gentity_t *player );
 void DropPortalSource( gentity_t *ent );
 void DropPortalDestination( gentity_t *ent );
 
@@ -1453,6 +1454,7 @@ team_t PlayerStore_getLastTeam( const char *guid );
 // g_vote.c
 //
 int allowedVote(char *commandStr);
+void G_EnsureVoteName( const char *commandStr );
 void CheckVote( void );
 void CountVotes( void );
 void ClientLeaving(int clientNumber);
