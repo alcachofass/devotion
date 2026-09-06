@@ -1138,6 +1138,19 @@ typedef struct {
 	qhandle_t	vsJumpPadIcon;
 	qhandle_t	vsKeyIcon;
 	qhandle_t	vsWeaponSwapIcon;
+	qhandle_t	vsShardIcon;
+	qhandle_t	vsPowerupIcon;
+	qhandle_t	vsGrappleIcon;
+	qhandle_t	vsHealth5Icon;
+	qhandle_t	vsHealth25Icon;
+	qhandle_t	vsHealth50Icon;
+	qhandle_t	vsMegaHealthIcon;
+	qhandle_t	vsQuadIcon;
+	qhandle_t	vsEnviroIcon;
+	qhandle_t	vsHasteIcon;
+	qhandle_t	vsWeaponIcon[WP_NUM_WEAPONS];
+	sfxHandle_t	vsGrappleFireSound;
+	sfxHandle_t	vsGrapplePullSound;
 
 	qhandle_t	zoomScopeMGShader;
 	qhandle_t	zoomScopeRGShader;

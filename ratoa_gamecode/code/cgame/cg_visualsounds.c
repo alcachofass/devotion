@@ -137,36 +137,22 @@ static void VS_SetRgb( vec3_t rgb, float r, float g, float b ) {
 	rgb[2] = b;
 }
 
-/* Stock HUD shaders ignore 2D SetColor alpha (alphaGen oneMinusEntity).
- * Draw through icons/vsound/hud/* wrappers that use vertex alpha, same as the
- * dedicated vsound TGAs. */
-static qhandle_t VS_VertexIcon( const char *shaderName ) {
-	const char	*base;
-	char		leaf[64];
-	int		len;
-
-	if ( !shaderName || !shaderName[0] ) {
-		return 0;
-	}
-	base = strrchr( shaderName, '/' );
-	base = base ? base + 1 : shaderName;
-	Q_strncpyz( leaf, base, sizeof( leaf ) );
-	len = (int)strlen( leaf );
-	if ( len > 4 && !Q_stricmp( leaf + len - 4, ".tga" ) ) {
-		leaf[len - 4] = '\0';
-	}
-	return trap_R_RegisterShaderNoMip( va( "icons/vsound/hud/%s", leaf ) );
+static qboolean VS_FillGrapple( vsKind_t *kind, char *label, int labelSize, qhandle_t *icon, vec3_t rgb ) {
+	*kind = VS_WEAPON;
+	Q_strncpyz( label, "HOOK", labelSize );
+	*icon = cgs.media.vsGrappleIcon;
+	VS_SetRgb( rgb, 1.00f, 1.00f, 1.00f );
+	return qtrue;
 }
 
 static qboolean VS_FillWeapon( int weapon, vsKind_t *kind, char *label, int labelSize, qhandle_t *icon, vec3_t rgb ) {
-	gitem_t	*item;
-
 	*kind = VS_WEAPON;
 	Q_strncpyz( label, VS_WeaponLabel( weapon ), labelSize );
 	*icon = 0;
-	item = BG_FindItemForWeapon( weapon );
-	if ( item && item->icon && item->icon[0] ) {
-		*icon = VS_VertexIcon( item->icon );
+	if ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS && cgs.media.vsWeaponIcon[weapon] ) {
+		*icon = cgs.media.vsWeaponIcon[weapon];
+	} else {
+		*icon = cgs.media.vsWeaponGenericIcon;
 	}
 	VS_SetRgb( rgb, 1.00f, 1.00f, 1.00f );
 	return qtrue;
@@ -198,26 +184,46 @@ static qboolean VS_FillItem( const gitem_t *item, qboolean uniqueSound, vsKind_t
 			*icon = cgs.media.vsKeyIcon;
 			return qtrue;
 		}
-		Q_strncpyz( label, "ITEM", labelSize );
+		Q_strncpyz( label, "PWR", labelSize );
+		*icon = cgs.media.vsPowerupIcon;
 		return qtrue;
 	}
 
 	if ( item->giType == IT_WEAPON ) {
 		return VS_FillWeapon( item->giTag, kind, label, labelSize, icon, rgb );
 	}
-	if ( item->icon && item->icon[0] ) {
-		*icon = VS_VertexIcon( item->icon );
+	if ( item->giType == IT_ARMOR ) {
+		Q_strncpyz( label, "ARM", labelSize );
+		*icon = cgs.media.vsShardIcon;
+		VS_SetRgb( rgb, 1.00f, 1.00f, 1.00f );
+		return qtrue;
 	}
 	VS_SetRgb( rgb, 1.00f, 1.00f, 1.00f );
+	if ( item->giType == IT_HEALTH ) {
+		Q_strncpyz( label, "HP", labelSize );
+		if ( item->quantity <= 5 ) {
+			*icon = cgs.media.vsHealth5Icon;
+		} else if ( item->quantity <= 25 ) {
+			*icon = cgs.media.vsHealth25Icon;
+		} else if ( item->quantity <= 50 ) {
+			*icon = cgs.media.vsHealth50Icon;
+		} else {
+			*icon = cgs.media.vsMegaHealthIcon;
+		}
+		return qtrue;
+	}
 	switch ( item->giTag ) {
 	case PW_QUAD:
 		Q_strncpyz( label, "QUAD", labelSize );
+		*icon = cgs.media.vsQuadIcon;
 		break;
 	case PW_BATTLESUIT:
 		Q_strncpyz( label, "BS", labelSize );
+		*icon = cgs.media.vsEnviroIcon;
 		break;
 	case PW_HASTE:
 		Q_strncpyz( label, "HASTE", labelSize );
+		*icon = cgs.media.vsHasteIcon;
 		break;
 	case PW_INVIS:
 		Q_strncpyz( label, "INVIS", labelSize );
@@ -229,11 +235,7 @@ static qboolean VS_FillItem( const gitem_t *item, qboolean uniqueSound, vsKind_t
 		Q_strncpyz( label, "FLY", labelSize );
 		break;
 	default:
-		if ( item->giType == IT_ARMOR ) {
-			Q_strncpyz( label, "ARM", labelSize );
-		} else if ( item->giType == IT_HEALTH ) {
-			Q_strncpyz( label, "HP", labelSize );
-		} else if ( item->giType == IT_KEY ) {
+		if ( item->giType == IT_KEY ) {
 			Q_strncpyz( label, "KEY", labelSize );
 			*icon = cgs.media.vsKeyIcon;
 		} else {
@@ -335,6 +337,10 @@ static qboolean VS_Classify( sfxHandle_t sfx, int entityNum, vsKind_t *kind, cha
 
 	if ( sfx == cgs.media.hgrenb1aSound || sfx == cgs.media.hgrenb2aSound ) {
 		return VS_FillWeapon( WP_GRENADE_LAUNCHER, kind, label, labelSize, icon, rgb );
+	}
+
+	if ( sfx == cgs.media.vsGrappleFireSound || sfx == cgs.media.vsGrapplePullSound ) {
+		return VS_FillGrapple( kind, label, labelSize, icon, rgb );
 	}
 
 	if ( VS_SfxIsWeaponHum( sfx, &weapon ) ) {
@@ -530,7 +536,7 @@ static int VS_RingClass( vsKind_t kind, const char *label ) {
 			|| !Q_stricmp( label, "RG" ) || !Q_stricmp( label, "PG" )
 			|| !Q_stricmp( label, "BFG" ) || !Q_stricmp( label, "GUN" )
 			|| !Q_stricmp( label, "NG" ) || !Q_stricmp( label, "PL" )
-			|| !Q_stricmp( label, "CG" ) ) {
+			|| !Q_stricmp( label, "CG" ) || !Q_stricmp( label, "HOOK" ) ) {
 		return 0;
 	}
 	if ( !Q_stricmp( label, "STEP" ) || !Q_stricmp( label, "JUMP" )
@@ -576,7 +582,7 @@ static int VS_Priority( vsKind_t kind, const char *label, qboolean dim, qboolean
 			|| !Q_stricmp( label, "RG" ) || !Q_stricmp( label, "PG" )
 			|| !Q_stricmp( label, "BFG" ) || !Q_stricmp( label, "GUN" )
 			|| !Q_stricmp( label, "NG" ) || !Q_stricmp( label, "PL" )
-			|| !Q_stricmp( label, "CG" ) ) {
+			|| !Q_stricmp( label, "CG" ) || !Q_stricmp( label, "HOOK" ) ) {
 		if ( dim || looping ) {
 			return 1;
 		}
@@ -1177,6 +1183,7 @@ void CG_DrawVisualSounds( void ) {
 				continue;
 			}
 			label = rLabel[t];
+			color[0] = color[1] = color[2] = 1.00f;
 			ch = TINYCHAR_HEIGHT * rFade[t];
 			cw = CG_HeightToWidth( TINYCHAR_WIDTH ) * rFade[t];
 			if ( ch < 1.0f ) {

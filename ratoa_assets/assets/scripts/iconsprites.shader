@@ -1472,3 +1472,212 @@ icons/vsound/weapon_swap
 		alphaGen vertex
 	}
 }
+
+icons/vsound/gauntlet
+{
+	nopicmip
+	{
+		clampmap icons/vsound/gauntlet.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/shotgun
+{
+	nopicmip
+	{
+		clampmap icons/vsound/shotgun.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/grenade
+{
+	nopicmip
+	{
+		clampmap icons/vsound/grenade.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/rocket
+{
+	nopicmip
+	{
+		clampmap icons/vsound/rocket.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/lightning
+{
+	nopicmip
+	{
+		clampmap icons/vsound/lightning.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/railgun
+{
+	nopicmip
+	{
+		clampmap icons/vsound/railgun.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/plasma
+{
+	nopicmip
+	{
+		clampmap icons/vsound/plasma.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/bfg
+{
+	nopicmip
+	{
+		clampmap icons/vsound/bfg.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/grapple
+{
+	nopicmip
+	{
+		clampmap icons/vsound/grapple.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/shard
+{
+	nopicmip
+	{
+		clampmap icons/vsound/shard.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/powerup
+{
+	nopicmip
+	{
+		clampmap icons/vsound/powerup.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/machinegun
+{
+	nopicmip
+	{
+		clampmap icons/vsound/machinegun.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/health_5
+{
+	nopicmip
+	{
+		clampmap icons/vsound/health_5.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/health_25
+{
+	nopicmip
+	{
+		clampmap icons/vsound/health_25.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/health_50
+{
+	nopicmip
+	{
+		clampmap icons/vsound/health_50.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/megahealth
+{
+	nopicmip
+	{
+		clampmap icons/vsound/megahealth.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/quad
+{
+	nopicmip
+	{
+		clampmap icons/vsound/quad.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/envirosuit
+{
+	nopicmip
+	{
+		clampmap icons/vsound/envirosuit.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+icons/vsound/haste
+{
+	nopicmip
+	{
+		clampmap icons/vsound/haste.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
