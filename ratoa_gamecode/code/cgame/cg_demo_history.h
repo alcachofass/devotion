@@ -22,11 +22,10 @@ const snapshot_t *CG_DemoHistory_GetNewest( void );
 const snapshot_t *CG_DemoHistory_GetByFramesAgo( int framesAgo );
 
 qboolean CG_DemoHistory_DemoDelagActive( void );
-qboolean CG_DemoHistory_DelayPlayerTeleportEvent( int clientNum, int event, const vec3_t origin, int soundEntityNum );
+qboolean CG_DemoHistory_DelayPlayerTeleportEvent( int clientNum, int event, const vec3_t origin );
 void CG_DemoHistory_BeginHitscanRewind( int rewindToServerTime, int skipEntityNum );
 void CG_DemoHistory_EndHitscanRewind( void );
 void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( struct centity_s *cent );
 qboolean CG_DemoHistory_AdjustMissileLerpForDemoDelag( struct centity_s *cent );
-int CG_DemoHistory_LocalFireDelay( void );
 
 #endif

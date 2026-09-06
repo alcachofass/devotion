@@ -1572,151 +1572,91 @@ static qboolean SH_Visible( const shElement_t *e ) {
 	return qfalse;
 }
 
-static qboolean SH_ClientIsPlaying( int clientNum ) {
-	clientInfo_t *ci;
-
-	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
-		return qfalse;
-	}
-	ci = &cgs.clientinfo[clientNum];
-	if ( !ci->infoValid || ci->team == TEAM_SPECTATOR ) {
-		return qfalse;
-	}
-	return qtrue;
+static qboolean SH_Playing( int cl ) {
+	return cl >= 0 && cl < MAX_CLIENTS && cgs.clientinfo[cl].infoValid
+		&& cgs.clientinfo[cl].team != TEAM_SPECTATOR;
 }
 
-static int SH_FirstPlayingClient( int skipClient ) {
-	int i;
+static int SH_NextPlaying( int skip ) {
+	int i, cl;
 
-	if ( cg.numScores > 0 ) {
-		for ( i = 0; i < cg.numScores; i++ ) {
-			if ( cg.scores[i].client == skipClient ) {
-				continue;
-			}
-			if ( SH_ClientIsPlaying( cg.scores[i].client ) ) {
-				return cg.scores[i].client;
-			}
+	for ( i = 0; i < cg.numScores; i++ ) {
+		cl = cg.scores[i].client;
+		if ( cl != skip && SH_Playing( cl ) ) {
+			return cl;
 		}
 	}
 	for ( i = 0; i < cgs.maxclients; i++ ) {
-		if ( i == skipClient ) {
-			continue;
-		}
-		if ( SH_ClientIsPlaying( i ) ) {
+		if ( i != skip && SH_Playing( i ) ) {
 			return i;
 		}
 	}
 	return -1;
 }
 
-static int SH_MatchupOwnClient( void ) {
-	int pov = cg.snap->ps.clientNum;
+static int SH_OwnTeam( void ) {
+	int t;
 
-	if ( SH_ClientIsPlaying( pov ) ) {
-		return pov;
+	t = cg.snap->ps.persistant[PERS_TEAM];
+	if ( t == TEAM_RED || t == TEAM_BLUE ) {
+		return t;
 	}
-	return SH_FirstPlayingClient( -1 );
-}
-
-static int SH_MatchupNmeClient( void ) {
-	return SH_FirstPlayingClient( SH_MatchupOwnClient() );
-}
-
-static int SH_ClientScore( int clientNum ) {
-	int i;
-
-	if ( !SH_ClientIsPlaying( clientNum ) ) {
-		return SCORE_NOT_PRESENT;
+	t = cgs.clientinfo[cg.snap->ps.clientNum].team;
+	if ( t == TEAM_RED || t == TEAM_BLUE ) {
+		return t;
 	}
-	if ( cg.numScores > 0 ) {
-		for ( i = 0; i < cg.numScores; i++ ) {
-			if ( cg.scores[i].client == clientNum ) {
-				return cg.scores[i].score;
-			}
-		}
+	t = cgs.clientinfo[cg.clientNum].team;
+	if ( t == TEAM_RED || t == TEAM_BLUE ) {
+		return t;
 	}
-	return cgs.clientinfo[clientNum].score;
-}
-
-static int SH_MatchupOwnTeam( void ) {
-	int team;
-
-	team = cg.snap->ps.persistant[PERS_TEAM];
-	if ( team == TEAM_RED || team == TEAM_BLUE ) {
-		return team;
-	}
-	if ( ( cg.snap->ps.pm_flags & PMF_FOLLOW ) && SH_ClientIsPlaying( cg.snap->ps.clientNum ) ) {
-		team = cgs.clientinfo[cg.snap->ps.clientNum].team;
-		if ( team == TEAM_RED || team == TEAM_BLUE ) {
-			return team;
-		}
-	}
-	team = cgs.clientinfo[cg.clientNum].team;
-	if ( team == TEAM_RED || team == TEAM_BLUE ) {
-		return team;
-	}
-	/* Free spec: Red on the left, Blue on the right. */
 	return TEAM_RED;
 }
 
-static const char *SH_TeamMatchupName( int team ) {
+static const char *SH_TeamName( int team ) {
 	if ( team == TEAM_BLUE ) {
 		return cg_blueTeamName.string[0] ? cg_blueTeamName.string : "Blue";
 	}
 	return cg_redTeamName.string[0] ? cg_redTeamName.string : "Red";
 }
 
-static int SH_OwnScore( void ) {
-	int cl;
+static int SH_MatchupScore( qboolean nme ) {
+	int cl, i;
 
 	if ( CG_IsTeamGametype() ) {
-		if ( SH_MatchupOwnTeam() == TEAM_BLUE ) {
-			return cgs.scores2;
-		}
-		return cgs.scores1;
+		return ( ( SH_OwnTeam() == TEAM_BLUE ) == nme ) ? cgs.scores1 : cgs.scores2;
 	}
-	cl = SH_MatchupOwnClient();
-	if ( cl == cg.snap->ps.clientNum && SH_ClientIsPlaying( cl ) ) {
+	cl = SH_Playing( cg.snap->ps.clientNum ) ? cg.snap->ps.clientNum : SH_NextPlaying( -1 );
+	if ( nme ) {
+		cl = SH_NextPlaying( cl );
+	} else if ( cl == cg.snap->ps.clientNum ) {
 		return cg.snap->ps.persistant[PERS_SCORE];
 	}
-	return SH_ClientScore( cl );
-}
-
-static int SH_NmeScore( void ) {
-	if ( CG_IsTeamGametype() ) {
-		if ( SH_MatchupOwnTeam() == TEAM_BLUE ) {
-			return cgs.scores1;
+	if ( !SH_Playing( cl ) ) {
+		return SCORE_NOT_PRESENT;
+	}
+	for ( i = 0; i < cg.numScores; i++ ) {
+		if ( cg.scores[i].client == cl ) {
+			return cg.scores[i].score;
 		}
-		return cgs.scores2;
 	}
-	return SH_ClientScore( SH_MatchupNmeClient() );
+	return cgs.clientinfo[cl].score;
 }
 
-static const char *SH_OwnName( void ) {
-	int cl;
+static const char *SH_MatchupName( qboolean nme ) {
+	int cl, team;
 
 	if ( CG_IsTeamGametype() ) {
-		return SH_TeamMatchupName( SH_MatchupOwnTeam() );
+		team = SH_OwnTeam();
+		if ( nme ) {
+			team = ( team == TEAM_BLUE ) ? TEAM_RED : TEAM_BLUE;
+		}
+		return SH_TeamName( team );
 	}
-	cl = SH_MatchupOwnClient();
-	if ( cl < 0 ) {
-		return "";
+	cl = SH_Playing( cg.snap->ps.clientNum ) ? cg.snap->ps.clientNum : SH_NextPlaying( -1 );
+	if ( nme ) {
+		cl = SH_NextPlaying( cl );
 	}
-	return cgs.clientinfo[cl].name;
-}
-
-static const char *SH_NmeName( void ) {
-	int cl;
-
-	if ( CG_IsTeamGametype() ) {
-		int own = SH_MatchupOwnTeam();
-		return SH_TeamMatchupName( own == TEAM_BLUE ? TEAM_RED : TEAM_BLUE );
-	}
-	cl = SH_MatchupNmeClient();
-	if ( cl < 0 ) {
-		return "";
-	}
-	return cgs.clientinfo[cl].name;
+	return SH_Playing( cl ) ? cgs.clientinfo[cl].name : "";
 }
 
 static const char *SH_GameTypeString( void ) {
@@ -1755,33 +1695,23 @@ static int SH_GameLimit( void ) {
 
 /* Two-party matchup (1v1 or team vs team). Not FFA / LMS / other free-for-all. */
 static qboolean SH_IsMatchupGametype( void ) {
-	if ( CG_IsTeamGametype() ) {
-		return qtrue;
-	}
-	if ( cgs.gametype == GT_TOURNAMENT ) {
-		return qtrue;
-	}
+	return CG_IsTeamGametype() || cgs.gametype == GT_TOURNAMENT
 #ifdef WITH_MULTITOURNAMENT
-	if ( cgs.gametype == GT_MULTITOURNAMENT ) {
-		return qtrue;
-	}
+		|| cgs.gametype == GT_MULTITOURNAMENT
 #endif
-	return qfalse;
+		;
 }
 
 /*
  * CPMA HUDs put a PreDecorate { text "vs" } in the same slot as Score_Limit.
  * Show "vs" only when there is no frag/capture limit; otherwise show the limit.
  */
-static qboolean SH_IsVsDecor( const shElement_t *e ) {
-	return e->text[0] && !Q_stricmp( e->text, "vs" );
-}
-
 static void SH_DrawDecor( const shElement_t *e ) {
 	if ( !SH_Visible( e ) ) {
 		return;
 	}
-	if ( SH_IsVsDecor( e ) && ( !SH_IsMatchupGametype() || SH_GameLimit() > 0 ) ) {
+	if ( e->text[0] && !Q_stricmp( e->text, "vs" )
+			&& ( !SH_IsMatchupGametype() || SH_GameLimit() > 0 ) ) {
 		return;
 	}
 	SH_DrawFill( e );
@@ -1892,44 +1822,38 @@ static void SH_DrawGameTime( void ) {
 
 static void SH_DrawScores( void ) {
 	char buf[32];
-	int nme;
-	int limit;
+	int side, val, limit;
+	shElement_t *scoreEl, *nameEl;
+	const char *name;
 
-	if ( SH_Visible( &sh.named[SH_Score_OWN] ) ) {
-		int own = SH_OwnScore();
-		if ( own != SCORE_NOT_PRESENT ) {
-			SH_DrawFill( &sh.named[SH_Score_OWN] );
-			Com_sprintf( buf, sizeof( buf ), "%i", own );
-			SH_DrawString( &sh.named[SH_Score_OWN], buf, 0 );
+	for ( side = 0; side < 2; side++ ) {
+		scoreEl = &sh.named[side ? SH_Score_NME : SH_Score_OWN];
+		if ( SH_Visible( scoreEl ) ) {
+			val = SH_MatchupScore( side );
+			if ( val != SCORE_NOT_PRESENT ) {
+				SH_DrawFill( scoreEl );
+				Com_sprintf( buf, sizeof( buf ), "%i", val );
+				SH_DrawString( scoreEl, buf, 0 );
+			}
 		}
 	}
-	if ( SH_Visible( &sh.named[SH_Score_NME] ) ) {
-		nme = SH_NmeScore();
-		if ( nme != SCORE_NOT_PRESENT ) {
-			SH_DrawFill( &sh.named[SH_Score_NME] );
-			Com_sprintf( buf, sizeof( buf ), "%i", nme );
-			SH_DrawString( &sh.named[SH_Score_NME], buf, 0 );
-		}
-	}
-	/* Mutually exclusive with PreDecorate text "vs" (see SH_DrawDecor). */
 	limit = SH_GameLimit();
 	if ( SH_Visible( &sh.named[SH_Score_Limit] ) && limit > 0 ) {
 		SH_DrawFill( &sh.named[SH_Score_Limit] );
 		Com_sprintf( buf, sizeof( buf ), "%i", limit );
 		SH_DrawString( &sh.named[SH_Score_Limit], buf, 0 );
 	}
-	if ( SH_IsMatchupGametype() ) {
-		if ( SH_Visible( &sh.named[SH_Name_OWN] ) ) {
-			const char *n = SH_OwnName();
-			if ( n && n[0] ) {
-				SH_DrawString( &sh.named[SH_Name_OWN], n, 0 );
-			}
+	if ( !SH_IsMatchupGametype() ) {
+		return;
+	}
+	for ( side = 0; side < 2; side++ ) {
+		nameEl = &sh.named[side ? SH_Name_NME : SH_Name_OWN];
+		if ( !SH_Visible( nameEl ) ) {
+			continue;
 		}
-		if ( SH_Visible( &sh.named[SH_Name_NME] ) ) {
-			const char *n = SH_NmeName();
-			if ( n && n[0] ) {
-				SH_DrawString( &sh.named[SH_Name_NME], n, 0 );
-			}
+		name = SH_MatchupName( side );
+		if ( name && name[0] ) {
+			SH_DrawString( nameEl, name, 0 );
 		}
 	}
 }
