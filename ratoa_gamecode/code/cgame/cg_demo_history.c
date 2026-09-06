@@ -28,8 +28,25 @@ typedef struct {
 static demoRewindSave_t cg_demoRewindSaves[MAX_CLIENTS];
 static int cg_demoRewindSaveCount;
 
+/*
+ * Witnessed tele IN/OUT from the recorded snapshot, held until the delayed
+ * clock reaches that snap. Not synthesized from later player visibility.
+ */
+#define CG_DEMO_DELAYED_TELE_CAP 128
+
+typedef struct {
+	int		snapServerTime;
+	int		event;
+	int		soundEntityNum;
+	vec3_t	origin;
+} demoDelayedTele_t;
+
+static demoDelayedTele_t cg_demoDelayedTele[CG_DEMO_DELAYED_TELE_CAP];
+static int cg_demoDelayedTeleCount;
+
 static int demoDelagPingRawAlongInterpolation( void );
 static qboolean demoDelagResolvePingMs( int *outPing );
+static void demoDelagFlushDelayedTeleports( void );
 
 void CG_DemoHistory_Clear( void ) {
 	int i;
@@ -38,6 +55,7 @@ void CG_DemoHistory_Clear( void ) {
 	cg_demoHistoryCount = 0;
 	cg_demoHistoryLastServerTime = -1;
 	cg_demoRewindSaveCount = 0;
+	cg_demoDelayedTeleCount = 0;
 	cg_demoDelagPingSmoothed = -1;
 	for ( i = 0; i < MAX_GENTITIES; i++ ) {
 		cg_entities[i].demoDelagVisualCached = qfalse;
@@ -75,6 +93,7 @@ void CG_DemoHistory_Frame( void ) {
 		cg_demoDelagPingSmoothed = -1;
 	}
 	cg_demoHistoryPrevPlayback = cg.demoPlayback;
+	demoDelagFlushDelayedTeleports();
 }
 
 void CG_DemoHistory_OnSnapshot( const snapshot_t *snap ) {
@@ -132,19 +151,44 @@ qboolean CG_DemoHistory_DemoDelagActive( void ) {
 	return cg.demoPlayback && cg_demoDelag.integer && cgs.delagHitscan && CG_DemoHistory_GetCount() > 0;
 }
 
-qboolean CG_DemoHistory_SuppressLivePlayerTeleportEvent( int clientNum ) {
+qboolean CG_DemoHistory_DelayPlayerTeleportEvent( int clientNum, int event, const vec3_t origin, int soundEntityNum ) {
+	demoDelayedTele_t *slot;
+	int ping;
+
 	if ( !CG_DemoHistory_DemoDelagActive() ) {
 		return qfalse;
 	}
 	if ( !cg.snap ) {
 		return qfalse;
 	}
-	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
-		return qfalse;
-	}
 	if ( clientNum == cg.predictedPlayerState.clientNum ) {
 		return qfalse;
 	}
+	if ( !demoDelagResolvePingMs( &ping ) ) {
+		return qfalse;
+	}
+	if ( !origin ) {
+		return qtrue;
+	}
+
+	if ( cg_demoDelayedTeleCount >= CG_DEMO_DELAYED_TELE_CAP ) {
+		int i;
+
+		for ( i = 0; i < CG_DEMO_DELAYED_TELE_CAP - 1; i++ ) {
+			cg_demoDelayedTele[i] = cg_demoDelayedTele[i + 1];
+		}
+		cg_demoDelayedTeleCount = CG_DEMO_DELAYED_TELE_CAP - 1;
+	}
+
+	slot = &cg_demoDelayedTele[cg_demoDelayedTeleCount];
+	slot->snapServerTime = cg.snap->serverTime;
+	slot->event = event;
+	slot->soundEntityNum = soundEntityNum;
+	if ( clientNum >= 0 && clientNum < MAX_CLIENTS ) {
+		slot->soundEntityNum = clientNum;
+	}
+	VectorCopy( origin, slot->origin );
+	cg_demoDelayedTeleCount++;
 	return qtrue;
 }
 
@@ -295,6 +339,63 @@ static qboolean demoDelagResolvePingMs( int *outPing ) {
 	return qtrue;
 }
 
+static void demoDelagPlayDelayedTeleport( const demoDelayedTele_t *ev ) {
+	sfxHandle_t sfx;
+	int soundEnt;
+	vec3_t origin;
+
+	if ( !ev ) {
+		return;
+	}
+	if ( ev->event == EV_PLAYER_TELEPORT_OUT ) {
+		sfx = cgs.media.teleOutSound;
+	} else {
+		sfx = cgs.media.teleInSound;
+	}
+	soundEnt = ev->soundEntityNum;
+	if ( soundEnt < 0 || soundEnt >= MAX_GENTITIES ) {
+		soundEnt = ENTITYNUM_WORLD;
+	}
+	VectorCopy( ev->origin, origin );
+	trap_S_StartSound( origin, soundEnt, CHAN_AUTO, sfx );
+	CG_SpawnEffect( origin );
+}
+
+/*
+ * Release tele IN/OUT when interpolated delayed time (cg.time - ping) reaches
+ * the snap that contained them — the same clock remote players are drawn on.
+ * Presence in that recorded snap is the witness test: if the recorder never
+ * got the event, it is never queued and never played later.
+ */
+static void demoDelagFlushDelayedTeleports( void ) {
+	int ping;
+	int delayedTime;
+	int i;
+	int kept;
+
+	if ( !CG_DemoHistory_DemoDelagActive() || !cg.snap ) {
+		cg_demoDelayedTeleCount = 0;
+		return;
+	}
+	if ( !demoDelagResolvePingMs( &ping ) ) {
+		return;
+	}
+
+	delayedTime = cg.time - ping;
+	kept = 0;
+	for ( i = 0; i < cg_demoDelayedTeleCount; i++ ) {
+		if ( delayedTime >= cg_demoDelayedTele[i].snapServerTime ) {
+			demoDelagPlayDelayedTeleport( &cg_demoDelayedTele[i] );
+		} else {
+			if ( kept != i ) {
+				cg_demoDelayedTele[kept] = cg_demoDelayedTele[i];
+			}
+			kept++;
+		}
+	}
+	cg_demoDelayedTeleCount = kept;
+}
+
 static int demoDelagAttackerSampleTime( int attackServerTime ) {
 	int ping;
 
@@ -305,22 +406,12 @@ static int demoDelagAttackerSampleTime( int attackServerTime ) {
 }
 
 int CG_DemoHistory_LocalFireDelay( void ) {
-	int ping;
-	int frameMsec;
-
-	if ( !CG_DemoHistory_DemoDelagActive() ) {
-		return 0;
-	}
-	if ( !demoDelagResolvePingMs( &ping ) ) {
-		return 0;
-	}
-	if ( sv_fps.integer > 0 ) {
-		frameMsec = 1000 / sv_fps.integer;
-		if ( ping > frameMsec ) {
-			ping = frameMsec;
-		}
-	}
-	return ping;
+	/*
+	 * POV muzzle flash/sound must stay on the live demo clock. Own missiles
+	 * are not time-shifted (they skip missile delag); delaying fire here put
+	 * the gun a snapshot behind the bolt.
+	 */
+	return 0;
 }
 
 static qboolean demoDelagEFlagsTeleported( int eFlagsA, int eFlagsB ) {
@@ -592,13 +683,11 @@ static qboolean demoDelagSamplePoseAtTime( centity_t *cent, int entityNum, int t
 }
 
 static void demoDelagApplyVisual( centity_t *cent, const vec3_t origin, const vec3_t angles, const entityState_t *drawEs ) {
-	vec3_t oldOrigin;
 	int oldFlags;
 	qboolean hadPrev;
 
 	hadPrev = cent->demoDelagLastVisualEFlagsValid;
 	oldFlags = cent->demoDelagLastVisualEFlags;
-	VectorCopy( cent->demoDelagVisualOrigin, oldOrigin );
 
 	VectorCopy( origin, cent->lerpOrigin );
 	VectorCopy( angles, cent->lerpAngles );
@@ -614,23 +703,41 @@ static void demoDelagApplyVisual( centity_t *cent, const vec3_t origin, const ve
 	cent->demoDelagDrawStateValid = qtrue;
 
 	if ( hadPrev && demoDelagEFlagsTeleported( oldFlags, drawEs->eFlags ) ) {
-		vec3_t fxOrigin;
-
-		VectorCopy( origin, fxOrigin );
-		if ( !( oldFlags & EF_DEAD ) && !( drawEs->eFlags & EF_DEAD ) ) {
-			trap_S_StartSound( NULL, cent->currentState.number, CHAN_AUTO, cgs.media.teleOutSound );
-			CG_SpawnEffect( oldOrigin );
-			trap_S_StartSound( NULL, cent->currentState.number, CHAN_AUTO, cgs.media.teleInSound );
-			CG_SpawnEffect( fxOrigin );
-		} else if ( ( oldFlags & EF_DEAD ) && !( drawEs->eFlags & EF_DEAD ) ) {
-			trap_S_StartSound( NULL, cent->currentState.number, CHAN_AUTO, cgs.media.teleInSound );
-			CG_SpawnEffect( fxOrigin );
-		}
 		CG_DemoDelagResetPlayerAnims( cent, drawEs->legsAnim, drawEs->torsoAnim );
 	}
 
 	cent->demoDelagLastVisualEFlags = drawEs->eFlags;
 	cent->demoDelagLastVisualEFlagsValid = qtrue;
+}
+
+/*
+ * Server time of the first history snap in (tLo, tHi] where this player's
+ * teleport bit has flipped from flagsLo. That is the delayed-clock instant
+ * of the tele, matching EV_PLAYER_TELEPORT_* snapServerTime.
+ */
+static int demoDelagFirstTeleportHistoryTime( int entityNum, int flagsLo, int tLo, int tHi ) {
+	int c;
+	int i;
+	const snapshot_t *sn;
+	entityState_t es;
+
+	c = CG_DemoHistory_GetCount();
+	for ( i = c - 1; i >= 0; i-- ) {
+		sn = CG_DemoHistory_GetByFramesAgo( i );
+		if ( !sn ) {
+			continue;
+		}
+		if ( sn->serverTime <= tLo || sn->serverTime > tHi ) {
+			continue;
+		}
+		if ( !findEntityInSnapshot( sn, entityNum, &es ) ) {
+			continue;
+		}
+		if ( demoDelagEFlagsTeleported( flagsLo, es.eFlags ) ) {
+			return sn->serverTime;
+		}
+	}
+	return tHi;
 }
 
 void CG_DemoHistory_BeginHitscanRewind( int rewindToServerTime, int skipEntityNum ) {
@@ -736,10 +843,25 @@ void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( centity_t *cent ) {
 		okHi = demoDelagSamplePoseAtTime( cent, cent->currentState.number, tHi, originHi, anglesHi, &flagsHi, &esHi );
 		if ( okLo && okHi ) {
 			if ( demoDelagEFlagsTeleported( flagsLo, flagsHi ) ) {
-				/* interpolate=false: stay on delayed-current until the delayed snap transitions. */
-				VectorCopy( originLo, origin );
-				VectorCopy( anglesLo, angles );
-				drawEs = esLo;
+				int delayedNow;
+				int teleTime;
+
+				/*
+				 * Snap on the interpolated delayed clock (cg.time - ping), not
+				 * at the next snapshot boundary. That keeps the model pop on
+				 * the same timeline as delayed tele FX.
+				 */
+				delayedNow = cg.time - ping;
+				teleTime = demoDelagFirstTeleportHistoryTime( cent->currentState.number, flagsLo, tLo, tHi );
+				if ( delayedNow >= teleTime ) {
+					VectorCopy( originHi, origin );
+					VectorCopy( anglesHi, angles );
+					drawEs = esHi;
+				} else {
+					VectorCopy( originLo, origin );
+					VectorCopy( anglesLo, angles );
+					drawEs = esLo;
+				}
 			} else {
 				origin[0] = originLo[0] + f * ( originHi[0] - originLo[0] );
 				origin[1] = originLo[1] + f * ( originHi[1] - originLo[1] );
