@@ -1148,6 +1148,7 @@ typedef struct {
 	qhandle_t	vsQuadIcon;
 	qhandle_t	vsEnviroIcon;
 	qhandle_t	vsHasteIcon;
+	qhandle_t	vsTauntIcon;
 	qhandle_t	vsWeaponIcon[WP_NUM_WEAPONS];
 	sfxHandle_t	vsGrappleFireSound;
 	sfxHandle_t	vsGrapplePullSound;
@@ -2146,6 +2147,7 @@ void CG_HudBorderMarker ( vec3_t origin, float alpha, float radius, qhandle_t sh
 // cg_visualsounds.c
 //
 void CG_VisualSounds_Reset( void );
+void CG_VisualSounds_RegisterIcons( void );
 void CG_VisualSounds_Note( const vec3_t origin, int entityNum, sfxHandle_t sfx, qboolean looping );
 void CG_VisualSounds_NoteExplosion( const vec3_t origin, int clientNum, int weapon );
 void CG_DrawVisualSounds( void );
