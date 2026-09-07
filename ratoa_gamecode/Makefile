@@ -209,11 +209,11 @@ VERSION=1.36
 RATMOD_VERSION=$(shell LANG=C git describe --tags --abbrev --dirty)
 
 # Main menu footer (baseq3 ui / ui.qvm). Override when building, e.g.
-#   make COMPILE_VERSION="v0.2.3 - release"
+#   make COMPILE_VERSION="v0.2.5-RELEASE-CENOURA"
 # Value is written to $(Q3UIDIR)/compile_version.h (not via -D) so MinGW q3lcc
 # does not see shell-dependent -D quoting. Avoid '"' and backslashes in the string.
 ifndef COMPILE_VERSION
-COMPILE_VERSION := v0.2.5-RELEASE-CENOURA
+COMPILE_VERSION := $(shell git describe --tags --always)
 endif
 
 USE_SVN=

@@ -37,7 +37,9 @@ endif
 OUTPUT_DIR := build
 PK3_DIR := $(OUTPUT_DIR)/pk3
 
-RATMOD_PK3 = devotion-v0.2.5-RELEASE.pk3
+# Derive PK3 filename from git tag (if present) and short commit hash.
+GIT_DESCRIBE := $(shell cd $(GAMECODE_DIR) && git describe --tags --always)
+RATMOD_PK3 := devotion-$(GIT_DESCRIBE).pk3
 
 TIMESTAMP := $(shell cd $(GAMECODE_DIR) && git show -s --format=%ct)
 
