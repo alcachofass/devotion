@@ -45,9 +45,101 @@ typedef struct {
 } vsCue_t;
 
 static vsCue_t vsCues[VS_MAX_CUES];
+static char vsLoadedSet[MAX_QPATH];
 
 void CG_VisualSounds_Reset( void ) {
 	memset( vsCues, 0, sizeof( vsCues ) );
+	vsLoadedSet[0] = '\0';
+}
+
+static void VS_SanitizeSet( const char *in, char *out, int outSize ) {
+	int		i;
+	int		o;
+
+	o = 0;
+	if ( !in ) {
+		in = "";
+	}
+	for ( i = 0; in[i] && o < outSize - 1; i++ ) {
+		char	c;
+
+		c = in[i];
+		if ( c >= 'A' && c <= 'Z' ) {
+			c = (char)( c + ( 'a' - 'A' ) );
+		}
+		if ( ( c >= 'a' && c <= 'z' ) || ( c >= '0' && c <= '9' ) || c == '_' || c == '-' ) {
+			out[o] = c;
+			o++;
+		}
+	}
+	out[o] = '\0';
+	if ( !out[0] ) {
+		Q_strncpyz( out, "light", outSize );
+	}
+}
+
+static qhandle_t VS_LoadIcon( const char *set, const char *leaf ) {
+	return trap_R_RegisterShaderNoMip( va( "icons/vsound/%s/%s", set, leaf ) );
+}
+
+void CG_VisualSounds_RegisterIcons( void ) {
+	char	set[MAX_QPATH];
+
+	VS_SanitizeSet( cg_visualSoundsIcons.string, set, sizeof( set ) );
+	if ( vsLoadedSet[0] && !Q_stricmp( vsLoadedSet, set ) ) {
+		return;
+	}
+	/* Only the active pack is registered. Unused set images stay unloaded until swapped. */
+	if ( vsLoadedSet[0] ) {
+		memset( vsCues, 0, sizeof( vsCues ) );
+	}
+	Q_strncpyz( vsLoadedSet, set, sizeof( vsLoadedSet ) );
+
+	cgs.media.vsExplosionIcon = VS_LoadIcon( set, "explosion" );
+	cgs.media.vsFootstepsIcon = VS_LoadIcon( set, "footsteps" );
+	cgs.media.vsAmmoGenericIcon = VS_LoadIcon( set, "icona_generic" );
+	cgs.media.vsWeaponGenericIcon = VS_LoadIcon( set, "iconw_generic" );
+	cgs.media.vsArmorGenericIcon = VS_LoadIcon( set, "iconr_generic" );
+	cgs.media.vsJumpIcon = VS_LoadIcon( set, "jump" );
+	cgs.media.vsLandIcon = VS_LoadIcon( set, "landing" );
+	cgs.media.vsPain100Icon = VS_LoadIcon( set, "pain_100" );
+	cgs.media.vsPain75Icon = VS_LoadIcon( set, "pain_75" );
+	cgs.media.vsPain50Icon = VS_LoadIcon( set, "pain_50" );
+	cgs.media.vsPain25Icon = VS_LoadIcon( set, "pain_25" );
+	cgs.media.vsDeadIcon = VS_LoadIcon( set, "dead" );
+	cgs.media.vsTeleportIcon = VS_LoadIcon( set, "teleport" );
+	cgs.media.vsSpawnIcon = VS_LoadIcon( set, "spawn" );
+	cgs.media.vsJumpPadIcon = VS_LoadIcon( set, "jumppad" );
+	cgs.media.vsWeaponSwapIcon = VS_LoadIcon( set, "weapon_swap" );
+	cgs.media.vsShardIcon = VS_LoadIcon( set, "shard" );
+	cgs.media.vsPowerupIcon = VS_LoadIcon( set, "powerup" );
+	cgs.media.vsGrappleIcon = VS_LoadIcon( set, "grapple" );
+	cgs.media.vsHealth5Icon = VS_LoadIcon( set, "health_5" );
+	cgs.media.vsHealth25Icon = VS_LoadIcon( set, "health_25" );
+	cgs.media.vsHealth50Icon = VS_LoadIcon( set, "health_50" );
+	cgs.media.vsMegaHealthIcon = VS_LoadIcon( set, "megahealth" );
+	cgs.media.vsQuadIcon = VS_LoadIcon( set, "quad" );
+	cgs.media.vsEnviroIcon = VS_LoadIcon( set, "envirosuit" );
+	cgs.media.vsHasteIcon = VS_LoadIcon( set, "haste" );
+	cgs.media.vsTauntIcon = VS_LoadIcon( set, "taunt" );
+	cgs.media.vsWeaponIcon[WP_GAUNTLET] = VS_LoadIcon( set, "gauntlet" );
+	cgs.media.vsWeaponIcon[WP_MACHINEGUN] = VS_LoadIcon( set, "machinegun" );
+	cgs.media.vsWeaponIcon[WP_SHOTGUN] = VS_LoadIcon( set, "shotgun" );
+	cgs.media.vsWeaponIcon[WP_GRENADE_LAUNCHER] = VS_LoadIcon( set, "grenade" );
+	cgs.media.vsWeaponIcon[WP_ROCKET_LAUNCHER] = VS_LoadIcon( set, "rocket" );
+	cgs.media.vsWeaponIcon[WP_LIGHTNING] = VS_LoadIcon( set, "lightning" );
+	cgs.media.vsWeaponIcon[WP_RAILGUN] = VS_LoadIcon( set, "railgun" );
+	cgs.media.vsWeaponIcon[WP_PLASMAGUN] = VS_LoadIcon( set, "plasma" );
+	cgs.media.vsWeaponIcon[WP_BFG] = VS_LoadIcon( set, "bfg" );
+#ifdef MISSIONPACK
+	cgs.media.vsWeaponIcon[WP_NAILGUN] = cgs.media.vsWeaponGenericIcon;
+	cgs.media.vsWeaponIcon[WP_PROX_LAUNCHER] = cgs.media.vsWeaponGenericIcon;
+	cgs.media.vsWeaponIcon[WP_CHAINGUN] = cgs.media.vsWeaponGenericIcon;
+#endif
+	if ( !cgs.media.vsGrappleFireSound ) {
+		cgs.media.vsGrappleFireSound = trap_S_RegisterSound( "sound/weapons/grapple/grapfire.wav", qfalse );
+		cgs.media.vsGrapplePullSound = trap_S_RegisterSound( "sound/weapons/grapple/grappull.wav", qfalse );
+	}
 }
 
 static const char *VS_WeaponLabel( int weapon ) {
@@ -378,6 +470,13 @@ static qboolean VS_Classify( sfxHandle_t sfx, int entityNum, vsKind_t *kind, cha
 		VS_SetRgb( rgb, 1.00f, 1.00f, 1.00f );
 		return qtrue;
 	}
+	if ( VS_SfxMatchesCustom( sfx, "*taunt.wav" ) ) {
+		*kind = VS_PLAYER;
+		Q_strncpyz( label, "TAUNT", labelSize );
+		*icon = cgs.media.vsTauntIcon;
+		VS_SetRgb( rgb, 1.00f, 1.00f, 1.00f );
+		return qtrue;
+	}
 	if ( VS_SfxMatchesCustom( sfx, "*pain100_1.wav" ) ) {
 		*kind = VS_PLAYER;
 		Q_strncpyz( label, "PAIN", labelSize );
@@ -544,6 +643,7 @@ static int VS_RingClass( vsKind_t kind, const char *label ) {
 			|| !Q_stricmp( label, "PAIN" ) || !Q_stricmp( label, "DEAD" )
 			|| !Q_stricmp( label, "PLY" )
 			|| !Q_stricmp( label, "SPLASH" ) || !Q_stricmp( label, "SWAP" )
+			|| !Q_stricmp( label, "TAUNT" )
 			|| ( !Q_stricmp( label, "FLY" ) && kind == VS_PLAYER ) ) {
 		return 1;
 	}
@@ -557,7 +657,8 @@ static int VS_Priority( vsKind_t kind, const char *label, qboolean dim, qboolean
 	if ( !Q_stricmp( label, "STEP" ) || !Q_stricmp( label, "SWAP" ) ) {
 		return 6;
 	}
-	if ( !Q_stricmp( label, "JUMP" ) || !Q_stricmp( label, "LAND" ) || !Q_stricmp( label, "FALL" ) ) {
+	if ( !Q_stricmp( label, "JUMP" ) || !Q_stricmp( label, "LAND" ) || !Q_stricmp( label, "FALL" )
+			|| !Q_stricmp( label, "TAUNT" ) ) {
 		return 5;
 	}
 	if ( !Q_stricmp( label, "PAIN" ) ) {

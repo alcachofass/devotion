@@ -62,6 +62,7 @@ GAME OPTIONS MENU
 #define ID_TEAMCHATBEEP         146
 #define ID_TRACKCONSENT		147
 #define ID_VISUALSOUNDS		148
+#define ID_VISUALSOUNDICONS	149
 
 #define	NUM_CROSSHAIRS			64
 
@@ -97,6 +98,7 @@ typedef struct {
         menuradiobutton_s       chatbeep;
         menuradiobutton_s       teamchatbeep;
         menuradiobutton_s       visualsounds;
+        menulist_s              visualsoundicons;
 	menubitmap_s		back;
 
 	qhandle_t			crosshairShader[NUM_CROSSHAIRS];
@@ -110,6 +112,14 @@ static const char *teamoverlay_names[] =
 	"upper right",
 	"lower right",
 	"lower left",
+	NULL
+};
+
+static const char *visualsoundicon_names[] =
+{
+	"light",
+	"dark",
+	"color",
 	NULL
 };
 
@@ -135,6 +145,19 @@ static void Preferences_SetMenuItems( void ) {
         s_preferences.chatbeep.curvalue         = trap_Cvar_VariableValue( "cg_chatBeep" ) != 0;
         s_preferences.teamchatbeep.curvalue     = trap_Cvar_VariableValue( "cg_teamChatBeep" ) != 0;
         s_preferences.visualsounds.curvalue     = trap_Cvar_VariableValue( "cg_visualSounds" ) != 0;
+	{
+		char	set[32];
+		int	i;
+
+		trap_Cvar_VariableStringBuffer( "cg_visualSoundsIcons", set, sizeof( set ) );
+		s_preferences.visualsoundicons.curvalue = 0;
+		for ( i = 0; visualsoundicon_names[i]; i++ ) {
+			if ( !Q_stricmp( set, visualsoundicon_names[i] ) ) {
+				s_preferences.visualsoundicons.curvalue = i;
+				break;
+			}
+		}
+	}
 }
 
 /*
@@ -259,6 +282,10 @@ static void Preferences_Event( void* ptr, int notification ) {
 
         case ID_VISUALSOUNDS:
                 trap_Cvar_SetValue( "cg_visualSounds", s_preferences.visualsounds.curvalue );
+                break;
+
+        case ID_VISUALSOUNDICONS:
+                trap_Cvar_Set( "cg_visualSoundsIcons", visualsoundicon_names[s_preferences.visualsoundicons.curvalue] );
                 break;
 
 	case ID_BACK:
@@ -569,6 +596,16 @@ static void Preferences_MenuInit( void ) {
 	s_preferences.visualsounds.generic.y	       = y;
 
 	y += BIGCHAR_HEIGHT+2;
+	s_preferences.visualsoundicons.generic.type     = MTYPE_SPINCONTROL;
+	s_preferences.visualsoundicons.generic.name	   = "Visual Sound Icons:";
+	s_preferences.visualsoundicons.generic.flags	   = QMF_PULSEIFFOCUS|QMF_SMALLFONT;
+	s_preferences.visualsoundicons.generic.callback = Preferences_Event;
+	s_preferences.visualsoundicons.generic.id       = ID_VISUALSOUNDICONS;
+	s_preferences.visualsoundicons.generic.x	       = PREFERENCES_X_POS;
+	s_preferences.visualsoundicons.generic.y	       = y;
+	s_preferences.visualsoundicons.itemnames	   = visualsoundicon_names;
+
+	y += BIGCHAR_HEIGHT+2;
 	s_preferences.back.generic.type	    = MTYPE_BITMAP;
 	s_preferences.back.generic.name     = ART_BACK0;
 	s_preferences.back.generic.flags    = QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS;
@@ -605,6 +642,7 @@ static void Preferences_MenuInit( void ) {
         Menu_AddItem( &s_preferences.menu, &s_preferences.teamchatbeep );
         Menu_AddItem( &s_preferences.menu, &s_preferences.chatbeep );
         Menu_AddItem( &s_preferences.menu, &s_preferences.visualsounds );
+        Menu_AddItem( &s_preferences.menu, &s_preferences.visualsoundicons );
 
 	Menu_AddItem( &s_preferences.menu, &s_preferences.back );
 
