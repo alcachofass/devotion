@@ -33,7 +33,7 @@ jobs:
         run: sudo apt-get update
 
       - name: Build QVM
-        run: make -j12
+        run: make -j$(nproc)
         env:
           ARCHIVE: 1
 
