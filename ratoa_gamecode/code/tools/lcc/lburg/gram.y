@@ -4,15 +4,18 @@
 //static char rcsid[] = "$Id: gram.y 145 2001-10-17 21:53:10Z timo $";
 /*lint -e616 -e527 -e652 -esym(552,yynerrs) -esym(563,yynewstate,yyerrlab) */
 static int yylineno = 0;
+/* Forward declaration to avoid implicit declaration warnings in generated parser */
+int yylex(void);
 %}
 %union {
 	int n;
 	char *string;
 	Tree tree;
 }
-%term TERMINAL
-%term START
-%term PPERCENT
+/* use %token instead of %term to remain POSIX compliant */
+%token TERMINAL
+%token START
+%token PPERCENT
 
 %token  <string>        ID TEMPLATE CODE
 %token  <n>             INT
