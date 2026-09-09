@@ -320,6 +320,40 @@ void CG_PushReward(sfxHandle_t sfx, qhandle_t shader, int rewardCount) {
 	}
 }
 
+/*
+==================
+CG_StartHitSound
+
+Negative cg_hitsound values play a damage-scaled tone ladder from the
+pack registered at map load. Other non-zero values use the single beep.
+==================
+*/
+void CG_StartHitSound( int damage ) {
+	sfxHandle_t sfx;
+
+	if ( !cg_hitsound.integer ) {
+		return;
+	}
+
+	if ( cg_hitsound.integer < 0 && cgs.media.hitToneSound1 ) {
+		if ( damage >= 100 ) {
+			sfx = cgs.media.hitToneSound1;
+		} else if ( damage >= 50 ) {
+			sfx = cgs.media.hitToneSound2;
+		} else if ( damage >= 25 ) {
+			sfx = cgs.media.hitToneSound3;
+		} else {
+			sfx = cgs.media.hitToneSound4;
+		}
+	} else {
+		sfx = cgs.media.hitSound;
+	}
+
+	if ( sfx ) {
+		trap_S_StartLocalSound( sfx, CHAN_LOCAL_SOUND );
+	}
+}
+
         
 /*
 ==================
@@ -332,7 +366,6 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 	int			health, armor;
 #endif
 	sfxHandle_t sfx;
-	int damage;
 
 	// don't play the sounds if the player just changed teams
 	if ( ps->persistant[PERS_TEAM] != ops->persistant[PERS_TEAM] ) {
@@ -341,48 +374,12 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 
 	// hit changes
 	if ( ps->persistant[PERS_HITS] > ops->persistant[PERS_HITS] ) {
-/*
-#ifdef MISSIONPACK
-		armor  = ps->persistant[PERS_ATTACKEE_ARMOR] & 0xff;
-		health = ps->persistant[PERS_ATTACKEE_ARMOR] >> 8;
-		if (armor > 50 ) {
-			trap_S_StartLocalSound( cgs.media.hitSoundHighArmor, CHAN_LOCAL_SOUND );
-		} else if (armor || health > 100) {
-			trap_S_StartLocalSound( cgs.media.hitSoundLowArmor, CHAN_LOCAL_SOUND );
-		} else {
-			trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
-		}
-#else
-*/
 		cg.lastHitTime = cg.time;
 		cg.lastHitDamage = ps->persistant[PERS_DAMAGE_DONE] - ops->persistant[PERS_DAMAGE_DONE];
 
 		if ( !CG_ConsumePredictedHitSuppression() && cg_hitsound.integer ) {
-			trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
+			CG_StartHitSound( cg.lastHitDamage );
 		}
-
-/*      //duffman91 - We aren't doing per damage hit sounds. Instead, hit sounds are a selectable cvar. 
-
-		if (cg_hitsound.integer == 2) {
-			trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
-		} else {
-			damage = ps->persistant[PERS_DAMAGE_DONE] - ops->persistant[PERS_DAMAGE_DONE];
-			
-			if (damage >= 100) {
-				trap_S_StartLocalSound( cgs.media.hitSound0, CHAN_LOCAL_SOUND );
-			} else if (damage >= 75) {
-				trap_S_StartLocalSound( cgs.media.hitSound1, CHAN_LOCAL_SOUND );
-			} else if (damage >= 50) {
-				trap_S_StartLocalSound( cgs.media.hitSound2, CHAN_LOCAL_SOUND );
-			} else if (damage >= 25) {
-				trap_S_StartLocalSound( cgs.media.hitSound3, CHAN_LOCAL_SOUND );
-			} else {			
-				trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
-			}
-		} 
-*/
-		
-//#endif
 	} else if ( ps->persistant[PERS_HITS] < ops->persistant[PERS_HITS] ) {
 		trap_S_StartLocalSound( cgs.media.hitTeamSound, CHAN_LOCAL_SOUND );
 	}

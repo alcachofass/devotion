@@ -512,7 +512,7 @@ static const cvarDesc_t cgameCvarDescriptions[] = {
 	{ "cg_gunZ", "Up/down offset of your first-person gun model." },
 	{ "cg_gun_frame", "Forces the held gun to a fixed animation frame (used by menus)." },
 	{ "cg_helpMotdSeconds", "How long the server help/MOTD message stays on screen after connecting, in seconds." },
-	{ "cg_hitsound", "Hit sound style. `0` = off, `1` = default, `2`/`3` = alternate sounds." },
+	{ "cg_hitsound", "Hit sound style. `0` = off, `1` = default, `2`/`3` = alternate sounds, `-N` = damage-scaled pack in `sound/feedback/tonesN/` (missing packs fall back to default)." },
 	{ "cg_horplus", "When `1`, keeps horizontal FOV consistent across different aspect ratios." },
 	{ "cg_hudDamageIndicator", "Damage direction display: `0` off, `1` edge flash, `2` compass icon, `3` full-screen flash." },
 	{ "cg_hudDamageIndicatorAlpha", "Opacity of the directional damage indicator." },

@@ -375,7 +375,129 @@ static void CG_PredictedHit_Add( int victim, int weapon, int attackTime ) {
 	cg.predictedHits[oldest].active = qtrue;
 }
 
-static void CG_PlayPredictedHitBeep( int victim, int weapon, int attackTime ) {
+static int CG_PredictedQuadFactor( void ) {
+	if ( cg.predictedPlayerState.powerups[PW_QUAD] ) {
+		return 3;
+	}
+	return 1;
+}
+
+static int CG_PredictedHitscanDamage( int weapon ) {
+	int damage;
+
+	switch ( weapon ) {
+	case WP_GAUNTLET:
+		damage = 50;
+		break;
+	case WP_MACHINEGUN:
+#ifdef MISSIONPACK
+	case WP_CHAINGUN:
+#endif
+		damage = 7;
+		break;
+	case WP_LIGHTNING:
+		damage = 8;
+		break;
+	case WP_RAILGUN:
+		damage = 100;
+		break;
+	case WP_SHOTGUN:
+		damage = ( cgs.ratFlags & RAT_NEWSHOTGUN ) ? 9 : 10;
+		break;
+	default:
+		damage = 1;
+		break;
+	}
+
+	return damage * CG_PredictedQuadFactor();
+}
+
+static int CG_PredictedDirectProjectileDamage( int weapon ) {
+	int damage;
+
+	switch ( weapon ) {
+	case WP_ROCKET_LAUNCHER:
+	case WP_BFG:
+		damage = 100;
+		break;
+	case WP_PLASMAGUN:
+		damage = 20;
+		break;
+	default:
+		damage = 1;
+		break;
+	}
+
+	return damage * CG_PredictedQuadFactor();
+}
+
+static float CG_ProjectileSplashRadius( int weapon );
+
+static int CG_PredictedSplashDamageAmount( int weapon ) {
+	switch ( weapon ) {
+	case WP_ROCKET_LAUNCHER:
+	case WP_BFG:
+		return 100;
+	case WP_PLASMAGUN:
+		return 15;
+	default:
+		return 0;
+	}
+}
+
+static int CG_PredictedSplashDamageAt( vec3_t origin, int weapon, int skipClient ) {
+	int i;
+	int total;
+	int splashDamage;
+	float radius;
+	float dist;
+	float points;
+	vec3_t v;
+	vec3_t mins, maxs;
+	int j;
+
+	splashDamage = CG_PredictedSplashDamageAmount( weapon ) * CG_PredictedQuadFactor();
+	radius = CG_ProjectileSplashRadius( weapon );
+	if ( splashDamage < 1 || radius < 1.0f ) {
+		return 0;
+	}
+
+	total = 0;
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		if ( i == skipClient ) {
+			continue;
+		}
+		if ( !CG_IsValidPredictedHitTarget( i ) ) {
+			continue;
+		}
+
+		mins[0] = mins[1] = -15;
+		maxs[0] = maxs[1] = 15;
+		mins[2] = -24;
+		maxs[2] = 32;
+		for ( j = 0; j < 3; j++ ) {
+			if ( origin[j] < cg_entities[i].lerpOrigin[j] + mins[j] ) {
+				v[j] = ( cg_entities[i].lerpOrigin[j] + mins[j] ) - origin[j];
+			} else if ( origin[j] > cg_entities[i].lerpOrigin[j] + maxs[j] ) {
+				v[j] = origin[j] - ( cg_entities[i].lerpOrigin[j] + maxs[j] );
+			} else {
+				v[j] = 0;
+			}
+		}
+		dist = VectorLength( v );
+		if ( dist >= radius ) {
+			continue;
+		}
+		points = splashDamage * ( 1.0f - dist / radius );
+		if ( points >= 1.0f ) {
+			total += (int)points;
+		}
+	}
+
+	return total;
+}
+
+static void CG_PlayPredictedHitBeep( int victim, int weapon, int attackTime, int damage ) {
 	if ( !CG_ShouldPredictHitSound( weapon ) ) {
 		return;
 	}
@@ -385,9 +507,13 @@ static void CG_PlayPredictedHitBeep( int victim, int weapon, int attackTime ) {
 
 	CG_PredictedHit_Add( victim, weapon, attackTime );
 
+	if ( damage <= 0 ) {
+		damage = CG_PredictedHitscanDamage( weapon );
+	}
+
 	cg.lastHitTime = cg.time;
-	cg.lastHitDamage = 1;
-	trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
+	cg.lastHitDamage = damage;
+	CG_StartHitSound( damage );
 }
 
 qboolean CG_ConsumePredictedHitSuppression( void ) {
@@ -504,7 +630,10 @@ static int CG_PredictedMissileTrTime( predictedMissile_t *predMissile, centity_t
 	return 0;
 }
 
-static void CG_PlayPredictedProjectileHitBeep( int victim, int weapon, int missileTrTime ) {
+static void CG_PlayPredictedProjectileHitBeep( int victim, int weapon, int missileTrTime,
+		vec3_t origin, qboolean directPlayerHit, int skipClient ) {
+	int damage;
+
 	if ( !CG_ShouldPredictProjectileHitSound( weapon ) ) {
 		return;
 	}
@@ -517,9 +646,18 @@ static void CG_PlayPredictedProjectileHitBeep( int victim, int weapon, int missi
 
 	CG_PredictedHit_Add( victim, weapon, missileTrTime );
 
+	if ( directPlayerHit ) {
+		damage = CG_PredictedDirectProjectileDamage( weapon );
+	} else {
+		damage = CG_PredictedSplashDamageAt( origin, weapon, skipClient );
+	}
+	if ( damage < 1 ) {
+		damage = 1;
+	}
+
 	cg.lastHitTime = cg.time;
-	cg.lastHitDamage = 1;
-	trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
+	cg.lastHitDamage = damage;
+	CG_StartHitSound( damage );
 }
 
 static void CG_TryPredictedProjectileHitBeep( trace_t *tr, int weapon, predictedMissile_t *predMissile,
@@ -551,26 +689,34 @@ static void CG_TryPredictedProjectileHitBeep( trace_t *tr, int weapon, predicted
 			return;
 		}
 		if ( CG_IsValidPredictedHitTarget( hitPlayerNum ) ) {
-			CG_PlayPredictedProjectileHitBeep( hitPlayerNum, weapon, missileTrTime );
+			CG_PlayPredictedProjectileHitBeep( hitPlayerNum, weapon, missileTrTime,
+				tr->endpos, qtrue, missileOwner );
 		}
 		return;
 	}
 
 	if ( CG_PredictedSplashWouldDamageEnemy( tr->endpos, CG_ProjectileSplashRadius( weapon ), missileOwner ) ) {
-		CG_PlayPredictedProjectileHitBeep( CG_PREDICTED_HIT_VICTIM_SPLASH, weapon, missileTrTime );
+		CG_PlayPredictedProjectileHitBeep( CG_PREDICTED_HIT_VICTIM_SPLASH, weapon, missileTrTime,
+			tr->endpos, qfalse, missileOwner );
 	}
 }
 
 static void CG_PredictWeaponEffects_PlayerHit( int victim, int weapon, int attackTime ) {
-	CG_PlayPredictedHitBeep( victim, weapon, attackTime );
+	CG_PlayPredictedHitBeep( victim, weapon, attackTime, 0 );
 }
 
-static int CG_ShotgunPattern_PlayerHit( vec3_t origin, vec3_t origin2, int seed, int skipNum ) {
+static int CG_ShotgunPattern_PlayerHit( vec3_t origin, vec3_t origin2, int seed, int skipNum, int *outDamage ) {
 	int i;
+	int pellets;
+	int victim;
+	int pelletDamage;
 	float r, u;
 	vec3_t end;
 	vec3_t forward, right, up;
 	trace_t tr;
+
+	pellets = 0;
+	victim = -1;
 
 	VectorNormalize2( origin2, forward );
 	PerpendicularVector( right, forward );
@@ -604,7 +750,10 @@ static int CG_ShotgunPattern_PlayerHit( vec3_t origin, vec3_t origin2, int seed,
 				continue;
 			}
 			if ( tr.entityNum < MAX_CLIENTS && CG_IsValidPredictedHitTarget( tr.entityNum ) ) {
-				return tr.entityNum;
+				pellets++;
+				if ( victim < 0 ) {
+					victim = tr.entityNum;
+				}
 			}
 		}
 	} else {
@@ -620,12 +769,20 @@ static int CG_ShotgunPattern_PlayerHit( vec3_t origin, vec3_t origin2, int seed,
 				continue;
 			}
 			if ( tr.entityNum < MAX_CLIENTS && CG_IsValidPredictedHitTarget( tr.entityNum ) ) {
-				return tr.entityNum;
+				pellets++;
+				if ( victim < 0 ) {
+					victim = tr.entityNum;
+				}
 			}
 		}
 	}
 
-	return -1;
+	if ( outDamage ) {
+		pelletDamage = ( cgs.ratFlags & RAT_NEWSHOTGUN ) ? 9 : 10;
+		*outDamage = pellets * pelletDamage * CG_PredictedQuadFactor();
+	}
+
+	return victim;
 }
 
 // similar to localentites
@@ -1321,12 +1478,14 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			}
 			if ( CG_ShouldPredictHitSound( WP_SHOTGUN ) ) {
 				int shotgunVictim;
+				int shotgunDamage;
 
 				CG_BeginPredictHitRewind( attackTime, cg.predictedPlayerState.clientNum );
-				shotgunVictim = CG_ShotgunPattern_PlayerHit( muzzlePoint, endPoint, seed, cg.predictedPlayerState.clientNum );
+				shotgunVictim = CG_ShotgunPattern_PlayerHit( muzzlePoint, endPoint, seed,
+					cg.predictedPlayerState.clientNum, &shotgunDamage );
 				CG_EndPredictHitRewind();
 				if ( shotgunVictim >= 0 ) {
-					CG_PredictWeaponEffects_PlayerHit( shotgunVictim, WP_SHOTGUN, attackTime );
+					CG_PlayPredictedHitBeep( shotgunVictim, WP_SHOTGUN, attackTime, shotgunDamage );
 				}
 			}
 			//Com_Printf( "Predicted shotgun pattern\n" );
