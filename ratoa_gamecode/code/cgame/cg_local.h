@@ -231,6 +231,7 @@ typedef struct {
 #define MF_REMOVEDPMISSILE	32
 #define MF_TRAILFINISHED	64
 #define MF_EXPLOSIONCONFIRMED	128
+#define MF_HITBEEP		256
 
 typedef struct predictedMissileStatus_s {
 	int	missileFlags;
@@ -276,6 +277,11 @@ typedef struct centity_s {
 	// exact interpolated position of entity on this frame
 	vec3_t			lerpOrigin;
 	vec3_t			lerpAngles;
+
+	/* Last AddPacketEntities pose, used next frame for live hit-sound rewind. */
+	qboolean		hitPredictValid;
+	vec3_t			hitPredictOrigin;
+	int			hitPredictSolid;
 
 	qboolean		demoDelagVisualCached;
 	vec3_t			demoDelagVisualOrigin;
@@ -1747,6 +1753,7 @@ extern	markPoly_t		cg_markPolys[MAX_MARK_POLYS];
 
 //unlagged - cg_unlagged.c
 void CG_PredictWeaponEffects( centity_t *cent );
+void CG_SaveHitPredictPoses( void );
 qboolean CG_ConsumePredictedHitSuppression( void );
 int CG_ReliablePing( void );
 int CG_ReliablePingFromSnaps(snapshot_t *snap, snapshot_t *nextsnap);

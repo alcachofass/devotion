@@ -31,6 +31,7 @@ void CG_Bullet( vec3_t end, int sourceEntityNum, vec3_t normal, qboolean flesh, 
 predictedMissile_t *CG_BasePredictMissile( entityState_t *ent,  vec3_t muzzlePoint );
 void CG_FinishPredictMissileModel( entityState_t *ent, predictedMissile_t *pm );
 void CG_PredictNailgunMissile( entityState_t *ent, vec3_t muzzlePoint, vec3_t forward, vec3_t right, vec3_t up );
+static qboolean CG_IsValidPredictedHitTarget( int clientNum );
 
 // and this as well
 //Must be in sync with g_weapon.c
@@ -45,6 +46,214 @@ static int CG_DemoAttackTime( void ) {
 		attackTime = cg.snap->serverTime;
 	}
 	return attackTime;
+}
+
+static int CG_LiveAttackTime( void ) {
+	if ( cg.oldTime > 0 ) {
+		return cg.oldTime;
+	}
+	if ( cg.predictedPlayerState.commandTime > 0 ) {
+		return cg.predictedPlayerState.commandTime;
+	}
+	if ( cg.snap ) {
+		return cg.snap->serverTime;
+	}
+	return cg.time;
+}
+
+static int CG_PredictHitAttackTime( void ) {
+	if ( CG_DemoHistory_DemoDelagActive() ) {
+		return CG_DemoAttackTime();
+	}
+	return CG_LiveAttackTime();
+}
+
+static void CG_DecodePlayerSolid( int solid, vec3_t mins, vec3_t maxs ) {
+	int x, zd, zu;
+
+	x = ( solid & 255 );
+	zd = ( ( solid >> 8 ) & 255 );
+	zu = ( ( solid >> 16 ) & 255 ) - 32;
+	mins[0] = mins[1] = -x;
+	maxs[0] = maxs[1] = x;
+	mins[2] = -zd;
+	maxs[2] = zu;
+}
+
+static int CG_EncodePlayerSolid( const vec3_t mins, const vec3_t maxs ) {
+	int i, j, k;
+
+	i = maxs[0];
+	if ( i < 1 ) {
+		i = 1;
+	}
+	if ( i > 255 ) {
+		i = 255;
+	}
+
+	j = ( -mins[2] );
+	if ( j < 1 ) {
+		j = 1;
+	}
+	if ( j > 255 ) {
+		j = 255;
+	}
+
+	k = ( maxs[2] + 32 );
+	if ( k < 1 ) {
+		k = 1;
+	}
+	if ( k > 255 ) {
+		k = 255;
+	}
+
+	return ( k << 16 ) | ( j << 8 ) | i;
+}
+
+static int CG_LerpEncodedPlayerSolid( int solidLo, int solidHi, float f ) {
+	vec3_t minsLo, maxsLo, minsHi, maxsHi, mins, maxs;
+
+	if ( solidLo == SOLID_BMODEL || solidHi == SOLID_BMODEL || solidLo == 0 ) {
+		return solidLo;
+	}
+	if ( solidHi == 0 ) {
+		return solidLo;
+	}
+
+	CG_DecodePlayerSolid( solidLo, minsLo, maxsLo );
+	CG_DecodePlayerSolid( solidHi, minsHi, maxsHi );
+	mins[0] = minsLo[0] + f * ( minsHi[0] - minsLo[0] );
+	mins[1] = minsLo[1] + f * ( minsHi[1] - minsLo[1] );
+	mins[2] = minsLo[2] + f * ( minsHi[2] - minsLo[2] );
+	maxs[0] = maxsLo[0] + f * ( maxsHi[0] - maxsLo[0] );
+	maxs[1] = maxsLo[1] + f * ( maxsHi[1] - maxsLo[1] );
+	maxs[2] = maxsLo[2] + f * ( maxsHi[2] - maxsLo[2] );
+	return CG_EncodePlayerSolid( mins, maxs );
+}
+
+static int CG_HitPredictSolidForCent( const centity_t *cent ) {
+	float f;
+
+	if ( !cent->interpolate || !cg.nextSnap || cent->nextState.solid == 0
+			|| cent->nextState.solid == SOLID_BMODEL
+			|| cent->currentState.solid == SOLID_BMODEL ) {
+		return cent->currentState.solid;
+	}
+
+	f = cg.frameInterpolation;
+	if ( f < 0.0f ) {
+		f = 0.0f;
+	} else if ( f > 1.0f ) {
+		f = 1.0f;
+	}
+	return CG_LerpEncodedPlayerSolid( cent->currentState.solid, cent->nextState.solid, f );
+}
+
+void CG_SaveHitPredictPoses( void ) {
+	int i;
+	centity_t *cent;
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		cent = &cg_entities[i];
+		cent->hitPredictValid = qfalse;
+		if ( i == cg.predictedPlayerState.clientNum ) {
+			continue;
+		}
+		if ( !cent->currentValid || cent->currentState.eType != ET_PLAYER ) {
+			continue;
+		}
+		if ( cent->currentState.eFlags & EF_DEAD ) {
+			continue;
+		}
+		if ( cent->currentState.solid == 0 || cent->currentState.solid == SOLID_BMODEL ) {
+			continue;
+		}
+
+		VectorCopy( cent->lerpOrigin, cent->hitPredictOrigin );
+		cent->hitPredictSolid = CG_HitPredictSolidForCent( cent );
+		cent->hitPredictValid = qtrue;
+	}
+}
+
+typedef struct {
+	centity_t	*cent;
+	vec3_t		savedLerp;
+	int		savedSolid;
+} predictHitRewindSave_t;
+
+static predictHitRewindSave_t	cg_predictHitRewindSaves[MAX_CLIENTS];
+static int			cg_predictHitRewindSaveCount;
+static qboolean			cg_predictHitRewindDemo;
+
+static void CG_BeginPredictHitRewind( int attackTime, int skipEntityNum ) {
+	int i;
+	centity_t *cent;
+
+	cg_predictHitRewindSaveCount = 0;
+	cg_predictHitRewindDemo = qfalse;
+
+	if ( CG_DemoHistory_DemoDelagActive() ) {
+		cg_predictHitRewindDemo = qtrue;
+		CG_DemoHistory_BeginHitscanRewind( attackTime, skipEntityNum );
+		return;
+	}
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		if ( i == skipEntityNum ) {
+			continue;
+		}
+		cent = &cg_entities[i];
+		if ( !cent->hitPredictValid || !cent->currentValid ) {
+			continue;
+		}
+		if ( cent->currentState.eType != ET_PLAYER ) {
+			continue;
+		}
+		if ( cg_predictHitRewindSaveCount >= MAX_CLIENTS ) {
+			break;
+		}
+		cg_predictHitRewindSaves[cg_predictHitRewindSaveCount].cent = cent;
+		VectorCopy( cent->lerpOrigin, cg_predictHitRewindSaves[cg_predictHitRewindSaveCount].savedLerp );
+		cg_predictHitRewindSaves[cg_predictHitRewindSaveCount].savedSolid = cent->currentState.solid;
+		cg_predictHitRewindSaveCount++;
+		VectorCopy( cent->hitPredictOrigin, cent->lerpOrigin );
+		cent->currentState.solid = cent->hitPredictSolid;
+	}
+}
+
+static void CG_EndPredictHitRewind( void ) {
+	int i;
+
+	if ( cg_predictHitRewindDemo ) {
+		CG_DemoHistory_EndHitscanRewind();
+		cg_predictHitRewindDemo = qfalse;
+		cg_predictHitRewindSaveCount = 0;
+		return;
+	}
+
+	for ( i = cg_predictHitRewindSaveCount - 1; i >= 0; i-- ) {
+		centity_t *cent = cg_predictHitRewindSaves[i].cent;
+
+		VectorCopy( cg_predictHitRewindSaves[i].savedLerp, cent->lerpOrigin );
+		cent->currentState.solid = cg_predictHitRewindSaves[i].savedSolid;
+	}
+	cg_predictHitRewindSaveCount = 0;
+}
+
+static int CG_PredictHitTracePlayer( const vec3_t start, const vec3_t mins, const vec3_t maxs,
+		const vec3_t end, int skipNum, int attackTime ) {
+	trace_t tr;
+
+	CG_BeginPredictHitRewind( attackTime, skipNum );
+	CG_Trace( &tr, start, mins, maxs, end, skipNum, MASK_SHOT );
+	CG_EndPredictHitRewind();
+
+	if ( tr.fraction < 1.0f && tr.entityNum < MAX_CLIENTS
+			&& !( tr.surfaceFlags & SURF_NOIMPACT )
+			&& CG_IsValidPredictedHitTarget( tr.entityNum ) ) {
+		return tr.entityNum;
+	}
+	return -1;
 }
 
 #define CG_PREDICTED_HIT_EXPIRE_EXTRA	150
@@ -526,7 +735,7 @@ void CG_RecoverMissile(centity_t *missile) {
 		// missile is still around at a time when we should have the
 		// confirmation from the server that it exploded. Prediction was
 		// wrong, recover the missile
-		pms->missileFlags &= ~(MF_EXPLODED | MF_DISAPPEARED | MF_HITPLAYER | MF_HITWALLMETAL | MF_HITWALL | MF_TRAILFINISHED);
+		pms->missileFlags &= ~(MF_EXPLODED | MF_DISAPPEARED | MF_HITPLAYER | MF_HITWALLMETAL | MF_HITWALL | MF_TRAILFINISHED | MF_HITBEEP);
 
 		CG_RemoveOldMissileExplosion(pms);
 
@@ -690,7 +899,6 @@ void CG_PredictedExplosion(trace_t *tr, int weapon, predictedMissile_t *predMiss
 				return;
 			}
 		}
-		CG_TryPredictedProjectileHitBeep( tr, weapon, predMissile, missileEnt, qtrue, tr->entityNum );
 		if (!cg_predictPlayerExplosions.integer) {
 			CG_UpdateMissileStatus( pms, MF_EXPLODED | MF_HITPLAYER, tr->endpos, tr->entityNum );
 			return;
@@ -705,15 +913,66 @@ void CG_PredictedExplosion(trace_t *tr, int weapon, predictedMissile_t *predMiss
 	} else if (tr->surfaceFlags & SURF_METALSTEPS) {
 		CG_MissileHitWall(weapon, 0, tr->endpos, tr->plane.normal, IMPACTSOUND_METAL, pms);
 		CG_UpdateMissileStatus(pms, MF_EXPLODED | MF_HITWALLMETAL, tr->endpos, tr->entityNum);
-		CG_TryPredictedProjectileHitBeep( tr, weapon, predMissile, missileEnt, qfalse, -1 );
 	} else {
 		CG_MissileHitWall(weapon, 0, tr->endpos, tr->plane.normal, IMPACTSOUND_DEFAULT, pms);
 		CG_UpdateMissileStatus(pms, MF_EXPLODED | MF_HITWALL, tr->endpos, tr->entityNum);
-		CG_TryPredictedProjectileHitBeep( tr, weapon, predMissile, missileEnt, qfalse, -1 );
 	}
 }
 
 
+
+static void CG_CheckPredictedMissileHitBeep( predictedMissile_t *pm ) {
+	vec3_t beepStart, beepEnd;
+	trace_t beepTr;
+	int startTime, endTime;
+
+	if ( pm->status.missileFlags & MF_HITBEEP ) {
+		return;
+	}
+	if ( !CG_ShouldPredictProjectileHitSound( pm->weapon ) ) {
+		return;
+	}
+	if ( !CG_ShouldPredictExplosion() ) {
+		return;
+	}
+
+	startTime = cg.oldTime;
+	if ( startTime < pm->pos.trTime ) {
+		startTime = pm->pos.trTime;
+	}
+	endTime = cg.time;
+	if ( endTime < pm->pos.trTime ) {
+		endTime = pm->pos.trTime;
+	}
+
+	BG_EvaluateTrajectory( &pm->pos, startTime, beepStart );
+	BG_EvaluateTrajectory( &pm->pos, endTime, beepEnd );
+
+	if ( DistanceSquared( beepStart, beepEnd ) < 1.0f ) {
+		return;
+	}
+
+	if ( CG_MissileTouchedPortal( beepStart, beepEnd ) ) {
+		pm->status.missileFlags |= MF_HITBEEP;
+		return;
+	}
+
+	CG_Trace( &beepTr, beepStart, NULL, NULL, beepEnd, cg.snap->ps.clientNum, MASK_SHOT );
+	if ( beepTr.fraction == 1.0f ) {
+		return;
+	}
+	if ( beepTr.surfaceFlags & SURF_NOIMPACT ) {
+		pm->status.missileFlags |= MF_HITBEEP;
+		return;
+	}
+
+	pm->status.missileFlags |= MF_HITBEEP;
+	if ( beepTr.entityNum < MAX_CLIENTS ) {
+		CG_TryPredictedProjectileHitBeep( &beepTr, pm->weapon, pm, NULL, qtrue, beepTr.entityNum );
+	} else {
+		CG_TryPredictedProjectileHitBeep( &beepTr, pm->weapon, pm, NULL, qfalse, -1 );
+	}
+}
 
 void CG_RunPredictedMissile( predictedMissile_t *pm) {
 	vec3_t	newOrigin;
@@ -731,6 +990,8 @@ void CG_RunPredictedMissile( predictedMissile_t *pm) {
 		// this missile exploded / disappeared
 		return;
 	}
+
+	CG_CheckPredictedMissileHitBeep( pm );
 
 	timeshift = 1000 / sv_fps.integer;
 	time = cg.time + timeshift;
@@ -846,7 +1107,7 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 
 			VectorMA( muzzlePoint, 32, forward, endPoint );
 			demoRewind = CG_DemoHistory_DemoDelagActive();
-			attackTime = CG_DemoAttackTime();
+			attackTime = CG_PredictHitAttackTime();
 			if ( demoRewind ) {
 				CG_DemoHistory_BeginHitscanRewind( attackTime, cg.predictedPlayerState.clientNum );
 			}
@@ -856,7 +1117,15 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			}
 			if ( trace.fraction < 1.0f && trace.entityNum < MAX_CLIENTS && !( trace.surfaceFlags & SURF_NOIMPACT ) ) {
 				CG_MissileHitPlayer( WP_GAUNTLET, trace.endpos, trace.plane.normal, trace.entityNum, NULL );
-				CG_PredictWeaponEffects_PlayerHit( trace.entityNum, WP_GAUNTLET, attackTime );
+			}
+			if ( CG_ShouldPredictHitSound( WP_GAUNTLET ) ) {
+				int gauntVictim;
+
+				gauntVictim = CG_PredictHitTracePlayer( muzzlePoint, NULL, NULL, endPoint,
+					cg.predictedPlayerState.clientNum, attackTime );
+				if ( gauntVictim >= 0 ) {
+					CG_PredictWeaponEffects_PlayerHit( gauntVictim, WP_GAUNTLET, attackTime );
+				}
 			}
 		}
 	}
@@ -927,15 +1196,25 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 				}
 			}*/
 
-			// find the rail's end point
+			// find the rail's end point (visual trail; CONTENTS_SOLID ignores players)
 			demoRewind = CG_DemoHistory_DemoDelagActive();
-			attackTime = CG_DemoAttackTime();
+			attackTime = CG_PredictHitAttackTime();
 			if ( demoRewind ) {
 				CG_DemoHistory_BeginHitscanRewind( attackTime, cg.predictedPlayerState.clientNum );
 			}
 			CG_Trace( &trace, muzzlePoint, vec3_origin, vec3_origin, endPoint, cg.predictedPlayerState.clientNum, demoRewind ? MASK_SHOT : CONTENTS_SOLID );
 			if ( demoRewind ) {
 				CG_DemoHistory_EndHitscanRewind();
+			}
+
+			if ( CG_ShouldPredictHitSound( WP_RAILGUN ) ) {
+				int railVictim;
+
+				railVictim = CG_PredictHitTracePlayer( muzzlePoint, vec3_origin, vec3_origin, endPoint,
+					cg.predictedPlayerState.clientNum, attackTime );
+				if ( railVictim >= 0 ) {
+					CG_PredictWeaponEffects_PlayerHit( railVictim, WP_RAILGUN, attackTime );
+				}
 			}
 
 			// do the magic-number adjustment
@@ -958,23 +1237,6 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 				// predict an explosion
 				CG_MissileHitWall( ent->weapon, cg.predictedPlayerState.clientNum, trace.endpos, trace.plane.normal, IMPACTSOUND_DEFAULT, NULL );
 			}
-
-			{
-				trace_t hitTrace;
-
-				if ( demoRewind ) {
-					CG_DemoHistory_BeginHitscanRewind( attackTime, cg.predictedPlayerState.clientNum );
-				}
-				CG_Trace( &hitTrace, muzzlePoint, vec3_origin, vec3_origin, endPoint,
-					cg.predictedPlayerState.clientNum, MASK_SHOT );
-				if ( demoRewind ) {
-					CG_DemoHistory_EndHitscanRewind();
-				}
-				if ( hitTrace.fraction < 1.0f && hitTrace.entityNum < MAX_CLIENTS
-						&& !( hitTrace.surfaceFlags & SURF_NOIMPACT ) ) {
-					CG_PredictWeaponEffects_PlayerHit( hitTrace.entityNum, WP_RAILGUN, attackTime );
-				}
-			}
 		}
 	}
 	else if ( ent->weapon == WP_LIGHTNING ) {
@@ -987,7 +1249,7 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 
 			VectorMA( muzzlePoint, LIGHTNING_RANGE, forward, endPoint );
 			demoRewind = CG_DemoHistory_DemoDelagActive();
-			attackTime = CG_DemoAttackTime();
+			attackTime = CG_PredictHitAttackTime();
 			if ( demoRewind ) {
 				CG_DemoHistory_BeginHitscanRewind( attackTime, cg.predictedPlayerState.clientNum );
 			}
@@ -998,9 +1260,17 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			if (trace.fraction < 1.0) {
 				if (trace.entityNum < MAX_CLIENTS) {
 					CG_MissileHitPlayer(WP_LIGHTNING, trace.endpos, trace.plane.normal, trace.entityNum, NULL);
-					CG_PredictWeaponEffects_PlayerHit( trace.entityNum, WP_LIGHTNING, attackTime );
 				} else if (!(trace.surfaceFlags & SURF_NOIMPACT)) {
 					CG_MissileHitWall(WP_LIGHTNING, 0, trace.endpos, trace.plane.normal, IMPACTSOUND_DEFAULT, NULL);
+				}
+			}
+			if ( CG_ShouldPredictHitSound( WP_LIGHTNING ) ) {
+				int lgVictim;
+
+				lgVictim = CG_PredictHitTracePlayer( muzzlePoint, vec3_origin, vec3_origin, endPoint,
+					cg.predictedPlayerState.clientNum, attackTime );
+				if ( lgVictim >= 0 ) {
+					CG_PredictWeaponEffects_PlayerHit( lgVictim, WP_LIGHTNING, attackTime );
 				}
 			}
 		}
@@ -1040,22 +1310,24 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 
 			// do the shotgun pellets
 			demoRewind = CG_DemoHistory_DemoDelagActive();
-			attackTime = CG_DemoAttackTime();
-			seed = demoRewind ? ( attackTime % 256 ) : ( cg.oldTime % 256 );
+			attackTime = CG_PredictHitAttackTime();
+			seed = attackTime % 256;
 			if ( demoRewind ) {
 				CG_DemoHistory_BeginHitscanRewind( attackTime, cg.predictedPlayerState.clientNum );
 			}
-			{
+			CG_ShotgunPattern( muzzlePoint, endPoint, seed, cg.predictedPlayerState.clientNum );
+			if ( demoRewind ) {
+				CG_DemoHistory_EndHitscanRewind();
+			}
+			if ( CG_ShouldPredictHitSound( WP_SHOTGUN ) ) {
 				int shotgunVictim;
 
-				CG_ShotgunPattern( muzzlePoint, endPoint, seed, cg.predictedPlayerState.clientNum );
+				CG_BeginPredictHitRewind( attackTime, cg.predictedPlayerState.clientNum );
 				shotgunVictim = CG_ShotgunPattern_PlayerHit( muzzlePoint, endPoint, seed, cg.predictedPlayerState.clientNum );
+				CG_EndPredictHitRewind();
 				if ( shotgunVictim >= 0 ) {
 					CG_PredictWeaponEffects_PlayerHit( shotgunVictim, WP_SHOTGUN, attackTime );
 				}
-			}
-			if ( demoRewind ) {
-				CG_DemoHistory_EndHitscanRewind();
 			}
 			//Com_Printf( "Predicted shotgun pattern\n" );
 		}
@@ -1077,8 +1349,8 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			// do everything exactly like the server does
 
 			demoRewind = CG_DemoHistory_DemoDelagActive();
-			attackTime = CG_DemoAttackTime();
-			seed = demoRewind ? ( attackTime % 256 ) : ( cg.oldTime % 256 );
+			attackTime = CG_PredictHitAttackTime();
+			seed = attackTime % 256;
 			r = Q_random(&seed) * M_PI * 2.0f;
 			u = sin(r) * Q_crandom(&seed) * MACHINEGUN_SPREAD * 16;
 			r = cos(r) * Q_crandom(&seed) * MACHINEGUN_SPREAD * 16;
@@ -1112,8 +1384,14 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 
 			// do the bullet impact
 			CG_Bullet( tr.endpos, cg.predictedPlayerState.clientNum, tr.plane.normal, flesh, fleshEntityNum );
-			if ( flesh ) {
-				CG_PredictWeaponEffects_PlayerHit( fleshEntityNum, WP_MACHINEGUN, attackTime );
+			if ( CG_ShouldPredictHitSound( WP_MACHINEGUN ) ) {
+				int mgVictim;
+
+				mgVictim = CG_PredictHitTracePlayer( muzzlePoint, NULL, NULL, endPoint,
+					cg.predictedPlayerState.clientNum, attackTime );
+				if ( mgVictim >= 0 ) {
+					CG_PredictWeaponEffects_PlayerHit( mgVictim, WP_MACHINEGUN, attackTime );
+				}
 			}
 			//Com_Printf( "Predicted bullet\n" );
 		}
@@ -1136,8 +1414,8 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			// do everything exactly like the server does
 
 			demoRewind = CG_DemoHistory_DemoDelagActive();
-			attackTime = CG_DemoAttackTime();
-			seed = demoRewind ? ( attackTime % 256 ) : ( cg.oldTime % 256 );
+			attackTime = CG_PredictHitAttackTime();
+			seed = attackTime % 256;
 			r = Q_random(&seed) * M_PI * 2.0f;
 			u = sin(r) * Q_crandom(&seed) * CHAINGUN_SPREAD * 16;
 			r = cos(r) * Q_crandom(&seed) * CHAINGUN_SPREAD * 16;
@@ -1171,8 +1449,14 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 
 			// do the bullet impact
 			CG_Bullet( tr.endpos, cg.predictedPlayerState.clientNum, tr.plane.normal, flesh, fleshEntityNum );
-			if ( flesh ) {
-				CG_PredictWeaponEffects_PlayerHit( fleshEntityNum, WP_CHAINGUN, attackTime );
+			if ( CG_ShouldPredictHitSound( WP_CHAINGUN ) ) {
+				int cgVictim;
+
+				cgVictim = CG_PredictHitTracePlayer( muzzlePoint, NULL, NULL, endPoint,
+					cg.predictedPlayerState.clientNum, attackTime );
+				if ( cgVictim >= 0 ) {
+					CG_PredictWeaponEffects_PlayerHit( cgVictim, WP_CHAINGUN, attackTime );
+				}
 			}
 			//Com_Printf( "Predicted bullet\n" );
 		}

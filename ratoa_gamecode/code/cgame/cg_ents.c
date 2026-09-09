@@ -1372,5 +1372,7 @@ void CG_AddPacketEntities( void ) {
 			CG_AddCEntity( cent );
 		} //Also unlagged
 	}
+
+	CG_SaveHitPredictPoses();
 }
 

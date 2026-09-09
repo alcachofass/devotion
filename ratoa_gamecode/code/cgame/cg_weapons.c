@@ -4624,16 +4624,10 @@ void CG_MissileHitWall( int weapon, int clientNum, vec3_t origin, vec3_t dir, im
 	}
 
 	if ( sfx ) {
-		int sndEnt = ENTITYNUM_WORLD;
-
-		if ( ( weapon == WP_ROCKET_LAUNCHER || weapon == WP_PLASMAGUN
-				|| weapon == WP_GRENADE_LAUNCHER || weapon == WP_BFG )
-				&& clientNum >= 0 && clientNum < MAX_CLIENTS ) {
-			sndEnt = clientNum;
-		}
-		trap_S_StartSound( origin, sndEnt, CHAN_AUTO, sfx );
+		// Q3e plays listener-entity sounds at full volume and ignores origin.
+		trap_S_StartSound( origin, ENTITYNUM_WORLD, CHAN_AUTO, sfx );
 		if ( sfx == cgs.media.sfx_rockexp ) {
-			CG_VisualSounds_NoteExplosion( origin, sndEnt, weapon );
+			CG_VisualSounds_NoteExplosion( origin, ENTITYNUM_WORLD, weapon );
 		}
 	}
 

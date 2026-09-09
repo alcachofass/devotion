@@ -28,7 +28,7 @@ From the **MINGW64** shell:
 pacman -S --needed git make \
   mingw-w64-x86_64-gcc \
   mingw-w64-x86_64-make \
-  unzip zip patch
+  unzip zip patch bison
 ```
 
 - **`make`** — GNU Make as the `make` command (on `PATH` in MINGW64 as `/usr/bin/make`).
