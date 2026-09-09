@@ -47,10 +47,15 @@ SOUND OPTIONS MENU
 //Sago: Here I do some stuff!
 #define ID_OPENAL			18
 #define ID_BACK				19
+#define ID_HITSOUND			20
 
 
 static const char *quality_items[] = {
 	"Low", "High", NULL
+};
+
+static const char *hitsound_items[] = {
+	"Off", "Default", "Alternate 1", "Alternate 2", "Damage Tones 1", "Damage Tones 2", NULL
 };
 
 typedef struct {
@@ -68,6 +73,7 @@ typedef struct {
 	menuslider_s		sfxvolume;
 	menuslider_s		musicvolume;
 	menulist_s			quality;
+	menulist_s			hitsound;
 //	menuradiobutton_s	a3d;
 	menuradiobutton_s	openal;
 
@@ -112,6 +118,16 @@ static void UI_SoundOptionsMenu_Event( void* ptr, int event ) {
 
 	case ID_MUSICVOLUME:
 		trap_Cvar_SetValue( "s_musicvolume", soundOptionsInfo.musicvolume.curvalue / 10 );
+		break;
+
+	case ID_HITSOUND:
+		if ( soundOptionsInfo.hitsound.curvalue == 4 ) {
+			trap_Cvar_SetValue( "cg_hitsound", -1 );
+		} else if ( soundOptionsInfo.hitsound.curvalue == 5 ) {
+			trap_Cvar_SetValue( "cg_hitsound", -2 );
+		} else {
+			trap_Cvar_SetValue( "cg_hitsound", soundOptionsInfo.hitsound.curvalue );
+		}
 		break;
 
 	case ID_QUALITY:
@@ -256,6 +272,16 @@ static void UI_SoundOptionsMenu_Init( void ) {
 	soundOptionsInfo.musicvolume.maxvalue			= 10;
 
 	y += BIGCHAR_HEIGHT+2;
+	soundOptionsInfo.hitsound.generic.type		= MTYPE_SPINCONTROL;
+	soundOptionsInfo.hitsound.generic.name		= "Hit Sound:";
+	soundOptionsInfo.hitsound.generic.flags		= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
+	soundOptionsInfo.hitsound.generic.callback	= UI_SoundOptionsMenu_Event;
+	soundOptionsInfo.hitsound.generic.id		= ID_HITSOUND;
+	soundOptionsInfo.hitsound.generic.x		= 400;
+	soundOptionsInfo.hitsound.generic.y		= y;
+	soundOptionsInfo.hitsound.itemnames		= hitsound_items;
+
+	y += BIGCHAR_HEIGHT+2;
 	soundOptionsInfo.quality.generic.type		= MTYPE_SPINCONTROL;
 	soundOptionsInfo.quality.generic.name		= "Sound Quality:";
 	soundOptionsInfo.quality.generic.flags		= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
@@ -303,6 +329,7 @@ static void UI_SoundOptionsMenu_Init( void ) {
 	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.network );
 	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.sfxvolume );
 	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.musicvolume );
+	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.hitsound );
 	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.quality );
 //	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.a3d );
 	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.openal );
@@ -310,6 +337,19 @@ static void UI_SoundOptionsMenu_Init( void ) {
 
 	soundOptionsInfo.sfxvolume.curvalue = trap_Cvar_VariableValue( "s_volume" ) * 10;
 	soundOptionsInfo.musicvolume.curvalue = trap_Cvar_VariableValue( "s_musicvolume" ) * 10;
+	{
+		int hitsound = (int)trap_Cvar_VariableValue( "cg_hitsound" );
+
+		if ( hitsound == -1 ) {
+			soundOptionsInfo.hitsound.curvalue = 4;
+		} else if ( hitsound == -2 ) {
+			soundOptionsInfo.hitsound.curvalue = 5;
+		} else if ( hitsound >= 0 && hitsound <= 3 ) {
+			soundOptionsInfo.hitsound.curvalue = hitsound;
+		} else {
+			soundOptionsInfo.hitsound.curvalue = 1;
+		}
+	}
 	soundOptionsInfo.quality.curvalue = !trap_Cvar_VariableValue( "s_compression" );
 //	soundOptionsInfo.a3d.curvalue = (int)trap_Cvar_VariableValue( "s_usingA3D" );
 	soundOptionsInfo.openal.curvalue = (int)trap_Cvar_VariableValue( "s_useopenal" );
