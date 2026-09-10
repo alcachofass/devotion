@@ -6,17 +6,17 @@ Devotion began as a partial conversion of [RatArena](https://github.com/rdntcntr
 
 ## Features
 
-- Unlagged Netcode 
-- Customizable HUDs (import from QL or CPM) 
-- Voteable QL/CPM/VQ3 Movement 
+- Unlagged Netcode
+- Customizable HUDs (import from QL or CPM)
+- Voteable QL/CPM/VQ3 Movement
 - Clan Arena/Elimination/Last Man Standing Gamemodes
-- Enhanced Bots 
-- Demo Autorecording 
-- Enhanced Demo Browser 
-- Alternative Footstep Sounds (Wood/Snow) 
-- Keys & Locked Doors (Elder) 
-- Delagged Demo Playback 
-- Client-Side Hit Sound Prediction
+- Upgraded Bots with more human-like aim and strategic goal pursuit
+- Demo Autorecording and an enhanced demo browser
+- Alternative Footstep Sounds (Wood/Snow)
+- Keys & Locked Doors (for QL levels like Elder)
+- De-lagged Demo Playback
+- Client-side hit prediction and damage-based hit tones
+- Sound Visualization Overlay
 
 ## Installation
 1. Grab the [Latest Release](https://github.com/alcachofass/devotion/releases)
@@ -75,22 +75,23 @@ Clone the repo to your local drive:
 
 ## Credits
 Many have contributed in different ways over the 20+ years since the game was originally released:
-- [id Software](https://github.com/id-Software/Quake-III-Arena)
-- [ioQuake3](https://ioquake3.org) contributors
-- [Open Arena](https://github.com/OpenArena/) contributors
-- [Rodent Control](https://ratmod.github.io/)
+- [alcachofass](https://github.com/alcachofass)
+- [emarrdee](https://github.com/emarrdee)
+- [LegendaryGuard](https://github.com/LegendaryGuard)
+- Spike ([Level Design](https://lvlworld.com/author/Spike))
+- Foo ([Level Design](https://lvlworld.com/review/id:2507) & [Code](https://github.com/br33zy59))
+- MKJ (Sound effects)
+- ceular
 - Eugene Molotov
 - oitzujoey
 - Parker1200
 - EddieBrrrock
-- ceular
-- [alcachofass](https://github.com/alcachofass)
-- [emarrdee](https://github.com/emarrdee)
-- [LegendaryGuard](https://github.com/LegendaryGuard)
 - ZerTerO (HD Assets - High Quality Quake v3.7)
+- [Rodent Control](https://ratmod.github.io/)
 - [Aries Beats](https://free-songs.de/Aries_Beats_-_Sad_Synthwave.mp3) (Music)
-- Spike ([Level Design](https://lvlworld.com/author/Spike))
-- Foo ([Level Design](https://lvlworld.com/review/id:2507) & [Code](https://github.com/br33zy59))
+- [id Software](https://github.com/id-Software/Quake-III-Arena)
+- [ioQuake3](https://ioquake3.org) contributors
+- [Open Arena](https://github.com/OpenArena/) contributors
 
 ## Contributing
 Pull requests are welcome! Most contributors hang out in the Quake3World Discord and play on nuegados.com or play.ur-face.com.

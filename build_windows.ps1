@@ -4,7 +4,8 @@
 param(
     [switch]$Deploy,
     [switch]$NoBuild,
-    [switch]$Quiet
+    [switch]$Quiet,
+    [switch]$Clean
 )
 
 $ErrorActionPreference = "Stop"
@@ -41,12 +42,10 @@ function Deploy-TestPk3 {
 Push-Location $RepoRoot
 try {
     if (-not $NoBuild) {
-        $quietFlag = if ($Quiet) { "QUIET=1" } else { "" }
-        $makeArgs = if ($quietFlag) {
-            "make clean $quietFlag;make $quietFlag"
-        } else {
-            "make clean;make"
-        }
+        # $(nproc) is expanded by the MSYS2 bash -c shell, not PowerShell.
+        $quietFlag = if ($Quiet) { " QUIET=1" } else { "" }
+        $build = "make -j`$(nproc)$quietFlag"
+        $makeArgs = if ($Clean) { "make clean$quietFlag;$build" } else { $build }
         # Compiler warnings go to stderr; merge streams without NativeCommandError noise.
         $prevEap = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'

@@ -953,36 +953,41 @@ static void CG_RegisterSounds( void ) {
 	}
 	cgs.media.landSound = trap_S_RegisterSound( "sound/player/land1.wav", qfalse);
 
-        switch(cg_hitsound.integer) {
-            
-            case 0:
-				cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit0.wav", qfalse ); //ok
-				//Com_Printf("HIT0\n");
-				break;
-			case 1:
-				cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit.wav", qfalse ); //ok
-				//Com_Printf("HIT1\n");
-				break;
-			case 2:
-				cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit2.wav", qfalse ); //ok
-				//Com_Printf("HIT2\n");
-				break;
-			case 3:
-				cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit3.wav", qfalse ); //ok
-				//Com_Printf("HIT3\n");
-				break;
-            default:
-            /*
-            cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit_old.wav", qfalse );
-            cgs.media.hitSound0 = trap_S_RegisterSound( "sound/feedback/hit0.wav", qfalse );
-            cgs.media.hitSound1 = trap_S_RegisterSound( "sound/feedback/hit1.wav", qfalse );
-            cgs.media.hitSound2 = trap_S_RegisterSound( "sound/feedback/hit2.wav", qfalse );
-            cgs.media.hitSound3 = trap_S_RegisterSound( "sound/feedback/hit3.wav", qfalse );
-            cgs.media.hitSound4 = trap_S_RegisterSound( "sound/feedback/hit4.wav", qfalse );
-            */
-            	cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit.wav", qfalse ); //ok
-				//Com_Printf("HIT1\n");
-        };
+	// Hit beeps and tone packs are registered from cg_hitsound at map load only.
+	// Changing the cvar in-game has no audio effect until next map or vid_restart.
+	if ( cg_hitsound.integer < 0 ) {
+		int pack = -cg_hitsound.integer;
+
+		// -N loads sound/feedback/tonesN/; missing packs fall back to the default beep
+		if ( pack > 0 && pack < 100 &&
+				trap_FS_FOpenFile( va( "sound/feedback/tones%d/hit1.wav", pack ), NULL, FS_READ ) > 0 ) {
+			cgs.media.hitToneSound1 = trap_S_RegisterSound( va( "sound/feedback/tones%d/hit1.wav", pack ), qfalse );
+			cgs.media.hitToneSound2 = trap_S_RegisterSound( va( "sound/feedback/tones%d/hit2.wav", pack ), qfalse );
+			cgs.media.hitToneSound3 = trap_S_RegisterSound( va( "sound/feedback/tones%d/hit3.wav", pack ), qfalse );
+			cgs.media.hitToneSound4 = trap_S_RegisterSound( va( "sound/feedback/tones%d/hit4.wav", pack ), qfalse );
+		}
+		if ( !cgs.media.hitToneSound1 ) {
+			cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit.wav", qfalse );
+		}
+	} else {
+		switch ( cg_hitsound.integer ) {
+		case 0:
+			cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit0.wav", qfalse ); //ok
+			break;
+		case 1:
+			cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit.wav", qfalse ); //ok
+			break;
+		case 2:
+			cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit2.wav", qfalse ); //ok
+			break;
+		case 3:
+			cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit3.wav", qfalse ); //ok
+			break;
+		default:
+			cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit.wav", qfalse ); //ok
+			break;
+		}
+	}
 
 #ifdef MISSIONPACK
 	cgs.media.hitSoundHighArmor = trap_S_RegisterSound( "sound/feedback/hithi.wav", qfalse );

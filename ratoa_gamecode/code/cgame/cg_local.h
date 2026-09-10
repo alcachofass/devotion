@@ -1396,6 +1396,10 @@ typedef struct {
 	sfxHandle_t oneFragSound;
 
 	sfxHandle_t hitSound;
+	sfxHandle_t hitToneSound1;
+	sfxHandle_t hitToneSound2;
+	sfxHandle_t hitToneSound3;
+	sfxHandle_t hitToneSound4;
 #ifdef MISSIONPACK
 	sfxHandle_t hitSound0;
 	sfxHandle_t hitSound1;
@@ -2229,6 +2233,7 @@ long CG_GetMtrnGameFlags(int gameId);
 // cg_playerstate.c
 //
 void CG_Respawn( void );
+void CG_StartHitSound( int damage );
 void CG_TransitionPlayerState( playerState_t *ps, playerState_t *ops );
 void CG_CheckChangedPredictableEvents( playerState_t *ps );
 void CG_PushReward(sfxHandle_t sfx, qhandle_t shader, int rewardCount);

@@ -613,19 +613,14 @@ footstep_t CG_Footsteps(clientInfo_t *ci) {
 		int myteam;
 		clientInfo_t *myself;
 
-		if (cg.snap->ps.pm_flags & PMF_FOLLOW && cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR) {
-			myteam = cgs.clientinfo[cg.snap->ps.clientNum].team;
-			myself = &cgs.clientinfo[cg.snap->ps.clientNum];
-		} else {
-			myteam = cg.snap->ps.persistant[PERS_TEAM];
-			myself = &cgs.clientinfo[cg.clientNum];
-		}
+		myself = &cgs.clientinfo[cg.clientNum];
+		myteam = cg.snap ? cg.snap->ps.persistant[PERS_TEAM] : myself->team;
 
 		if (ci == myself) {
 			footsteps = cg_myFootsteps.integer;
-		} else if ((myteam != TEAM_FREE && ci->team == myteam)) {
+		} else if (CG_IsTeamGametype() && myteam != TEAM_SPECTATOR && ci->team == myteam) {
 			footsteps = cg_teamFootsteps.integer;
-		} else if (((ci->team != myteam) || (myteam == TEAM_FREE && ci != myself))) {
+		} else {
 			footsteps = cg_enemyFootsteps.integer;
 		}
 
