@@ -1135,7 +1135,7 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 
 	if ( cg_forceModel.integer || cg_enemyModel.string[0] || cg_teamModel.string[0] )
 	{
-		if ( cgs.gametype >= GT_TEAM )
+		if ( CG_IsTeamGametype() )
 		{
 			// enemy model
 			if( myTeam != TEAM_SPECTATOR ) {
@@ -1365,7 +1365,7 @@ clientInfo_t *ci;
 	}
 
 	allowNativeModel = qfalse;
-	if ( cgs.gametype < GT_TEAM ) {
+	if ( !CG_IsTeamGametype() ) {
 		if ( !cg.snap || ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_FREE && cg.snap->ps.clientNum == clientNum ) ) {
 			if ( cg.demoPlayback || ( cg.snap && cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
 				allowNativeModel = qtrue;

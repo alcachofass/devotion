@@ -407,7 +407,7 @@ void CG_Draw3DHead( float x, float y, float w, float h, qhandle_t model, qhandle
 	//////////////////////////////////////////////////////////////////////////////////////////
 	//duffman91 - make this a function to catch the headmodel cases....?	
 	// Team Game
-	if ( cgs.gametype >= GT_TEAM ){
+	if ( CG_IsTeamGametype() ){
 		//set starting colors
 		if ( ci->team == TEAM_BLUE ){
 			CG_IntColorToRGBA( 4, ent.shaderRGBA );
