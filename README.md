@@ -6,17 +6,17 @@ Devotion began as a partial conversion of [RatArena](https://github.com/rdntcntr
 
 ## Features
 
-- Unlagged Netcode 
-- Customizable HUDs (import from QL or CPM) 
-- Voteable QL/CPM/VQ3 Movement 
+- Unlagged Netcode
+- Customizable HUDs (import from QL or CPM)
+- Voteable QL/CPM/VQ3 Movement
 - Clan Arena/Elimination/Last Man Standing Gamemodes
-- Enhanced Bots 
-- Demo Autorecording 
-- Enhanced Demo Browser 
-- Alternative Footstep Sounds (Wood/Snow) 
-- Keys & Locked Doors (Elder) 
-- Delagged Demo Playback 
-- Client-Side Hit Sound Prediction
+- Upgraded Bots with more human-like aim and strategic goal pursuit
+- Demo Autorecording and an enhanced demo browser
+- Alternative Footstep Sounds (Wood/Snow)
+- Keys & Locked Doors (for QL levels like Elder)
+- De-lagged Demo Playback
+- Client-side hit prediction and damage-based hit tones
+- Sound Visualization Overlay
 
 ## Installation
 1. Grab the [Latest Release](https://github.com/alcachofass/devotion/releases)
