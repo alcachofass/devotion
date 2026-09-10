@@ -1094,9 +1094,12 @@ static void CG_SetColorInfo( const char *color, clientInfo_t *info )
 	if ( !color[2] )
 		return;
 	CG_ColorFromChar( color[2], info->legsColor );
+}
 
-	// override color1/color2 if specified
-	if ( !color[3] )
+/* Digits 4-5 of cg_enemyColor / cg_teamColor: rail core and spiral. */
+static void CG_SetRailColors( const char *color, clientInfo_t *info )
+{
+	if ( !color || !color[3] )
 		return;
 	CG_ColorFromChar( color[3], info->color1 );
 
@@ -1330,9 +1333,6 @@ clientInfo_t *ci;
 	qboolean enemy = qfalse;
 
 	qboolean allowNativeModel;
-	int myClientNum;
-	team_t team;
-	int len;
 
 	ci = &cgs.clientinfo[clientNum];
 
@@ -1349,19 +1349,6 @@ clientInfo_t *ci;
 	viewerTeam = (team_t)local_team;
 	if ( viewerTeam == TEAM_SPECTATOR && cg.snap ) {
 		viewerTeam = cg.snap->ps.persistant[PERS_TEAM];
-	}
-
-	if ( cg.snap ) {                             //duffman91 - There is something up with this.
-		myClientNum = cg.snap->ps.clientNum;
-		team = ci->team;	
-	} else {
-		myClientNum = cg.clientNum;
-		team = TEAM_SPECTATOR;
-	}
-
-	// "join" team if spectating
-	if ( team == TEAM_SPECTATOR && cg.snap ) {
-		team = cg.snap->ps.persistant[ PERS_TEAM ];
 	}
 
 	allowNativeModel = qfalse;
@@ -1443,17 +1430,6 @@ clientInfo_t *ci;
 	CG_SetSkinAndModel( &newInfo, modelConfig, allowNativeModel, viewerTeam, clientNum, qtrue,
 		newInfo.modelName, sizeof( newInfo.modelName ),	newInfo.skinName, sizeof( newInfo.skinName ) );
 
-	if ( cg_teamColor.string[0] && team != TEAM_SPECTATOR ) {
-		const char *ospColors;
-
-		ospColors = CG_GetTeamColorsOSP( cg_teamColor.string );
-		len = strlen( ospColors );
-		if ( len >= 4 )
-			CG_ColorFromChar( ospColors[3], newInfo.color1 );
-		if ( len >= 5 )
-			CG_ColorFromChar( ospColors[4], newInfo.color2 );
-	}
-
 	if (CG_IsTeamGametype()) {
 		if (local_team != newInfo.team)
 			enemy = 1;
@@ -1464,6 +1440,16 @@ clientInfo_t *ci;
 			enemy = 0;
 		} else {
 			enemy = 1;
+		}
+	}
+
+	/* Local player keeps userinfo color1/color2. Enemies/teammates use
+	 * cg_enemyColor / cg_teamColor digits 4-5 when present. */
+	if ( clientNum != cg.clientNum ) {
+		if ( enemy && cg_enemyColor.string[0] ) {
+			CG_SetRailColors( cg_enemyColor.string, &newInfo );
+		} else if ( !enemy && CG_IsTeamGametype() && cg_teamColor.string[0] ) {
+			CG_SetRailColors( cg_teamColor.string, &newInfo );
 		}
 	}
 
