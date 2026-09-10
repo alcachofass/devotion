@@ -404,49 +404,39 @@ void CG_Draw3DHead( float x, float y, float w, float h, qhandle_t model, qhandle
 	}
 	*/
 
-	//////////////////////////////////////////////////////////////////////////////////////////
-	//duffman91 - make this a function to catch the headmodel cases....?	
-	// Team Game
-	if ( CG_IsTeamGametype() ){
-		//set starting colors
+	if ( ci == &cgs.clientinfo[cg.clientNum] ) {
+		ent.shaderRGBA[0] = (byte)(ci->headColor[0] * 255);
+		ent.shaderRGBA[1] = (byte)(ci->headColor[1] * 255);
+		ent.shaderRGBA[2] = (byte)(ci->headColor[2] * 255);
+		ent.shaderRGBA[3] = 255;
+	} else if ( CG_IsTeamGametype() ){
+		int myteam = (cg.snap) ? cg.snap->ps.persistant[PERS_TEAM] : TEAM_SPECTATOR;
+
 		if ( ci->team == TEAM_BLUE ){
 			CG_IntColorToRGBA( 4, ent.shaderRGBA );
 		}
 		else if ( ci->team == TEAM_RED ){
 			CG_IntColorToRGBA( 1, ent.shaderRGBA );
 		}
-		else {             // spectators are set to white
+		else {
 			CG_IntColorToRGBA( 7, ent.shaderRGBA );
 		}
-		
-		// set enemy & team colors if available
-		if ( cg_enemyColor.string[0] ){
-			char colorNumEnemy = cg_enemyColor.string[0];
 
-			if ( ci-> team != cg.snap->ps.persistant[PERS_TEAM] && cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR){
-				CG_IntColorToRGBA( atoi(&colorNumEnemy), ent.shaderRGBA ); 
-			}	
+		if ( myteam != TEAM_SPECTATOR ){
+			if ( ci->team != myteam && cg_enemyColor.string[0] ){
+				CG_IntColorToRGBA( cg_enemyColor.string[0] - '0', ent.shaderRGBA );
+			} else if ( ci->team == myteam && cg_teamColor.string[0] ){
+				CG_IntColorToRGBA( cg_teamColor.string[0] - '0', ent.shaderRGBA );
+			}
 		}
-		
-		if ( cg_teamColor.string[0] ){
-			char colorNumTeam = cg_teamColor.string[0];
-
-			if ( ci-> team == cg.snap->ps.persistant[PERS_TEAM] && cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR){
-				CG_IntColorToRGBA( atoi(&colorNumTeam), ent.shaderRGBA ); 
-			}	
-		}
-	}
-	// Not Team Game
-	else{
+	} else {
 		if ( cg_enemyColor.string[0] ){
-			char colorNum = cg_enemyColor.string[0];
-			CG_IntColorToRGBA ( atoi(&colorNum), ent.shaderRGBA );
+			CG_IntColorToRGBA( cg_enemyColor.string[0] - '0', ent.shaderRGBA );
 		}
 		else{
-			CG_IntColorToRGBA ( 7, ent.shaderRGBA );
+			CG_IntColorToRGBA( 7, ent.shaderRGBA );
 		}
-	}	
-	/////////////////////////////////////////////////////////////////////////////////////////
+	}
 
 	refdef.rdflags = RDF_NOWORLDMODEL;
 

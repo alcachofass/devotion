@@ -90,13 +90,8 @@ sfxHandle_t	CG_CustomSound( int clientNum, const char *soundName ) {
 	int myteam;
 	clientInfo_t *myself;
 
-	if (cg.snap->ps.pm_flags & PMF_FOLLOW && cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR) {
-		myteam = cgs.clientinfo[cg.snap->ps.clientNum].team;
-		myself = &cgs.clientinfo[cg.snap->ps.clientNum];
-	} else {
-		myteam = cg.snap->ps.persistant[PERS_TEAM];
-		myself = &cgs.clientinfo[cg.clientNum];
-	}
+	myself = &cgs.clientinfo[cg.clientNum];
+	myteam = cg.snap ? cg.snap->ps.persistant[PERS_TEAM] : myself->team;
 
 	if ( soundName[0] != '*' ) {
 		return trap_S_RegisterSound( soundName, qfalse );
@@ -110,14 +105,17 @@ sfxHandle_t	CG_CustomSound( int clientNum, const char *soundName ) {
 	for ( i = 0 ; i < MAX_CUSTOM_SOUNDS && cg_customSoundNames[i] ; i++ ) {
 		if ( !strcmp( soundName, cg_customSoundNames[i] ) ) {
 			if ((cgs.ratFlags & RAT_ALLOWFORCEDMODELS)) {
-				if (ci == myself && cgs.mySounds[i]) {
-					return cgs.mySounds[i];
-				} else if ((myteam != TEAM_FREE && ci->team == myteam) && cgs.teamSounds[i]) {
+				if (ci == myself) {
+					if (cgs.mySounds[i]) {
+						return cgs.mySounds[i];
+					}
+				} else if (CG_IsTeamGametype() && myteam != TEAM_SPECTATOR
+						&& ci->team == myteam && cgs.teamSounds[i]) {
 					return cgs.teamSounds[i];
-				} else if (((ci->team != myteam) || (myteam == TEAM_FREE && ci != myself)) && cgs.enemySounds[i]) {
+				} else if (cgs.enemySounds[i]) {
 					return cgs.enemySounds[i];
 				}
-			} 
+			}
 			return ci->sounds[i];
 		}
 	}
@@ -1168,7 +1166,7 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 
 				} 
 				
-				if ( cg_teamModel.string[0] && currentTeam == myTeam ) {
+				if ( cg_teamModel.string[0] && currentTeam == myTeam && clientNum != cg.clientNum ) {
 					if ( cg_teamColor.string[0] ){
 						colors = CG_GetTeamColorsOSP( cg_teamColor.string );
 						CG_SetColorInfo( colors, newInfo );
@@ -1267,7 +1265,7 @@ static void CG_SetSkinAndModel( clientInfo_t *newInfo,
 				} 
 
 		} else { // not team game
-			if ( cg_enemyColor.string[0] ){
+			if ( cg_enemyColor.string[0] && clientNum != cg.clientNum ){
 				colors = CG_GetTeamColorsOSP( cg_enemyColor.string );
 				CG_SetColorInfo( colors, newInfo );
 				newInfo->coloredSkin = qtrue;
@@ -1331,6 +1329,7 @@ clientInfo_t *ci;
 	int 	local_team;
 	team_t	viewerTeam;
 	qboolean enemy = qfalse;
+	qboolean useForcedModel;
 
 	qboolean allowNativeModel;
 
@@ -1347,9 +1346,6 @@ clientInfo_t *ci;
 	local_team = atoi(v);
 
 	viewerTeam = (team_t)local_team;
-	if ( viewerTeam == TEAM_SPECTATOR && cg.snap ) {
-		viewerTeam = cg.snap->ps.persistant[PERS_TEAM];
-	}
 
 	allowNativeModel = qfalse;
 	if ( !CG_IsTeamGametype() ) {
@@ -1366,6 +1362,9 @@ clientInfo_t *ci;
 
 	newInfo.forcedModel = qfalse;
 	newInfo.forcedBrightModel = qfalse;
+	VectorSet( newInfo.headColor, 1.0f, 1.0f, 1.0f );
+	VectorSet( newInfo.bodyColor, 1.0f, 1.0f, 1.0f );
+	VectorSet( newInfo.legsColor, 1.0f, 1.0f, 1.0f );
 
 #ifdef WITH_MULTITOURNAMENT
 	// gameId for GT_MULTITOURNAMENT
@@ -1431,21 +1430,15 @@ clientInfo_t *ci;
 		newInfo.modelName, sizeof( newInfo.modelName ),	newInfo.skinName, sizeof( newInfo.skinName ) );
 
 	if (CG_IsTeamGametype()) {
-		if (local_team != newInfo.team)
-			enemy = 1;
-		else
-			enemy = 0;
+		enemy = ( local_team != TEAM_SPECTATOR && local_team != newInfo.team );
 	} else {
-		if (cg.clientNum == clientNum) {
-			enemy = 0;
-		} else {
-			enemy = 1;
-		}
+		enemy = ( cg.clientNum != clientNum );
 	}
 
 	/* Local player keeps userinfo color1/color2. Enemies/teammates use
-	 * cg_enemyColor / cg_teamColor digits 4-5 when present. */
-	if ( clientNum != cg.clientNum ) {
+	 * cg_enemyColor / cg_teamColor digits 4-5 when present. Spectating a
+	 * team game leaves each player's own rail colors. */
+	if ( clientNum != cg.clientNum && local_team != TEAM_SPECTATOR ) {
 		if ( enemy && cg_enemyColor.string[0] ) {
 			CG_SetRailColors( cg_enemyColor.string, &newInfo );
 		} else if ( !enemy && CG_IsTeamGametype() && cg_teamColor.string[0] ) {
@@ -1453,10 +1446,16 @@ clientInfo_t *ci;
 		}
 	}
 
-	if (cgs.ratFlags & RAT_ALLOWFORCEDMODELS && 
-			(  (!enemy && cg_teamModel.string[0]) ||
-			   ( enemy && cg_enemyModel.string[0])
-			)) {
+	/* Never force enemy/team models onto the local player. In FFA, team
+	 * model must not apply to self either. Spectating a team game keeps
+	 * native models (red/blue colors come from CG_SetSkinAndModel). */
+	useForcedModel = (cgs.ratFlags & RAT_ALLOWFORCEDMODELS)
+		&& clientNum != cg.clientNum
+		&& !( CG_IsTeamGametype() && local_team == TEAM_SPECTATOR )
+		&& ( ( enemy && cg_enemyModel.string[0] )
+			|| ( !enemy && CG_IsTeamGametype() && cg_teamModel.string[0] ) );
+
+	if (useForcedModel) {
 		if (enemy) {
 			Q_strncpyz( newInfo.modelName, cg_enemyModel.string, sizeof( newInfo.modelName ) );
 		} else {
@@ -1538,10 +1537,7 @@ clientInfo_t *ci;
 	CG_SetSkinAndModel( &newInfo, headModelConfig, allowNativeModel, viewerTeam, clientNum, qtrue,
 		newInfo.headModelName, sizeof( newInfo.headModelName ),	newInfo.headSkinName, sizeof( newInfo.headSkinName ) );
 
-	if (cgs.ratFlags & RAT_ALLOWFORCEDMODELS && 
-			(  (!enemy && cg_teamModel.string[0]) ||
-			   ( enemy && cg_enemyModel.string[0])
-			)) {
+	if (useForcedModel) {
 		if (enemy) {
 			Q_strncpyz( newInfo.headModelName, cg_enemyModel.string, sizeof( newInfo.headModelName ) );
 		} else {
