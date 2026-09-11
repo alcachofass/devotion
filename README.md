@@ -26,6 +26,10 @@ Devotion began as a partial conversion of [RatArena](https://github.com/rdntcntr
 
 **Note:** We recommend starting from a clean mod folder during upgrades.
 
+Development builds are published as prereleases for every push to `main` or `develop`.
+They are available from the [releases page](https://github.com/alcachofass/devotion/releases)
+alongside the stable releases.
+
 ### Alternative method
 1. Load Quake 3 (Quake3e or IOQ3 client recommended)
 2. Pull down the console (`~` key, generally found below `ESC` on a US QWERTY keyboard layout)

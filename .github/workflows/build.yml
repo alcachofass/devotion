@@ -65,3 +65,22 @@ jobs:
             build/SHA256SUMS
           draft: false
           prerelease: false
+
+      - name: Publish development release
+        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: development-${{ github.sha }}
+          target_commitish: ${{ github.sha }}
+          name: Development build ${{ github.sha }}
+          body: |
+            Development build from `${{ github.ref_name }}` at `${{ github.sha }}`.
+
+            This prerelease is generated automatically from every branch push.
+          files: |
+            build/*.pk3
+            build/SHA256SUMS
+          draft: false
+          prerelease: true
+          make_latest: false
+          generate_release_notes: false
