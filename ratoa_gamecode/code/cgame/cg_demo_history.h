@@ -27,5 +27,6 @@ void CG_DemoHistory_BeginHitscanRewind( int rewindToServerTime, int skipEntityNu
 void CG_DemoHistory_EndHitscanRewind( void );
 void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( struct centity_s *cent );
 qboolean CG_DemoHistory_AdjustMissileLerpForDemoDelag( struct centity_s *cent );
+qboolean CG_DemoHistory_SkipPlayerDraw( struct centity_s *cent );
 
 #endif

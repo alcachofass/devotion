@@ -1235,6 +1235,9 @@ static void CG_AddCEntity( centity_t *cent ) {
 	if ( cent->demoDelagMissileNotYet && cent->currentState.eType == ET_MISSILE ) {
 		return;
 	}
+	if ( CG_DemoHistory_SkipPlayerDraw( cent ) ) {
+		return;
+	}
 
 	swappedDrawState = qfalse;
 	if ( cent->demoDelagDrawStateValid && cent->currentState.eType == ET_PLAYER ) {
