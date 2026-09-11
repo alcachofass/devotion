@@ -198,7 +198,14 @@ qboolean CG_DemoHistory_DelayPlayerTeleportEvent( int clientNum, int event, cons
 	slot = &cg_demoDelayedTele[cg_demoDelayedTeleCount++];
 	slot->snapServerTime = cg.snap->serverTime;
 	slot->event = event;
-	slot->soundEntityNum = ( clientNum >= 0 && clientNum < MAX_CLIENTS ) ? clientNum : ENTITYNUM_WORLD;
+	/* Tele-out is a world cue at the entrance; do not bind it to the player. */
+	if ( event == EV_PLAYER_TELEPORT_OUT ) {
+		slot->soundEntityNum = ENTITYNUM_WORLD;
+	} else if ( clientNum >= 0 && clientNum < MAX_CLIENTS ) {
+		slot->soundEntityNum = clientNum;
+	} else {
+		slot->soundEntityNum = ENTITYNUM_WORLD;
+	}
 	VectorCopy( origin, slot->origin );
 	return qtrue;
 }
