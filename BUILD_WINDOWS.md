@@ -58,7 +58,7 @@ Artifacts:
 From the repo root in **PowerShell** (with MSYS2 on `PATH`, or `msys2_shell.cmd` available):
 
 ```powershell
-.\build_windows.ps1              # build only
+.\build_windows.ps1              # make clean, then parallel build
 .\build_windows.ps1 -Deploy      # build, then copy PK3 to test\devotion\
 .\build_windows.ps1 -NoBuild -Deploy   # deploy only (PK3 already built)
 .\build_windows.ps1 -Quiet       # suppress per-file compile lines and config banner (warnings/errors still print)

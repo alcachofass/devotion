@@ -1051,7 +1051,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		if ( CG_DemoHistory_DelayPlayerTeleportEvent( es->clientNum, EV_PLAYER_TELEPORT_OUT, position ) ) {
 			break;
 		}
-		trap_S_StartSound (NULL, es->number, CHAN_AUTO, cgs.media.teleOutSound );
+		trap_S_StartSound (position, es->number, CHAN_AUTO, cgs.media.teleOutSound );
 		CG_SpawnEffect(  position);
 		break;
 	

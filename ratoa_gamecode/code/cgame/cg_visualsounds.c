@@ -5,7 +5,7 @@
 #define VS_LABEL_LEN		8
 #define VS_GROW_MS		158
 #define VS_HOLD_MS		735
-#define VS_SHRINK_MS		315
+#define VS_SHRINK_MS		473
 #define VS_FADE_MS		( VS_GROW_MS + VS_HOLD_MS + VS_SHRINK_MS )
 #define VS_LOOP_HOLD_MS		80
 #define VS_RANGE		1800.0f
@@ -40,6 +40,7 @@ typedef struct {
 	vec3_t		rgb;
 	vec3_t		origin;
 	qboolean	dim;
+	qboolean	playerFire;
 	qboolean	yawValid;
 	float		worldYaw;
 } vsCue_t;
@@ -217,6 +218,33 @@ static qboolean VS_SfxIsWeaponHum( sfxHandle_t sfx, int *weaponOut ) {
 		if ( ( wi->readySound && wi->readySound == sfx )
 				|| ( wi->firingSound && wi->firingSound == sfx ) ) {
 			*weaponOut = w;
+			return qtrue;
+		}
+	}
+	return qfalse;
+}
+
+static qboolean VS_SfxIsPlayerFire( sfxHandle_t sfx ) {
+	int		w, i;
+	weaponInfo_t	*wi;
+
+	if ( !sfx ) {
+		return qfalse;
+	}
+	if ( sfx == cgs.media.vsGrappleFireSound || sfx == cgs.media.vsGrapplePullSound ) {
+		return qtrue;
+	}
+	for ( w = WP_GAUNTLET; w < WP_NUM_WEAPONS; w++ ) {
+		wi = &cg_weapons[w];
+		if ( !wi->registered ) {
+			continue;
+		}
+		for ( i = 0; i < 4; i++ ) {
+			if ( wi->flashSound[i] && wi->flashSound[i] == sfx ) {
+				return qtrue;
+			}
+		}
+		if ( wi->firingSound && wi->firingSound == sfx ) {
 			return qtrue;
 		}
 	}
@@ -650,11 +678,17 @@ static int VS_RingClass( vsKind_t kind, const char *label ) {
 	return 2;
 }
 
-static int VS_Priority( vsKind_t kind, const char *label, qboolean dim, qboolean looping ) {
+static int VS_Priority( vsKind_t kind, const char *label, qboolean dim, qboolean looping, qboolean playerFire ) {
 	if ( kind == VS_WORLD ) {
 		return 50;
 	}
-	if ( !Q_stricmp( label, "STEP" ) || !Q_stricmp( label, "SWAP" ) ) {
+	if ( !Q_stricmp( label, "STEP" ) ) {
+		return 90;
+	}
+	if ( playerFire ) {
+		return 80;
+	}
+	if ( !Q_stricmp( label, "SWAP" ) ) {
 		return 6;
 	}
 	if ( !Q_stricmp( label, "JUMP" ) || !Q_stricmp( label, "LAND" ) || !Q_stricmp( label, "FALL" )
@@ -719,7 +753,72 @@ static void VS_ContinueChain( vsCue_t *cue, qboolean newLooping, int entityNum, 
 	cue->startTime = oldStart;
 }
 
-static vsCue_t *VS_AcquireCue( int entityNum, const char *label, qboolean looping, vsKind_t kind, qboolean dim, const vec3_t origin, qboolean *rejected ) {
+static qboolean VS_IsStepLabel( const char *label ) {
+	return ( label && !Q_stricmp( label, "STEP" ) );
+}
+
+static qboolean VS_EntityHasNonStepCue( int entityNum ) {
+	int	i;
+
+	if ( entityNum < 0 || entityNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	for ( i = 0; i < VS_MAX_CUES; i++ ) {
+		if ( vsCues[i].active && vsCues[i].entityNum == entityNum
+				&& !VS_IsStepLabel( vsCues[i].label ) ) {
+			return qtrue;
+		}
+	}
+	return qfalse;
+}
+
+static qboolean VS_EntityHasOtherCue( int entityNum ) {
+	int	i;
+
+	if ( entityNum < 0 || entityNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	for ( i = 0; i < VS_MAX_CUES; i++ ) {
+		if ( !vsCues[i].active || vsCues[i].entityNum != entityNum ) {
+			continue;
+		}
+		if ( VS_IsStepLabel( vsCues[i].label ) || vsCues[i].playerFire ) {
+			continue;
+		}
+		return qtrue;
+	}
+	return qfalse;
+}
+
+static void VS_DropStepCuesForEntity( int entityNum ) {
+	int	i;
+
+	if ( entityNum < 0 || entityNum >= MAX_CLIENTS ) {
+		return;
+	}
+	for ( i = 0; i < VS_MAX_CUES; i++ ) {
+		if ( vsCues[i].active && vsCues[i].entityNum == entityNum
+				&& VS_IsStepLabel( vsCues[i].label ) ) {
+			vsCues[i].active = qfalse;
+		}
+	}
+}
+
+static void VS_DropFireCuesForEntity( int entityNum ) {
+	int	i;
+
+	if ( entityNum < 0 || entityNum >= MAX_CLIENTS ) {
+		return;
+	}
+	for ( i = 0; i < VS_MAX_CUES; i++ ) {
+		if ( vsCues[i].active && vsCues[i].entityNum == entityNum
+				&& vsCues[i].playerFire ) {
+			vsCues[i].active = qfalse;
+		}
+	}
+}
+
+static vsCue_t *VS_AcquireCue( int entityNum, const char *label, qboolean looping, vsKind_t kind, qboolean dim, qboolean playerFire, const vec3_t origin, qboolean *rejected ) {
 	int		i;
 	int		prio;
 	int		oldPrio;
@@ -730,7 +829,25 @@ static vsCue_t *VS_AcquireCue( int entityNum, const char *label, qboolean loopin
 	vsCue_t		*freeSlot;
 
 	*rejected = qfalse;
-	prio = VS_Priority( kind, label, dim, looping );
+	prio = VS_Priority( kind, label, dim, looping, playerFire );
+
+	if ( entityNum >= 0 && entityNum < MAX_CLIENTS ) {
+		if ( VS_IsStepLabel( label ) ) {
+			if ( VS_EntityHasNonStepCue( entityNum ) ) {
+				*rejected = qtrue;
+				return NULL;
+			}
+		} else if ( playerFire ) {
+			VS_DropStepCuesForEntity( entityNum );
+			if ( VS_EntityHasOtherCue( entityNum ) ) {
+				*rejected = qtrue;
+				return NULL;
+			}
+		} else if ( kind != VS_WORLD ) {
+			VS_DropStepCuesForEntity( entityNum );
+			VS_DropFireCuesForEntity( entityNum );
+		}
+	}
 
 	for ( i = 0; i < VS_MAX_CUES; i++ ) {
 		if ( vsCues[i].active && vsCues[i].entityNum == entityNum
@@ -752,7 +869,7 @@ static vsCue_t *VS_AcquireCue( int entityNum, const char *label, qboolean loopin
 					!= VS_RingClass( kind, label ) ) {
 				continue;
 			}
-			oldPrio = VS_Priority( vsCues[i].kind, vsCues[i].label, vsCues[i].dim, vsCues[i].looping );
+			oldPrio = VS_Priority( vsCues[i].kind, vsCues[i].label, vsCues[i].dim, vsCues[i].looping, vsCues[i].playerFire );
 			if ( prio > oldPrio ) {
 				*rejected = qtrue;
 				return NULL;
@@ -850,6 +967,7 @@ void CG_VisualSounds_Note( const vec3_t origin, int entityNum, sfxHandle_t sfx, 
 	vec3_t		rgb;
 	qhandle_t	icon;
 	qboolean	dim;
+	qboolean	playerFire;
 	qboolean	rejected;
 	vsCue_t		*cue;
 
@@ -869,7 +987,14 @@ void CG_VisualSounds_Note( const vec3_t origin, int entityNum, sfxHandle_t sfx, 
 		return;
 	}
 
-	cue = VS_AcquireCue( entityNum, label, looping, kind, dim, org, &rejected );
+	/* Pin teleporter entrance to the world so the icon cannot follow the player to the exit. */
+	if ( kind == VS_WORLD && !Q_stricmp( label, "TELE" ) ) {
+		entityNum = ENTITYNUM_WORLD;
+	}
+
+	playerFire = ( entityNum >= 0 && entityNum < MAX_CLIENTS && VS_SfxIsPlayerFire( sfx ) );
+
+	cue = VS_AcquireCue( entityNum, label, looping, kind, dim, playerFire, org, &rejected );
 	if ( rejected || !cue ) {
 		return;
 	}
@@ -880,6 +1005,7 @@ void CG_VisualSounds_Note( const vec3_t origin, int entityNum, sfxHandle_t sfx, 
 	cue->kind = kind;
 	cue->icon = icon;
 	cue->dim = dim;
+	cue->playerFire = playerFire;
 	VectorCopy( rgb, cue->rgb );
 	Q_strncpyz( cue->label, label, sizeof( cue->label ) );
 	VectorCopy( org, cue->origin );
@@ -905,7 +1031,7 @@ void CG_VisualSounds_NoteExplosion( const vec3_t origin, int clientNum, int weap
 	Q_strncpyz( label, "BOOM", sizeof( label ) );
 	VS_SetRgb( rgb, 1.00f, 1.00f, 1.00f );
 
-	cue = VS_AcquireCue( clientNum, label, qfalse, VS_WEAPON, qfalse, origin, &rejected );
+	cue = VS_AcquireCue( clientNum, label, qfalse, VS_WEAPON, qfalse, qfalse, origin, &rejected );
 	if ( rejected || !cue ) {
 		return;
 	}
@@ -915,6 +1041,7 @@ void CG_VisualSounds_NoteExplosion( const vec3_t origin, int clientNum, int weap
 	cue->entityNum = clientNum;
 	cue->kind = VS_WEAPON;
 	cue->dim = qfalse;
+	cue->playerFire = qfalse;
 	cue->icon = cgs.media.vsExplosionIcon;
 	VectorCopy( rgb, cue->rgb );
 	Q_strncpyz( cue->label, label, sizeof( cue->label ) );
@@ -1111,7 +1238,7 @@ void CG_DrawVisualSounds( void ) {
 		icon = 0;
 		rStart[nRoot] = vsCues[i].startTime;
 		rCue[nRoot] = i;
-		rPrio[nRoot] = VS_Priority( vsCues[i].kind, vsCues[i].label, vsCues[i].dim, vsCues[i].looping );
+		rPrio[nRoot] = VS_Priority( vsCues[i].kind, vsCues[i].label, vsCues[i].dim, vsCues[i].looping, vsCues[i].playerFire );
 		rEnt[nRoot] = vsCues[i].entityNum;
 		rLabel[nRoot] = vsCues[i].label;
 		rColor[nRoot][0] = rColor[nRoot][1] = rColor[nRoot][2] = 1.0f;
@@ -1142,7 +1269,7 @@ void CG_DrawVisualSounds( void ) {
 			if ( vsCues[j].startTime < rStart[nRoot] ) {
 				rStart[nRoot] = vsCues[j].startTime;
 			}
-			t = VS_Priority( vsCues[j].kind, vsCues[j].label, vsCues[j].dim, vsCues[j].looping );
+			t = VS_Priority( vsCues[j].kind, vsCues[j].label, vsCues[j].dim, vsCues[j].looping, vsCues[j].playerFire );
 			if ( t < rPrio[nRoot] ) {
 				rPrio[nRoot] = t;
 			}

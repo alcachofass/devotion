@@ -44,9 +44,33 @@ typedef struct {
 static demoDelayedTele_t cg_demoDelayedTele[CG_DEMO_DELAYED_TELE_CAP];
 static int cg_demoDelayedTeleCount;
 
+/*
+ * Witnessed tele times, kept after FX fire so pose sampling still knows T
+ * when the player is missing from the teleport snapshot (exit out of PVS).
+ */
+#define CG_DEMO_WITNESSED_TELE_CAP 32
+
+typedef struct {
+	int		clientNum;
+	int		snapServerTime;
+} demoWitnessedTele_t;
+
+static demoWitnessedTele_t cg_demoWitnessedTele[CG_DEMO_WITNESSED_TELE_CAP];
+static int cg_demoWitnessedTeleCount;
+static qboolean cg_demoDelagPlayerGone[MAX_CLIENTS];
+
 static int demoDelagPingRawAlongInterpolation( void );
 static qboolean demoDelagResolvePingMs( int *outPing );
 static void demoDelagFlushDelayedTeleports( void );
+static void demoDelagNoteWitnessedTele( int clientNum, int snapServerTime );
+static void demoDelagPruneWitnessedTeles( void );
+static int demoDelagNextSnapTimeAfter( int t );
+static int demoDelagFirstTeleportHistoryTime( int entityNum, int flagsLo, int tLo, int tHi );
+static int demoDelagTeleportSwitchTime( int entityNum, int flagsLo, int tLo, int tHi );
+static int demoDelagLatestWitnessedTeleAtOrBefore( int clientNum, int t );
+static qboolean demoDelagEntityFlagsBefore( int entityNum, int t, int *outFlags );
+static qboolean demoDelagIsPostTeleFlags( int entityNum, int flags, int teleTime );
+static void demoDelagHidePlayerVisual( centity_t *cent );
 
 void CG_DemoHistory_Clear( void ) {
 	int i;
@@ -56,7 +80,9 @@ void CG_DemoHistory_Clear( void ) {
 	cg_demoHistoryLastServerTime = -1;
 	cg_demoRewindSaveCount = 0;
 	cg_demoDelayedTeleCount = 0;
+	cg_demoWitnessedTeleCount = 0;
 	cg_demoDelagPingSmoothed = -1;
+	Com_Memset( cg_demoDelagPlayerGone, 0, sizeof( cg_demoDelagPlayerGone ) );
 	for ( i = 0; i < MAX_GENTITIES; i++ ) {
 		cg_entities[i].demoDelagVisualCached = qfalse;
 		cg_entities[i].demoDelagDrawStateValid = qfalse;
@@ -93,6 +119,7 @@ void CG_DemoHistory_Frame( void ) {
 		cg_demoDelagPingSmoothed = -1;
 	}
 	cg_demoHistoryPrevPlayback = cg.demoPlayback;
+	demoDelagPruneWitnessedTeles();
 	demoDelagFlushDelayedTeleports();
 }
 
@@ -161,6 +188,9 @@ qboolean CG_DemoHistory_DelayPlayerTeleportEvent( int clientNum, int event, cons
 	if ( clientNum == cg.predictedPlayerState.clientNum || !demoDelagResolvePingMs( &ping ) ) {
 		return qfalse;
 	}
+
+	demoDelagNoteWitnessedTele( clientNum, cg.snap->serverTime );
+
 	if ( cg_demoDelayedTeleCount >= CG_DEMO_DELAYED_TELE_CAP ) {
 		return qtrue;
 	}
@@ -168,7 +198,14 @@ qboolean CG_DemoHistory_DelayPlayerTeleportEvent( int clientNum, int event, cons
 	slot = &cg_demoDelayedTele[cg_demoDelayedTeleCount++];
 	slot->snapServerTime = cg.snap->serverTime;
 	slot->event = event;
-	slot->soundEntityNum = ( clientNum >= 0 && clientNum < MAX_CLIENTS ) ? clientNum : ENTITYNUM_WORLD;
+	/* Tele-out is a world cue at the entrance; do not bind it to the player. */
+	if ( event == EV_PLAYER_TELEPORT_OUT ) {
+		slot->soundEntityNum = ENTITYNUM_WORLD;
+	} else if ( clientNum >= 0 && clientNum < MAX_CLIENTS ) {
+		slot->soundEntityNum = clientNum;
+	} else {
+		slot->soundEntityNum = ENTITYNUM_WORLD;
+	}
 	VectorCopy( origin, slot->origin );
 	return qtrue;
 }
@@ -352,6 +389,73 @@ static void demoDelagFlushDelayedTeleports( void ) {
 	cg_demoDelayedTeleCount = kept;
 }
 
+static void demoDelagNoteWitnessedTele( int clientNum, int snapServerTime ) {
+	int i;
+	demoWitnessedTele_t *slot;
+
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS || snapServerTime <= 0 ) {
+		return;
+	}
+	for ( i = 0; i < cg_demoWitnessedTeleCount; i++ ) {
+		if ( cg_demoWitnessedTele[i].clientNum == clientNum
+			&& cg_demoWitnessedTele[i].snapServerTime == snapServerTime ) {
+			return;
+		}
+	}
+	if ( cg_demoWitnessedTeleCount >= CG_DEMO_WITNESSED_TELE_CAP ) {
+		for ( i = 0; i < CG_DEMO_WITNESSED_TELE_CAP - 1; i++ ) {
+			cg_demoWitnessedTele[i] = cg_demoWitnessedTele[i + 1];
+		}
+		cg_demoWitnessedTeleCount = CG_DEMO_WITNESSED_TELE_CAP - 1;
+	}
+	slot = &cg_demoWitnessedTele[cg_demoWitnessedTeleCount++];
+	slot->clientNum = clientNum;
+	slot->snapServerTime = snapServerTime;
+}
+
+static void demoDelagPruneWitnessedTeles( void ) {
+	int i, kept, oldest;
+	const snapshot_t *sn;
+
+	if ( cg_demoWitnessedTeleCount <= 0 ) {
+		return;
+	}
+	oldest = 0;
+	if ( CG_DemoHistory_GetCount() > 0 ) {
+		sn = CG_DemoHistory_GetByFramesAgo( CG_DemoHistory_GetCount() - 1 );
+		if ( sn ) {
+			oldest = sn->serverTime;
+		}
+	}
+	kept = 0;
+	for ( i = 0; i < cg_demoWitnessedTeleCount; i++ ) {
+		if ( oldest > 0 && cg_demoWitnessedTele[i].snapServerTime < oldest ) {
+			continue;
+		}
+		cg_demoWitnessedTele[kept++] = cg_demoWitnessedTele[i];
+	}
+	cg_demoWitnessedTeleCount = kept;
+}
+
+static int demoDelagLatestWitnessedTeleAtOrBefore( int clientNum, int t ) {
+	int i, best;
+
+	best = -1;
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return -1;
+	}
+	for ( i = 0; i < cg_demoWitnessedTeleCount; i++ ) {
+		if ( cg_demoWitnessedTele[i].clientNum != clientNum ) {
+			continue;
+		}
+		if ( cg_demoWitnessedTele[i].snapServerTime <= t
+			&& cg_demoWitnessedTele[i].snapServerTime > best ) {
+			best = cg_demoWitnessedTele[i].snapServerTime;
+		}
+	}
+	return best;
+}
+
 static int demoDelagAttackerSampleTime( int attackServerTime ) {
 	int ping;
 
@@ -403,7 +507,7 @@ static void entityPoseFromBracket( int entityNum, int evalTime, const snapshot_t
 		}
 		/* Respawn and teleporters flip EF_TELEPORT_BIT; do not lerp through the world. */
 		if ( demoDelagEFlagsTeleported( esLo.eFlags, esHi.eFlags ) ) {
-			if ( frac < 1.0f ) {
+			if ( evalTime < demoDelagTeleportSwitchTime( entityNum, esLo.eFlags, sOld->serverTime, sNew->serverTime ) ) {
 				demoDelagEvalEsPose( &esLo, sOld->serverTime, outOrigin, outAnglesOpt, outSolidOpt, outEFlagsOpt, outEsOpt );
 			} else {
 				demoDelagEvalEsPose( &esHi, sNew->serverTime, outOrigin, outAnglesOpt, outSolidOpt, outEFlagsOpt, outEsOpt );
@@ -437,6 +541,18 @@ static void entityPoseFromBracket( int entityNum, int evalTime, const snapshot_t
 		return;
 	}
 	if ( hasLo ) {
+		int witnessedTele;
+
+		/*
+		 * After a witnessed tele, do not keep evaluating the last pre-tele
+		 * pose once delayed time has passed the tele snap.
+		 */
+		witnessedTele = ( entityNum >= 0 && entityNum < MAX_CLIENTS )
+			? demoDelagLatestWitnessedTeleAtOrBefore( entityNum, evalTime ) : -1;
+		if ( witnessedTele > sOld->serverTime && evalTime >= witnessedTele ) {
+			*outOk = qfalse;
+			return;
+		}
 		demoDelagEvalEsPose( &esLo, evalTime, outOrigin, outAnglesOpt, outSolidOpt, outEFlagsOpt, outEsOpt );
 		*outOk = qtrue;
 	} else if ( hasHi ) {
@@ -556,7 +672,7 @@ static qboolean demoDelagPoseFromHistoryEnvelope( int entityNum, int tHist, vec3
 		}
 		frac = (float)( tHist - tlo ) / (float)( thi - tlo );
 		if ( demoDelagEFlagsTeleported( esLo.eFlags, esHi.eFlags ) ) {
-			if ( frac < 1.0f ) {
+			if ( tHist < demoDelagTeleportSwitchTime( entityNum, esLo.eFlags, tlo, thi ) ) {
 				demoDelagEvalEsPose( &esLo, tlo, outOrigin, outAngles, NULL, outEFlags, outEs );
 			} else {
 				demoDelagEvalEsPose( &esHi, thi, outOrigin, outAngles, NULL, outEFlags, outEs );
@@ -582,6 +698,13 @@ static qboolean demoDelagPoseFromHistoryEnvelope( int entityNum, int tHist, vec3
 		return qtrue;
 	}
 	if ( hasLo ) {
+		int witnessedTele;
+
+		witnessedTele = ( entityNum >= 0 && entityNum < MAX_CLIENTS )
+			? demoDelagLatestWitnessedTeleAtOrBefore( entityNum, tHist ) : -1;
+		if ( snLo && witnessedTele > snLo->serverTime && tHist >= witnessedTele ) {
+			return qfalse;
+		}
 		demoDelagEvalEsPose( &esLo, tHist, outOrigin, outAngles, NULL, outEFlags, outEs );
 		return qtrue;
 	}
@@ -657,6 +780,44 @@ static void demoDelagApplyVisual( centity_t *cent, const vec3_t origin, const ve
 	cent->demoDelagLastVisualEFlagsValid = qtrue;
 }
 
+static void demoDelagHidePlayerVisual( centity_t *cent ) {
+	int n;
+
+	n = cent->currentState.number;
+	if ( n >= 0 && n < MAX_CLIENTS ) {
+		cg_demoDelagPlayerGone[n] = qtrue;
+	}
+	cent->demoDelagVisualCached = qfalse;
+	cent->demoDelagDrawStateValid = qfalse;
+}
+
+qboolean CG_DemoHistory_SkipPlayerDraw( centity_t *cent ) {
+	int n;
+
+	if ( !cent || cent->currentState.eType != ET_PLAYER ) {
+		return qfalse;
+	}
+	n = cent->currentState.number;
+	if ( n < 0 || n >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	return cg_demoDelagPlayerGone[n];
+}
+
+static int demoDelagNextSnapTimeAfter( int t ) {
+	int c, i;
+	const snapshot_t *sn;
+
+	c = CG_DemoHistory_GetCount();
+	for ( i = c - 1; i >= 0; i-- ) {
+		sn = CG_DemoHistory_GetByFramesAgo( i );
+		if ( sn && sn->serverTime > t ) {
+			return sn->serverTime;
+		}
+	}
+	return -1;
+}
+
 /*
  * Server time of the first history snap in (tLo, tHi] where this player's
  * teleport bit has flipped from flagsLo. That is the delayed-clock instant
@@ -682,6 +843,60 @@ static int demoDelagFirstTeleportHistoryTime( int entityNum, int flagsLo, int tL
 		}
 	}
 	return tHi;
+}
+
+/*
+ * Instant the delayed view should leave the pre-tele pose. If the player is
+ * missing from intervening snaps (exit out of PVS), the bit flip is only
+ * observed when they reappear; they actually left at the next snap after tLo.
+ */
+static int demoDelagTeleportSwitchTime( int entityNum, int flagsLo, int tLo, int tHi ) {
+	int t, nextSnap, witnessed;
+
+	t = demoDelagFirstTeleportHistoryTime( entityNum, flagsLo, tLo, tHi );
+	if ( entityNum >= 0 && entityNum < MAX_CLIENTS ) {
+		witnessed = demoDelagLatestWitnessedTeleAtOrBefore( entityNum, tHi );
+		if ( witnessed > tLo && witnessed < t ) {
+			t = witnessed;
+		}
+	}
+	nextSnap = demoDelagNextSnapTimeAfter( tLo );
+	if ( nextSnap > tLo && nextSnap < t ) {
+		t = nextSnap;
+	}
+	return t;
+}
+
+static qboolean demoDelagEntityFlagsBefore( int entityNum, int t, int *outFlags ) {
+	int c, i, e;
+	const snapshot_t *sn;
+
+	c = CG_DemoHistory_GetCount();
+	for ( i = 0; i < c; i++ ) {
+		sn = CG_DemoHistory_GetByFramesAgo( i );
+		if ( !sn || sn->serverTime >= t ) {
+			continue;
+		}
+		for ( e = 0; e < sn->numEntities; e++ ) {
+			if ( sn->entities[e].number == entityNum ) {
+				*outFlags = sn->entities[e].eFlags;
+				return qtrue;
+			}
+		}
+	}
+	return qfalse;
+}
+
+static qboolean demoDelagIsPostTeleFlags( int entityNum, int flags, int teleTime ) {
+	int preFlags;
+
+	if ( teleTime <= 0 ) {
+		return qtrue;
+	}
+	if ( !demoDelagEntityFlagsBefore( entityNum, teleTime, &preFlags ) ) {
+		return qtrue;
+	}
+	return demoDelagEFlagsTeleported( preFlags, flags );
 }
 
 void CG_DemoHistory_BeginHitscanRewind( int rewindToServerTime, int skipEntityNum ) {
@@ -743,7 +958,7 @@ void CG_DemoHistory_EndHitscanRewind( void ) {
 
 void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( centity_t *cent ) {
 	int ping;
-	int tLo, tHi;
+	int tLo, tHi, delayed, teleTime, entityNum;
 	vec3_t originLo, anglesLo;
 	vec3_t originHi, anglesHi;
 	vec3_t origin, angles;
@@ -751,6 +966,11 @@ void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( centity_t *cent ) {
 	float f;
 	qboolean okLo, okHi;
 	int flagsLo, flagsHi;
+
+	entityNum = cent->currentState.number;
+	if ( entityNum >= 0 && entityNum < MAX_CLIENTS ) {
+		cg_demoDelagPlayerGone[entityNum] = qfalse;
+	}
 
 	if ( !CG_DemoHistory_DemoDelagActive() || !cg.snap ) {
 		return;
@@ -780,19 +1000,33 @@ void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( centity_t *cent ) {
 		f = 1.0f;
 	}
 
+	delayed = cg.time - ping;
+
 	if ( cg.nextSnap && cg.nextSnap->serverTime > cg.snap->serverTime ) {
 		tLo = cg.snap->serverTime - ping;
 		tHi = cg.nextSnap->serverTime - ping;
-		okLo = demoDelagSamplePoseAtTime( cent, cent->currentState.number, tLo, originLo, anglesLo, &flagsLo, &esLo );
-		okHi = demoDelagSamplePoseAtTime( cent, cent->currentState.number, tHi, originHi, anglesHi, &flagsHi, &esHi );
-		if ( okLo && okHi ) {
-			if ( demoDelagEFlagsTeleported( flagsLo, flagsHi ) ) {
-				if ( cg.time - ping >= demoDelagFirstTeleportHistoryTime( cent->currentState.number, flagsLo, tLo, tHi ) ) {
-					demoDelagApplyVisual( cent, originHi, anglesHi, &esHi );
-				} else {
-					demoDelagApplyVisual( cent, originLo, anglesLo, &esLo );
-				}
-			} else {
+		okLo = demoDelagSamplePoseAtTime( cent, entityNum, tLo, originLo, anglesLo, &flagsLo, &esLo );
+		okHi = demoDelagSamplePoseAtTime( cent, entityNum, tHi, originHi, anglesHi, &flagsHi, &esHi );
+
+		teleTime = -1;
+		if ( okLo && okHi && demoDelagEFlagsTeleported( flagsLo, flagsHi ) ) {
+			teleTime = demoDelagTeleportSwitchTime( entityNum, flagsLo, tLo, tHi );
+			if ( delayed < teleTime ) {
+				demoDelagApplyVisual( cent, originLo, anglesLo, &esLo );
+				return;
+			}
+		} else {
+			teleTime = demoDelagLatestWitnessedTeleAtOrBefore( entityNum, delayed );
+		}
+
+		if ( teleTime > 0 && delayed >= teleTime ) {
+			if ( okLo && !demoDelagIsPostTeleFlags( entityNum, flagsLo, teleTime ) ) {
+				okLo = qfalse;
+			}
+			if ( okHi && !demoDelagIsPostTeleFlags( entityNum, flagsHi, teleTime ) ) {
+				okHi = qfalse;
+			}
+			if ( okLo && okHi ) {
 				origin[0] = originLo[0] + f * ( originHi[0] - originLo[0] );
 				origin[1] = originLo[1] + f * ( originHi[1] - originLo[1] );
 				origin[2] = originLo[2] + f * ( originHi[2] - originLo[2] );
@@ -801,7 +1035,29 @@ void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( centity_t *cent ) {
 				angles[2] = LerpAngle( anglesLo[2], anglesHi[2], f );
 				drawEs = esLo;
 				demoDelagApplyVisual( cent, origin, angles, &drawEs );
+				return;
 			}
+			if ( okHi ) {
+				demoDelagApplyVisual( cent, originHi, anglesHi, &esHi );
+				return;
+			}
+			if ( okLo ) {
+				demoDelagApplyVisual( cent, originLo, anglesLo, &esLo );
+				return;
+			}
+			demoDelagHidePlayerVisual( cent );
+			return;
+		}
+
+		if ( okLo && okHi ) {
+			origin[0] = originLo[0] + f * ( originHi[0] - originLo[0] );
+			origin[1] = originLo[1] + f * ( originHi[1] - originLo[1] );
+			origin[2] = originLo[2] + f * ( originHi[2] - originLo[2] );
+			angles[0] = LerpAngle( anglesLo[0], anglesHi[0], f );
+			angles[1] = LerpAngle( anglesLo[1], anglesHi[1], f );
+			angles[2] = LerpAngle( anglesLo[2], anglesHi[2], f );
+			drawEs = esLo;
+			demoDelagApplyVisual( cent, origin, angles, &drawEs );
 			return;
 		}
 		if ( okLo ) {
@@ -814,8 +1070,18 @@ void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( centity_t *cent ) {
 		}
 	} else {
 		tLo = cg.snap->serverTime - ping;
-		if ( demoDelagSamplePoseAtTime( cent, cent->currentState.number, tLo, origin, angles, &flagsLo, &esLo ) ) {
+		teleTime = demoDelagLatestWitnessedTeleAtOrBefore( entityNum, delayed );
+		if ( demoDelagSamplePoseAtTime( cent, entityNum, tLo, origin, angles, &flagsLo, &esLo ) ) {
+			if ( teleTime > 0 && delayed >= teleTime
+				&& !demoDelagIsPostTeleFlags( entityNum, flagsLo, teleTime ) ) {
+				demoDelagHidePlayerVisual( cent );
+				return;
+			}
 			demoDelagApplyVisual( cent, origin, angles, &esLo );
+			return;
+		}
+		if ( teleTime > 0 && delayed >= teleTime ) {
+			demoDelagHidePlayerVisual( cent );
 			return;
 		}
 	}
