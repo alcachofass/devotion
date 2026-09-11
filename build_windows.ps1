@@ -4,8 +4,7 @@
 param(
     [switch]$Deploy,
     [switch]$NoBuild,
-    [switch]$Quiet,
-    [switch]$Clean
+    [switch]$Quiet
 )
 
 $ErrorActionPreference = "Stop"
@@ -44,8 +43,9 @@ try {
     if (-not $NoBuild) {
         # $(nproc) is expanded by the MSYS2 bash -c shell, not PowerShell.
         $quietFlag = if ($Quiet) { " QUIET=1" } else { "" }
-        $build = "make -j`$(nproc)$quietFlag"
-        $makeArgs = if ($Clean) { "make clean$quietFlag;$build" } else { $build }
+        # Always clean first. Incremental make often misses header-only changes
+        # (e.g. centity_t / cg_t layout), which can produce a broken cgame.
+        $makeArgs = "make clean$quietFlag;make -j`$(nproc)$quietFlag"
         # Compiler warnings go to stderr; merge streams without NativeCommandError noise.
         $prevEap = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
