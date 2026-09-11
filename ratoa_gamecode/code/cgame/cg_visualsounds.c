@@ -1185,13 +1185,14 @@ void CG_DrawVisualSounds( void ) {
 		}
 
 		VectorSubtract( vsCues[i].origin, cg.refdef.vieworg, delta );
-		dist = VectorLength( delta );
-		loud[i] = 1.0f - dist / VS_RANGE;
-		if ( loud[i] < 0.0f ) {
-			loud[i] = 0.0f;
-		} else if ( loud[i] > 1.0f ) {
-			loud[i] = 1.0f;
+		dist = VectorLength( delta ) / VS_RANGE;
+		if ( dist < 0.0f ) {
+			dist = 0.0f;
+		} else if ( dist > 1.0f ) {
+			dist = 1.0f;
 		}
+		loud[i] = 1.0f - dist;
+		loud[i] *= loud[i];
 
 		yaw = atan2( delta[1], delta[0] ) * ( 180.0f / M_PI );
 		rel[i] = AngleNormalize180( yaw - cg.refdefViewAngles[1] );
