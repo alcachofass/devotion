@@ -763,11 +763,120 @@ static const char *CG_GetTeamColorsFromHue( char * str ) {
 	return colorString;
 }
 
+static void CG_ColorFromChar( char v, vec3_t color );
+
 static const char *CG_GetTeamColorsOSP( const char *color ) {
-	static char str[6];
+	static char str[8]; /* 6 color/strobe digits + NUL */
+
 	Q_strncpyz( str, color, sizeof( str ) );
 
 	return str;
+}
+
+/* Optional 6th digit of cg_enemyColor / cg_teamColor: 0/omit = off. */
+static int CG_PmColorStrobeMode( const char *color ) {
+	int mode;
+
+	if ( !color || !color[5] ) {
+		return 0;
+	}
+	mode = color[5] - '0';
+	if ( mode < 1 || mode > 9 ) {
+		return 0;
+	}
+	return mode;
+}
+
+static int CG_PlayerPmStrobeMode( int clientNum, clientInfo_t *ci ) {
+	clientInfo_t *me;
+
+	if ( clientNum == cg.clientNum ) {
+		return 0;
+	}
+	if ( CG_IsTeamGametype() ) {
+		me = &cgs.clientinfo[cg.clientNum];
+		if ( me->team == TEAM_SPECTATOR ) {
+			return 0;
+		}
+		if ( ci->team != me->team ) {
+			return CG_PmColorStrobeMode( cg_enemyColor.string );
+		}
+		return CG_PmColorStrobeMode( cg_teamColor.string );
+	}
+	return CG_PmColorStrobeMode( cg_enemyColor.string );
+}
+
+static void CG_ApplyPmColorStrobe( byte *rgba, int mode, int partOffset ) {
+	float wave;
+	float rgb[4];
+	vec3_t q3color;
+	int hue;
+	int step;
+	unsigned int t;
+
+	if ( mode < 1 ) {
+		return;
+	}
+
+	t = (unsigned int)( cg.time + partOffset );
+
+	switch ( mode ) {
+	case 1: /* slow hue cycle */
+		hue = (int)( t / 24 ) % 360;
+		Q_HSV2RGB( (float)hue, 1.0f, 1.0f, rgb );
+		break;
+	case 2: /* medium hue */
+		hue = (int)( t / 10 ) % 360;
+		Q_HSV2RGB( (float)hue, 1.0f, 1.0f, rgb );
+		break;
+	case 3: /* fast hue */
+		hue = (int)( t / 4 ) % 360;
+		Q_HSV2RGB( (float)hue, 1.0f, 1.0f, rgb );
+		break;
+	case 4: /* slow pulse of baked PM color */
+		wave = 0.35f + 0.65f * ( 0.5f + 0.5f * (float)sin( cg.time * 0.003f + partOffset * 0.001f ) );
+		rgba[0] = (byte)( rgba[0] * wave );
+		rgba[1] = (byte)( rgba[1] * wave );
+		rgba[2] = (byte)( rgba[2] * wave );
+		return;
+	case 5: /* fast pulse */
+		wave = 0.25f + 0.75f * ( 0.5f + 0.5f * (float)sin( cg.time * 0.012f + partOffset * 0.001f ) );
+		rgba[0] = (byte)( rgba[0] * wave );
+		rgba[1] = (byte)( rgba[1] * wave );
+		rgba[2] = (byte)( rgba[2] * wave );
+		return;
+	case 6: /* walk Q3 color digits slowly */
+		step = (int)( t / 700 ) % 7;
+		CG_ColorFromChar( (char)( '1' + step ), q3color );
+		rgba[0] = (byte)( q3color[0] * 255 );
+		rgba[1] = (byte)( q3color[1] * 255 );
+		rgba[2] = (byte)( q3color[2] * 255 );
+		return;
+	case 7: /* walk Q3 color digits quickly */
+		step = (int)( t / 220 ) % 7;
+		CG_ColorFromChar( (char)( '1' + step ), q3color );
+		rgba[0] = (byte)( q3color[0] * 255 );
+		rgba[1] = (byte)( q3color[1] * 255 );
+		rgba[2] = (byte)( q3color[2] * 255 );
+		return;
+	case 8: /* on/off flash of baked PM color */
+		if ( ( ( t / 80 ) & 1 ) == 0 ) {
+			rgba[0] = (byte)( rgba[0] * 0.15f );
+			rgba[1] = (byte)( rgba[1] * 0.15f );
+			rgba[2] = (byte)( rgba[2] * 0.15f );
+		}
+		return;
+	case 9: /* rainbow chase (head/body/legs offset) */
+		hue = (int)( t / 3 ) % 360;
+		Q_HSV2RGB( (float)hue, 1.0f, 1.0f, rgb );
+		break;
+	default:
+		return;
+	}
+
+	rgba[0] = (byte)( rgb[0] * 255 );
+	rgba[1] = (byte)( rgb[1] * 255 );
+	rgba[2] = (byte)( rgb[2] * 255 );
 }
 
 /*
@@ -1092,9 +1201,10 @@ static void CG_SetColorInfo( const char *color, clientInfo_t *info )
 	if ( !color[2] )
 		return;
 	CG_ColorFromChar( color[2], info->legsColor );
+	/* Digits 4-5 are rails (CG_SetRailColors). Digit 6 is draw-time strobe. */
 }
 
-/* Digits 4-5 of cg_enemyColor / cg_teamColor: rail core and spiral. */
+/* Digits 4-5 of cg_enemyColor / cg_teamColor: rail core and spiral. Digit 6 is ignored. */
 static void CG_SetRailColors( const char *color, clientInfo_t *info )
 {
 	if ( !color || !color[3] )
@@ -3727,6 +3837,7 @@ void CG_Player( centity_t *cent ) {
 	vec3_t			dir, angles;
 	qboolean autoHeadColors = qfalse;
 	qboolean useDeadColors;
+	int strobeMode;
 
 	// the client number is stored in clientNum.  It can't be derived
 	// from the entity number, because a single client may have
@@ -3767,6 +3878,7 @@ void CG_Player( centity_t *cent ) {
 	memset( &head, 0, sizeof(head) );
 
 	useDeadColors = (cent->currentState.eFlags & EF_DEAD && !CG_IsFrozenPlayer(cent)) ? qtrue : qfalse;
+	strobeMode = useDeadColors ? 0 : CG_PlayerPmStrobeMode( clientNum, ci );
 	CG_PlayerGetColors(ci, useDeadColors, MCIDX_TORSO, torso.shaderRGBA);
 	CG_PlayerGetColors(ci, useDeadColors, MCIDX_LEGS, legs.shaderRGBA);
 	if ((ci->forcedBrightModel || (cgs.ratFlags & (RAT_BRIGHTSHELL | RAT_BRIGHTOUTLINE) 
@@ -3834,6 +3946,9 @@ void CG_Player( centity_t *cent ) {
 		legs.shaderRGBA[2] = ci->legsColor[2] * 255;
 	}
 	legs.shaderRGBA[3] = 255;
+	if ( strobeMode ) {
+		CG_ApplyPmColorStrobe( legs.shaderRGBA, strobeMode, 0 );
+	}
 
 	CG_AddRefEntityWithPowerups( &legs, &cent->currentState, ci->team, qfalse, ci, 3, qfalse );
 
@@ -3870,6 +3985,9 @@ void CG_Player( centity_t *cent ) {
 		torso.shaderRGBA[2] = ci->bodyColor[2] * 255;
 	}
 	torso.shaderRGBA[3] = 255;
+	if ( strobeMode ) {
+		CG_ApplyPmColorStrobe( torso.shaderRGBA, strobeMode, 400 );
+	}
 
 	CG_AddRefEntityWithPowerups( &torso, &cent->currentState, ci->team, qfalse, ci, 2, qfalse );
 #ifdef MISSIONPACK
@@ -4104,6 +4222,9 @@ void CG_Player( centity_t *cent ) {
 		head.shaderRGBA[2] = ci->headColor[2] * 255;
 	}
 	head.shaderRGBA[3] = 255;
+	if ( strobeMode ) {
+		CG_ApplyPmColorStrobe( head.shaderRGBA, strobeMode, 800 );
+	}
 
 	CG_AddRefEntityWithPowerups( &head, &cent->currentState, ci->team, qfalse, ci, 1, autoHeadColors );
 
