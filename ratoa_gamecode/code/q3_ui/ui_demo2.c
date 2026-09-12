@@ -164,6 +164,7 @@ typedef struct {
 	int					parseDebounceEntryIdx;
 	int					parseDebounceTime;
 	int					lastSelectedEntryIdx;
+	int					pendingPlayEntryIdx;
 } demos_t;
 
 static demos_t	s_demos;
@@ -188,6 +189,8 @@ static void UI_Demo_FormatDuration( int ms, char *out, int outSize ) {
 static void UI_Demo_SelectionChanged( void ) {
 	demoEntry_t	*entry;
 	int			idx;
+
+	s_demos.pendingPlayEntryIdx = -1;
 
 	if ( s_demos.viewMode.curvalue != 0 ) {
 		UI_Demo_ParseStop();
@@ -822,6 +825,88 @@ static qboolean UI_Demo_MapIsAvailable( const char *map ) {
 	return UI_Demo_MapLevelshotExists( map );
 }
 
+static qboolean UI_Demo_EntryCannotPlay( const demoEntry_t *entry ) {
+	if ( !entry ) {
+		return qtrue;
+	}
+
+	if ( entry->parseType != DEMO_PARSE_AUTORECORD ) {
+		return qfalse;
+	}
+
+	return !UI_Demo_MapIsAvailable( entry->map );
+}
+
+static void UI_Demo_ListDraw( void *self ) {
+	menulist_s	*l;
+	int			x;
+	int			u;
+	int			y;
+	int			i;
+	int			base;
+	int			column;
+	int			entryIdx;
+	float		*color;
+	qboolean	hasfocus;
+	int			style;
+	qboolean	unplayable;
+
+	l = (menulist_s *)self;
+	hasfocus = ( l->generic.parent->cursor == l->generic.menuPosition );
+
+	x = l->generic.x;
+	for ( column = 0; column < l->columns; column++ ) {
+		y = l->generic.y;
+		base = l->top + column * l->height;
+		for ( i = base; i < base + l->height; i++ ) {
+			if ( i >= l->numitems ) {
+				break;
+			}
+
+			unplayable = qfalse;
+			if ( i >= 0 && i < s_demos.numViewItems ) {
+				entryIdx = s_demos.viewToEntry[i];
+				if ( entryIdx >= 0 ) {
+					unplayable = UI_Demo_EntryCannotPlay( &s_demos.entries[entryIdx] );
+				}
+			}
+
+			if ( i == l->curvalue ) {
+				u = x - 2;
+				if ( l->generic.flags & QMF_CENTER_JUSTIFY ) {
+					u -= ( l->width * SMALLCHAR_WIDTH ) / 2 + 1;
+				}
+
+				UI_FillRect( u, y, l->width * SMALLCHAR_WIDTH, SMALLCHAR_HEIGHT + 2, listbar_color );
+				if ( unplayable ) {
+					color = text_color_disabled;
+					style = UI_LEFT | UI_SMALLFONT;
+				} else {
+					color = text_color_highlight;
+					if ( hasfocus ) {
+						style = UI_PULSE | UI_LEFT | UI_SMALLFONT;
+					} else {
+						style = UI_LEFT | UI_SMALLFONT;
+					}
+				}
+			} else if ( unplayable ) {
+				color = text_color_disabled;
+				style = UI_LEFT | UI_SMALLFONT;
+			} else {
+				color = text_color_normal;
+				style = UI_LEFT | UI_SMALLFONT;
+			}
+			if ( l->generic.flags & QMF_CENTER_JUSTIFY ) {
+				style |= UI_CENTER;
+			}
+
+			UI_DrawString( x, y, l->itemnames[i], style, color );
+			y += SMALLCHAR_HEIGHT;
+		}
+		x += ( l->width + l->seperation ) * SMALLCHAR_WIDTH;
+	}
+}
+
 static void UI_Demo_DrawLevelshot( int x, int y, int w, int h, const char *mapname ) {
 	qhandle_t	shader;
 
@@ -1432,10 +1517,7 @@ static void UI_Demo_ShowMapMissing( const char *map ) {
 	trap_S_StartLocalSound( menu_buzz_sound, CHAN_LOCAL_SOUND );
 }
 
-static void UI_Demo_PlaySelected( void ) {
-	demoEntry_t	*entry;
-
-	entry = UI_Demo_GetSelectedEntry();
+static void UI_Demo_StartPlayback( demoEntry_t *entry ) {
 	if ( !entry ) {
 		return;
 	}
@@ -1449,6 +1531,72 @@ static void UI_Demo_PlaySelected( void ) {
 
 	UI_ForceMenuOff();
 	trap_Cmd_ExecuteText( EXEC_APPEND, va( "demo \"%s\"\n", entry->filename ) );
+}
+
+static qboolean UI_Demo_EntryParseIncomplete( const demoEntry_t *entry ) {
+	if ( !entry ) {
+		return qfalse;
+	}
+	if ( s_demos.viewMode.curvalue != 0 ) {
+		return qfalse;
+	}
+	if ( entry->metaState == DEMO_META_DONE ||
+			entry->metaState == DEMO_META_ERROR ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+static void UI_Demo_FinishPendingPlay( void ) {
+	demoEntry_t	*entry;
+
+	if ( s_demos.pendingPlayEntryIdx < 0 ) {
+		return;
+	}
+
+	entry = &s_demos.entries[s_demos.pendingPlayEntryIdx];
+	if ( UI_Demo_EntryParseIncomplete( entry ) ) {
+		Q_strncpyz( s_demos.statusMessage, "Parsing demo, please wait",
+				sizeof( s_demos.statusMessage ) );
+		s_demos.statusTime = uis.realtime + DEMO_STATUS_DURATION_MS;
+		return;
+	}
+
+	s_demos.pendingPlayEntryIdx = -1;
+	s_demos.statusMessage[0] = '\0';
+	UI_Demo_StartPlayback( entry );
+}
+
+static void UI_Demo_PlaySelected( void ) {
+	demoEntry_t	*entry;
+	int			idx;
+
+	entry = UI_Demo_GetSelectedEntry();
+	if ( !entry ) {
+		return;
+	}
+
+	if ( s_demos.viewMode.curvalue == 0 &&
+			entry->parseType == DEMO_PARSE_AUTORECORD &&
+			!UI_Demo_MapIsAvailable( entry->map ) ) {
+		UI_Demo_ShowMapMissing( entry->map );
+		return;
+	}
+
+	if ( UI_Demo_EntryParseIncomplete( entry ) ) {
+		idx = s_demos.viewToEntry[s_demos.list.curvalue];
+		s_demos.pendingPlayEntryIdx = idx;
+		s_demos.parseDebounceEntryIdx = -1;
+		if ( entry->metaState != DEMO_META_LOADING ) {
+			UI_Demo_ParseBegin( entry );
+		}
+		Q_strncpyz( s_demos.statusMessage, "Parsing demo, please wait",
+				sizeof( s_demos.statusMessage ) );
+		s_demos.statusTime = uis.realtime + DEMO_STATUS_DURATION_MS;
+		return;
+	}
+
+	UI_Demo_StartPlayback( entry );
 }
 
 static qboolean UI_Demo_IsDoubleClick( int target ) {
@@ -1830,6 +1978,7 @@ static void Demos_Draw( void ) {
 	UI_Demo_CheckSelectionChanged();
 	UI_Demo_ParseDebounceTick();
 	UI_Demo_ParseTick();
+	UI_Demo_FinishPendingPlay();
 	Menu_Draw( &s_demos.menu );
 	UI_Demo_DrawInfoCard();
 	UI_Demo_DrawStatus();
@@ -1880,6 +2029,7 @@ static void Demos_MenuInit( void ) {
 	s_demos.sortDescending = qtrue;
 	s_demos.lastSelectedEntryIdx = -1;
 	s_demos.parseDebounceEntryIdx = -1;
+	s_demos.pendingPlayEntryIdx = -1;
 	UI_Demo_InitSortHeaders();
 
 	s_demos.arrows.generic.type		= MTYPE_BITMAP;
@@ -1954,6 +2104,7 @@ static void Demos_MenuInit( void ) {
 	s_demos.list.generic.callback	= Demos_MenuEvent;
 	s_demos.list.generic.id			= ID_LIST;
 	s_demos.list.generic.x			= DEMO_LIST_X;
+	s_demos.list.generic.ownerdraw	= UI_Demo_ListDraw;
 	s_demos.list.itemnames			= (const char **)s_demos.listPtrs;
 	s_demos.list.columns			= 1;
 
