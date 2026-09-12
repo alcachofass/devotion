@@ -44,6 +44,13 @@ jobs:
             GIT_DESCRIBE=$(git describe --tags --always)
             ARTIFACT_NAME="devotion-${GIT_DESCRIBE}"
           else
+            shopt -s nullglob
+            PK3_FILES=(build/*.pk3)
+            if [[ "${#PK3_FILES[@]}" -ne 1 ]]; then
+              echo "Expected exactly one PK3 file, found ${#PK3_FILES[@]}" >&2
+              exit 1
+            fi
+            mv "${PK3_FILES[0]}" build/devotion-development.pk3
             ARTIFACT_NAME="devotion-development"
           fi
           echo "artifact-name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
