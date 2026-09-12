@@ -1395,15 +1395,24 @@ void CG_DrawVisualSounds( void ) {
 }
 
 void CG_WrappedStartSound( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx ) {
+	if ( CG_DemoControls_IsSeeking() ) {
+		return;
+	}
 	CG_VisualSounds_Note( origin, entityNum, sfx, qfalse );
 	trap_S_StartSound( origin, entityNum, entchannel, sfx );
 }
 
 void CG_WrappedAddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx ) {
+	if ( CG_DemoControls_IsSeeking() ) {
+		return;
+	}
 	CG_VisualSounds_Note( origin, entityNum, sfx, qtrue );
 	trap_S_AddLoopingSound( entityNum, origin, velocity, sfx );
 }
 
 void CG_WrappedAddRealLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx ) {
+	if ( CG_DemoControls_IsSeeking() ) {
+		return;
+	}
 	trap_S_AddRealLoopingSound( entityNum, origin, velocity, sfx );
 }

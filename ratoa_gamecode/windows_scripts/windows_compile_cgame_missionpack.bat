@@ -37,6 +37,9 @@ cd windows\build\cgame
 %cc%  ../../../code/cgame/cg_servercmds.c
 %cc%  ../../../code/cgame/cg_snapshot.c
 %cc%  ../../../code/cgame/cg_demo_history.c
+%cc%  ../../../code/cgame/cg_demo_controls.c
+%cc%  ../../../code/cgame/cg_demo_events.c
+%cc%  ../../../code/cgame/cg_demo_msg_stub.c
 %cc%  ../../../code/cgame/cg_visualsounds.c
 %cc%  ../../../code/cgame/cg_superhud.c
 %cc%  ../../../code/cgame/cg_unlagged.c
@@ -52,6 +55,8 @@ copy  ..\..\..\code\cgame\cg_syscalls.asm ..
 
 %cc%  ../../../code/qcommon/q_math.c
 %cc%  ../../../code/qcommon/q_shared.c
+%cc%  ../../../code/qcommon/msg.c
+%cc%  ../../../code/qcommon/huffman.c
 
 %cc%  ../../../code/ui/ui_shared.c
 

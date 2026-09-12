@@ -40,9 +40,111 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define SPIN_SPEED				0.9f
 #define COAST_TIME				1000
 
-
 static int			dp_realtime;
 static float		jumpHeight;
+
+static void UI_PmDigitColor( int digit, byte *out ) {
+	if ( digit < 1 || digit > 7 ) {
+		out[0] = out[1] = out[2] = 255;
+	} else {
+		out[0] = ( digit & 1 ) ? 255 : 0;
+		out[1] = ( digit & 2 ) ? 255 : 0;
+		out[2] = ( digit & 4 ) ? 255 : 0;
+	}
+	out[3] = 255;
+}
+
+static void UI_ApplyPmColorStrobe( byte *rgba, int mode, int partOffset ) {
+	float	wave;
+	float	rgb[4];
+	byte	walk[4];
+	int		hue;
+	int		step;
+	unsigned int t;
+
+	if ( mode < 1 ) {
+		return;
+	}
+
+	t = (unsigned int)( dp_realtime + partOffset );
+
+	switch ( mode ) {
+	case 1:
+		hue = (int)( t / 24 ) % 360;
+		Q_HSV2RGB( (float)hue, 1.0f, 1.0f, rgb );
+		break;
+	case 2:
+		hue = (int)( t / 10 ) % 360;
+		Q_HSV2RGB( (float)hue, 1.0f, 1.0f, rgb );
+		break;
+	case 3:
+		hue = (int)( t / 4 ) % 360;
+		Q_HSV2RGB( (float)hue, 1.0f, 1.0f, rgb );
+		break;
+	case 4:
+		wave = 0.35f + 0.65f * ( 0.5f + 0.5f * (float)sin( dp_realtime * 0.003f + partOffset * 0.001f ) );
+		rgba[0] = (byte)( rgba[0] * wave );
+		rgba[1] = (byte)( rgba[1] * wave );
+		rgba[2] = (byte)( rgba[2] * wave );
+		return;
+	case 5:
+		wave = 0.25f + 0.75f * ( 0.5f + 0.5f * (float)sin( dp_realtime * 0.012f + partOffset * 0.001f ) );
+		rgba[0] = (byte)( rgba[0] * wave );
+		rgba[1] = (byte)( rgba[1] * wave );
+		rgba[2] = (byte)( rgba[2] * wave );
+		return;
+	case 6:
+		step = (int)( t / 700 ) % 7;
+		UI_PmDigitColor( 1 + step, walk );
+		rgba[0] = walk[0];
+		rgba[1] = walk[1];
+		rgba[2] = walk[2];
+		return;
+	case 7:
+		step = (int)( t / 220 ) % 7;
+		UI_PmDigitColor( 1 + step, walk );
+		rgba[0] = walk[0];
+		rgba[1] = walk[1];
+		rgba[2] = walk[2];
+		return;
+	case 8:
+		if ( ( ( t / 80 ) & 1 ) == 0 ) {
+			rgba[0] = (byte)( rgba[0] * 0.15f );
+			rgba[1] = (byte)( rgba[1] * 0.15f );
+			rgba[2] = (byte)( rgba[2] * 0.15f );
+		}
+		return;
+	case 9:
+		hue = (int)( t / 3 ) % 360;
+		Q_HSV2RGB( (float)hue, 1.0f, 1.0f, rgb );
+		break;
+	default:
+		return;
+	}
+
+	rgba[0] = (byte)( rgb[0] * 255 );
+	rgba[1] = (byte)( rgb[1] * 255 );
+	rgba[2] = (byte)( rgb[2] * 255 );
+}
+
+static void UI_SetPlayerPartColor( refEntity_t *ent, playerInfo_t *pi, const byte *part, int strobeOffset ) {
+	if ( pi->usePartColor ) {
+		ent->shaderRGBA[0] = part[0];
+		ent->shaderRGBA[1] = part[1];
+		ent->shaderRGBA[2] = part[2];
+		ent->shaderRGBA[3] = part[3];
+		if ( pi->strobeMode > 0 ) {
+			UI_ApplyPmColorStrobe( ent->shaderRGBA, pi->strobeMode, strobeOffset );
+		}
+	} else if ( pi->useColor ) {
+		ent->shaderRGBA[0] = pi->color[0];
+		ent->shaderRGBA[1] = pi->color[1];
+		ent->shaderRGBA[2] = pi->color[2];
+		ent->shaderRGBA[3] = pi->color[3];
+	} else {
+		ent->shaderRGBA[0] = ent->shaderRGBA[1] = ent->shaderRGBA[2] = ent->shaderRGBA[3] = 255;
+	}
+}
 
 
 /*
@@ -734,16 +836,17 @@ void UI_DrawPlayer( float x, float y, float w, float h, playerInfo_t *pi, int ti
 	refdef.width = w;
 	refdef.height = h;
 
-	refdef.fov_x = (int)((float)refdef.width / 640.0f * 90.0f);
-	xx = refdef.width / tan( refdef.fov_x / 360 * M_PI );
+	// Fixed modest FOV so widescreen pixel width cannot inflate fov_x
+	// (old formula used refdef.width/640*90 after AdjustFrom640).
+	refdef.fov_x = 30.0f;
+	xx = refdef.width / tan( refdef.fov_x / 360.0f * M_PI );
 	refdef.fov_y = atan2( refdef.height, xx );
-	refdef.fov_y *= ( 360 / M_PI );
+	refdef.fov_y *= ( 360.0f / M_PI );
 
-	// calculate distance so the player nearly fills the box
-	len = 0.7 * ( maxs[2] - mins[2] );		
-	origin[0] = len / tan( DEG2RAD(refdef.fov_x) * 0.5 );
-	origin[1] = 0.5 * ( mins[1] + maxs[1] );
-	origin[2] = -0.5 * ( mins[2] + maxs[2] );
+	len = 0.72f * ( maxs[2] - mins[2] );
+	origin[0] = len / tan( DEG2RAD(refdef.fov_x) * 0.5f ) * 1.35f;
+	origin[1] = 0.5f * ( mins[1] + maxs[1] );
+	origin[2] = -0.5f * ( mins[2] + maxs[2] );
 
 	refdef.time = dp_realtime;
 
@@ -769,6 +872,7 @@ void UI_DrawPlayer( float x, float y, float w, float h, playerInfo_t *pi, int ti
 	VectorCopy( origin, legs.lightingOrigin );
 	legs.renderfx = renderfx;
 	VectorCopy (legs.origin, legs.oldorigin);
+	UI_SetPlayerPartColor( &legs, pi, pi->legsColor, 0 );
 
 	trap_R_AddRefEntityToScene( &legs );
 
@@ -791,6 +895,7 @@ void UI_DrawPlayer( float x, float y, float w, float h, playerInfo_t *pi, int ti
 	UI_PositionRotatedEntityOnTag( &torso, &legs, pi->legsModel, "tag_torso");
 
 	torso.renderfx = renderfx;
+	UI_SetPlayerPartColor( &torso, pi, pi->torsoColor, 400 );
 
 	trap_R_AddRefEntityToScene( &torso );
 
@@ -808,6 +913,7 @@ void UI_DrawPlayer( float x, float y, float w, float h, playerInfo_t *pi, int ti
 	UI_PositionRotatedEntityOnTag( &head, &torso, pi->torsoModel, "tag_head");
 
 	head.renderfx = renderfx;
+	UI_SetPlayerPartColor( &head, pi, pi->headColor, 800 );
 
 	trap_R_AddRefEntityToScene( &head );
 

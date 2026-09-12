@@ -711,6 +711,45 @@ static void CG_ColorFromString( const char *v, vec3_t color ) {
 	}
 }
 
+static void CG_ApplyUserPmBodyColors( clientInfo_t *info, const char *configstring, int clientNum ) {
+	char		buf[MAX_QPATH];
+	const char	*v;
+
+	if ( info->coloredSkin ) {
+		return;
+	}
+	if ( Q_stricmp( info->skinName, "pm" ) ) {
+		return;
+	}
+
+	v = Info_ValueForKey( configstring, "c3" );
+	if ( !v[0] && clientNum == cg.clientNum ) {
+		trap_Cvar_VariableStringBuffer( "color3", buf, sizeof( buf ) );
+		v = buf;
+	}
+	if ( v[0] ) {
+		CG_ColorFromString( v, info->headColor );
+	}
+
+	v = Info_ValueForKey( configstring, "c4" );
+	if ( !v[0] && clientNum == cg.clientNum ) {
+		trap_Cvar_VariableStringBuffer( "color4", buf, sizeof( buf ) );
+		v = buf;
+	}
+	if ( v[0] ) {
+		CG_ColorFromString( v, info->bodyColor );
+	}
+
+	v = Info_ValueForKey( configstring, "c5" );
+	if ( !v[0] && clientNum == cg.clientNum ) {
+		trap_Cvar_VariableStringBuffer( "color5", buf, sizeof( buf ) );
+		v = buf;
+	}
+	if ( v[0] ) {
+		CG_ColorFromString( v, info->legsColor );
+	}
+}
+
 void CG_LoadForcedSounds(void) {
 	char mySoundModel[MAX_QPATH];
 	char teamSoundModel[MAX_QPATH];
@@ -1721,6 +1760,8 @@ clientInfo_t *ci;
 			*slash = 0;
 		}
 	}
+
+	CG_ApplyUserPmBodyColors( &newInfo, configstring, clientNum );
 
 	// scan for an existing clientinfo that matches this modelname
 	// so we can avoid loading checks if possible

@@ -424,6 +424,7 @@ extern void UI_CDKeyMenu_f( void );
 // ui_playermodel.c
 //
 extern void UI_PlayerModelMenu( void );
+extern void UI_PlayerModelMenu_ForCvar( const char *cvarName );
 extern void PlayerModel_Cache( void );
 
 //
@@ -619,6 +620,13 @@ typedef struct {
 	int				barrelTime;
 
 	int				realWeapon;
+	byte			color[4];
+	byte			headColor[4];
+	byte			torsoColor[4];
+	byte			legsColor[4];
+	int				strobeMode;
+	qboolean		useColor;
+	qboolean		usePartColor;
 } playerInfo_t;
 
 void UI_DrawPlayer( float x, float y, float w, float h, playerInfo_t *pi, int time );

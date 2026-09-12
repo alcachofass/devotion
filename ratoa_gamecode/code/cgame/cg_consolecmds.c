@@ -106,8 +106,11 @@ void CG_Randomcolors_f( void ) {
 	int seed;
 
 	seed = trap_Milliseconds();
-	trap_Cvar_Set("color1", va("H%i", (int)(Q_random(&seed)*360.0)));	
-	trap_Cvar_Set("color2", va("H%i", (int)(Q_random(&seed)*360.0)));	
+	trap_Cvar_Set("color1", va("H%i", (int)(Q_random(&seed)*360.0)));
+	trap_Cvar_Set("color2", va("H%i", (int)(Q_random(&seed)*360.0)));
+	trap_Cvar_Set("color3", va("H%i", (int)(Q_random(&seed)*360.0)));
+	trap_Cvar_Set("color4", va("H%i", (int)(Q_random(&seed)*360.0)));
+	trap_Cvar_Set("color5", va("H%i", (int)(Q_random(&seed)*360.0)));
 }
 
 #define CG_MAPLIST_MAPS_PER_PAGE	30

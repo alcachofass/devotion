@@ -43,10 +43,12 @@ int forceColorModificationCounts = -1;
 int ratStatusbarModificationCount = -1;
 int hudMovementKeysModificationCount = -1;
 int brightShellsModificationCount = -1;
+int hitsoundModificationCount = -1;
 qboolean hudMovementKeysRegistered = qfalse;
 
 static void CG_RegisterMovementKeysShaders(void);
 static void CG_RegisterNumbers(void);
+static void CG_RegisterHitSounds( void );
 void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum );
 void CG_Shutdown( void );
 
@@ -160,6 +162,9 @@ void CG_RegisterCvars( void ) {
 	trap_Cvar_Register(NULL, "headmodel", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
 	trap_Cvar_Register(NULL, "team_model", DEFAULT_TEAM_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
 	trap_Cvar_Register(NULL, "team_headmodel", DEFAULT_TEAM_HEAD, CVAR_USERINFO | CVAR_ARCHIVE );
+	trap_Cvar_Register(NULL, "color3", "H0", CVAR_USERINFO | CVAR_ARCHIVE );
+	trap_Cvar_Register(NULL, "color4", "H0", CVAR_USERINFO | CVAR_ARCHIVE );
+	trap_Cvar_Register(NULL, "color5", "H0", CVAR_USERINFO | CVAR_ARCHIVE );
 
 	BG_RegisterCgameCvarDescriptions();
 }
@@ -431,7 +436,9 @@ void CG_UpdateCvars( void ) {
 			CG_Cvar_ClampInt( cv->cvarName, cv->vmCvar, 0, 250 );
 		}
                 else if ( cv->vmCvar == &com_maxfps ) {
-			CG_Cvar_ClampInt( cv->cvarName, cv->vmCvar, 0, 250 );
+			if ( !CG_DemoControls_IsSeeking() ) {
+				CG_Cvar_ClampInt( cv->cvarName, cv->vmCvar, 0, 250 );
+			}
 		}
                 else if ( cv->vmCvar == &sv_fps ) {
 			if (cv->vmCvar->integer < 1) {
@@ -492,6 +499,11 @@ void CG_UpdateCvars( void ) {
 		mySoundModificationCount = cg_mySound.modificationCount;
 		teamSoundModificationCount = cg_teamSound.modificationCount;
 		enemySoundModificationCount = cg_enemySound.modificationCount;
+	}
+
+	if ( hitsoundModificationCount != cg_hitsound.modificationCount ) {
+		hitsoundModificationCount = cg_hitsound.modificationCount;
+		CG_RegisterHitSounds();
 	}
 
 	i = cg_teamHueBlue.modificationCount
@@ -770,6 +782,73 @@ void CG_GetAnnouncer(const char *announcerCfg, char *outAnnouncer, int announcer
 	Q_strncpyz(outAnnouncer, va("%s/", announcerCfg), announcersz);
 }
 
+static qboolean CG_HitSoundExists( const char *path ) {
+	fileHandle_t	f;
+	int				len;
+
+	f = 0;
+	len = trap_FS_FOpenFile( path, &f, FS_READ );
+	if ( f ) {
+		trap_FS_FCloseFile( f );
+	}
+	return ( len > 1024 ) ? qtrue : qfalse;
+}
+
+static sfxHandle_t CG_RegisterHitBeep( int index ) {
+	char	path[MAX_QPATH];
+
+	if ( index < 1 || index > 99 ) {
+		return 0;
+	}
+	Com_sprintf( path, sizeof( path ), "sound/feedback/hit%d.wav", index );
+	if ( !CG_HitSoundExists( path ) ) {
+		return 0;
+	}
+	return trap_S_RegisterSound( path, qfalse );
+}
+
+static void CG_RegisterHitSounds( void ) {
+	int		hs;
+	int		pack;
+	char	path[MAX_QPATH];
+
+	cgs.media.hitSound = 0;
+	cgs.media.hitToneSound1 = 0;
+	cgs.media.hitToneSound2 = 0;
+	cgs.media.hitToneSound3 = 0;
+	cgs.media.hitToneSound4 = 0;
+
+	hs = cg_hitsound.integer;
+	if ( hs == 0 ) {
+		return;
+	}
+
+	if ( hs < 0 ) {
+		pack = -hs;
+		if ( pack > 0 && pack < 100 ) {
+			Com_sprintf( path, sizeof( path ), "sound/feedback/tones%d/hit1.wav", pack );
+			if ( CG_HitSoundExists( path ) ) {
+				cgs.media.hitToneSound1 = trap_S_RegisterSound( path, qfalse );
+				Com_sprintf( path, sizeof( path ), "sound/feedback/tones%d/hit2.wav", pack );
+				cgs.media.hitToneSound2 = trap_S_RegisterSound( path, qfalse );
+				Com_sprintf( path, sizeof( path ), "sound/feedback/tones%d/hit3.wav", pack );
+				cgs.media.hitToneSound3 = trap_S_RegisterSound( path, qfalse );
+				Com_sprintf( path, sizeof( path ), "sound/feedback/tones%d/hit4.wav", pack );
+				cgs.media.hitToneSound4 = trap_S_RegisterSound( path, qfalse );
+			}
+		}
+		if ( !cgs.media.hitToneSound1 ) {
+			cgs.media.hitSound = CG_RegisterHitBeep( 1 );
+		}
+		return;
+	}
+
+	cgs.media.hitSound = CG_RegisterHitBeep( hs );
+	if ( !cgs.media.hitSound ) {
+		cgs.media.hitSound = CG_RegisterHitBeep( 1 );
+	}
+}
+
 /*
 =================
 CG_RegisterSounds
@@ -953,41 +1032,9 @@ static void CG_RegisterSounds( void ) {
 	}
 	cgs.media.landSound = trap_S_RegisterSound( "sound/player/land1.wav", qfalse);
 
-	// Hit beeps and tone packs are registered from cg_hitsound at map load only.
-	// Changing the cvar in-game has no audio effect until next map or vid_restart.
-	if ( cg_hitsound.integer < 0 ) {
-		int pack = -cg_hitsound.integer;
-
-		// -N loads sound/feedback/tonesN/; missing packs fall back to the default beep
-		if ( pack > 0 && pack < 100 &&
-				trap_FS_FOpenFile( va( "sound/feedback/tones%d/hit1.wav", pack ), NULL, FS_READ ) > 0 ) {
-			cgs.media.hitToneSound1 = trap_S_RegisterSound( va( "sound/feedback/tones%d/hit1.wav", pack ), qfalse );
-			cgs.media.hitToneSound2 = trap_S_RegisterSound( va( "sound/feedback/tones%d/hit2.wav", pack ), qfalse );
-			cgs.media.hitToneSound3 = trap_S_RegisterSound( va( "sound/feedback/tones%d/hit3.wav", pack ), qfalse );
-			cgs.media.hitToneSound4 = trap_S_RegisterSound( va( "sound/feedback/tones%d/hit4.wav", pack ), qfalse );
-		}
-		if ( !cgs.media.hitToneSound1 ) {
-			cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit.wav", qfalse );
-		}
-	} else {
-		switch ( cg_hitsound.integer ) {
-		case 0:
-			cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit0.wav", qfalse ); //ok
-			break;
-		case 1:
-			cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit.wav", qfalse ); //ok
-			break;
-		case 2:
-			cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit2.wav", qfalse ); //ok
-			break;
-		case 3:
-			cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit3.wav", qfalse ); //ok
-			break;
-		default:
-			cgs.media.hitSound = trap_S_RegisterSound( "sound/feedback/hit.wav", qfalse ); //ok
-			break;
-		}
-	}
+	// 0 = off, N = sound/feedback/hitN.wav, -N = tonesN/ damage ladder.
+	CG_RegisterHitSounds();
+	hitsoundModificationCount = cg_hitsound.modificationCount;
 
 #ifdef MISSIONPACK
 	cgs.media.hitSoundHighArmor = trap_S_RegisterSound( "sound/feedback/hithi.wav", qfalse );
@@ -1780,7 +1827,6 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.retrieveShader = trap_R_RegisterShaderNoMip("ui/assets/statusbar/retrieve.tga");
 	cgs.media.escortShader = trap_R_RegisterShaderNoMip("ui/assets/statusbar/escort.tga");
 
-	cgs.media.cursor = trap_R_RegisterShaderNoMip( "menu/art/3_cursor2" );
 	cgs.media.sizeCursor = trap_R_RegisterShaderNoMip( "ui/assets/sizecursor.tga" );
 	cgs.media.selectCursor = trap_R_RegisterShaderNoMip( "ui/assets/selectcursor.tga" );
 	cgs.media.flagShaders[0] = trap_R_RegisterShaderNoMip("ui/assets/statusbar/flag_in_base.tga");
@@ -1799,6 +1845,7 @@ static void CG_RegisterGraphics( void ) {
 #if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
 	cgs.media.deathShader = trap_R_RegisterShaderNoMip( "gfx/2d/defer" );
 #endif
+	cgs.media.cursor = trap_R_RegisterShaderNoMip( "menu/art/3_cursor2" );
 	CG_ClearParticles ();
 /*
 	for (i=1; i<MAX_PARTICLES_AREAS; i++)
@@ -2709,6 +2756,7 @@ void CG_Shutdown( void ) {
 	CG_AutoRecordStop();
 	CG_MenuHud_Shutdown();
 	CG_DemoHistory_Clear();
+	CG_DemoControls_Shutdown();
 	challenges_save();
 }
 
@@ -2726,12 +2774,12 @@ CG_EventHandling
 void CG_EventHandling(int type) {
 }
 
-
-
 void CG_KeyEvent(int key, qboolean down) {
+	CG_DemoControls_KeyEvent( key, down );
 }
 
 void CG_MouseEvent(int x, int y) {
+	CG_DemoControls_MouseEvent( x, y );
 }
 #endif
 

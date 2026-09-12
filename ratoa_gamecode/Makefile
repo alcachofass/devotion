@@ -1717,6 +1717,9 @@ Q3CGOBJ_ = \
   $(B)/baseq3/cgame/cg_servercmds.o \
   $(B)/baseq3/cgame/cg_snapshot.o \
   $(B)/baseq3/cgame/cg_demo_history.o \
+  $(B)/baseq3/cgame/cg_demo_controls.o \
+  $(B)/baseq3/cgame/cg_demo_events.o \
+  $(B)/baseq3/cgame/cg_demo_msg_stub.o \
   $(B)/baseq3/cgame/cg_visualsounds.o \
   $(B)/baseq3/cgame/cg_superhud.o \
   $(B)/baseq3/cgame/cg_menuhud.o \
@@ -1727,7 +1730,9 @@ Q3CGOBJ_ = \
   $(B)/baseq3/cgame/cg_weapons.o \
   \
   $(B)/baseq3/qcommon/q_math.o \
-  $(B)/baseq3/qcommon/q_shared.o
+  $(B)/baseq3/qcommon/q_shared.o \
+  $(B)/baseq3/qcommon/msg.o \
+  $(B)/baseq3/qcommon/huffman.o
 
 Q3CGOBJ = $(Q3CGOBJ_) $(B)/baseq3/cgame/cg_syscalls.o
 Q3CGVMOBJ = $(Q3CGOBJ_:%.o=%.asm)
@@ -1770,6 +1775,9 @@ MPCGOBJ_ = \
   $(B)/missionpack/cgame/cg_servercmds.o \
   $(B)/missionpack/cgame/cg_snapshot.o \
   $(B)/missionpack/cgame/cg_demo_history.o \
+  $(B)/missionpack/cgame/cg_demo_controls.o \
+  $(B)/missionpack/cgame/cg_demo_events.o \
+  $(B)/missionpack/cgame/cg_demo_msg_stub.o \
   $(B)/missionpack/cgame/cg_visualsounds.o \
   $(B)/missionpack/cgame/cg_superhud.o \
   $(B)/missionpack/cgame/cg_unlagged.o \
@@ -1778,7 +1786,9 @@ MPCGOBJ_ = \
   $(B)/missionpack/ui/ui_shared.o \
   \
   $(B)/missionpack/qcommon/q_math.o \
-  $(B)/missionpack/qcommon/q_shared.o
+  $(B)/missionpack/qcommon/q_shared.o \
+  $(B)/missionpack/qcommon/msg.o \
+  $(B)/missionpack/qcommon/huffman.o
 
 MPCGOBJ = $(MPCGOBJ_) $(B)/missionpack/cgame/cg_syscalls.o
 MPCGVMOBJ = $(MPCGOBJ_:%.o=%.asm)

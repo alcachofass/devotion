@@ -1001,6 +1001,10 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	// update cvars
 	CG_UpdateCvars();
+	CG_DemoControls_Frame();
+	if ( stereoView != STEREO_RIGHT ) {
+		CG_DemoControls_PrepareSeekDraw();
+	}
 
 	// if we are only updating the screen as a loading
 	// pacifier, don't even try to read snapshots
@@ -1016,8 +1020,15 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// clear all the render lists
 	trap_R_ClearScene();
 
-	// set up cg.snap and possibly cg.nextSnap
-	CG_ProcessSnapshots();
+	if ( CG_DemoControls_SeekKeyframeHold() ) {
+		cg.time = CG_DemoControls_SeekHoldTime();
+		cg.frametime = 0;
+	} else {
+		CG_ProcessSnapshots();
+		if ( CG_DemoControls_SeekWantsKeyframe() ) {
+			CG_DemoControls_SeekCaptureTime( cg.time );
+		}
+	}
 
 	// if we haven't received any snapshots yet, all
 	// we can draw is the information screen
@@ -1026,7 +1037,9 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		return;
 	}
 
-	CG_DemoHistory_Frame();
+	if ( !CG_DemoControls_IsSeeking() ) {
+		CG_DemoHistory_Frame();
+	}
 
 	if ( cg.warmup > 0 ) {
 		CG_AutoRecordStart();
@@ -1037,6 +1050,19 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	// this counter will be bumped for every valid scene we generate
 	cg.clientFrame++;
+
+	if ( CG_DemoControls_IsSeeking() && !CG_DemoControls_SeekWantsKeyframe() ) {
+		cg.predictedPlayerState = cg.snap->ps;
+		if ( stereoView != STEREO_RIGHT ) {
+			cg.frametime = cg.time - cg.oldTime;
+			if ( cg.frametime < 0 ) {
+				cg.frametime = 0;
+			}
+			cg.oldTime = cg.time;
+		}
+		CG_DrawActive( stereoView );
+		return;
+	}
 
 	// update cg.predictedPlayerState
 	CG_PredictPlayerState();

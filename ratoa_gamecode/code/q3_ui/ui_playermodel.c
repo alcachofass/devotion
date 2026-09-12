@@ -102,6 +102,8 @@ typedef struct
 	int				selectedmodel;
 } playermodel_t;
 
+static char s_playermodel_cvar[32] = "model";
+
 static playermodel_t s_playermodel;
 
 /*
@@ -192,10 +194,12 @@ PlayerModel_SaveChanges
 */
 static void PlayerModel_SaveChanges( void )
 {
-	trap_Cvar_Set( "model", s_playermodel.modelskin );
-	trap_Cvar_Set( "headmodel", s_playermodel.modelskin );
-	trap_Cvar_Set( "team_model", s_playermodel.modelskin );
-	trap_Cvar_Set( "team_headmodel", s_playermodel.modelskin );
+	trap_Cvar_Set( s_playermodel_cvar, s_playermodel.modelskin );
+	if ( !Q_stricmp( s_playermodel_cvar, "model" ) ) {
+		trap_Cvar_Set( "headmodel", s_playermodel.modelskin );
+		trap_Cvar_Set( "team_model", s_playermodel.modelskin );
+		trap_Cvar_Set( "team_headmodel", s_playermodel.modelskin );
+	}
 }
 
 /*
@@ -467,7 +471,10 @@ static void PlayerModel_SetMenuItems( void )
 	Q_CleanStr( s_playermodel.playername.string );
 
 	// model
-	trap_Cvar_VariableStringBuffer( "model", s_playermodel.modelskin, 64 );
+	trap_Cvar_VariableStringBuffer( s_playermodel_cvar, s_playermodel.modelskin, 64 );
+	if ( !s_playermodel.modelskin[0] ) {
+		trap_Cvar_VariableStringBuffer( "model", s_playermodel.modelskin, 64 );
+	}
 	
 	// use default skin if none is set
 	if (!strchr(s_playermodel.modelskin, '/')) {
@@ -726,6 +733,17 @@ void PlayerModel_Cache( void )
 
 void UI_PlayerModelMenu(void)
 {
+	UI_PlayerModelMenu_ForCvar( "model" );
+}
+
+void UI_PlayerModelMenu_ForCvar( const char *cvarName )
+{
+	if ( cvarName && cvarName[0] ) {
+		Q_strncpyz( s_playermodel_cvar, cvarName, sizeof( s_playermodel_cvar ) );
+	} else {
+		Q_strncpyz( s_playermodel_cvar, "model", sizeof( s_playermodel_cvar ) );
+	}
+
 	PlayerModel_MenuInit();
 
 	UI_PushMenu( &s_playermodel.menu );

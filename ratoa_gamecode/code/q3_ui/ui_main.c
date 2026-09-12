@@ -134,6 +134,10 @@ void UI_RegisterCvars( void ) {
 		trap_Cvar_Register( cv->vmCvar, cv->cvarName, cv->defaultString, cv->cvarFlags );
 	}
 
+	trap_Cvar_Register( NULL, "color3", "H0", CVAR_USERINFO | CVAR_ARCHIVE );
+	trap_Cvar_Register( NULL, "color4", "H0", CVAR_USERINFO | CVAR_ARCHIVE );
+	trap_Cvar_Register( NULL, "color5", "H0", CVAR_USERINFO | CVAR_ARCHIVE );
+
 	// Push Quake3e cvar descriptions at menu load (before cgame/game init).
 	// Existing cvars only — SetDescription no-ops if the cvar is missing.
 	BG_RegisterCgameCvarDescriptions();
