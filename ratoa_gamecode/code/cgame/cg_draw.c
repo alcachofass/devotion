@@ -6878,6 +6878,21 @@ void CG_DrawActive( stereoFrame_t stereoView ) {
 		return;
 	}
 
+	if ( CG_DemoControls_IsSeeking() ) {
+		if ( !CG_DemoControls_SeekWantsKeyframe() ) {
+			CG_DemoControls_Draw();
+			return;
+		}
+
+		CG_TileClear();
+		if ( stereoView != STEREO_CENTER ) {
+			CG_DrawCrosshair3D();
+		}
+		trap_R_RenderScene( &cg.refdef );
+		CG_DemoControls_Draw();
+		return;
+	}
+
 	// clear around the rendered view if sized down
 	CG_TileClear();
 

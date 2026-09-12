@@ -436,7 +436,9 @@ void CG_UpdateCvars( void ) {
 			CG_Cvar_ClampInt( cv->cvarName, cv->vmCvar, 0, 250 );
 		}
                 else if ( cv->vmCvar == &com_maxfps ) {
-			CG_Cvar_ClampInt( cv->cvarName, cv->vmCvar, 0, 250 );
+			if ( !CG_DemoControls_IsSeeking() ) {
+				CG_Cvar_ClampInt( cv->cvarName, cv->vmCvar, 0, 250 );
+			}
 		}
                 else if ( cv->vmCvar == &sv_fps ) {
 			if (cv->vmCvar->integer < 1) {

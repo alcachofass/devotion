@@ -22,6 +22,8 @@ Demo playback overlay: mouse cursor and timescale transport controls.
 #define DEMOCTRL_SEEK_NOP_MS		200
 #define DEMOCTRL_SEEK_WORST_FRAME	80
 #define DEMOCTRL_SEEK_MAX_TS		50.0f
+#define DEMOCTRL_SEEK_KEYFRAME_MS	200
+#define DEMOCTRL_SEEK_KEYFRAME_COPIES	4
 
 typedef enum {
 	DEMOCTRL_SLOWER = 0,
@@ -72,10 +74,18 @@ static qboolean	dc_seeking;
 static qboolean	dc_seekKeepCvars;
 static qboolean	dc_seekRestartPending;
 static qboolean	dc_seekMuted;
+static qboolean	dc_seekFpsBoosted;
 static int		dc_seekTargetMs;
 static float	dc_seekResumeTs;
 static float	dc_seekSavedVolume;
 static float	dc_seekAppliedTs;
+static int		dc_seekLastKeyframeMs;
+static int		dc_seekKeyframesLeft;
+static int		dc_seekHoldTime;
+static qboolean	dc_seekModeKey;
+static qboolean	dc_seekModeHold;
+
+#define DEMOCTRL_SEEK_MAXFPS		"1000"
 
 static void DemoCtrl_ReleaseCatcher( void );
 static void DemoCtrl_SeekFinish( qboolean applyResume );
@@ -433,20 +443,39 @@ static void DemoCtrl_SeekMute( void ) {
 	trap_Cvar_Set( "s_volume", "0" );
 }
 
+static void DemoCtrl_SeekBoostFps( void ) {
+	char buf[32];
+
+	if ( !dc_seekFpsBoosted ) {
+		buf[0] = '\0';
+		trap_Cvar_VariableStringBuffer( "com_maxfps", buf, sizeof( buf ) );
+		trap_Cvar_Set( "cg_demoSeekMaxFps", buf[0] ? buf : "125" );
+		dc_seekFpsBoosted = qtrue;
+	}
+	trap_Cvar_Set( "com_maxfps", DEMOCTRL_SEEK_MAXFPS );
+}
+
 static void DemoCtrl_SeekUnmute( void ) {
 	char buf[32];
 
-	if ( !dc_seekMuted ) {
-		return;
+	if ( dc_seekMuted ) {
+		buf[0] = '\0';
+		trap_Cvar_VariableStringBuffer( "cg_demoSeekVolume", buf, sizeof( buf ) );
+		if ( buf[0] ) {
+			trap_Cvar_Set( "s_volume", buf );
+		} else {
+			trap_Cvar_Set( "s_volume", va( "%f", dc_seekSavedVolume ) );
+		}
+		dc_seekMuted = qfalse;
 	}
-	buf[0] = '\0';
-	trap_Cvar_VariableStringBuffer( "cg_demoSeekVolume", buf, sizeof( buf ) );
-	if ( buf[0] ) {
-		trap_Cvar_Set( "s_volume", buf );
-	} else {
-		trap_Cvar_Set( "s_volume", va( "%f", dc_seekSavedVolume ) );
+	if ( dc_seekFpsBoosted ) {
+		buf[0] = '\0';
+		trap_Cvar_VariableStringBuffer( "cg_demoSeekMaxFps", buf, sizeof( buf ) );
+		if ( buf[0] ) {
+			trap_Cvar_Set( "com_maxfps", buf );
+		}
+		dc_seekFpsBoosted = qfalse;
 	}
-	dc_seekMuted = qfalse;
 }
 
 static void DemoCtrl_SeekSetTimescale( float ts ) {
@@ -468,6 +497,11 @@ static void DemoCtrl_SeekFinish( qboolean applyResume ) {
 	dc_seekRestartPending = qfalse;
 	dc_seekKeepCvars = qfalse;
 	dc_seekAppliedTs = 0.0f;
+	dc_seekLastKeyframeMs = 0;
+	dc_seekKeyframesLeft = 0;
+	dc_seekHoldTime = 0;
+	dc_seekModeKey = qfalse;
+	dc_seekModeHold = qfalse;
 	DemoCtrl_SeekUnmute();
 	DemoCtrl_SeekClearCvars();
 	if ( applyResume ) {
@@ -518,13 +552,22 @@ static void DemoCtrl_SeekResumeFromCvars( void ) {
 	} else {
 		dc_seekMuted = qfalse;
 	}
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "cg_demoSeekMaxFps", buf, sizeof( buf ) );
+	dc_seekFpsBoosted = buf[0] ? qtrue : qfalse;
 	dc_seeking = qtrue;
 	dc_seekRestartPending = qfalse;
 	dc_seekAppliedTs = 0.0f;
+	dc_seekLastKeyframeMs = 0;
+	dc_seekKeyframesLeft = 0;
+	dc_seekHoldTime = 0;
+	dc_seekModeKey = qfalse;
+	dc_seekModeHold = qfalse;
 	dc_visible = qtrue;
 	dc_lastMoveMs = trap_Milliseconds();
 	Q_strncpyz( dc_speedLabel, "SEEK", sizeof( dc_speedLabel ) );
 	DemoCtrl_SeekMute();
+	DemoCtrl_SeekBoostFps();
 }
 
 static void DemoCtrl_SeekBegin( int targetMs ) {
@@ -554,10 +597,16 @@ static void DemoCtrl_SeekBegin( int targetMs ) {
 	dc_seekTargetMs = targetMs;
 	dc_seeking = qtrue;
 	dc_seekAppliedTs = 0.0f;
+	dc_seekLastKeyframeMs = 0;
+	dc_seekKeyframesLeft = 0;
+	dc_seekHoldTime = 0;
+	dc_seekModeKey = qfalse;
+	dc_seekModeHold = qfalse;
 	dc_visible = qtrue;
 	dc_lastMoveMs = trap_Milliseconds();
 	Q_strncpyz( dc_speedLabel, "SEEK", sizeof( dc_speedLabel ) );
 	DemoCtrl_SeekMute();
+	DemoCtrl_SeekBoostFps();
 	DemoCtrl_SeekWriteCvars();
 
 	if ( dc_seekRestartPending ) {
@@ -600,15 +649,64 @@ static void DemoCtrl_SeekFrame( void ) {
 	}
 
 	DemoCtrl_SeekMute();
+	DemoCtrl_SeekBoostFps();
 	remaining = dc_seekTargetMs - elapsed;
 	ts = (float)( remaining - DEMOCTRL_SEEK_SETTLE_MS ) / (float)DEMOCTRL_SEEK_WORST_FRAME;
 	DemoCtrl_SeekSetTimescale( ts );
 }
 
+void CG_DemoControls_PrepareSeekDraw( void ) {
+	int now;
+
+	dc_seekModeKey = qfalse;
+	dc_seekModeHold = qfalse;
+	if ( !dc_seeking ) {
+		return;
+	}
+	now = trap_Milliseconds();
+	if ( dc_seekKeyframesLeft > 0 ) {
+		dc_seekKeyframesLeft--;
+		dc_seekModeKey = qtrue;
+		dc_seekModeHold = qtrue;
+		dc_seekLastKeyframeMs = now;
+		return;
+	}
+	if ( dc_seekLastKeyframeMs && now - dc_seekLastKeyframeMs < DEMOCTRL_SEEK_KEYFRAME_MS ) {
+		return;
+	}
+	/* Stamp several presents in a row so every swapchain image gets the
+	 * new keyframe. Later copies freeze time so they are identical;
+	 * otherwise Q3e ping-pongs two slightly different poses. */
+	dc_seekKeyframesLeft = DEMOCTRL_SEEK_KEYFRAME_COPIES - 1;
+	dc_seekModeKey = qtrue;
+	dc_seekModeHold = qfalse;
+	dc_seekLastKeyframeMs = now;
+}
+
+void CG_DemoControls_SeekCaptureTime( int t ) {
+	dc_seekHoldTime = t;
+}
+
+int CG_DemoControls_SeekHoldTime( void ) {
+	return dc_seekHoldTime;
+}
+
+qboolean CG_DemoControls_IsSeeking( void ) {
+	return dc_seeking;
+}
+
+qboolean CG_DemoControls_SeekWantsKeyframe( void ) {
+	return dc_seeking && dc_seekModeKey;
+}
+
+qboolean CG_DemoControls_SeekKeyframeHold( void ) {
+	return dc_seeking && dc_seekModeHold;
+}
+
 void CG_DemoControls_Shutdown( void ) {
 	if ( dc_seekKeepCvars || ( dc_seeking && cg.demoPlayback ) ) {
 		DemoCtrl_SeekWriteCvars();
-	} else if ( dc_seeking || dc_seekMuted ) {
+	} else if ( dc_seeking || dc_seekMuted || dc_seekFpsBoosted ) {
 		DemoCtrl_SeekUnmute();
 		DemoCtrl_SeekClearCvars();
 		trap_Cvar_Set( "timescale", "1" );

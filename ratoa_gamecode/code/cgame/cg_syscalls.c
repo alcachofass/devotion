@@ -187,10 +187,16 @@ int		trap_CM_MarkFragments( int numPoints, const vec3_t *points,
 }
 
 void	trap_S_StartSound( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx ) {
+	if ( CG_DemoControls_IsSeeking() ) {
+		return;
+	}
 	syscall( CG_S_STARTSOUND, origin, entityNum, entchannel, sfx );
 }
 
 void	trap_S_StartLocalSound( sfxHandle_t sfx, int channelNum ) {
+	if ( CG_DemoControls_IsSeeking() ) {
+		return;
+	}
 	syscall( CG_S_STARTLOCALSOUND, sfx, channelNum );
 }
 
@@ -199,10 +205,16 @@ void	trap_S_ClearLoopingSounds( qboolean killall ) {
 }
 
 void	trap_S_AddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx ) {
+	if ( CG_DemoControls_IsSeeking() ) {
+		return;
+	}
 	syscall( CG_S_ADDLOOPINGSOUND, entityNum, origin, velocity, sfx );
 }
 
 void	trap_S_AddRealLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx ) {
+	if ( CG_DemoControls_IsSeeking() ) {
+		return;
+	}
 	syscall( CG_S_ADDREALLOOPINGSOUND, entityNum, origin, velocity, sfx );
 }
 
