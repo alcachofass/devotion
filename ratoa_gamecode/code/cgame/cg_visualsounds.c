@@ -11,9 +11,6 @@
 #define VS_RANGE		1800.0f
 #define VS_RADIUS		70.0f
 #define VS_CLUSTER_DEG		38.0f
-#define VS_STACK_DEG		16.0f
-#define VS_STACK_MAX		3
-#define VS_STACK_GAP		16.0f
 #define VS_ARC_SPAN		34.0f
 #define VS_ARC_SEGS		16
 #define VS_ARC_INSET		12.0f
@@ -1139,9 +1136,9 @@ void CG_DrawVisualSounds( void ) {
 	qboolean	live[VS_MAX_CUES];
 	vec3_t		delta;
 	vec4_t		color;
-	float		yaw, dist, radius, cx, cy, x, y, ang, dAng;
+	float		yaw, dist, cx, cy, x, y, ang, dAng;
 	float		cw, ch, sz, sumSin, sumCos, bestLoud, bestFade, weight;
-	int		len, count, nRoot, r, s, t, nMem, kept, swap;
+	int		len, count, nRoot, r, s, t, nMem, kept;
 	qhandle_t	icon;
 	const char	*label;
 	float		rAng[VS_MAX_CUES];
@@ -1188,13 +1185,14 @@ void CG_DrawVisualSounds( void ) {
 		}
 
 		VectorSubtract( vsCues[i].origin, cg.refdef.vieworg, delta );
-		dist = VectorLength( delta );
-		loud[i] = 1.0f - dist / VS_RANGE;
-		if ( loud[i] < 0.0f ) {
-			loud[i] = 0.0f;
-		} else if ( loud[i] > 1.0f ) {
-			loud[i] = 1.0f;
+		dist = VectorLength( delta ) / VS_RANGE;
+		if ( dist < 0.0f ) {
+			dist = 0.0f;
+		} else if ( dist > 1.0f ) {
+			dist = 1.0f;
 		}
+		loud[i] = 1.0f - dist;
+		loud[i] *= loud[i];
 
 		yaw = atan2( delta[1], delta[0] ) * ( 180.0f / M_PI );
 		rel[i] = AngleNormalize180( yaw - cg.refdefViewAngles[1] );
@@ -1294,9 +1292,7 @@ void CG_DrawVisualSounds( void ) {
 
 	for ( r = 0; r < nRoot; r++ ) {
 		for ( s = r + 1; s < nRoot; s++ ) {
-			dAng = Q_fabs( AngleNormalize180( rAng[r] - rAng[s] ) );
-			if ( dAng > VS_STACK_DEG
-					&& !( rEnt[r] >= 0 && rEnt[r] < MAX_CLIENTS && rEnt[r] == rEnt[s] ) ) {
+			if ( rEnt[r] < 0 || rEnt[r] >= MAX_CLIENTS || rEnt[r] != rEnt[s] ) {
 				continue;
 			}
 			stackPar[VS_ClusterRoot( stackPar, s )] = VS_ClusterRoot( stackPar, r );
@@ -1315,29 +1311,15 @@ void CG_DrawVisualSounds( void ) {
 			mem[nMem] = s;
 			nMem++;
 		}
-		while ( nMem > VS_STACK_MAX ) {
-			kept = 0;
-			for ( t = 1; t < nMem; t++ ) {
-				if ( rPrio[mem[t]] > rPrio[mem[kept]]
-						|| ( rPrio[mem[t]] == rPrio[mem[kept]] && rStart[mem[t]] > rStart[mem[kept]] ) ) {
-					kept = t;
-				}
-			}
-			mem[kept] = mem[nMem - 1];
-			nMem--;
-		}
-		for ( s = 0; s < nMem; s++ ) {
-			for ( t = s + 1; t < nMem; t++ ) {
-				if ( rStart[mem[t]] < rStart[mem[s]] ) {
-					swap = mem[s];
-					mem[s] = mem[t];
-					mem[t] = swap;
-				}
+		kept = mem[0];
+		for ( t = 1; t < nMem; t++ ) {
+			if ( rPrio[mem[t]] < rPrio[kept]
+					|| ( rPrio[mem[t]] == rPrio[kept] && rStart[mem[t]] < rStart[kept] ) ) {
+				kept = mem[t];
 			}
 		}
 		sumSin = 0.0f;
 		sumCos = 0.0f;
-		weight = 0.0f;
 		for ( s = 0; s < nMem; s++ ) {
 			t = mem[s];
 			sumSin += (float)sin( rAng[t] * ( M_PI / 180.0f ) ) * ( rLoud[t] + 0.05f );
@@ -1378,50 +1360,37 @@ void CG_DrawVisualSounds( void ) {
 			}
 		}
 		ang = AngleNormalize180( worldCur - viewYaw );
-		bestFade = 0.0f;
-		bestLoud = 0.0f;
-		for ( s = 0; s < nMem; s++ ) {
-			t = mem[s];
-			if ( rFade[t] > bestFade ) {
-				bestFade = rFade[t];
-			}
-			if ( rColor[t][3] > bestLoud ) {
-				bestLoud = rColor[t][3];
-			}
-		}
+		bestFade = rFade[kept];
+		bestLoud = rColor[kept][3];
 		VS_DrawStackArc( cx, cy, ang, bestLoud * bestFade );
-		for ( s = 0; s < nMem; s++ ) {
-			t = mem[s];
-			radius = VS_RADIUS + (float)s * VS_STACK_GAP;
-			x = cx - (float)sin( ang * ( M_PI / 180.0f ) ) * radius;
-			y = cy - (float)cos( ang * ( M_PI / 180.0f ) ) * radius;
-			color[0] = rColor[t][0];
-			color[1] = rColor[t][1];
-			color[2] = rColor[t][2];
-			color[3] = rColor[t][3];
-			if ( rIcon[t] ) {
-				sz = VS_ICON_SIZE * rFade[t];
-				if ( sz < 1.0f ) {
-					sz = 1.0f;
-				}
-				trap_R_SetColor( color );
-				CG_DrawPic( x - CG_HeightToWidth( sz ) * 0.5f, y - sz * 0.5f,
-						CG_HeightToWidth( sz ), sz, rIcon[t] );
-				trap_R_SetColor( NULL );
-				continue;
+		x = cx - (float)sin( ang * ( M_PI / 180.0f ) ) * VS_RADIUS;
+		y = cy - (float)cos( ang * ( M_PI / 180.0f ) ) * VS_RADIUS;
+		color[0] = rColor[kept][0];
+		color[1] = rColor[kept][1];
+		color[2] = rColor[kept][2];
+		color[3] = rColor[kept][3];
+		if ( rIcon[kept] ) {
+			sz = VS_ICON_SIZE * rFade[kept];
+			if ( sz < 1.0f ) {
+				sz = 1.0f;
 			}
-			label = rLabel[t];
-			color[0] = color[1] = color[2] = 1.00f;
-			ch = TINYCHAR_HEIGHT * rFade[t];
-			cw = CG_HeightToWidth( TINYCHAR_WIDTH ) * rFade[t];
-			if ( ch < 1.0f ) {
-				ch = 1.0f;
-				cw = CG_HeightToWidth( 1.0f );
-			}
-			len = CG_DrawStrlen( label );
-			CG_DrawStringExtFloat( x - cw * len * 0.5f, y - ch * 0.5f, label, color,
-					qtrue, qtrue, cw, ch, 0 );
+			trap_R_SetColor( color );
+			CG_DrawPic( x - CG_HeightToWidth( sz ) * 0.5f, y - sz * 0.5f,
+					CG_HeightToWidth( sz ), sz, rIcon[kept] );
+			trap_R_SetColor( NULL );
+			continue;
 		}
+		label = rLabel[kept];
+		color[0] = color[1] = color[2] = 1.00f;
+		ch = TINYCHAR_HEIGHT * rFade[kept];
+		cw = CG_HeightToWidth( TINYCHAR_WIDTH ) * rFade[kept];
+		if ( ch < 1.0f ) {
+			ch = 1.0f;
+			cw = CG_HeightToWidth( 1.0f );
+		}
+		len = CG_DrawStrlen( label );
+		CG_DrawStringExtFloat( x - cw * len * 0.5f, y - ch * 0.5f, label, color,
+				qtrue, qtrue, cw, ch, 0 );
 	}
 }
 
