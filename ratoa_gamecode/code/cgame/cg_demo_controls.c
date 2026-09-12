@@ -15,7 +15,13 @@ Demo playback overlay: mouse cursor and timescale transport controls.
 #define DEMOCTRL_TOP_Y			8
 #define DEMOCTRL_PROG_Y			364
 #define DEMOCTRL_PROG_H			6
+#define DEMOCTRL_PROG_HIT_PAD	8
 #define DEMOCTRL_CURSOR_SIZE	32
+#define DEMOCTRL_SEEK_SETTLE_MS		150
+#define DEMOCTRL_SEEK_OVERSHOOT_MS	400
+#define DEMOCTRL_SEEK_NOP_MS		200
+#define DEMOCTRL_SEEK_WORST_FRAME	80
+#define DEMOCTRL_SEEK_MAX_TS		50.0f
 
 typedef enum {
 	DEMOCTRL_SLOWER = 0,
@@ -62,8 +68,21 @@ static int		dc_hoverBtn = -1;
 static int		dc_firstServerTime;
 static int		dc_durationMs;
 static qboolean	dc_timingReady;
+static qboolean	dc_seeking;
+static qboolean	dc_seekKeepCvars;
+static qboolean	dc_seekRestartPending;
+static qboolean	dc_seekMuted;
+static int		dc_seekTargetMs;
+static float	dc_seekResumeTs;
+static float	dc_seekSavedVolume;
+static float	dc_seekAppliedTs;
 
 static void DemoCtrl_ReleaseCatcher( void );
+static void DemoCtrl_SeekFinish( qboolean applyResume );
+static void DemoCtrl_SeekBegin( int targetMs );
+static void DemoCtrl_SeekFrame( void );
+static void DemoCtrl_SeekWriteCvars( void );
+static void DemoCtrl_UpdateSpeedLabel( float ts );
 
 static qboolean DemoCtrl_TimescaleNear( float a, float b ) {
 	float d;
@@ -107,6 +126,31 @@ static int DemoCtrl_BarX( int numBtns ) {
 	return ( SCREEN_WIDTH - totalW ) / 2;
 }
 
+static void DemoCtrl_TrackRect( int *x, int *y, int *w, int *h ) {
+	int panelX;
+	int panelW;
+
+	panelX = DemoCtrl_BarX( 4 ) - 8;
+	panelW = 4 * DEMOCTRL_BTN_W + 3 * DEMOCTRL_BTN_GAP + 16;
+	*x = panelX + 10;
+	*y = DEMOCTRL_PROG_Y;
+	*w = panelW - 20;
+	*h = DEMOCTRL_PROG_H;
+}
+
+static qboolean DemoCtrl_HitTestTrack( int mx, int my ) {
+	int x, y, w, h;
+
+	DemoCtrl_TrackRect( &x, &y, &w, &h );
+	if ( mx < x || mx > x + w ) {
+		return qfalse;
+	}
+	if ( my < y - DEMOCTRL_PROG_HIT_PAD || my > y + h + DEMOCTRL_PROG_HIT_PAD ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
 static void DemoCtrl_ButtonRect( int btn, int *x, int *y, int *w, int *h ) {
 	int index;
 	int barX;
@@ -146,7 +190,7 @@ static void DemoCtrl_ApplyStep( int step ) {
 		step = DEMOCTRL_NUM_STEPS - 1;
 	}
 	trap_Cvar_Set( "timescale", demoTimescaleSteps[step].cvarValue );
-	Q_strncpyz( dc_speedLabel, demoTimescaleSteps[step].label, sizeof( dc_speedLabel ) );
+	DemoCtrl_UpdateSpeedLabel( demoTimescaleSteps[step].timescale );
 }
 
 static void DemoCtrl_ReadCurrentDemo( char *name, int nameSize ) {
@@ -163,34 +207,64 @@ static void DemoCtrl_ReadCurrentDemo( char *name, int nameSize ) {
 static void DemoCtrl_Activate( int btn ) {
 	int idx;
 	char demoName[MAX_OSPATH];
+	float speedSrc;
 
-	idx = DemoCtrl_StepIndexForTimescale( cg_timescale.value );
+	speedSrc = dc_seeking ? dc_seekResumeTs : cg_timescale.value;
+	idx = DemoCtrl_StepIndexForTimescale( speedSrc );
 	switch ( btn ) {
 	case DEMOCTRL_PAUSE:
+		if ( dc_seeking ) {
+			dc_seekResumeTs = 0.0f;
+			DemoCtrl_SeekFinish( qtrue );
+			break;
+		}
 		DemoCtrl_ApplyStep( 0 );
 		break;
 	case DEMOCTRL_PLAY:
+		if ( dc_seeking ) {
+			dc_seekResumeTs = 1.0f;
+			DemoCtrl_SeekWriteCvars();
+			break;
+		}
 		DemoCtrl_ApplyStep( 4 );
 		break;
 	case DEMOCTRL_SLOWER:
 		if ( idx <= 1 ) {
-			DemoCtrl_ApplyStep( 1 );
+			idx = 1;
 		} else {
-			DemoCtrl_ApplyStep( idx - 1 );
+			idx = idx - 1;
 		}
+		if ( dc_seeking ) {
+			dc_seekResumeTs = demoTimescaleSteps[idx].timescale;
+			DemoCtrl_SeekWriteCvars();
+			break;
+		}
+		DemoCtrl_ApplyStep( idx );
 		break;
 	case DEMOCTRL_FASTER:
 		if ( idx < 1 ) {
-			DemoCtrl_ApplyStep( 1 );
+			idx = 1;
 		} else {
-			DemoCtrl_ApplyStep( idx + 1 );
+			idx = idx + 1;
 		}
+		if ( idx >= DEMOCTRL_NUM_STEPS ) {
+			idx = DEMOCTRL_NUM_STEPS - 1;
+		}
+		if ( dc_seeking ) {
+			dc_seekResumeTs = demoTimescaleSteps[idx].timescale;
+			DemoCtrl_SeekWriteCvars();
+			break;
+		}
+		DemoCtrl_ApplyStep( idx );
 		break;
 	case DEMOCTRL_RESTART:
 		DemoCtrl_ReadCurrentDemo( demoName, sizeof( demoName ) );
 		if ( !demoName[0] ) {
 			CG_Printf( "Replay restart needs the demo filename (start it from the Replays menu).\n" );
 			break;
+		}
+		if ( dc_seeking ) {
+			DemoCtrl_SeekFinish( qfalse );
 		}
 		trap_Cvar_Set( "timescale", "1" );
 		trap_SendConsoleCommand( va( "demo \"%s\"\n", demoName ) );
@@ -200,6 +274,9 @@ static void DemoCtrl_Activate( int btn ) {
 		trap_SendConsoleCommand( "ui_ingamemenu\n" );
 		break;
 	case DEMOCTRL_EXIT:
+		if ( dc_seeking ) {
+			DemoCtrl_SeekFinish( qfalse );
+		}
 		trap_Cvar_Set( "timescale", "1" );
 		trap_SendConsoleCommand( "disconnect\n" );
 		break;
@@ -322,12 +399,227 @@ static int DemoCtrl_ElapsedMs( void ) {
 	return elapsed;
 }
 
+static void DemoCtrl_UpdateSpeedLabel( float ts ) {
+	int idx;
+
+	idx = DemoCtrl_StepIndexForTimescale( ts );
+	if ( DemoCtrl_TimescaleNear( ts, demoTimescaleSteps[idx].timescale ) ) {
+		Q_strncpyz( dc_speedLabel, demoTimescaleSteps[idx].label, sizeof( dc_speedLabel ) );
+	} else {
+		Com_sprintf( dc_speedLabel, sizeof( dc_speedLabel ), "%.1fx", ts );
+	}
+}
+
+static void DemoCtrl_SeekWriteCvars( void ) {
+	trap_Cvar_Set( "cg_demoSeekActive", "1" );
+	trap_Cvar_Set( "cg_demoSeekTargetMs", va( "%d", dc_seekTargetMs ) );
+	trap_Cvar_Set( "cg_demoSeekResume", va( "%f", dc_seekResumeTs ) );
+}
+
+static void DemoCtrl_SeekClearCvars( void ) {
+	trap_Cvar_Set( "cg_demoSeekActive", "0" );
+}
+
+static void DemoCtrl_SeekMute( void ) {
+	char buf[32];
+
+	if ( !dc_seekMuted ) {
+		buf[0] = '\0';
+		trap_Cvar_VariableStringBuffer( "s_volume", buf, sizeof( buf ) );
+		dc_seekSavedVolume = buf[0] ? (float)atof( buf ) : 0.0f;
+		trap_Cvar_Set( "cg_demoSeekVolume", buf[0] ? buf : "0" );
+		dc_seekMuted = qtrue;
+	}
+	trap_Cvar_Set( "s_volume", "0" );
+}
+
+static void DemoCtrl_SeekUnmute( void ) {
+	char buf[32];
+
+	if ( !dc_seekMuted ) {
+		return;
+	}
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "cg_demoSeekVolume", buf, sizeof( buf ) );
+	if ( buf[0] ) {
+		trap_Cvar_Set( "s_volume", buf );
+	} else {
+		trap_Cvar_Set( "s_volume", va( "%f", dc_seekSavedVolume ) );
+	}
+	dc_seekMuted = qfalse;
+}
+
+static void DemoCtrl_SeekSetTimescale( float ts ) {
+	if ( ts < 1.0f ) {
+		ts = 1.0f;
+	}
+	if ( ts > DEMOCTRL_SEEK_MAX_TS ) {
+		ts = DEMOCTRL_SEEK_MAX_TS;
+	}
+	if ( dc_seekAppliedTs > 0.0f && DemoCtrl_TimescaleNear( dc_seekAppliedTs, ts ) ) {
+		return;
+	}
+	dc_seekAppliedTs = ts;
+	trap_Cvar_Set( "timescale", va( "%f", ts ) );
+}
+
+static void DemoCtrl_SeekFinish( qboolean applyResume ) {
+	dc_seeking = qfalse;
+	dc_seekRestartPending = qfalse;
+	dc_seekKeepCvars = qfalse;
+	dc_seekAppliedTs = 0.0f;
+	DemoCtrl_SeekUnmute();
+	DemoCtrl_SeekClearCvars();
+	if ( applyResume ) {
+		trap_Cvar_Set( "timescale", va( "%f", dc_seekResumeTs ) );
+		DemoCtrl_UpdateSpeedLabel( dc_seekResumeTs );
+	}
+}
+
+static void DemoCtrl_SeekRestartDemo( void ) {
+	char demoName[MAX_OSPATH];
+
+	DemoCtrl_ReadCurrentDemo( demoName, sizeof( demoName ) );
+	if ( !demoName[0] ) {
+		CG_Printf( "Replay seek needs the demo filename (start it from the Replays menu).\n" );
+		DemoCtrl_SeekFinish( qtrue );
+		return;
+	}
+	dc_seekKeepCvars = qtrue;
+	dc_seekRestartPending = qtrue;
+	DemoCtrl_SeekWriteCvars();
+	dc_seekAppliedTs = DEMOCTRL_SEEK_MAX_TS;
+	trap_Cvar_Set( "timescale", va( "%f", DEMOCTRL_SEEK_MAX_TS ) );
+	trap_SendConsoleCommand( va( "demo \"%s\"\n", demoName ) );
+}
+
+static void DemoCtrl_SeekResumeFromCvars( void ) {
+	char buf[32];
+
+	if ( dc_seeking ) {
+		return;
+	}
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "cg_demoSeekActive", buf, sizeof( buf ) );
+	if ( atoi( buf ) == 0 ) {
+		return;
+	}
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "cg_demoSeekTargetMs", buf, sizeof( buf ) );
+	dc_seekTargetMs = atoi( buf );
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "cg_demoSeekResume", buf, sizeof( buf ) );
+	dc_seekResumeTs = buf[0] ? (float)atof( buf ) : 1.0f;
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "cg_demoSeekVolume", buf, sizeof( buf ) );
+	if ( buf[0] ) {
+		dc_seekSavedVolume = (float)atof( buf );
+		dc_seekMuted = qtrue;
+	} else {
+		dc_seekMuted = qfalse;
+	}
+	dc_seeking = qtrue;
+	dc_seekRestartPending = qfalse;
+	dc_seekAppliedTs = 0.0f;
+	dc_visible = qtrue;
+	dc_lastMoveMs = trap_Milliseconds();
+	Q_strncpyz( dc_speedLabel, "SEEK", sizeof( dc_speedLabel ) );
+	DemoCtrl_SeekMute();
+}
+
+static void DemoCtrl_SeekBegin( int targetMs ) {
+	int elapsed;
+
+	if ( dc_durationMs <= 0 ) {
+		return;
+	}
+	if ( targetMs < 0 ) {
+		targetMs = 0;
+	}
+	if ( targetMs > dc_durationMs ) {
+		targetMs = dc_durationMs;
+	}
+
+	elapsed = DemoCtrl_ElapsedMs();
+	if ( !dc_seeking && targetMs >= elapsed && targetMs - elapsed < DEMOCTRL_SEEK_NOP_MS ) {
+		return;
+	}
+	if ( !dc_seeking && targetMs < elapsed && elapsed - targetMs < DEMOCTRL_SEEK_NOP_MS ) {
+		return;
+	}
+
+	if ( !dc_seeking ) {
+		dc_seekResumeTs = cg_timescale.value;
+	}
+	dc_seekTargetMs = targetMs;
+	dc_seeking = qtrue;
+	dc_seekAppliedTs = 0.0f;
+	dc_visible = qtrue;
+	dc_lastMoveMs = trap_Milliseconds();
+	Q_strncpyz( dc_speedLabel, "SEEK", sizeof( dc_speedLabel ) );
+	DemoCtrl_SeekMute();
+	DemoCtrl_SeekWriteCvars();
+
+	if ( dc_seekRestartPending ) {
+		return;
+	}
+
+	if ( targetMs + DEMOCTRL_SEEK_SETTLE_MS < elapsed ) {
+		DemoCtrl_SeekRestartDemo();
+	}
+}
+
+static void DemoCtrl_SeekFrame( void ) {
+	int elapsed;
+	int remaining;
+	float ts;
+
+	DemoCtrl_SeekResumeFromCvars();
+	if ( !dc_seeking ) {
+		return;
+	}
+
+	dc_visible = qtrue;
+	dc_lastMoveMs = trap_Milliseconds();
+
+	if ( dc_seekRestartPending ) {
+		return;
+	}
+	if ( !dc_timingReady || !cg.snap ) {
+		return;
+	}
+
+	elapsed = DemoCtrl_ElapsedMs();
+	if ( elapsed > dc_seekTargetMs + DEMOCTRL_SEEK_OVERSHOOT_MS ) {
+		DemoCtrl_SeekRestartDemo();
+		return;
+	}
+	if ( elapsed >= dc_seekTargetMs - DEMOCTRL_SEEK_SETTLE_MS ) {
+		DemoCtrl_SeekFinish( qtrue );
+		return;
+	}
+
+	DemoCtrl_SeekMute();
+	remaining = dc_seekTargetMs - elapsed;
+	ts = (float)( remaining - DEMOCTRL_SEEK_SETTLE_MS ) / (float)DEMOCTRL_SEEK_WORST_FRAME;
+	DemoCtrl_SeekSetTimescale( ts );
+}
+
 void CG_DemoControls_Shutdown( void ) {
+	if ( dc_seekKeepCvars || ( dc_seeking && cg.demoPlayback ) ) {
+		DemoCtrl_SeekWriteCvars();
+	} else if ( dc_seeking || dc_seekMuted ) {
+		DemoCtrl_SeekUnmute();
+		DemoCtrl_SeekClearCvars();
+		trap_Cvar_Set( "timescale", "1" );
+	}
 	dc_visible = qfalse;
 	dc_speedLabel[0] = '\0';
 	dc_timingReady = qfalse;
 	dc_firstServerTime = 0;
 	dc_durationMs = 0;
+	dc_seeking = qfalse;
+	dc_seekRestartPending = qfalse;
 	DemoCtrl_ReleaseCatcher();
 	CG_DemoEvents_Shutdown();
 }
@@ -348,6 +640,7 @@ void CG_DemoControls_Frame( void ) {
 	}
 
 	DemoCtrl_UpdateTiming();
+	DemoCtrl_SeekFrame();
 	CG_DemoEvents_Frame();
 
 	catcher = trap_Key_GetCatcher();
@@ -360,6 +653,11 @@ void CG_DemoControls_Frame( void ) {
 		dc_catcherHeld = qtrue;
 	} else {
 		dc_catcherHeld = qtrue;
+	}
+
+	if ( dc_seeking ) {
+		dc_visible = qtrue;
+		return;
 	}
 
 	if ( !dc_visible ) {
@@ -428,6 +726,29 @@ qboolean CG_DemoControls_KeyEvent( int key, qboolean down ) {
 				DemoCtrl_Activate( btn );
 				dc_lastMoveMs = trap_Milliseconds();
 			}
+			return qtrue;
+		}
+		if ( down && DemoCtrl_HitTestTrack( dc_cursorX, dc_cursorY ) ) {
+			int x, y, w, h;
+			int mx;
+			int targetMs;
+			float frac;
+
+			DemoCtrl_UpdateTiming();
+			DemoCtrl_TrackRect( &x, &y, &w, &h );
+			if ( w > 0 && dc_durationMs > 0 ) {
+				mx = dc_cursorX;
+				if ( mx < x ) {
+					mx = x;
+				}
+				if ( mx > x + w ) {
+					mx = x + w;
+				}
+				frac = (float)( mx - x ) / (float)w;
+				targetMs = (int)( frac * (float)dc_durationMs + 0.5f );
+				DemoCtrl_SeekBegin( targetMs );
+			}
+			dc_lastMoveMs = trap_Milliseconds();
 			return qtrue;
 		}
 	}
@@ -499,13 +820,16 @@ void CG_DemoControls_Draw( void ) {
 		int elapsed;
 		int duration;
 		int trackX;
+		int trackY;
 		int trackW;
+		int trackH;
 		int fillW;
 		int tickX;
 		float frac;
 		char elapsedStr[16];
 		char totalStr[16];
 		vec4_t tickColor;
+		vec4_t seekColor;
 
 		elapsed = DemoCtrl_ElapsedMs();
 		duration = dc_durationMs;
@@ -513,8 +837,7 @@ void CG_DemoControls_Draw( void ) {
 			elapsed = duration;
 		}
 
-		trackX = panelX + 10;
-		trackW = panelW - 20;
+		DemoCtrl_TrackRect( &trackX, &trackY, &trackW, &trackH );
 		frac = 0.0f;
 		if ( duration > 0 ) {
 			frac = (float)elapsed / (float)duration;
@@ -531,13 +854,27 @@ void CG_DemoControls_Draw( void ) {
 		tickColor[1] = 1.0f;
 		tickColor[2] = 1.0f;
 		tickColor[3] = 1.0f;
+		seekColor[0] = 1.0f;
+		seekColor[1] = 0.82f;
+		seekColor[2] = 0.20f;
+		seekColor[3] = 1.0f;
 
-		CG_DemoEvents_DrawTrack( trackX, DEMOCTRL_PROG_Y, trackW, DEMOCTRL_PROG_H,
+		CG_DemoEvents_DrawTrack( trackX, trackY, trackW, trackH,
 				dc_firstServerTime, duration, elapsed );
-		CG_DrawRect( trackX, DEMOCTRL_PROG_Y, trackW, DEMOCTRL_PROG_H, 1, border );
-		if ( CG_DemoEvents_DrawMarkers( trackX, DEMOCTRL_PROG_Y, trackW, DEMOCTRL_PROG_H,
+		CG_DrawRect( trackX, trackY, trackW, trackH, 1, border );
+		if ( CG_DemoEvents_DrawMarkers( trackX, trackY, trackW, trackH,
 				dc_firstServerTime, duration, dc_cursorX, dc_cursorY ) ) {
 			dc_lastMoveMs = trap_Milliseconds();
+		}
+		if ( dc_seeking && duration > 0 ) {
+			tickX = trackX + (int)( ( (float)dc_seekTargetMs / (float)duration ) * (float)trackW ) - 1;
+			if ( tickX < trackX ) {
+				tickX = trackX;
+			}
+			if ( tickX > trackX + trackW - 2 ) {
+				tickX = trackX + trackW - 2;
+			}
+			CG_FillRect( tickX, trackY - 3, 2, trackH + 6, seekColor );
 		}
 		tickX = trackX + fillW - 1;
 		if ( tickX < trackX ) {
@@ -546,7 +883,7 @@ void CG_DemoControls_Draw( void ) {
 		if ( tickX > trackX + trackW - 2 ) {
 			tickX = trackX + trackW - 2;
 		}
-		CG_FillRect( tickX, DEMOCTRL_PROG_Y - 2, 2, DEMOCTRL_PROG_H + 4, tickColor );
+		CG_FillRect( tickX, trackY - 2, 2, trackH + 4, tickColor );
 
 		DemoCtrl_FormatClock( elapsed, elapsedStr, sizeof( elapsedStr ) );
 		cw = 6;
@@ -567,10 +904,12 @@ void CG_DemoControls_Draw( void ) {
 	for ( i = 0; i < DEMOCTRL_NUM_BTNS; i++ ) {
 		DemoCtrl_ButtonRect( i, &x, &y, &w, &h );
 		isActive = qfalse;
-		if ( i == DEMOCTRL_PAUSE && DemoCtrl_TimescaleNear( cg_timescale.value, 0.0f ) ) {
-			isActive = qtrue;
-		} else if ( i == DEMOCTRL_PLAY && DemoCtrl_TimescaleNear( cg_timescale.value, 1.0f ) ) {
-			isActive = qtrue;
+		if ( !dc_seeking ) {
+			if ( i == DEMOCTRL_PAUSE && DemoCtrl_TimescaleNear( cg_timescale.value, 0.0f ) ) {
+				isActive = qtrue;
+			} else if ( i == DEMOCTRL_PLAY && DemoCtrl_TimescaleNear( cg_timescale.value, 1.0f ) ) {
+				isActive = qtrue;
+			}
 		}
 
 		if ( isActive ) {
