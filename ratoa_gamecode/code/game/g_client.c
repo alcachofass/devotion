@@ -2121,6 +2121,9 @@ void ClientUserinfoChanged( int clientNum ) {
 	gclient_t	*client;
 	char	c1[MAX_INFO_STRING] = "7";
 	char	c2[MAX_INFO_STRING] = "7";
+	char	c3[MAX_INFO_STRING] = "H0";
+	char	c4[MAX_INFO_STRING] = "H0";
+	char	c5[MAX_INFO_STRING] = "H0";
 	char	redTeam[MAX_INFO_STRING];
 	char	blueTeam[MAX_INFO_STRING];
 	char	userinfo[MAX_INFO_STRING];
@@ -2472,6 +2475,18 @@ void ClientUserinfoChanged( int clientNum ) {
             Q_strncpyz(c1, Info_ValueForKey( userinfo, "color1" ), sizeof(c1));
             Q_strncpyz(c2, Info_ValueForKey( userinfo, "color2" ), sizeof(c2));
         }
+	Q_strncpyz(c3, Info_ValueForKey( userinfo, "color3" ), sizeof(c3));
+	Q_strncpyz(c4, Info_ValueForKey( userinfo, "color4" ), sizeof(c4));
+	Q_strncpyz(c5, Info_ValueForKey( userinfo, "color5" ), sizeof(c5));
+	if ( !c3[0] ) {
+		Q_strncpyz(c3, "H0", sizeof(c3));
+	}
+	if ( !c4[0] ) {
+		Q_strncpyz(c4, "H0", sizeof(c4));
+	}
+	if ( !c5[0] ) {
+		Q_strncpyz(c5, "H0", sizeof(c5));
+	}
 
 	if (!G_HasUniquePlayerColor(client)) {
 		G_AssignUniquePlayerColor(client);
@@ -2483,12 +2498,12 @@ void ClientUserinfoChanged( int clientNum ) {
 	// send over a subset of the userinfo keys so other clients can
 	// print scoreboards, display models, and play custom sounds
 	if ( ent->r.svFlags & SVF_BOT ) {
-		s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\skill\\%s\\tt\\%d\\tl\\%d\\pc\\%d"
+		s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\c1\\%s\\c2\\%s\\c3\\%s\\c4\\%s\\c5\\%s\\hc\\%i\\w\\%i\\l\\%i\\skill\\%s\\tt\\%d\\tl\\%d\\pc\\%d"
 #ifdef WITH_MULTITOURNAMENT
 				"\\g\\%i"
 #endif
 				,
-			client->pers.netname, team, model, headModel, c1, c2, 
+			client->pers.netname, team, model, headModel, c1, c2, c3, c4, c5,
 			client->pers.maxHealth, client->sess.wins, client->sess.losses,
 			Info_ValueForKey( userinfo, "skill" ), teamTask, teamLeader,
 			client->sess.playerColorIdx
@@ -2497,12 +2512,12 @@ void ClientUserinfoChanged( int clientNum ) {
 #endif
 			);
 	} else {
-		s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\g_redteam\\%s\\g_blueteam\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\tt\\%d\\tl\\%d\\pc\\%d"
+		s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\g_redteam\\%s\\g_blueteam\\%s\\c1\\%s\\c2\\%s\\c3\\%s\\c4\\%s\\c5\\%s\\hc\\%i\\w\\%i\\l\\%i\\tt\\%d\\tl\\%d\\pc\\%d"
 #ifdef WITH_MULTITOURNAMENT
 				"\\g\\%i"
 #endif
 				,
-			client->pers.netname, client->sess.sessionTeam, model, headModel, redTeam, blueTeam, c1, c2, 
+			client->pers.netname, client->sess.sessionTeam, model, headModel, redTeam, blueTeam, c1, c2, c3, c4, c5,
 			client->pers.maxHealth, client->sess.wins, client->sess.losses, teamTask, teamLeader,
 			client->sess.playerColorIdx
 #ifdef WITH_MULTITOURNAMENT

@@ -162,6 +162,9 @@ void CG_RegisterCvars( void ) {
 	trap_Cvar_Register(NULL, "headmodel", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
 	trap_Cvar_Register(NULL, "team_model", DEFAULT_TEAM_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
 	trap_Cvar_Register(NULL, "team_headmodel", DEFAULT_TEAM_HEAD, CVAR_USERINFO | CVAR_ARCHIVE );
+	trap_Cvar_Register(NULL, "color3", "H0", CVAR_USERINFO | CVAR_ARCHIVE );
+	trap_Cvar_Register(NULL, "color4", "H0", CVAR_USERINFO | CVAR_ARCHIVE );
+	trap_Cvar_Register(NULL, "color5", "H0", CVAR_USERINFO | CVAR_ARCHIVE );
 
 	BG_RegisterCgameCvarDescriptions();
 }

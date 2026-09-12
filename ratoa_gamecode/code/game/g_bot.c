@@ -913,6 +913,9 @@ static void G_AddBot( const char *name, float skill, const char *team, int delay
 	if (g_bots_randomcolors.integer) {
 		Info_SetValueForKey( userinfo, "color1", va("H%i", (int)(random()*360.0)));
 		Info_SetValueForKey( userinfo, "color2", va("H%i", (int)(random()*360.0)));
+		Info_SetValueForKey( userinfo, "color3", va("H%i", (int)(random()*360.0)));
+		Info_SetValueForKey( userinfo, "color4", va("H%i", (int)(random()*360.0)));
+		Info_SetValueForKey( userinfo, "color5", va("H%i", (int)(random()*360.0)));
 	} else {
 		key = "color1";
 		s = Info_ValueForKey( botinfo, key );
@@ -925,6 +928,27 @@ static void G_AddBot( const char *name, float skill, const char *team, int delay
 		s = Info_ValueForKey( botinfo, key );
 		if ( !*s ) {
 			s = "5";
+		}
+		Info_SetValueForKey( userinfo, key, s );
+
+		key = "color3";
+		s = Info_ValueForKey( botinfo, key );
+		if ( !*s ) {
+			s = "H0";
+		}
+		Info_SetValueForKey( userinfo, key, s );
+
+		key = "color4";
+		s = Info_ValueForKey( botinfo, key );
+		if ( !*s ) {
+			s = "H0";
+		}
+		Info_SetValueForKey( userinfo, key, s );
+
+		key = "color5";
+		s = Info_ValueForKey( botinfo, key );
+		if ( !*s ) {
+			s = "H0";
 		}
 		Info_SetValueForKey( userinfo, key, s );
 	}
