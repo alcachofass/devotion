@@ -74,6 +74,7 @@ jobs:
           files: |
             build/*.pk3
             build/SHA256SUMS
+          name: Devotion ${{ github.ref_name }}
           draft: false
           prerelease: false
           make_latest: true
