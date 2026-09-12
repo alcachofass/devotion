@@ -20,6 +20,8 @@ cg_servercmds
 cg_snapshot
 cg_demo_history
 cg_demo_controls
+cg_demo_events
+cg_demo_msg_stub
 cg_visualsounds
 cg_superhud
 cg_unlagged
@@ -31,4 +33,6 @@ bg_lib
 bg_misc
 q_math
 q_shared
+msg
+huffman
 ui_shared

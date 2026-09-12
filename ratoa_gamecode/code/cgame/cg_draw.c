@@ -6201,6 +6201,7 @@ static void CG_DrawIntermission( void ) {
 #else
 	if ( cgs.gametype == GT_SINGLE_PLAYER ) {
 		CG_DrawCenterString();
+		CG_DemoControls_Draw();
 		return;
 	}
 #endif
@@ -6216,6 +6217,8 @@ static void CG_DrawIntermission( void ) {
 		}
 		trap_Cvar_Set("ui_nextmapvote_remaining", va("%i", remaining));
 	}
+
+	CG_DemoControls_Draw();
 }
 
 
@@ -6871,6 +6874,7 @@ void CG_DrawActive( stereoFrame_t stereoView ) {
 	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR &&
 		( cg.snap->ps.pm_flags & PMF_SCOREBOARD ) ) {
 		CG_DrawTourneyScoreboard();
+		CG_DemoControls_Draw();
 		return;
 	}
 

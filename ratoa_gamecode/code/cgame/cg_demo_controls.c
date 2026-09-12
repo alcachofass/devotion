@@ -329,6 +329,7 @@ void CG_DemoControls_Shutdown( void ) {
 	dc_firstServerTime = 0;
 	dc_durationMs = 0;
 	DemoCtrl_ReleaseCatcher();
+	CG_DemoEvents_Shutdown();
 }
 
 void CG_DemoControls_Frame( void ) {
@@ -342,10 +343,12 @@ void CG_DemoControls_Frame( void ) {
 		dc_speedLabel[0] = '\0';
 		dc_timingReady = qfalse;
 		DemoCtrl_ReleaseCatcher();
+		CG_DemoEvents_Shutdown();
 		return;
 	}
 
 	DemoCtrl_UpdateTiming();
+	CG_DemoEvents_Frame();
 
 	catcher = trap_Key_GetCatcher();
 	if ( catcher & ( KEYCATCH_UI | KEYCATCH_CONSOLE | KEYCATCH_MESSAGE ) ) {
@@ -502,8 +505,6 @@ void CG_DemoControls_Draw( void ) {
 		float frac;
 		char elapsedStr[16];
 		char totalStr[16];
-		vec4_t trackBg;
-		vec4_t trackFill;
 		vec4_t tickColor;
 
 		elapsed = DemoCtrl_ElapsedMs();
@@ -524,25 +525,19 @@ void CG_DemoControls_Draw( void ) {
 				frac = 1.0f;
 			}
 		}
+		fillW = (int)( frac * (float)trackW );
 
-		trackBg[0] = 0.08f;
-		trackBg[1] = 0.08f;
-		trackBg[2] = 0.10f;
-		trackBg[3] = 0.90f;
-		trackFill[0] = 0.75f;
-		trackFill[1] = 0.75f;
-		trackFill[2] = 0.80f;
-		trackFill[3] = 0.95f;
 		tickColor[0] = 1.0f;
 		tickColor[1] = 1.0f;
 		tickColor[2] = 1.0f;
 		tickColor[3] = 1.0f;
 
-		CG_FillRect( trackX, DEMOCTRL_PROG_Y, trackW, DEMOCTRL_PROG_H, trackBg );
+		CG_DemoEvents_DrawTrack( trackX, DEMOCTRL_PROG_Y, trackW, DEMOCTRL_PROG_H,
+				dc_firstServerTime, duration, elapsed );
 		CG_DrawRect( trackX, DEMOCTRL_PROG_Y, trackW, DEMOCTRL_PROG_H, 1, border );
-		fillW = (int)( frac * (float)trackW );
-		if ( fillW > 0 ) {
-			CG_FillRect( trackX, DEMOCTRL_PROG_Y, fillW, DEMOCTRL_PROG_H, trackFill );
+		if ( CG_DemoEvents_DrawMarkers( trackX, DEMOCTRL_PROG_Y, trackW, DEMOCTRL_PROG_H,
+				dc_firstServerTime, duration, dc_cursorX, dc_cursorY ) ) {
+			dc_lastMoveMs = trap_Milliseconds();
 		}
 		tickX = trackX + fillW - 1;
 		if ( tickX < trackX ) {
