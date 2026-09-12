@@ -49,13 +49,19 @@ SOUND OPTIONS MENU
 #define ID_BACK				19
 #define ID_HITSOUND			20
 
+#define MAX_HITSOUND_CHOICES	48
+#define HITSOUND_LABEL_LEN		32
+#define HITPREVIEW_INTERVAL		450
+#define HITPREVIEW_LOOP_PAUSE	900
+
+static char			hitsound_labels[MAX_HITSOUND_CHOICES][HITSOUND_LABEL_LEN];
+static const char	*hitsound_items[MAX_HITSOUND_CHOICES + 1];
+static int			hitsound_values[MAX_HITSOUND_CHOICES];
+static int			hitsound_numChoices;
+
 
 static const char *quality_items[] = {
 	"Low", "High", NULL
-};
-
-static const char *hitsound_items[] = {
-	"Off", "Default", "Alternate 1", "Alternate 2", "Damage Tones 1", "Damage Tones 2", NULL
 };
 
 typedef struct {
@@ -74,14 +80,176 @@ typedef struct {
 	menuslider_s		musicvolume;
 	menulist_s			quality;
 	menulist_s			hitsound;
-//	menuradiobutton_s	a3d;
 	menuradiobutton_s	openal;
 
 	menubitmap_s		back;
+
+	sfxHandle_t			previewSfx[4];
+	int					previewCount;
+	int					previewIndex;
+	int					previewTime;
+	int					previewChoice;
+	qboolean			previewActive;
 } soundOptionsInfo_t;
 
 static soundOptionsInfo_t	soundOptionsInfo;
 
+static qboolean UI_HitSoundExists( const char *path ) {
+	fileHandle_t	f;
+	int				len;
+
+	f = 0;
+	len = trap_FS_FOpenFile( path, &f, FS_READ );
+	if ( f ) {
+		trap_FS_FCloseFile( f );
+	}
+	return ( len > 1024 ) ? qtrue : qfalse;
+}
+
+static void UI_HitSoundAddChoice( const char *label, int cvarValue ) {
+	if ( hitsound_numChoices >= MAX_HITSOUND_CHOICES ) {
+		return;
+	}
+	Q_strncpyz( hitsound_labels[hitsound_numChoices], label, HITSOUND_LABEL_LEN );
+	hitsound_items[hitsound_numChoices] = hitsound_labels[hitsound_numChoices];
+	hitsound_values[hitsound_numChoices] = cvarValue;
+	hitsound_numChoices++;
+}
+
+static void UI_HitSoundBuildChoices( void ) {
+	int		i;
+	char	path[MAX_QPATH];
+
+	hitsound_numChoices = 0;
+	UI_HitSoundAddChoice( "Off", 0 );
+
+	for ( i = 1; i < 100; i++ ) {
+		Com_sprintf( path, sizeof( path ), "sound/feedback/hit%d.wav", i );
+		if ( !UI_HitSoundExists( path ) ) {
+			continue;
+		}
+		if ( i == 1 ) {
+			UI_HitSoundAddChoice( "Default", i );
+		} else {
+			UI_HitSoundAddChoice( va( "Alternate %d", i - 1 ), i );
+		}
+	}
+
+	for ( i = 1; i < 100; i++ ) {
+		Com_sprintf( path, sizeof( path ), "sound/feedback/tones%d/hit1.wav", i );
+		if ( !UI_HitSoundExists( path ) ) {
+			continue;
+		}
+		UI_HitSoundAddChoice( va( "Damage Tones %d", i ), -i );
+	}
+
+	hitsound_items[hitsound_numChoices] = NULL;
+}
+
+static int UI_HitSoundIndexForCvar( int cvarValue ) {
+	int i;
+
+	for ( i = 0; i < hitsound_numChoices; i++ ) {
+		if ( hitsound_values[i] == cvarValue ) {
+			return i;
+		}
+	}
+	return ( 1 < hitsound_numChoices ) ? 1 : 0;
+}
+
+static void UI_HitSoundLoadPreview( int choice ) {
+	int			val;
+	int			pack;
+	int			i;
+	char		path[MAX_QPATH];
+	sfxHandle_t	sfx;
+
+	soundOptionsInfo.previewCount = 0;
+	soundOptionsInfo.previewIndex = 0;
+	soundOptionsInfo.previewTime = 0;
+	soundOptionsInfo.previewChoice = choice;
+
+	if ( choice < 0 || choice >= hitsound_numChoices ) {
+		return;
+	}
+
+	val = hitsound_values[choice];
+	if ( val == 0 ) {
+		return;
+	}
+
+	if ( val > 0 ) {
+		Com_sprintf( path, sizeof( path ), "sound/feedback/hit%d.wav", val );
+		if ( UI_HitSoundExists( path ) ) {
+			soundOptionsInfo.previewSfx[0] = trap_S_RegisterSound( path, qfalse );
+			if ( soundOptionsInfo.previewSfx[0] ) {
+				soundOptionsInfo.previewCount = 1;
+			}
+		}
+		return;
+	}
+
+	pack = -val;
+	for ( i = 4; i >= 1; i-- ) {
+		Com_sprintf( path, sizeof( path ), "sound/feedback/tones%d/hit%d.wav", pack, i );
+		if ( !UI_HitSoundExists( path ) ) {
+			continue;
+		}
+		sfx = trap_S_RegisterSound( path, qfalse );
+		if ( !sfx ) {
+			continue;
+		}
+		soundOptionsInfo.previewSfx[soundOptionsInfo.previewCount] = sfx;
+		soundOptionsInfo.previewCount++;
+		if ( soundOptionsInfo.previewCount >= 4 ) {
+			break;
+		}
+	}
+}
+
+static void UI_HitSoundPreview( void ) {
+	int			choice;
+	int			gap;
+	sfxHandle_t	sfx;
+
+	if ( !( soundOptionsInfo.hitsound.generic.flags & QMF_HASMOUSEFOCUS ) ) {
+		soundOptionsInfo.previewActive = qfalse;
+		return;
+	}
+
+	choice = soundOptionsInfo.hitsound.curvalue;
+	if ( !soundOptionsInfo.previewActive || choice != soundOptionsInfo.previewChoice ) {
+		UI_HitSoundLoadPreview( choice );
+		soundOptionsInfo.previewActive = qtrue;
+	}
+
+	if ( soundOptionsInfo.previewCount <= 0 ) {
+		return;
+	}
+
+	if ( soundOptionsInfo.previewTime && uis.realtime < soundOptionsInfo.previewTime ) {
+		return;
+	}
+
+	sfx = soundOptionsInfo.previewSfx[soundOptionsInfo.previewIndex];
+	if ( sfx ) {
+		trap_S_StartLocalSound( sfx, CHAN_LOCAL );
+	}
+
+	soundOptionsInfo.previewIndex++;
+	if ( soundOptionsInfo.previewIndex >= soundOptionsInfo.previewCount ) {
+		soundOptionsInfo.previewIndex = 0;
+		gap = ( soundOptionsInfo.previewCount > 1 ) ? HITPREVIEW_LOOP_PAUSE : HITPREVIEW_INTERVAL * 3;
+	} else {
+		gap = HITPREVIEW_INTERVAL;
+	}
+	soundOptionsInfo.previewTime = uis.realtime + gap;
+}
+
+static void UI_SoundOptionsMenu_Draw( void ) {
+	Menu_Draw( &soundOptionsInfo.menu );
+	UI_HitSoundPreview();
+}
 
 /*
 =================
@@ -121,13 +289,11 @@ static void UI_SoundOptionsMenu_Event( void* ptr, int event ) {
 		break;
 
 	case ID_HITSOUND:
-		if ( soundOptionsInfo.hitsound.curvalue == 4 ) {
-			trap_Cvar_SetValue( "cg_hitsound", -1 );
-		} else if ( soundOptionsInfo.hitsound.curvalue == 5 ) {
-			trap_Cvar_SetValue( "cg_hitsound", -2 );
-		} else {
-			trap_Cvar_SetValue( "cg_hitsound", soundOptionsInfo.hitsound.curvalue );
+		if ( soundOptionsInfo.hitsound.curvalue >= 0
+				&& soundOptionsInfo.hitsound.curvalue < hitsound_numChoices ) {
+			trap_Cvar_SetValue( "cg_hitsound", hitsound_values[soundOptionsInfo.hitsound.curvalue] );
 		}
+		soundOptionsInfo.previewActive = qfalse;
 		break;
 
 	case ID_QUALITY:
@@ -184,6 +350,9 @@ static void UI_SoundOptionsMenu_Init( void ) {
 	UI_SoundOptionsMenu_Cache();
 	soundOptionsInfo.menu.wrapAround = qtrue;
 	soundOptionsInfo.menu.fullscreen = qtrue;
+	soundOptionsInfo.menu.draw = UI_SoundOptionsMenu_Draw;
+
+	UI_HitSoundBuildChoices();
 
 	soundOptionsInfo.banner.generic.type		= MTYPE_BTEXT;
 	soundOptionsInfo.banner.generic.flags		= QMF_CENTER_JUSTIFY;
@@ -337,19 +506,7 @@ static void UI_SoundOptionsMenu_Init( void ) {
 
 	soundOptionsInfo.sfxvolume.curvalue = trap_Cvar_VariableValue( "s_volume" ) * 10;
 	soundOptionsInfo.musicvolume.curvalue = trap_Cvar_VariableValue( "s_musicvolume" ) * 10;
-	{
-		int hitsound = (int)trap_Cvar_VariableValue( "cg_hitsound" );
-
-		if ( hitsound == -1 ) {
-			soundOptionsInfo.hitsound.curvalue = 4;
-		} else if ( hitsound == -2 ) {
-			soundOptionsInfo.hitsound.curvalue = 5;
-		} else if ( hitsound >= 0 && hitsound <= 3 ) {
-			soundOptionsInfo.hitsound.curvalue = hitsound;
-		} else {
-			soundOptionsInfo.hitsound.curvalue = 1;
-		}
-	}
+	soundOptionsInfo.hitsound.curvalue = UI_HitSoundIndexForCvar( (int)trap_Cvar_VariableValue( "cg_hitsound" ) );
 	soundOptionsInfo.quality.curvalue = !trap_Cvar_VariableValue( "s_compression" );
 //	soundOptionsInfo.a3d.curvalue = (int)trap_Cvar_VariableValue( "s_usingA3D" );
 	soundOptionsInfo.openal.curvalue = (int)trap_Cvar_VariableValue( "s_useopenal" );

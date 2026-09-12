@@ -325,7 +325,7 @@ void CG_PushReward(sfxHandle_t sfx, qhandle_t shader, int rewardCount) {
 CG_StartHitSound
 
 Negative cg_hitsound values play a damage-scaled tone ladder from the
-pack registered at map load. Other non-zero values use the single beep.
+pack registered for that value. Other non-zero values use hitN.wav.
 ==================
 */
 void CG_StartHitSound( int damage ) {
