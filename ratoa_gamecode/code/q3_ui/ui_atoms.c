@@ -1403,6 +1403,11 @@ qboolean UI_ConsoleCommand( int realTime ) {
 		return qtrue;
 	}
 
+	if ( Q_stricmp (cmd, "ui_ingamemenu") == 0 ) {
+		UI_SetActiveMenu( UIMENU_INGAME );
+		return qtrue;
+	}
+
 	return qfalse;
 }
 

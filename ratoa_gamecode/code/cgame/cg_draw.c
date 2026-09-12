@@ -6658,6 +6658,7 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 	}
 
 	if ( cg_draw2D.integer == 0 ) {
+		CG_DemoControls_Draw();
 		return;
 	}
 
@@ -6841,6 +6842,7 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 	}
 
 	CG_DrawMessagePromptBackground();
+	CG_DemoControls_Draw();
 }
 
 

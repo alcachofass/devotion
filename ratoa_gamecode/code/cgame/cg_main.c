@@ -1780,7 +1780,6 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.retrieveShader = trap_R_RegisterShaderNoMip("ui/assets/statusbar/retrieve.tga");
 	cgs.media.escortShader = trap_R_RegisterShaderNoMip("ui/assets/statusbar/escort.tga");
 
-	cgs.media.cursor = trap_R_RegisterShaderNoMip( "menu/art/3_cursor2" );
 	cgs.media.sizeCursor = trap_R_RegisterShaderNoMip( "ui/assets/sizecursor.tga" );
 	cgs.media.selectCursor = trap_R_RegisterShaderNoMip( "ui/assets/selectcursor.tga" );
 	cgs.media.flagShaders[0] = trap_R_RegisterShaderNoMip("ui/assets/statusbar/flag_in_base.tga");
@@ -1799,6 +1798,7 @@ static void CG_RegisterGraphics( void ) {
 #if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
 	cgs.media.deathShader = trap_R_RegisterShaderNoMip( "gfx/2d/defer" );
 #endif
+	cgs.media.cursor = trap_R_RegisterShaderNoMip( "menu/art/3_cursor2" );
 	CG_ClearParticles ();
 /*
 	for (i=1; i<MAX_PARTICLES_AREAS; i++)
@@ -2709,6 +2709,7 @@ void CG_Shutdown( void ) {
 	CG_AutoRecordStop();
 	CG_MenuHud_Shutdown();
 	CG_DemoHistory_Clear();
+	CG_DemoControls_Shutdown();
 	challenges_save();
 }
 
@@ -2726,12 +2727,12 @@ CG_EventHandling
 void CG_EventHandling(int type) {
 }
 
-
-
 void CG_KeyEvent(int key, qboolean down) {
+	CG_DemoControls_KeyEvent( key, down );
 }
 
 void CG_MouseEvent(int x, int y) {
+	CG_DemoControls_MouseEvent( x, y );
 }
 #endif
 

@@ -1529,6 +1529,9 @@ static void UI_Demo_StartPlayback( demoEntry_t *entry ) {
 		return;
 	}
 
+	trap_Cvar_Set( "cg_currentDemo", entry->filename );
+	trap_Cvar_Set( "cg_demoDurationMs", va( "%d", entry->metaDurationMs ) );
+	trap_Cvar_Set( "cg_demoFirstServerTime", va( "%d", entry->metaFirstServerTime ) );
 	UI_ForceMenuOff();
 	trap_Cmd_ExecuteText( EXEC_APPEND, va( "demo \"%s\"\n", entry->filename ) );
 }
