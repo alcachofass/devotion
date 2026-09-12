@@ -44,7 +44,7 @@ static int			dp_realtime;
 static float		jumpHeight;
 
 static void UI_PmDigitColor( int digit, byte *out ) {
-	if ( digit < 1 || digit > 7 ) {
+	if ( digit < 0 || digit > 7 ) {
 		out[0] = out[1] = out[2] = 255;
 	} else {
 		out[0] = ( digit & 1 ) ? 255 : 0;

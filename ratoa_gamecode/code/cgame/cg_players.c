@@ -683,6 +683,14 @@ static void CG_ColorFromString( const char *v, vec3_t color ) {
 	if (v[0] && (v[0] == 'H' || v[0] == 'h')) {
 		float hcolor[4];
 		val = atoi(v+1);
+		if ( val == 361 ) {
+			VectorSet( color, 1, 1, 1 );
+			return;
+		}
+		if ( val == 362 ) {
+			VectorClear( color );
+			return;
+		}
 		if (val < 0 || val >= 360) {
 			val = 0;
 		} 
@@ -695,7 +703,7 @@ static void CG_ColorFromString( const char *v, vec3_t color ) {
 
 	val = atoi( v );
 
-	if ( val < 1 || val > 7 ) {
+	if ( val < 0 || val > 7 ) {
 		VectorSet( color, 1, 1, 1 );
 		return;
 	}
@@ -1207,7 +1215,7 @@ static void CG_ColorFromChar( char v, vec3_t color ) {
 
 	val = v - '0';
 
-	if ( val < 1 || val > 7 ) {
+	if ( val < 0 || val > 7 ) {
 		VectorSet( color, 1.0f, 1.0f, 1.0f );
 	} else {
 		VectorClear( color );
