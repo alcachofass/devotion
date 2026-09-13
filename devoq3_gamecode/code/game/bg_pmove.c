@@ -2117,8 +2117,13 @@ static void PM_Weapon( void ) {
 	}
 
 	// take an ammo away if not infinite, 999 or up
-	if ( !(pm->ps->ammo[ pm->ps->weapon ] == -1 || pm->ps->ammo[ pm->ps->weapon ] >=999 )) {
+	/*if ( !(pm->ps->ammo[ pm->ps->weapon ] == -1 || pm->ps->ammo[ pm->ps->weapon ] >=999 )) {
 		pm->ps->ammo[ pm->ps->weapon ]--;
+	}*/
+
+	if ( pm->ps->ammo[ pm->ps->weapon ] != -1
+		&& pm->ps->ammo[ pm->ps->weapon ] < 999 ) {
+		pm->ps->ammo [ pm->ps->weapon] -= ammoCost;
 	}
 
 	// fire weapon
