@@ -1990,6 +1990,8 @@ static void PM_Weapon( void ) {
 	qboolean altFire;	//mrd
 	qboolean fireRequested;	//mrd
 
+	int ammoCost;		//mrd - altFire consumes 2x ammo for all weapons
+
 	// don't allow attack until all buttons are up
 	if ( pm->ps->pm_flags & PMF_RESPAWNED ) {
 		return;
@@ -2028,6 +2030,21 @@ static void PM_Weapon( void ) {
 	//mrd TEST - this line might need to be higher up in this block
 	altFire = (pm->cmd.buttons & BUTTON_ALT_ATTACK) && pm->altFireEnabled;
 	fireRequested = pm->cmd.buttons & (BUTTON_ATTACK | BUTTON_ALT_ATTACK);
+
+	if (altFire){
+		ammoCost = 2;
+	} else {
+		ammoCost = 1;
+	}
+
+	//mrd - give the user a regular shot if they request altFire but don't
+	//have enough ammo for it
+	if ( altFire
+		&& pm->ps->ammo[ pm->ps->weapon] > 0
+		&& pm->ps->ammo[ pm->ps->weapon] < ammoCost ) {
+		altFire = qfalse;
+		ammoCost = 1;
+		}
 
 	// make weapon function
 	if ( pm->ps->weaponTime > 0 ) {
