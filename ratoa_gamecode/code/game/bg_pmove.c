@@ -2129,11 +2129,9 @@ static void PM_Weapon( void ) {
 	case WP_BFG:
 		addTime = 200;
 		break;
-		/*
 	case WP_GRAPPLING_HOOK:
 		addTime = 400;
 		break;
-		*/
 #ifdef MISSIONPACK
 	case WP_NAILGUN:
 		addTime = 1000;
@@ -2447,7 +2445,7 @@ void PmoveSingle (pmove_t *pmove) {
 	if ( pm->ps->powerups[PW_FLIGHT] ) {
 		// flight powerup doesn't allow jump and has different friction
 		PM_FlyMove();
-	} /* else if (pm->ps->pm_flags & PMF_GRAPPLE_PULL) {
+	} else if (pm->ps->pm_flags & PMF_GRAPPLE_PULL) {
 		if (pm->pmove_ratflags & RAT_SWINGGRAPPLE) {
 			PM_SwingGrappleMove();
 		} else {
@@ -2455,7 +2453,7 @@ void PmoveSingle (pmove_t *pmove) {
 		}
 		// We can wiggle a bit
 		PM_AirMove();
-	} */ else if (pm->ps->pm_flags & PMF_TIME_WATERJUMP) {
+	} else if (pm->ps->pm_flags & PMF_TIME_WATERJUMP) {
 		PM_WaterJumpMove();
 	} else if ( pm->waterlevel > 1 ) {
 		// swimming

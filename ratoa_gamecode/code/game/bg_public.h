@@ -335,7 +335,7 @@ typedef enum {
 // stats[STAT_EXTFLAGS]
 #define EXTFL_ZOOMING			1
 #define EXTFL_SLIDING			2
-#define EXTFL_BOT_AIM_DEBUG		4	/* bot_debugAim: ps.grapplePoint has harness aim */
+#define EXTFL_BOT_AIM_DEBUG		4	/* bot_debugAim: entity origin2 has harness aim */
 
 
 // stats[STAT_MOVEMENT_KEYS]
@@ -370,7 +370,7 @@ typedef enum {
 #define	EF_AWARD_ASSIST		0x00020000		// draw a assist sprite
 #define EF_AWARD_DENIED		0x00040000		// denied
 #define EF_TEAMVOTED		0x00080000		// already cast a team vote
-#define EF_BOT_AIM_DEBUG	0x00100000		// bot_debugAim: ps.grapplePoint + origin2 = aim point
+#define EF_BOT_AIM_DEBUG	0x00100000		// bot_debugAim: origin2 = aim point
 
 // Additional awards (not visible to other players)
 /*
@@ -486,7 +486,7 @@ typedef enum {
 	WP_RAILGUN,
 	WP_PLASMAGUN,
 	WP_BFG,
-//	WP_GRAPPLING_HOOK,
+	WP_GRAPPLING_HOOK,
 #ifdef MISSIONPACK
 	WP_NAILGUN,
 	WP_PROX_LAUNCHER,
@@ -839,7 +839,7 @@ typedef enum {
 	MOD_KAMIKAZE,
 	MOD_JUICED,
 #endif
-//	MOD_GRAPPLE
+	MOD_GRAPPLE
 } meansOfDeath_t;
 
 
@@ -1013,7 +1013,7 @@ typedef enum {
 	ET_PUSH_TRIGGER,
 	ET_TELEPORT_TRIGGER,
 	ET_INVISIBLE,
-	// ET_GRAPPLE,				// grapple hooked on wall
+	ET_GRAPPLE,				// grapple hooked on wall
 	ET_TEAM,
 
 	ET_EVENTS				// any of the EV_* events can be added freestanding

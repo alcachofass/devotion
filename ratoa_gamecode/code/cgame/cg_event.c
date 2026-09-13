@@ -268,11 +268,9 @@ static void CG_Obituary( entityState_t *ent ) {
                 }
                 else
 		switch (mod) {
-		/*
 		case MOD_GRAPPLE:
 			message = "was caught by";
 			break;
-			*/
 		case MOD_GAUNTLET:
 			message = "was pummeled by";
 			break;

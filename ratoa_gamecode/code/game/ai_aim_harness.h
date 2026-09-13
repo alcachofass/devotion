@@ -11,7 +11,7 @@ Was bot_humanizeaim; that name is migrated at init if bot_enhanced_aim is unset.
 Debug: bot_debugAim 1 (server, CVAR_CHEAT) publishes motor wish (ideal_viewangles
 when roaming, live aim point when fighting — MG/LG tracking extrap, rail intercept
  * lead each input frame) via
-ps.grapplePoint + EXTFL_BOT_AIM_DEBUG; cg_debugBotAim draws green = wish, yellow (bit 4) = crosshair.
+entity origin2 + EXTFL_BOT_AIM_DEBUG; cg_debugBotAim draws green = wish, yellow (bit 4) = crosshair.
 
 Combat fire: suppressive — fire when tracking unless LOS is obviously blocked; MG/LG
 hold +attack each input frame (only drop hold when blocked). MG/LG: slow hit-feedback

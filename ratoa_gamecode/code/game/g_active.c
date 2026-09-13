@@ -1461,10 +1461,10 @@ void ClientThink_real( gentity_t *ent ) {
 	}
 
 	// Let go of the hook if we aren't firing
-	/* if ( client->ps.weapon == WP_GRAPPLING_HOOK &&
+	if ( client->ps.weapon == WP_GRAPPLING_HOOK &&
 		client->hook && !( ucmd->buttons & BUTTON_ATTACK ) ) {
 		Weapon_HookFree(client->hook);
-	} */
+	}
 
 	// set up for pmove
 	oldEventSequence = client->ps.eventSequence;

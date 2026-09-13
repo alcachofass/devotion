@@ -219,8 +219,7 @@ void TossClientItems( gentity_t *self ) {
 	// weapon that isn't the mg or gauntlet.  Without this, a client
 	// can pick up a weapon, be killed, and not drop the weapon because
 	// their weapon change hasn't completed yet and they are still holding the MG.
-	// if ( weapon == WP_MACHINEGUN || weapon == WP_GRAPPLING_HOOK ) {
-	if ( weapon == WP_MACHINEGUN ) {
+	if ( weapon == WP_MACHINEGUN || weapon == WP_GRAPPLING_HOOK ) {
 		if ( self->client->ps.weaponstate == WEAPON_DROPPING ) {
 			weapon = self->client->pers.cmd.weapon;
 		}
@@ -234,9 +233,7 @@ void TossClientItems( gentity_t *self ) {
 	//Nothing!	
 	}
 	else
-	// if ( weapon > WP_MACHINEGUN && weapon != WP_GRAPPLING_HOOK && 
-	//	self->client->ps.ammo[ weapon ] ) {
-	if ( weapon > WP_MACHINEGUN && 
+	if ( weapon > WP_MACHINEGUN && weapon != WP_GRAPPLING_HOOK &&
 		self->client->ps.ammo[ weapon ] ) {
 		// find the item type for this weapon
 		item = BG_FindItemForWeapon( weapon );
@@ -513,7 +510,7 @@ char	*modNames[] = {
 	"MOD_KAMIKAZE",
 	"MOD_JUICED",
 #endif
-//	"MOD_GRAPPLE"
+	"MOD_GRAPPLE"
 };
 
 #ifdef MISSIONPACK
@@ -1017,11 +1014,9 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	CheckAlmostCapture( self, attacker );
 	// check for a player that almost brought in cubes
 	CheckAlmostScored( self, attacker );
-	/*
 	if (self->client && self->client->hook) {
 		Weapon_HookFree(self->client->hook);
 	}
-	*/
 	if ((self->client->ps.eFlags & EF_TICKING) && self->activator) {
 		self->client->ps.eFlags &= ~EF_TICKING;
 		self->activator->think = G_FreeEntity;
@@ -1187,11 +1182,9 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
                                     ChallengeMessage(attacker,WEAPON_MINE_KILLS);
                                     break;
 #endif
-				/*
                                 case MOD_GRAPPLE:
                                     ChallengeMessage(attacker,WEAPON_GRAPPLE_KILLS);
                                     break;
-				*/
                                 case MOD_LAVA:
                                 case MOD_SLIME:
                                 case MOD_TRIGGER_HURT:
@@ -1872,10 +1865,8 @@ static int G_WeaponForMOD(int mod) {
 		case MOD_BFG:
 		case MOD_BFG_SPLASH:
 			return WP_BFG;
-		/*
 		case MOD_GRAPPLE:
 			return WP_GRAPPLING_HOOK;
-		*/
 #ifdef MISSIONPACK
 		case MOD_NAIL:
 			return WP_NAILGUN;

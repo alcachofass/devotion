@@ -1059,6 +1059,10 @@ void CG_GrappleTrail( centity_t *ent, const weaponInfo_t *wi ) {
 	if (Distance( beam.origin, beam.oldorigin ) < 64 )
 		return; // Don't draw if close
 
+	if ( !cgs.media.grappleShader ) {
+		return;
+	}
+
 	beam.reType = RT_RAIL_CORE;
 	beam.customShader = cgs.media.grappleShader;
 
@@ -1266,7 +1270,6 @@ void CG_RegisterWeapon( int weaponNum ) {
 		cgs.media.sfx_lghit3 = trap_S_RegisterSound( "sound/weapons/lightning/lg_hit3.wav", qfalse );
 
 		break;
-		/*
 	case WP_GRAPPLING_HOOK:
 		MAKERGB( weaponInfo->flashDlightColor, 0.6f, 0.6f, 1.0f );
 		weaponInfo->missileModel = trap_R_RegisterModel( "models/ammo/hook/hook.md3" );
@@ -1275,12 +1278,10 @@ void CG_RegisterWeapon( int weaponNum ) {
 		weaponInfo->wiTrailTime = 2000;
 		weaponInfo->trailRadius = 64;
 		MAKERGB( weaponInfo->missileDlightColor, 1, 0.75f, 0 );
-		cgs.media.grappleShader = trap_R_RegisterShader( "grappleRope");
+		cgs.media.grappleShader = trap_R_RegisterShader( "railCore" );
 		weaponInfo->flashSound[0] = trap_S_RegisterSound( "sound/weapons/grapple/grapfire.wav", qfalse );
 		weaponInfo->missileSound = trap_S_RegisterSound( "sound/weapons/grapple/grappull.wav", qfalse );
-                //cgs.media.lightningShader = trap_R_RegisterShader( "lightningBoltNew");
 		break;
-		*/
 
 #ifdef MISSIONPACK
 	case WP_CHAINGUN:
@@ -1999,8 +2000,7 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	}
 
 	// add the flash
-	// if ( ( weaponNum == WP_LIGHTNING || weaponNum == WP_GAUNTLET || weaponNum == WP_GRAPPLING_HOOK )
-	if ( ( weaponNum == WP_LIGHTNING || weaponNum == WP_GAUNTLET )
+	if ( ( weaponNum == WP_LIGHTNING || weaponNum == WP_GAUNTLET || weaponNum == WP_GRAPPLING_HOOK )
 		&& ( nonPredictedCent->currentState.eFlags & EF_FIRING ) ) 
 	{
 		// continuous flash
@@ -2422,7 +2422,7 @@ void CG_DrawWeaponBar1(int count, int bits){
 		br=ammo*32/100;
 			
 		// if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
-		if(i!=WP_GAUNTLET ){
+		if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
 			if(ammo <= 20)
 				CG_FillRect( x, y+38, br,4, red);
 			if(ammo > 20 && ammo <= 50)
@@ -2612,7 +2612,7 @@ void CG_DrawWeaponBar3(int count, int bits, float *color){
 		br=ammo*20/100;
 				
 		// if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
-		if(i!=WP_GAUNTLET){
+		if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
 			if(ammo <= 20)
 				CG_FillRect( 51, y+2+20-br, 4,br, red);
 			if(ammo > 20 && ammo <= 50)
@@ -2896,7 +2896,7 @@ void CG_DrawWeaponBar6(int count, int bits, float *color){
 		br=ammo*26/100;
 				
 		// if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
-		if(i!=WP_GAUNTLET){
+		if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
 			if(ammo <= 20)
 				CG_FillRect( x+2, y +40, br, 4, red);
 			if(ammo > 20 && ammo <= 50)
@@ -3097,7 +3097,7 @@ void CG_DrawWeaponBar8(int count, int bits, float *color){
 		br=ammo*26/100;
 				
 		// if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
-		if(i!=WP_GAUNTLET){
+		if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
 			if(ammo <= 20)
 				CG_FillRect( x+2, y +48, br, 4, red);
 			if(ammo > 20 && ammo <= 50)
@@ -3208,7 +3208,7 @@ void CG_DrawWeaponBar9(int count, int bits, float *color){
 		br=ammo*16/100;
 				
 		// if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
-		if(i!=WP_GAUNTLET){
+		if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
 			if(ammo <= 20)
 				CG_FillRect( x, y+2+16-br, 4,br, red);
 			if(ammo > 20 && ammo <= 50)
@@ -3322,7 +3322,7 @@ void CG_DrawWeaponBar10(int count, int bits, float *color){
 		br=ammo * barwidth / 100;
 				
 		// if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
-		if(i!=WP_GAUNTLET){
+		if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
 			if(ammo <= 20) {
 				CG_FillRect( x+CG_HeightToWidth(2), y+43, br, 2, red);
 				memcpy(bg, red, sizeof(bg));
@@ -3489,7 +3489,7 @@ void CG_DrawWeaponBar12(int count, int bits, float *color){
 		br=ammo*16/100;
 				
 		// if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
-		if(i!=WP_GAUNTLET){
+		if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
 			if(ammo <= 20) {
 				CG_FillRect( x, y+2+16-br, CG_HeightToWidth(2),br, red);
 				memcpy(bg, red, sizeof(bg));
@@ -3616,7 +3616,7 @@ void CG_DrawWeaponBar13(int count, int bits, float *color){
 		br=ammo * barwidth / 100;
 				
 		// if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
-		if(i!=WP_GAUNTLET){
+		if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
 			if(ammo <= 20) {
 				CG_FillRect( x+barindent, bar_y, br, 2, red);
 				memcpy(bg, red, sizeof(bg));
@@ -3734,7 +3734,7 @@ void CG_DrawWeaponBar14(int count, int bits, float *color){
 		br=ammo * barwidth / 100;
 				
 		// if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
-		if(i!=WP_GAUNTLET){
+		if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
 			if(ammo <= 20) {
 				CG_FillRect( x+barindent, bar_y, br, 2, red);
 				memcpy(bg, red, sizeof(bg));
@@ -3855,7 +3855,7 @@ void CG_DrawWeaponBar15(int count, int bits, float *color){
 		br=ammo * (bar_xoffset*2) / 100;
 
 		// if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
-		if(i!=WP_GAUNTLET){
+		if(i!=WP_GAUNTLET && i!=WP_GRAPPLING_HOOK){
 			if(ammo <= 20) {
 				CG_FillRect( x - bar_xoffset, bar_y, br, 2, red);
 				memcpy(bg, red, sizeof(bg));
@@ -3946,10 +3946,8 @@ void CG_NextWeapon_f( void ) {
 	cg.weaponSelectTime = cg.time;
 	original = cg.weaponSelect;
         //Part of mad hook select code:
-        /*
         if(cg.weaponSelect == WP_GRAPPLING_HOOK)
             cg.weaponSelect = 0;
-        */
 
 	for ( i = 0 ; i < MAX_WEAPONS ; i++ ) {
 		cg.weaponSelect++;
@@ -3960,7 +3958,6 @@ void CG_NextWeapon_f( void ) {
 			continue;		// never cycle to gauntlet
 		}
                 //Sago: Mad change of grapple order
-                /*
                 if( cg.weaponSelect == WP_GRAPPLING_HOOK)  {
                     continue;
                 }
@@ -3970,15 +3967,12 @@ void CG_NextWeapon_f( void ) {
                     cg.weaponSelect = 0;
                     continue;		// never cycle to grapple unless the client wants it
 		}
-		*/
 		
 		if ( CG_WeaponSelectable( cg.weaponSelect ) ) {
 			break;
 		}
-		/*
                 if( cg.weaponSelect == WP_GRAPPLING_HOOK)
                     cg.weaponSelect = 0;
-                */
 	}
 	if ( i == MAX_WEAPONS ) {
 		cg.weaponSelect = original;
@@ -4004,10 +3998,8 @@ void CG_PrevWeapon_f( void ) {
 	cg.weaponSelectTime = cg.time;
 	original = cg.weaponSelect;
         //Part of mad hook select code:
-        /*
         if(cg.weaponSelect == WP_GRAPPLING_HOOK)
             cg.weaponSelect = 0;
-        */
 
 	for ( i = 0 ; i < MAX_WEAPONS ; i++ ) {
 		cg.weaponSelect--;
@@ -4018,7 +4010,6 @@ void CG_PrevWeapon_f( void ) {
 			continue;		// never cycle to gauntlet
 		}
                 //Sago: Mad change of grapple order
-                /*
                 if( cg.weaponSelect == WP_GRAPPLING_HOOK)  {
                     continue;
                 }
@@ -4028,14 +4019,11 @@ void CG_PrevWeapon_f( void ) {
                     cg.weaponSelect = 0;
                     continue;		// never cycle to grapple unless the client wants it
 		}
-		*/
 		if ( CG_WeaponSelectable( cg.weaponSelect ) ) {
 			break;
 		}
-		/*
                 if( cg.weaponSelect == WP_GRAPPLING_HOOK)
                     cg.weaponSelect = 0;
-                */
 	}
 	if ( i == MAX_WEAPONS ) {
 		cg.weaponSelect = original;
@@ -4135,8 +4123,7 @@ void CG_OutOfAmmoChange( void ) {
 	}
 
 	for ( i = MAX_WEAPONS-1 ; i > 0 ; i-- ) {
-		// if ( CG_WeaponSelectable( i ) && i != WP_GRAPPLING_HOOK ) {
-		if ( CG_WeaponSelectable( i ) ) {
+		if ( CG_WeaponSelectable( i ) && i != WP_GRAPPLING_HOOK ) {
 			cg.weaponSelect = i;
 			break;
 		}

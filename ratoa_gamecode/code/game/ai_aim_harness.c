@@ -2550,7 +2550,6 @@ static void BotAimHarness_ClearEntityDebug(gentity_t *ent) {
 	VectorClear(ent->s.origin2);
 	ent->client->ps.eFlags &= ~EF_BOT_AIM_DEBUG;
 	ent->client->ps.stats[STAT_EXTFLAGS] &= ~EXTFL_BOT_AIM_DEBUG;
-	VectorClear(ent->client->ps.grapplePoint);
 }
 
 static void BotAimHarness_AnglesToAimPoint(bot_state_t *bs, float pitch, float yaw,
@@ -2616,7 +2615,6 @@ static void BotAimHarness_ApplyEntityDebug(gentity_t *ent, const vec3_t point) {
 	VectorCopy(point, snapped);
 	SnapVector(snapped);
 	VectorCopy(snapped, ent->s.origin2);
-	VectorCopy(snapped, ent->client->ps.grapplePoint);
 	ent->s.eFlags |= EF_BOT_AIM_DEBUG;
 	ent->client->ps.eFlags |= EF_BOT_AIM_DEBUG;
 	ent->client->ps.stats[STAT_EXTFLAGS] |= EXTFL_BOT_AIM_DEBUG;
@@ -2657,7 +2655,6 @@ void BotAimHarness_SyncEntityFromPlayerState(gentity_t *ent) {
 		return;
 	}
 	ent->s.eFlags |= EF_BOT_AIM_DEBUG;
-	VectorCopy(ent->client->ps.grapplePoint, ent->s.origin2);
 }
 
 void BotAimHarness_PostInputSync(bot_state_t *bs) {
