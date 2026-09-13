@@ -1778,8 +1778,8 @@ void Menu_Cache( void )
 	//}
 	//uis.menuBackNoLogoShader = trap_R_RegisterShaderNoMip( "menubacknologo_blueish" );
 
-	uis.menuBackShader	= trap_R_RegisterShaderNoMip( "menuback_ratmod" );
-	uis.menuBackNoLogoShader = trap_R_RegisterShaderNoMip( "menubacknologo_ratmod" );
+	uis.menuBackShader	= trap_R_RegisterShaderNoMip( "menuback_devoq3" );
+	uis.menuBackNoLogoShader = trap_R_RegisterShaderNoMip( "menubacknologo_devoq3" );
 	
 	menu_in_sound	= trap_S_RegisterSound( "sound/misc/menu1.wav", qfalse );
 	menu_move_sound	= trap_S_RegisterSound( "sound/misc/menu2.wav", qfalse );

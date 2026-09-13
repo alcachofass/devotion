@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "ratoa_gamecode" / "code" / "game" / "bg_cvar_desc.c"
-HEADER = ROOT / "ratoa_gamecode" / "code" / "game" / "bg_cvar_desc.h"
+OUT = ROOT / "devoq3_gamecode" / "code" / "game" / "bg_cvar_desc.c"
+HEADER = ROOT / "devoq3_gamecode" / "code" / "game" / "bg_cvar_desc.h"
 
 ROW_RE = re.compile(
     r"^\|\s*`([^`]+)`\s*\|[^|]+\|[^|]+\|[^|]+\|\s*(.+?)\s*\|\s*$"

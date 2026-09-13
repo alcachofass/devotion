@@ -11,6 +11,6 @@ From repo root in PowerShell:
 
     .\build_windows.ps1 -Quiet -Deploy
 
-Do not use `ratoa_gamecode/windows_scripts/windows_compile_game.bat` unless explicitly asked — use the root script above.
+Do not use `devoq3_gamecode/windows_scripts/windows_compile_game.bat` unless explicitly asked — use the root script above.
 
 See BUILD_WINDOWS.md for flags and troubleshooting.

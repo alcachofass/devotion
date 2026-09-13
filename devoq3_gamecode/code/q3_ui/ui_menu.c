@@ -337,7 +337,7 @@ MainMenu_Cache
 */
 void MainMenu_Cache( void ) {
 	//s_main.bannerModel = trap_R_RegisterModel( MAIN_BANNER_MODEL );
-	s_main.bannerLogo = trap_R_RegisterShaderNoMip( "ratmod_menulogo_white" );
+	s_main.bannerLogo = trap_R_RegisterShaderNoMip( "devoq3_menulogo_white" );
 	trap_R_RegisterShaderNoMip( ART_UNKNOWNMAP );
 	trap_R_RegisterShaderNoMip( ART_REFRESH0 );
 	trap_R_RegisterShaderNoMip( ART_REFRESH1 );
