@@ -2577,7 +2577,7 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	gentity_t	*ent;
 	char        reason[ MAX_STRING_CHARS ] = {""};
 	int         i;
-    
+	   
     //KK-OAX I moved these up so userinfo could be assigned/used. 
 	ent = &g_entities[ clientNum ];
 	client = &level.clients[ clientNum ];

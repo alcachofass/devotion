@@ -2133,6 +2133,7 @@ int timeout_overtimestep(int duration) {
 }
 
 void G_Timeout(gentity_t *caller) {
+
 	if ( level.timeout ) {
 		G_TimeoutReminder(caller);
 		return;

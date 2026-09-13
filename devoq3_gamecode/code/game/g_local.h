@@ -251,6 +251,9 @@ struct gentity_s {
 	// links the frozen remnant to the actual player entity
 	gentity_t *frozenPlayer;
 	qboolean frozenPlayer_finalized;
+
+	//mrd - for alt-fire on missiles
+	qboolean altFire;
 };
 
 
@@ -930,10 +933,9 @@ typedef struct {
     struct maplist_s maplistSource;
     struct maplist_s maplistRecommended;
 
-    int teamBalanceTime;
-     
-    
-#ifdef WITH_MULTITOURNAMENT
+    int teamBalanceTime;  
+
+	#ifdef WITH_MULTITOURNAMENT
     // for GT_MULTITOURNAMENT
     int			multiTrnNumGames;
     int			currentGameId;
@@ -1092,7 +1094,8 @@ void G_SetGameIDMask(gentity_t *ent, int gameId);
 // g_combat.c
 //
 qboolean CanDamage (gentity_t *targ, vec3_t origin);
-void G_Damage (gentity_t *targ, gentity_t *inflictor, gentity_t *attacker, vec3_t dir, vec3_t point, int damage, int dflags, int mod);
+//void G_Damage (gentity_t *targ, gentity_t *inflictor, gentity_t *attacker, vec3_t dir, vec3_t point, int damage, int dflags, int mod);
+void G_Damage (gentity_t *targ, gentity_t *inflictor, gentity_t *attacker, vec3_t dir, vec3_t point, int damage, int dflags, int mod, qboolean altFire);	//mrd
 qboolean G_RadiusDamage (vec3_t origin, gentity_t *inflictor, gentity_t *attacker, float damage, float radius, gentity_t *ignore, int mod);
 qboolean G_RailJump( vec3_t origin, gentity_t *attacker);
 int G_InvulnerabilityEffect( gentity_t *targ, vec3_t dir, vec3_t point, vec3_t impactpoint, vec3_t bouncedir );
@@ -1172,7 +1175,8 @@ void CalcMuzzlePoint ( gentity_t *ent, vec3_t forward, vec3_t right, vec3_t up, 
 // we're making this available to both games
 void SnapVectorTowards( vec3_t v, vec3_t to );
 //unlagged - attack prediction #3
-qboolean CheckGauntletAttack( gentity_t *ent );
+//qboolean CheckGauntletAttack( gentity_t *ent );
+qboolean CheckGauntletAttack( gentity_t *ent, qboolean altFire);	//mrd
 void Weapon_HookFree (gentity_t *ent);
 void Weapon_HookThink (gentity_t *ent);
 
@@ -1258,7 +1262,8 @@ gclient_t	*ClientForString( const char *s );
 //
 // g_weapon.c
 //
-void FireWeapon( gentity_t *ent );
+//void FireWeapon( gentity_t *ent );
+void FireWeapon( gentity_t *ent, qboolean altFire );	//mrd
 #ifdef MISSIONPACK
 void G_StartKamikaze( gentity_t *ent );
 #endif

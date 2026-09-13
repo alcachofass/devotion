@@ -274,7 +274,7 @@ void target_laser_think (gentity_t *self) {
 	if ( tr.entityNum ) {
 		// hurt it if we can
 		G_Damage ( &g_entities[tr.entityNum], self, self->activator, self->movedir, 
-			tr.endpos, self->damage, DAMAGE_NO_KNOCKBACK, MOD_TARGET_LASER);
+			tr.endpos, self->damage, DAMAGE_NO_KNOCKBACK, MOD_TARGET_LASER, qfalse);	//mrd
 	}
 
 	VectorCopy (tr.endpos, self->s.origin2);
@@ -408,7 +408,7 @@ void SP_target_relay (gentity_t *self) {
 Kills the activator.
 */
 void target_kill_use( gentity_t *self, gentity_t *other, gentity_t *activator ) {
-	G_Damage ( activator, NULL, NULL, NULL, NULL, 100000, DAMAGE_NO_PROTECTION, MOD_TELEFRAG);
+	G_Damage ( activator, NULL, NULL, NULL, NULL, 100000, DAMAGE_NO_PROTECTION, MOD_TELEFRAG, qfalse);	//mrd
 }
 
 void SP_target_kill( gentity_t *self ) {

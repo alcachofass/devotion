@@ -1294,6 +1294,9 @@ void CG_ParseServerinfo( void ) {
 
 	cgs.ratFlags = atoi( Info_ValueForKey( info, "g_altFlags" ) );
 
+	//mrd - keep a client cache of altFire server cvar status
+	cgs.altFireMode = atoi( Info_ValueForKey( info, "g_altFireMode" ) );
+
 	cgs.movement = atoi( Info_ValueForKey( info, "g_movement" ) );
 	if ((cgs.movement >= MOVEMENT_NUM_MOVEMENTS) || (cgs.movement < MOVEMENT_VQ3)) {
 		cgs.movement = MOVEMENT_VQ3;

@@ -759,6 +759,13 @@ void G_RegisterCvars( void ) {
 		trap_Cvar_Update( &g_gametype );
 	}
 
+	//mrd - force alt-fire status
+	if (g_altFireMode.integer < 0 || g_altFireMode.integer > 1){
+		G_Printf( "g_altFireMode %i is out of range, defaulting to 0.\n", g_altFireMode.integer);
+		trap_Cvar_Set("g_altFireMode","0");
+		trap_Cvar_Update(&g_altFireMode);
+	}
+
 	g_is_team_gt = BG_IsTeamGametype(g_gametype.integer);
 
 	level.warmupModificationCount = g_warmup.modificationCount;

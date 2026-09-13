@@ -41,6 +41,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define DEFAULT_SHOTGUN_SPREAD	700
 #define DEFAULT_SHOTGUN_COUNT	11
+#define SHOTGUN_ALT_FIRE_PELLETS 5
 #define NEW_SHOTGUN_COUNT	12
 #define MAX_SHOTGUN_COUNT	NEW_SHOTGUN_COUNT
 
@@ -278,6 +279,8 @@ typedef struct {
 
 	//Devotion
         int                     pmove_autohop;
+		qboolean				altFireEnabled;	//mrd
+
 } pmove_t;
 
 // if a full pmove isn't done on the client, you can just update the angles
@@ -357,9 +360,8 @@ typedef enum {
 #define	EF_AWARD_GAUNTLET	0x00000040		// draw a gauntlet sprite
 #define	EF_NODRAW			0x00000080		// may have an event, but no model (unspawned items)
 #define	EF_FIRING			0x00000100		// for lightning gun
-#ifdef MISSIONPACK
-	#define	EF_KAMIKAZE			0x00000200
-#endif
+// #define	EF_KAMIKAZE			0x00000200
+ #define	EF_ALT_FIRE		0x00000200		// mrd - for alt-fire enable
 #define	EF_MOVER_STOP		0x00000400		// will push otherwise
 #define EF_AWARD_CAP		0x00000800		// draw the capture sprite
 #define	EF_TALK				0x00001000		// draw a talk balloon
@@ -581,6 +583,7 @@ typedef enum {
 	EV_NOAMMO,
 	EV_CHANGE_WEAPON,
 	EV_FIRE_WEAPON,
+	EV_ALTFIRE_WEAPON,	//mrd
 
 	EV_USE_ITEM0,                   //Event 24
 	EV_USE_ITEM1,

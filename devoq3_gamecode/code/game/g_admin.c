@@ -4187,7 +4187,7 @@ qboolean G_admin_slap( gentity_t *ent, int skiparg )
 	    if(vic->s.eType != ET_INVISIBLE)
 	    {
 	        //Make 'em a Bloody mess
-	        G_Damage(vic, NULL, NULL, NULL, NULL, 500, 0, MOD_UNKNOWN);
+	        G_Damage(vic, NULL, NULL, NULL, NULL, 500, 0, MOD_UNKNOWN, qfalse);
 	    }
 	    //Force Their Butt to Respawn
 	    ClientSpawn( vic );
@@ -4330,7 +4330,7 @@ qboolean G_admin_frag( gentity_t *ent, int skiparg )
 		if(vic->s.eType != ET_INVISIBLE)
 		{
 			//Make 'em a Bloody mess
-			G_Damage(vic, NULL, NULL, NULL, NULL, 500, 0, MOD_UNKNOWN);
+			G_Damage(vic, NULL, NULL, NULL, NULL, 500, 0, MOD_UNKNOWN, qfalse);
 		}
 		//Force Their Butt to Respawn
 		ClientSpawn( vic );
@@ -4340,7 +4340,7 @@ qboolean G_admin_frag( gentity_t *ent, int skiparg )
 		}
 	}
 	admin_star_railtrails(ent, vic);
-	G_Damage(vic, NULL, NULL, NULL, NULL, 100000, DAMAGE_NO_PROTECTION, MOD_UNKNOWN);
+	G_Damage(vic, NULL, NULL, NULL, NULL, 100000, DAMAGE_NO_PROTECTION, MOD_UNKNOWN, qfalse);
 	if (vic->health > 0) {
 		ent->flags &= ~FL_GODMODE;
 		vic->health = -999;

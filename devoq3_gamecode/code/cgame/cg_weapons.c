@@ -1671,7 +1671,11 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 	VectorMA( muzzlePoint, 14, forward, muzzlePoint );
 
 	// project forward by the lightning range
-	VectorMA( muzzlePoint, LIGHTNING_RANGE, forward, endPoint );
+	if (cent->altFire)
+		VectorMA( muzzlePoint, LIGHTNING_RANGE * 3, forward, endPoint );	//mrd
+	else
+		VectorMA( muzzlePoint, LIGHTNING_RANGE, forward, endPoint );
+		
 
 	// see if it hit a wall
 	demoRewind = ( cent->currentState.number == cg.predictedPlayerState.clientNum )
@@ -1716,7 +1720,8 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 			memset( &beam, 0, sizeof( beam ) );
 			beam.hModel = cgs.media.lightningExplosionModel;
 
-			VectorMA( trace.endpos, -16, dir, beam.origin );
+			//VectorMA( trace.endpos, -16, dir, beam.origin );
+			VectorMA( trace.endpos, (-12 - (rand()%8) ), dir, beam.origin );	//mrd - bounce crackle around on wall a bit
 
 			// make a random orientation
 			angles[0] = rand() % 360;
@@ -1726,9 +1731,15 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 
 			// scale down crackle
 			beam.nonNormalizedAxes = qtrue;
-			VectorScale(beam.axis[0], 0.5, beam.axis[0]);
-			VectorScale(beam.axis[1], 0.5, beam.axis[1]);
-			VectorScale(beam.axis[2], 0.5, beam.axis[2]);
+			if (cent->altFire){	//mrd - altFire has a larger crackle effect
+				VectorScale(beam.axis[0], 0.8, beam.axis[0]);
+				VectorScale(beam.axis[1], 0.8, beam.axis[1]);
+				VectorScale(beam.axis[2], 0.8, beam.axis[2]);				
+			} else {
+				VectorScale(beam.axis[0], 0.5, beam.axis[0]);
+				VectorScale(beam.axis[1], 0.5, beam.axis[1]);
+				VectorScale(beam.axis[2], 0.5, beam.axis[2]);
+			}
 
 			trap_R_AddRefEntityToScene( &beam );
 		}
@@ -4214,6 +4225,10 @@ void CG_FireWeapon( centity_t *cent ) {
 //unlagged - attack prediction #1
 	CG_PredictWeaponEffects( cent );
 //unlagged - attack prediction #1
+
+//mrd - toggle altFire back to false as the client game won't be told by server
+//	if (cent->altFire)
+//		cent->altFire = qfalse;
 }
 
 
@@ -4837,7 +4852,8 @@ hit splashes
 */
 //unlagged - attack prediction
 // made this non-static for access from cg_unlagged.c
-void CG_ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, int otherEntNum ) {
+//void CG_ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, int otherEntNum ) {	//mrd
+void CG_ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, int otherEntNum, qboolean altFire ) {
 	int			i;
 	float		r, u;
 	vec3_t		end;
@@ -4876,6 +4892,23 @@ void CG_ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, int otherEntNum
 
 			CG_ShotgunPellet( origin, end, otherEntNum );
 		}
+	} else if (altFire) {
+		for (i = 0; i < SHOTGUN_ALT_FIRE_PELLETS; i++) {
+			int randomness = 125;
+			float t = i*((360/(float)SHOTGUN_ALT_FIRE_PELLETS)*M_PI/180.0) + M_PI/(float)SHOTGUN_ALT_FIRE_PELLETS;
+			//mrd - tight pattern
+			r = 300 * 16 * cos(t);
+			u = 300 * 16 * sin(t);
+			// add some randomness
+			r += Q_crandom( &seed ) * randomness * 16;
+			u += Q_crandom( &seed ) * randomness * 16;
+
+			VectorMA( origin, 8192 * 16, forward, end);
+			VectorMA( end, r, right, end);
+			VectorMA( end, u, up, end);
+
+			CG_ShotgunPellet( origin, end, otherEntNum );
+		}
 	} else {
 		for ( i = 0 ; i < DEFAULT_SHOTGUN_COUNT ; i++ ) {
 			r = Q_crandom( &seed ) * DEFAULT_SHOTGUN_SPREAD * 16;
@@ -4894,7 +4927,8 @@ void CG_ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, int otherEntNum
 CG_ShotgunFire
 ==============
 */
-void CG_ShotgunFire( entityState_t *es ) {
+//void CG_ShotgunFire( entityState_t *es ) {	//mrd
+void CG_ShotgunFire( entityState_t *es, qboolean altFire ) {
 	vec3_t	v;
 	int		contents;
 
@@ -4938,7 +4972,8 @@ CG_SmokePuff( v, up, 32, 1, 1, 1, 0.33f, 900, cg.time, 0, LEF_PUFF_DONT_SCALE, c
 
 		}
 	}
-	CG_ShotgunPattern( es->pos.trBase, es->origin2, es->eventParm, es->otherEntityNum );
+	//CG_ShotgunPattern( es->pos.trBase, es->origin2, es->eventParm, es->otherEntityNum );	//mrd
+	CG_ShotgunPattern( es->pos.trBase, es->origin2, es->eventParm, es->otherEntityNum, altFire );
 }
 
 /*

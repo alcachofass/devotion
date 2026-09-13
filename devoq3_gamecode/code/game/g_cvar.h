@@ -475,6 +475,7 @@ G_CVAR( pmove_autohop, "pmove_autohop", "0", CVAR_SYSTEMINFO | CVAR_ARCHIVE, 0, 
 G_CVAR( g_vulnerableMissiles, "g_vulnerableMissiles", "0", CVAR_SERVERINFO | CVAR_ARCHIVE| CVAR_NORESTART, 0, qfalse, qfalse )	//mrd
 G_CVAR( g_battleSuitFactor, "g_battleSuitFactor", "0.50", CVAR_ARCHIVE, 0, qfalse, qfalse )
 G_CVAR( g_battlesuitDamageSelf, "g_battleSuitDamageSelf", "0", CVAR_ARCHIVE, 0, qfalse, qfalse )
+G_CVAR( g_altFireMode, "g_altFireMode", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse ) //mrd - include the cvar in CS_SERVERINFO
 
 #undef G_CVAR
 #undef NULL_G_CVAR
