@@ -44,7 +44,7 @@ static int			dp_realtime;
 static float		jumpHeight;
 
 static void UI_PmDigitColor( int digit, byte *out ) {
-	if ( digit < 1 || digit > 7 ) {
+	if ( digit < 0 || digit > 7 ) {
 		out[0] = out[1] = out[2] = 255;
 	} else {
 		out[0] = ( digit & 1 ) ? 255 : 0;
@@ -235,11 +235,9 @@ tryagain:
 	case WP_BFG:
 		MAKERGB( pi->flashDlightColor, 1, 0.7f, 1 );
 		break;
-/*
 	case WP_GRAPPLING_HOOK:
 		MAKERGB( pi->flashDlightColor, 0.6f, 0.6f, 1 );
 		break;
-*/
 	default:
 		MAKERGB( pi->flashDlightColor, 1, 1, 1 );
 		break;

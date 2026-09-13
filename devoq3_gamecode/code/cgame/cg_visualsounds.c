@@ -129,6 +129,7 @@ void CG_VisualSounds_RegisterIcons( void ) {
 	cgs.media.vsWeaponIcon[WP_RAILGUN] = VS_LoadIcon( set, "railgun" );
 	cgs.media.vsWeaponIcon[WP_PLASMAGUN] = VS_LoadIcon( set, "plasma" );
 	cgs.media.vsWeaponIcon[WP_BFG] = VS_LoadIcon( set, "bfg" );
+	cgs.media.vsWeaponIcon[WP_GRAPPLING_HOOK] = cgs.media.vsGrappleIcon;
 #ifdef MISSIONPACK
 	cgs.media.vsWeaponIcon[WP_NAILGUN] = cgs.media.vsWeaponGenericIcon;
 	cgs.media.vsWeaponIcon[WP_PROX_LAUNCHER] = cgs.media.vsWeaponGenericIcon;
@@ -160,6 +161,8 @@ static const char *VS_WeaponLabel( int weapon ) {
 		return "PG";
 	case WP_BFG:
 		return "BFG";
+	case WP_GRAPPLING_HOOK:
+		return "HOOK";
 #ifdef MISSIONPACK
 	case WP_NAILGUN:
 		return "NG";

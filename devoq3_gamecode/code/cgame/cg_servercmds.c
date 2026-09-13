@@ -590,21 +590,17 @@ static duelstats_t CG_ParseDuelStatPlayer(int startarg) {
 
 	j = startarg + 8;
 	for (i = WP_GAUNTLET; i < WP_NUM_WEAPONS; ++i) {
-		/*
 		if (i == WP_GRAPPLING_HOOK) {
 			continue;
 		}
-		*/
 		st.damage[i] = atoi(CG_Argv(j));
 		j++;
 	}
 
 	for (i = WP_MACHINEGUN; i < WP_NUM_WEAPONS; ++i) {
-		/*
 		if (i == WP_GRAPPLING_HOOK) {
 			continue;
 		}
-		*/
 		st.accuracy[i][0] = atoi(CG_Argv(j));
 		j++;
 		st.accuracy[i][1] = atoi(CG_Argv(j));

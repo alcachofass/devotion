@@ -1050,9 +1050,8 @@ void Cmd_Give_f (gentity_t *ent)
 
 	if (give_all || Q_strequal(name, "weapons"))
 	{
-		ent->client->ps.stats[STAT_WEAPONS] = (1 << WP_NUM_WEAPONS) - 1 - 
-			// ( 1 << WP_GRAPPLING_HOOK ) - ( 1 << WP_NONE );
-			( 1 << WP_NONE );
+		ent->client->ps.stats[STAT_WEAPONS] = (1 << WP_NUM_WEAPONS) - 1 -
+			( 1 << WP_GRAPPLING_HOOK ) - ( 1 << WP_NONE );
 		if (!give_all)
 			return;
 	}

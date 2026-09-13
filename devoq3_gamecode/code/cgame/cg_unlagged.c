@@ -1014,7 +1014,7 @@ void CG_PredictedExplosion(trace_t *tr, int weapon, predictedMissile_t *predMiss
 		// TODO: PREDICT NAILGUN HITS
 		case WP_NAILGUN:
 #endif
-		// case WP_GRAPPLING_HOOK:
+		case WP_GRAPPLING_HOOK:
 			return;
 	}
 
@@ -2063,7 +2063,7 @@ static qboolean CG_ClientIsBot( int clientNum ) {
 CG_BotAimDebugHasData
 
 Server aim debug is signaled via STAT_EXTFLAGS (reliable), with legacy
-eFlags / grapplePoint / origin2 fallbacks.
+eFlags / origin2 fallbacks.
 =================
 */
 static qboolean CG_BotAimDebugHasData( centity_t *cent, qboolean usePsAim ) {
@@ -2074,7 +2074,7 @@ static qboolean CG_BotAimDebugHasData( centity_t *cent, qboolean usePsAim ) {
 		if (cg.snap->ps.eFlags & EF_BOT_AIM_DEBUG) {
 			return qtrue;
 		}
-		if (VectorLengthSquared(cg.snap->ps.grapplePoint) > 64.0f) {
+		if (cent && VectorLengthSquared(cent->currentState.origin2) > 64.0f) {
 			return qtrue;
 		}
 		return qfalse;
@@ -2262,7 +2262,8 @@ void CG_DrawBotAimFollowFirstPerson( void ) {
 	if (!CG_ClientIsBot(cg.snap->ps.clientNum)) {
 		return;
 	}
-	if (!CG_BotAimDebugHasData(NULL, qtrue)) {
+	cent = &cg_entities[cg.snap->ps.clientNum];
+	if (!CG_BotAimDebugHasData(cent, qtrue)) {
 		return;
 	}
 
@@ -2280,12 +2281,11 @@ void CG_DrawBotAimFollowFirstPerson( void ) {
 		return;
 	}
 
-	cent = &cg_entities[cg.snap->ps.clientNum];
 	/* Chest height — eye origin hides rails under the follow crosshair. */
 	VectorCopy(cg.snap->ps.origin, bodyStart);
 	bodyStart[2] += cg.snap->ps.viewheight * CG_BOTAIMDBG_BODY_HEIGHT;
 
-	VectorCopy( cg.snap->ps.grapplePoint, aimPoint );
+	VectorCopy( cent->currentState.origin2, aimPoint );
 	if (VectorLengthSquared( aimPoint ) < 64.0f ) {
 		AngleVectors( cent->lerpAngles, forward, NULL, NULL );
 		VectorMA( bodyStart, 2048.0f, forward, aimPoint );
@@ -2309,7 +2309,7 @@ void CG_DrawBotAimFollowFirstPerson( void ) {
 CG_AddBotAimDebug
 
 Draw harness aim (eye -> aim point) when server sets EF_BOT_AIM_DEBUG.
-Followed player: aim point is in snap->ps.grapplePoint; others use origin2.
+Followed player: aim point is in the followed entity's origin2; others use origin2.
 cg_debugBotAim: 1 = followed bot, 2 = all bots, 4 = also draw viewangles ray.
 =================
 */
@@ -2342,11 +2342,8 @@ static void CG_BotAimDebugResolveAimPoint( centity_t *cent, qboolean usePsAim,
 		vec3_t aimPoint ) {
 	vec3_t forward;
 
-	if (usePsAim) {
-		VectorCopy(cg.snap->ps.grapplePoint, aimPoint);
-	} else {
-		VectorCopy(cent->currentState.origin2, aimPoint);
-	}
+	(void)usePsAim;
+	VectorCopy(cent->currentState.origin2, aimPoint);
 
 	if (VectorLengthSquared(aimPoint) > 64.0f) {
 		return;

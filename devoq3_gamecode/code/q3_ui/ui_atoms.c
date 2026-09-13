@@ -143,6 +143,7 @@ UI_PopMenu
 */
 void UI_PopMenu (void)
 {
+	Menu_ClearSliderCapture();
 	trap_S_StartLocalSound( menu_out_sound, CHAN_LOCAL_SOUND );
 
 	uis.menusp--;
@@ -161,6 +162,7 @@ void UI_PopMenu (void)
 
 void UI_ForceMenuOff (void)
 {
+	Menu_ClearSliderCapture();
 	uis.menusp     = 0;
 	uis.activemenu = NULL;
 
@@ -1165,6 +1167,9 @@ void UI_KeyEvent( int key, int down ) {
 	}
 
 	if (!down) {
+		if ( key == K_MOUSE1 ) {
+			Menu_ClearSliderCapture();
+		}
 		return;
 	}
 
@@ -1202,6 +1207,11 @@ void UI_MouseEvent( int dx, int dy )
 		uis.cursory = 0;
 	else if (uis.cursory > SCREEN_HEIGHT)
 		uis.cursory = SCREEN_HEIGHT;
+
+	if ( Menu_SliderHasCapture() ) {
+		Menu_UpdateSliderCapture();
+		return;
+	}
 
 	// region test the active menu items
 	for (i=0; i<uis.activemenu->nitems; i++)
