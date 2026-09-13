@@ -43,12 +43,12 @@ DEVOQ3_PK3 := devotion-$(GIT_DESCRIBE).pk3
 
 TIMESTAMP := $(shell cd $(GAMECODE_DIR) && git show -s --format=%ct)
 
-release: qvm $(OUTPUT_DIR) 
+release: qvm $(OUTPUT_DIR)
 	rm -rf $(PK3_DIR)
-	mkdir $(PK3_DIR)
-	cp -r $(ASSETS_DIR)/assets/* $(PK3_DIR)/
+	mkdir -p $(PK3_DIR)
+	cp -R $(ASSETS_DIR)/assets/. $(PK3_DIR)/
 	# cp $(GAMECODE_DIR)/README.md $(PK3_DIR)/
-	mkdir $(PK3_DIR)/vm
+	mkdir -p $(PK3_DIR)/vm
 	cp $(GAMECODE_QVM_DIR)/*.qvm $(PK3_DIR)/vm/
 	#cd $(PK3_DIR) && zip -r ../$(DEVOQ3_PK3) -- .
 	cd $(PK3_DIR) && QUIET=$(QUIET) $(CURDIR)/caca_deterministic_zip.sh \
