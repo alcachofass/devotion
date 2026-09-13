@@ -456,23 +456,23 @@ static void DemoCtrl_FormatClock( int ms, char *out, int outSize ) {
 }
 
 static void DemoCtrl_UpdateTiming( void ) {
-	char buf[32];
+	int first;
+	int last;
 
-	if ( dc_timingReady || !cg.snap ) {
+	if ( !cg.snap ) {
 		return;
 	}
 
-	buf[0] = '\0';
-	trap_Cvar_VariableStringBuffer( "cg_demoFirstServerTime", buf, sizeof( buf ) );
-	dc_firstServerTime = atoi( buf );
-	buf[0] = '\0';
-	trap_Cvar_VariableStringBuffer( "cg_demoDurationMs", buf, sizeof( buf ) );
-	dc_durationMs = atoi( buf );
-	if ( dc_firstServerTime <= 0 ) {
-		dc_firstServerTime = cg.snap->serverTime;
+	first = CG_DemoEvents_FirstServerTime();
+	last = CG_DemoEvents_LastServerTime();
+	if ( first <= 0 ) {
+		first = cg.snap->serverTime;
 	}
-	if ( dc_durationMs < 0 ) {
-		dc_durationMs = 0;
+	dc_firstServerTime = first;
+
+	dc_durationMs = 0;
+	if ( last > first ) {
+		dc_durationMs = last - first;
 	}
 	dc_timingReady = qtrue;
 }
@@ -820,9 +820,9 @@ void CG_DemoControls_Frame( void ) {
 		return;
 	}
 
+	CG_DemoEvents_Frame();
 	DemoCtrl_UpdateTiming();
 	DemoCtrl_SeekFrame();
-	CG_DemoEvents_Frame();
 
 	catcher = trap_Key_GetCatcher();
 	if ( catcher & ( KEYCATCH_UI | KEYCATCH_CONSOLE | KEYCATCH_MESSAGE ) ) {
