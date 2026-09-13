@@ -206,7 +206,7 @@ endif
 # version info
 VERSION=1.36
 
-RATMOD_VERSION=$(shell LANG=C git describe --tags --abbrev --dirty)
+DEVOQ3_VERSION=$(shell LANG=C git describe --tags --abbrev --dirty)
 
 # Main menu footer (baseq3 ui / ui.qvm). Override when building, e.g.
 #   make COMPILE_VERSION="v0.2.5-RELEASE-CENOURA"
@@ -904,8 +904,8 @@ endif
 
 BASE_CFLAGS += -DPRODUCT_VERSION=\\\"$(VERSION)\\\"
 
-BASE_CFLAGS += -DRATMOD_VERSION=\\\"$(RATMOD_VERSION)\\\"
-QVM_CFLAGS += -DRATMOD_VERSION=\"$(RATMOD_VERSION)\"
+BASE_CFLAGS += -DDEVOQ3_VERSION=\\\"$(DEVOQ3_VERSION)\\\"
+QVM_CFLAGS += -DDEVOQ3_VERSION=\"$(DEVOQ3_VERSION)\"
 
 ifeq ($(QUIET),1)
 MAKEFLAGS += -s --no-print-directory

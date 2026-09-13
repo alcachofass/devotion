@@ -1240,7 +1240,7 @@ static void CG_RegisterSounds( void ) {
 	cgs.media.announceRegen = trap_S_RegisterSound("sound/treb/ratmod/powerups/regeneration.ogg", qtrue);
 	cgs.media.announceFlight = trap_S_RegisterSound("sound/treb/ratmod/powerups/flight.ogg", qtrue);
 
-	cgs.media.coinbounceSound = trap_S_RegisterSound("sound/ratoa/coin/coin-hit-b.ogg", qfalse);
+	cgs.media.coinbounceSound = trap_S_RegisterSound("sound/devoq3/coin/coin-hit-b.ogg", qfalse);
 	*/
 	cgs.media.freezeSound = trap_S_RegisterSound("sound/player/freeze.wav", qfalse);
 

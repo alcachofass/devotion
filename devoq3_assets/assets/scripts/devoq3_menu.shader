@@ -1,4 +1,4 @@
-ratmod_menulogo_white
+devoq3_menulogo_white
 {
 	nopicmip
 	nomipmaps
@@ -9,7 +9,7 @@ ratmod_menulogo_white
 	}
 }
 
-menubacknologo_ratmod
+menubacknologo_devoq3
 {
 	
 	nopicmip
@@ -22,7 +22,7 @@ menubacknologo_ratmod
 	}
 }
 
-menuback_ratmod
+menuback_devoq3
 {
 	nopicmip
 	nomipmaps

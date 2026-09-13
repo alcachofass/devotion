@@ -297,15 +297,15 @@ void G_RemapTeamShaders( void ) {
 				|| Q_stricmp(mapname, "woohaa") == 0) {
 			has_bannerq3 = qtrue;
 		}
-		// RATOA
+		// DEVOQ3
 		if( g_redclan.string[0] ) {
 			if (g_shaderremap_flag.integer && (g_gametype.integer == GT_CTF || g_gametype.integer == GT_CTF_ELIMINATION)) {
-				Com_sprintf( string, sizeof(string), "team_icon/ratoa/%s_redflag", g_redclan.string );
+				Com_sprintf( string, sizeof(string), "team_icon/devoq3/%s_redflag", g_redclan.string );
 				AddRemap("models/flags/r_flag", string, f); 
 			}
 			if (g_shaderremap_banner.integer) {
 				if (has_banner) {
-					Com_sprintf( string, sizeof(string), "team_icon/ratoa/%s_red_banner", g_redclan.string );
+					Com_sprintf( string, sizeof(string), "team_icon/devoq3/%s_red_banner", g_redclan.string );
 					if (Q_stricmp(mapname, "mlctf1beta") == 0) {
 						AddRemap("textures/ctf2/red_banner02", string, f); 
 					} else {
@@ -313,7 +313,7 @@ void G_RemapTeamShaders( void ) {
 					}
 				}
 				if (has_bannerq3) {
-					Com_sprintf( string, sizeof(string), "team_icon/ratoa/%s_red_bannerq3", g_redclan.string );
+					Com_sprintf( string, sizeof(string), "team_icon/devoq3/%s_red_bannerq3", g_redclan.string );
 					AddRemap("textures/ctf/ctf_redflag", string, f); 
 				}
 			}
@@ -336,12 +336,12 @@ void G_RemapTeamShaders( void ) {
 		}
 		if( g_blueclan.string[0] ) {
 			if (g_shaderremap_flag.integer && (g_gametype.integer == GT_CTF || g_gametype.integer == GT_CTF_ELIMINATION)) {
-				Com_sprintf( string, sizeof(string), "team_icon/ratoa/%s_blueflag", g_blueclan.string );
+				Com_sprintf( string, sizeof(string), "team_icon/devoq3/%s_blueflag", g_blueclan.string );
 				AddRemap("models/flags/b_flag", string, f); 
 			}
 			if (g_shaderremap_banner.integer) {
 				if (has_banner) {
-					Com_sprintf( string, sizeof(string), "team_icon/ratoa/%s_blue_banner", g_blueclan.string );
+					Com_sprintf( string, sizeof(string), "team_icon/devoq3/%s_blue_banner", g_blueclan.string );
 					if (Q_stricmp(mapname, "mlctf1beta") == 0) {
 						AddRemap("textures/ctf2/blue_banner02", string, f); 
 					} else {
@@ -349,7 +349,7 @@ void G_RemapTeamShaders( void ) {
 					}
 				}
 				if (has_bannerq3) {
-					Com_sprintf( string, sizeof(string), "team_icon/ratoa/%s_blue_bannerq3", g_blueclan.string );
+					Com_sprintf( string, sizeof(string), "team_icon/devoq3/%s_blue_bannerq3", g_blueclan.string );
 					AddRemap("textures/ctf/ctf_blueflag", string, f); 
 				}
 			}

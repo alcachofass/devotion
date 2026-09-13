@@ -64,7 +64,7 @@ From the repo root in **PowerShell** (with MSYS2 on `PATH`, or `msys2_shell.cmd`
 .\build_windows.ps1 -Quiet       # suppress per-file compile lines and config banner (warnings/errors still print)
 ```
 
-From MSYS2 MINGW64 you can pass the same flag to GNU Make: `make QUIET=1` (also applies to `make clean QUIET=1`). This uses the ioquake3-style `QUIET=1` variable in [`ratoa_gamecode/Makefile`](ratoa_gamecode/Makefile); do not confuse it with `V=1`, which prints full compiler command lines.
+From MSYS2 MINGW64 you can pass the same flag to GNU Make: `make QUIET=1` (also applies to `make clean QUIET=1`). This uses the ioquake3-style `QUIET=1` variable in [`devoq3_gamecode/Makefile`](devoq3_gamecode/Makefile); do not confuse it with `V=1`, which prints full compiler command lines.
 
 The `test/` tree is gitignored so you'll have to build a test environment yourself in that folder: You need a minimal local Quake III install (`baseq3/`, `devotion/`, Quake3e binaries). After `-Deploy`, run the test install yourself (e.g. `test\quake3e-vulkan.x64 +set fs_game devotion`).
 
@@ -72,11 +72,11 @@ The `test/` tree is gitignored so you'll have to build a test environment yourse
 
 **`cp: cannot stat '.../vm/*.qvm': No such file or directory`**
 
-The `.qvm` files are **built**, not checked in. If that copy fails, the VM step did not run—often because the game makefile thought the build was “cross” (`ARCH` vs `COMPILE_ARCH` mismatch on 64-bit Windows). The repo’s [`ratoa_gamecode/Makefile`](ratoa_gamecode/Makefile) aligns **`COMPILE_ARCH`** with MinGW’s forced **`x86`** so **`make`** actually builds **`cgame.qvm`**, **`qagame.qvm`**, and **`ui.qvm`**. After a successful VM build you should see them under `ratoa_gamecode/build/release-mingw32-x86/baseq3/vm/`.
+The `.qvm` files are **built**, not checked in. If that copy fails, the VM step did not run—often because the game makefile thought the build was “cross” (`ARCH` vs `COMPILE_ARCH` mismatch on 64-bit Windows). The repo’s [`devoq3_gamecode/Makefile`](devoq3_gamecode/Makefile) aligns **`COMPILE_ARCH`** with MinGW’s forced **`x86`** so **`make`** actually builds **`cgame.qvm`**, **`qagame.qvm`**, and **`ui.qvm`**. After a successful VM build you should see them under `devoq3_gamecode/build/release-mingw32-x86/baseq3/vm/`.
 
 **Menu missing / full-screen console, but swapping in a Linux-built `ui.qvm` fixes it**
 
-The UI footer version string is **`COMPILE_VERSION`**, set in the gamecode [`Makefile`](ratoa_gamecode/Makefile) (or overridden on the **`make`** command line). The build writes [`code/q3_ui/compile_version.h`](ratoa_gamecode/code/q3_ui/compile_version.h) from that variable so MinGW **Q3LCC** never receives a shell-quoted **`-D`** for the string (spaces stay safe). Rebuild **`ui.qvm`** after changing the version.
+The UI footer version string is **`COMPILE_VERSION`**, set in the gamecode [`Makefile`](devoq3_gamecode/Makefile) (or overridden on the **`make`** command line). The build writes [`code/q3_ui/compile_version.h`](devoq3_gamecode/code/q3_ui/compile_version.h) from that variable so MinGW **Q3LCC** never receives a shell-quoted **`-D`** for the string (spaces stay safe). Rebuild **`ui.qvm`** after changing the version.
 
 ## 6. Reference
 

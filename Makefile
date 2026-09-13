@@ -23,13 +23,13 @@ ifeq ($(COMPILE_PLATFORM),mingw32)
   COMPILE_ARCH := x86
 endif
 
-GAMECODE_DIR := ratoa_gamecode
+GAMECODE_DIR := devoq3_gamecode
 GAMECODE_QVM_DIR := $(GAMECODE_DIR)/build/release-$(COMPILE_PLATFORM)-$(COMPILE_ARCH)/baseq3/vm
-ASSETS_DIR := ratoa_assets
+ASSETS_DIR := devoq3_assets
 
 GAMECODE_OPTS := WITH_MULTITOURNAMENT=0
 
-# QUIET=1: suppress make chatter and per-file compile lines (see ratoa_gamecode/Makefile).
+# QUIET=1: suppress make chatter and per-file compile lines (see devoq3_gamecode/Makefile).
 ifeq ($(QUIET),1)
 MAKEFLAGS += -s --no-print-directory
 endif
@@ -39,7 +39,7 @@ PK3_DIR := $(OUTPUT_DIR)/pk3
 
 # Derive PK3 filename from git tag (if present) and short commit hash.
 GIT_DESCRIBE := $(shell cd $(GAMECODE_DIR) && git describe --tags --always)
-RATMOD_PK3 := devotion-$(GIT_DESCRIBE).pk3
+DEVOQ3_PK3 := devotion-$(GIT_DESCRIBE).pk3
 
 TIMESTAMP := $(shell cd $(GAMECODE_DIR) && git show -s --format=%ct)
 
@@ -50,9 +50,9 @@ release: qvm $(OUTPUT_DIR)
 	# cp $(GAMECODE_DIR)/README.md $(PK3_DIR)/
 	mkdir $(PK3_DIR)/vm
 	cp $(GAMECODE_QVM_DIR)/*.qvm $(PK3_DIR)/vm/
-	#cd $(PK3_DIR) && zip -r ../$(RATMOD_PK3) -- .
+	#cd $(PK3_DIR) && zip -r ../$(DEVOQ3_PK3) -- .
 	cd $(PK3_DIR) && QUIET=$(QUIET) $(CURDIR)/caca_deterministic_zip.sh \
-		$(TIMESTAMP) ../$(RATMOD_PK3) .
+		$(TIMESTAMP) ../$(DEVOQ3_PK3) .
 
 qvm:
 	$(MAKE) -C $(GAMECODE_DIR) $(GAMECODE_OPTS) \

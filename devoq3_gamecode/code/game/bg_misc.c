@@ -1145,7 +1145,7 @@ Quake Live master key. Unlocks silver and gold locked doors/buttons.
 /* For Coin{FFA,..} */
 	{
 		"item_coingold", 
-		"sound/ratoa/coin/coin-collect-b.ogg",
+		"sound/devoq3/coin/coin-collect-b.ogg",
         { "models/rat/ratcoin.md3",
 		NULL, NULL, NULL},
 /* icon */		"icons/iconc_coingold",
@@ -1154,11 +1154,11 @@ Quake Live master key. Unlocks silver and gold locked doors/buttons.
 		IT_COIN,
 		COIN_GOLD,
 /* precache */ "",
-/* sounds */ "sound/ratoa/coin/coin-hit-b.ogg"
+/* sounds */ "sound/devoq3/coin/coin-hit-b.ogg"
 	},
 	{
 		"item_coinsilver", 
-		"sound/ratoa/coin/coin-collect-b.ogg",
+		"sound/devoq3/coin/coin-collect-b.ogg",
         { "models/rat/ratcoin.md3",
 		NULL, NULL, NULL},
 /* icon */		"icons/iconc_coinsilver",
@@ -1167,11 +1167,11 @@ Quake Live master key. Unlocks silver and gold locked doors/buttons.
 		IT_COIN,
 		COIN_SILVER,
 /* precache */ "",
-/* sounds */ "sound/ratoa/coin/coin-hit-b.ogg"
+/* sounds */ "sound/devoq3/coin/coin-hit-b.ogg"
 	},
 	{
 		"item_coinbronze", 
-		"sound/ratoa/coin/coin-collect-b.ogg",
+		"sound/devoq3/coin/coin-collect-b.ogg",
         { "models/rat/ratcoin.md3",
 		NULL, NULL, NULL},
 /* icon */		"icons/iconc_coinbronze",
@@ -1180,11 +1180,11 @@ Quake Live master key. Unlocks silver and gold locked doors/buttons.
 		IT_COIN,
 		COIN_BRONZE,
 /* precache */ "",
-/* sounds */ "sound/ratoa/coin/coin-hit-b.ogg"
+/* sounds */ "sound/devoq3/coin/coin-hit-b.ogg"
 	},
 	{
 		"item_coinb", 
-		"sound/ratoa/coin/coin-collect-b.ogg",
+		"sound/devoq3/coin/coin-collect-b.ogg",
         { "models/rat/ratcoin.md3",
 		NULL, NULL, NULL},
 /* icon */		"icons/iconc_coinb",
@@ -1193,11 +1193,11 @@ Quake Live master key. Unlocks silver and gold locked doors/buttons.
 		IT_COIN,
 		COIN_BLUE,
 /* precache */ "",
-/* sounds */ "sound/ratoa/coin/coin-hit-b.ogg"
+/* sounds */ "sound/devoq3/coin/coin-hit-b.ogg"
 	},
 	{
 		"item_coinr", 
-		"sound/ratoa/coin/coin-collect-b.ogg",
+		"sound/devoq3/coin/coin-collect-b.ogg",
         { "models/rat/ratcoin.md3",
 		NULL, NULL, NULL},
 /* icon */		"icons/iconc_coinr",
@@ -1206,7 +1206,7 @@ Quake Live master key. Unlocks silver and gold locked doors/buttons.
 		IT_COIN,
 		COIN_RED,
 /* precache */ "",
-/* sounds */ "sound/ratoa/coin/coin-hit-b.ogg"
+/* sounds */ "sound/devoq3/coin/coin-hit-b.ogg"
 	},
 #endif
 

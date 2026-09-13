@@ -971,7 +971,7 @@ static void CG_Rules_f( void ) {
 
 /*
 static void CG_RatVersion_f( void ) {
-	CG_Printf("CGAME version: %s\n", RATMOD_VERSION);
+	CG_Printf("CGAME version: %s\n", DEVOQ3_VERSION);
 	trap_SendClientCommand("ratversion");
 }
 */

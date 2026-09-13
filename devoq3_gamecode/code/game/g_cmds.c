@@ -1386,7 +1386,7 @@ void SendMotdAndHelpOnce(gentity_t *ent) {
 
 /*
 void Cmd_RatVersion_f( gentity_t *ent ) {
-	trap_SendServerCommand( ent - g_entities, va("print \" GAME version: %s\n\"", RATMOD_VERSION));
+	trap_SendServerCommand( ent - g_entities, va("print \" GAME version: %s\n\"", DEVOQ3_VERSION));
 }
 */
 
