@@ -44,11 +44,9 @@ void CG_CheckAmmo( void ) {
 	weapons = cg.snap->ps.stats[ STAT_WEAPONS ];
 	total = 0;
 	for ( i = WP_MACHINEGUN ; i < WP_NUM_WEAPONS ; i++ ) {
-		/*
 		if ( ! ( weapons & ( 1 << i ) ) || i == WP_GRAPPLING_HOOK ) {
 			continue;
 		}
-		*/
 		switch ( i ) {
 		case WP_ROCKET_LAUNCHER:
 		case WP_GRENADE_LAUNCHER:

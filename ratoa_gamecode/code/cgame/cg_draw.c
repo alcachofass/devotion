@@ -844,7 +844,7 @@ static vec4_t weaponColors[WP_NUM_WEAPONS] =
 	{ 0.0, 1.0, 0.0, 1.0 }, // WP_RAILGUN,
 	{ 1.0, 0.0, 1.0, 1.0 }, // WP_PLASMAGUN,
 	{ 0.0, 0.4, 1.0, 1.0 }, // WP_BFG,
-//	{ 0.4, 0.6, 0.0, 1.0 }, // WP_GRAPPLING_HOOK,
+	{ 0.4, 0.6, 0.0, 1.0 }, // WP_GRAPPLING_HOOK,
 #ifdef MISSIONPACK
 	{ 1.0, 0.6, 0.6, 1.0 }, // WP_NAILGUN,
 	{ 1.0, 0.6, 0.4, 1.0 }, // WP_PROX_LAUNCHER,
@@ -6149,8 +6149,7 @@ qboolean CG_DrawAccboard( void ) {
         trap_R_SetColor( colorWhite );
 
         for( counter = 0; counter < WP_NUM_WEAPONS ; counter++ ){
-                // if( cg_weapons[counter+2].weaponIcon && counter != WP_PROX_LAUNCHER && counter != WP_GRAPPLING_HOOK )
-                if( cg_weapons[counter+2].weaponIcon )
+                if( cg_weapons[counter+2].weaponIcon && counter != WP_GRAPPLING_HOOK )
                         i++;
         }
 
@@ -6159,8 +6158,7 @@ qboolean CG_DrawAccboard( void ) {
         i = 0;
 
         for( counter = 0 ; counter < WP_NUM_WEAPONS ; counter++ ){
-                // if( cg_weapons[counter+2].weaponIcon && counter != WP_PROX_LAUNCHER && counter != WP_GRAPPLING_HOOK ){
-                if( cg_weapons[counter+2].weaponIcon ){
+                if( cg_weapons[counter+2].weaponIcon && counter != WP_GRAPPLING_HOOK ){
                         CG_DrawPic( ACCBOARD_XPOS + 10, ACCBOARD_YPOS + 10 +i*ACCBOARD_HEIGHT, ACCITEM_SIZE, ACCITEM_SIZE, cg_weapons[counter+2].weaponIcon );
                         if( cg.accuracys[counter][0] > 0 )
                                 CG_DrawSmallStringColor(ACCBOARD_XPOS + 10 + ACCITEM_SIZE + 10, ACCBOARD_YPOS + 10 +i*ACCBOARD_HEIGHT + ACCITEM_SIZE/2 - SMALLCHAR_HEIGHT/2 ,

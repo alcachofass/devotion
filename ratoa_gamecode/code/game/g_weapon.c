@@ -822,15 +822,16 @@ GRAPPLING HOOK
 
 ======================================================================
 */
-/*
 void Weapon_GrapplingHook_Fire (gentity_t *ent)
 {
-	if (!ent->client->fireHeld && !ent->client->hook)
+	if (!ent->client->fireHeld && !ent->client->hook) {
 		fire_grapple (ent, muzzle, forward);
+		if (ent->client->hook) {
+			G_ImmediateLaunchMissile(ent->client->hook);
+		}
+	}
 
 	ent->client->fireHeld = qtrue;
-
-	G_ImmediateLaunchMissile(ent);
 }
 
 void Weapon_HookFree (gentity_t *ent)
@@ -856,7 +857,6 @@ void Weapon_HookThink (gentity_t *ent)
 
 	VectorCopy( ent->r.currentOrigin, ent->parent->client->ps.grapplePoint);
 }
-*/
 /*
 ======================================================================
 
@@ -1143,8 +1143,7 @@ void FireWeapon( gentity_t *ent ) {
 	old_accuracy_hits = ent->client->accuracy_hits;
 
 	// track shots taken for accuracy tracking.  Grapple is not a weapon and gauntet is just not tracked
-	// if( ent->s.weapon != WP_GRAPPLING_HOOK && ent->s.weapon != WP_GAUNTLET ) {
-	if( ent->s.weapon != WP_GAUNTLET ) {
+	if( ent->s.weapon != WP_GRAPPLING_HOOK && ent->s.weapon != WP_GAUNTLET ) {
 #ifdef MISSIONPACK
 		if( ent->s.weapon == WP_NAILGUN ) {
 			ent->client->accuracy_shots += NUM_NAILSHOTS;
@@ -1197,11 +1196,9 @@ void FireWeapon( gentity_t *ent ) {
 	case WP_BFG:
 		BFG_Fire( ent );
 		break;
-		/*
 	case WP_GRAPPLING_HOOK:
 		Weapon_GrapplingHook_Fire( ent );
 		break;
-		*/
 #ifdef MISSIONPACK
 	case WP_NAILGUN:
 		Weapon_Nailgun_Fire( ent );

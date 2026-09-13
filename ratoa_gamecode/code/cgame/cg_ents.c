@@ -686,7 +686,9 @@ static void CG_Missile( centity_t *cent ) {
 	}
 
 	// add to refresh list, possibly with quad glow
-	CG_AddRefEntityWithPowerups( &ent, s1, TEAM_FREE, qtrue, NULL, 0, qfalse );
+	if ( ent.hModel ) {
+		CG_AddRefEntityWithPowerups( &ent, s1, TEAM_FREE, qtrue, NULL, 0, qfalse );
+	}
 }
 
 /*
@@ -719,6 +721,10 @@ static void CG_Grapple( centity_t *cent ) {
 
 	// Will draw cable if needed
 	CG_GrappleTrail ( cent, weapon );
+
+	if ( !weapon->missileModel ) {
+		return;
+	}
 
 	// create the render entity
 	memset (&ent, 0, sizeof(ent));
@@ -1004,8 +1010,7 @@ static void CG_CalcEntityLerpPositions( centity_t *cent ) {
 
 //unlagged - projectile nudge
 	// if it's a missile but not a grappling hook
-	// if ( cent->currentState.eType == ET_MISSILE && cent->currentState.weapon != WP_GRAPPLING_HOOK ) {
-	if ( cent->currentState.eType == ET_MISSILE ) {
+	if ( cent->currentState.eType == ET_MISSILE && cent->currentState.weapon != WP_GRAPPLING_HOOK ) {
 		if ( CG_DemoHistory_AdjustMissileLerpForDemoDelag( cent ) ) {
 			return;
 		}
@@ -1281,11 +1286,9 @@ static void CG_AddCEntity( centity_t *cent ) {
 	case ET_SPEAKER:
 		CG_Speaker( cent );
 		break;
-/*
 	case ET_GRAPPLE:
 		CG_Grapple( cent );
 		break;
-*/
 	case ET_TEAM:
 		CG_TeamBase( cent );
 		break;

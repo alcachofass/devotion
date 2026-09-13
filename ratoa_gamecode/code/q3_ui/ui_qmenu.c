@@ -37,6 +37,7 @@ sfxHandle_t weaponChangeSound;
 static qhandle_t	sliderBar;
 static qhandle_t	sliderButton_0;
 static qhandle_t	sliderButton_1;
+static menuslider_s	*sliderCapture;
 
 // Original colors
 vec4_t menu_text_color	    = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -578,6 +579,48 @@ static void Slider_Init( menuslider_s *s )
 	s->generic.bottom = s->generic.y + SMALLCHAR_HEIGHT;
 }
 
+static qboolean Slider_SetFromCursor( menuslider_s *s ) {
+	float	x;
+	float	oldvalue;
+
+	x = uis.cursorx - s->generic.x - 2 * SMALLCHAR_WIDTH;
+	oldvalue = s->curvalue;
+	s->curvalue = ( x / (float)( SLIDER_RANGE * SMALLCHAR_WIDTH ) ) * ( s->maxvalue - s->minvalue ) + s->minvalue;
+
+	if ( s->curvalue < s->minvalue ) {
+		s->curvalue = s->minvalue;
+	} else if ( s->curvalue > s->maxvalue ) {
+		s->curvalue = s->maxvalue;
+	}
+
+	if ( s->curvalue == oldvalue ) {
+		return qfalse;
+	}
+	if ( s->generic.callback ) {
+		s->generic.callback( s, QM_ACTIVATED );
+	}
+	return qtrue;
+}
+
+void Menu_ClearSliderCapture( void ) {
+	sliderCapture = NULL;
+}
+
+void Menu_UpdateSliderCapture( void ) {
+	if ( !sliderCapture ) {
+		return;
+	}
+	if ( !trap_Key_IsDown( K_MOUSE1 ) || ( sliderCapture->generic.flags & ( QMF_GRAYED | QMF_INACTIVE ) ) ) {
+		sliderCapture = NULL;
+		return;
+	}
+	Slider_SetFromCursor( sliderCapture );
+}
+
+qboolean Menu_SliderHasCapture( void ) {
+	return ( sliderCapture != NULL );
+}
+
 /*
 =================
 Slider_Key
@@ -586,25 +629,20 @@ Slider_Key
 static sfxHandle_t Slider_Key( menuslider_s *s, int key )
 {
 	sfxHandle_t	sound;
-	int			x;
-	int			oldvalue;
 
 	switch (key)
 	{
 		case K_MOUSE1:
-			x           = uis.cursorx - s->generic.x - 2*SMALLCHAR_WIDTH;
-			oldvalue    = s->curvalue;
-			s->curvalue = (x/(float)(SLIDER_RANGE*SMALLCHAR_WIDTH)) * (s->maxvalue-s->minvalue) + s->minvalue;
-
-			if (s->curvalue < s->minvalue)
-				s->curvalue = s->minvalue;
-			else if (s->curvalue > s->maxvalue)
-				s->curvalue = s->maxvalue;
-			if (s->curvalue != oldvalue)
+			if ( s->generic.ownerdraw ) {
+				return 0;
+			}
+			sliderCapture = s;
+			if ( Slider_SetFromCursor( s ) ) {
 				sound = menu_move_sound;
-			else
-				sound = 0;
-			break;
+			} else {
+				sound = menu_null_sound;
+			}
+			return sound;
 
 		case K_LEFTARROW:
 			if (s->curvalue > s->minvalue)
@@ -1462,6 +1500,8 @@ void Menu_Draw( menuframework_s *menu )
 {
 	int				i;
 	menucommon_s	*itemptr;
+
+	Menu_UpdateSliderCapture();
 
 	// draw menu
 	for (i=0; i<menu->nitems; i++)

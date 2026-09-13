@@ -61,6 +61,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define PS_MODEL_H		118
 #define PS_SLIDER_Y		248
 #define PS_ROW_H		16
+#define PS_PALETTE_COLORS	8
+#define PS_SWATCH_SIZE		14
+#define PS_SWATCH_GAP		1
+#define PS_PALETTE_W		( PS_PALETTE_COLORS * PS_SWATCH_SIZE + ( PS_PALETTE_COLORS - 1 ) * PS_SWATCH_GAP )
+#define PS_YOU_WHITE		361
+#define PS_YOU_BLACK		362
 
 static qhandle_t whiteShader;
 
@@ -307,7 +313,7 @@ static void PlayerSettings_ModelDir( const char *modelCvar, qboolean optional, c
 }
 
 static void PlayerSettings_PmColor( int digit, byte *out ) {
-	if ( digit < 1 || digit > 7 ) {
+	if ( digit < 0 || digit > 7 ) {
 		out[0] = out[1] = out[2] = 255;
 	} else {
 		out[0] = ( digit & 1 ) ? 255 : 0;
@@ -432,10 +438,27 @@ static void PlayerSettings_ApplyAngles( playerInfo_t *pi, int index ) {
 	pi->torso.yawing = qfalse;
 }
 
+static void PlayerSettings_HueToColor( float hue, vec4_t color ) {
+	int	code;
+
+	code = (int)( hue + 0.5f );
+	if ( code == PS_YOU_BLACK ) {
+		color[0] = color[1] = color[2] = 0.0f;
+		color[3] = 1.0f;
+		return;
+	}
+	if ( code == PS_YOU_WHITE ) {
+		color[0] = color[1] = color[2] = color[3] = 1.0f;
+		return;
+	}
+	Q_HSV2RGB( hue, 1.0f, 1.0f, color );
+	color[3] = 1.0f;
+}
+
 static void PlayerSettings_HueToBytes( float hue, byte *out ) {
 	vec4_t color;
 
-	Q_HSV2RGB( hue, 1.0f, 1.0f, color );
+	PlayerSettings_HueToColor( hue, color );
 	out[0] = (byte)( color[0] * 255.0f );
 	out[1] = (byte)( color[1] * 255.0f );
 	out[2] = (byte)( color[2] * 255.0f );
@@ -510,14 +533,30 @@ static void PlayerSettings_ModelCaption( int x, int y, int w, const char *modelC
 			w - 8, SMALLCHAR_WIDTH, SMALLCHAR_HEIGHT, 6, 10 );
 }
 
+static void PlayerSettings_YouExtraRect( menuslider_s *slider, int which, int *x, int *y, int *w, int *h ) {
+	*x = slider->generic.x + 114 + which * 14;
+	*y = slider->generic.y + 2;
+	*w = 12;
+	*h = 12;
+}
+
 static void PlayerSettings_DrawColorSwatch( menuslider_s *slider, qboolean hsv ) {
 	vec4_t	color;
 	byte	rgba[4];
 	int		digit;
+	int		code;
+	int		i;
+	int		sx, sy, sw, sh;
+	qboolean grayed;
 
+	grayed = ( slider->generic.flags & QMF_GRAYED ) ? qtrue : qfalse;
 	if ( hsv ) {
-		Q_HSV2RGB( slider->curvalue, 1.0, 1.0, color );
-		color[3] = 1.0;
+		PlayerSettings_HueToColor( slider->curvalue, color );
+		if ( grayed ) {
+			color[0] *= 0.35f;
+			color[1] *= 0.35f;
+			color[2] *= 0.35f;
+		}
 		trap_R_SetColor( color );
 	} else {
 		digit = (int)( slider->curvalue + 0.5f );
@@ -530,6 +569,185 @@ static void PlayerSettings_DrawColorSwatch( menuslider_s *slider, qboolean hsv )
 	}
 	UI_DrawHandlePic( slider->generic.x + 96, slider->generic.y, 16, 16, whiteShader );
 	trap_R_SetColor( NULL );
+
+	if ( !hsv ) {
+		return;
+	}
+
+	code = (int)( slider->curvalue + 0.5f );
+	for ( i = 0; i < 2; i++ ) {
+		PlayerSettings_YouExtraRect( slider, i, &sx, &sy, &sw, &sh );
+		if ( i == 0 ) {
+			color[0] = color[1] = color[2] = 1.0f;
+		} else {
+			color[0] = color[1] = color[2] = 0.0f;
+		}
+		color[3] = 1.0f;
+		if ( grayed ) {
+			color[0] = color[1] = color[2] = 0.35f * ( i == 0 ? 1.0f : 0.0f );
+			if ( i == 1 ) {
+				color[0] = color[1] = color[2] = 0.08f;
+			}
+		}
+		trap_R_SetColor( color );
+		UI_DrawHandlePic( sx, sy, sw, sh, whiteShader );
+		trap_R_SetColor( NULL );
+		UI_DrawRect( sx, sy, sw, sh, i == 1 ? colorWhite : colorBlack );
+		if ( ( i == 0 && code == PS_YOU_WHITE ) || ( i == 1 && code == PS_YOU_BLACK ) ) {
+			UI_DrawRect( sx - 1, sy - 1, sw + 2, sh + 2, colorWhite );
+		} else if ( !grayed && UI_CursorInRect( sx, sy, sw, sh ) ) {
+			UI_DrawRect( sx - 1, sy - 1, sw + 2, sh + 2, text_color_highlight );
+		}
+	}
+}
+
+static sfxHandle_t PlayerSettings_YouExtraMouse( void ) {
+	menuslider_s	*sliders[5];
+	menuslider_s	*s;
+	int				i;
+	int				which;
+	int				sx, sy, sw, sh;
+	int				code;
+
+	sliders[0] = &s_playersettings.effects;
+	sliders[1] = &s_playersettings.effects2;
+	sliders[2] = &s_playersettings.effects3;
+	sliders[3] = &s_playersettings.effects4;
+	sliders[4] = &s_playersettings.effects5;
+	for ( i = 0; i < 5; i++ ) {
+		s = sliders[i];
+		if ( s->generic.flags & ( QMF_GRAYED | QMF_INACTIVE ) ) {
+			continue;
+		}
+		for ( which = 0; which < 2; which++ ) {
+			PlayerSettings_YouExtraRect( s, which, &sx, &sy, &sw, &sh );
+			if ( !UI_CursorInRect( sx, sy, sw, sh ) ) {
+				continue;
+			}
+			code = ( which == 0 ) ? PS_YOU_WHITE : PS_YOU_BLACK;
+			if ( (int)( s->curvalue + 0.5f ) != code ) {
+				s->curvalue = (float)code;
+			}
+			return menu_move_sound;
+		}
+	}
+	return 0;
+}
+
+static void PlayerSettings_PaletteSwatchRect( menuslider_s *s, int digit, int *x, int *y, int *w, int *h ) {
+	*x = s->generic.x + digit * ( PS_SWATCH_SIZE + PS_SWATCH_GAP );
+	*y = s->generic.y + 1;
+	*w = PS_SWATCH_SIZE;
+	*h = PS_SWATCH_SIZE;
+}
+
+static int PlayerSettings_PaletteHitDigit( menuslider_s *s ) {
+	int	i;
+	int	x, y, w, h;
+
+	for ( i = 0; i < PS_PALETTE_COLORS; i++ ) {
+		PlayerSettings_PaletteSwatchRect( s, i, &x, &y, &w, &h );
+		if ( UI_CursorInRect( x, y, w, h ) ) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static void PlayerSettings_DrawPalette( void *self ) {
+	menuslider_s	*s;
+	int				i;
+	int				selected;
+	int				sx, sy, sw, sh;
+	int				style;
+	float			*labelColor;
+	vec4_t			color;
+	byte			rgba[4];
+	qboolean		focus;
+
+	s = (menuslider_s *)self;
+	focus = ( s->generic.parent->cursor == s->generic.menuPosition );
+	selected = (int)( s->curvalue + 0.5f );
+	if ( selected < 0 ) {
+		selected = 0;
+	}
+	if ( selected > PS_PALETTE_COLORS - 1 ) {
+		selected = PS_PALETTE_COLORS - 1;
+	}
+
+	if ( s->generic.flags & QMF_GRAYED ) {
+		labelColor = text_color_disabled;
+		style = UI_SMALLFONT;
+	} else if ( focus ) {
+		labelColor = text_color_highlight;
+		style = UI_SMALLFONT | UI_PULSE;
+	} else {
+		labelColor = text_color_normal;
+		style = UI_SMALLFONT;
+	}
+
+	UI_DrawString( s->generic.x - SMALLCHAR_WIDTH, s->generic.y, s->generic.name, UI_RIGHT | style, labelColor );
+
+	for ( i = 0; i < PS_PALETTE_COLORS; i++ ) {
+		PlayerSettings_PaletteSwatchRect( s, i, &sx, &sy, &sw, &sh );
+		PlayerSettings_PmColor( i, rgba );
+		color[0] = rgba[0] / 255.0f;
+		color[1] = rgba[1] / 255.0f;
+		color[2] = rgba[2] / 255.0f;
+		color[3] = 1.0f;
+		if ( s->generic.flags & QMF_GRAYED ) {
+			color[0] *= 0.35f;
+			color[1] *= 0.35f;
+			color[2] *= 0.35f;
+		}
+		trap_R_SetColor( color );
+		UI_DrawHandlePic( sx, sy, sw, sh, whiteShader );
+		trap_R_SetColor( NULL );
+		UI_DrawRect( sx, sy, sw, sh, i == 0 ? colorWhite : colorBlack );
+		if ( i == selected ) {
+			UI_DrawRect( sx - 1, sy - 1, sw + 2, sh + 2, colorWhite );
+			UI_FillRect( sx + sw / 2 - 3, sy + sh / 2 - 3, 6, 6, colorBlack );
+			UI_FillRect( sx + sw / 2 - 2, sy + sh / 2 - 2, 4, 4, colorWhite );
+		} else if ( UI_CursorInRect( sx, sy, sw, sh ) && !( s->generic.flags & QMF_GRAYED ) ) {
+			UI_DrawRect( sx - 1, sy - 1, sw + 2, sh + 2, text_color_highlight );
+		}
+	}
+}
+
+static sfxHandle_t PlayerSettings_PaletteMouse( void ) {
+	int				i;
+	int				digit;
+	int				old;
+	menuslider_s	*s;
+
+	for ( i = 0; i < 5; i++ ) {
+		s = &s_playersettings.teamColor[i];
+		if ( uis.cursorx < s->generic.left || uis.cursorx > s->generic.right ||
+				uis.cursory < s->generic.top || uis.cursory > s->generic.bottom ) {
+			s = &s_playersettings.enemyColor[i];
+			if ( uis.cursorx < s->generic.left || uis.cursorx > s->generic.right ||
+					uis.cursory < s->generic.top || uis.cursory > s->generic.bottom ) {
+				continue;
+			}
+		}
+		if ( s->generic.flags & ( QMF_GRAYED | QMF_INACTIVE ) ) {
+			return menu_null_sound;
+		}
+		digit = PlayerSettings_PaletteHitDigit( s );
+		if ( digit < 0 ) {
+			return menu_null_sound;
+		}
+		old = (int)( s->curvalue + 0.5f );
+		if ( digit != old ) {
+			s->curvalue = (float)digit;
+			if ( s->generic.callback ) {
+				s->generic.callback( s, QM_ACTIVATED );
+			}
+			return menu_move_sound;
+		}
+		return menu_null_sound;
+	}
+	return 0;
 }
 
 static void PlayerSettings_DrawFxHint( menulist_s *fx ) {
@@ -571,30 +789,39 @@ static void PlayerSettings_DrawPmBodyHint( menuslider_s *s, const char *msg ) {
 static void PlayerSettings_Draw( void ) {
 	int			i;
 	qboolean	youPm;
+	qboolean	teamPm;
+	qboolean	enemyPm;
 
 	youPm = PlayerSettings_ModelHasPmSkin( "model" );
+	teamPm = PlayerSettings_ModelHasPmSkin( "cg_teamModel" );
+	enemyPm = PlayerSettings_ModelHasPmSkin( "cg_enemyModel" );
 	PlayerSettings_SetFxEnabled( &s_playersettings.effects3.generic, youPm );
 	PlayerSettings_SetFxEnabled( &s_playersettings.effects4.generic, youPm );
 	PlayerSettings_SetFxEnabled( &s_playersettings.effects5.generic, youPm );
-	PlayerSettings_SetFxEnabled( &s_playersettings.teamFx.generic, PlayerSettings_ModelHasPmSkin( "cg_teamModel" ) );
-	PlayerSettings_SetFxEnabled( &s_playersettings.enemyFx.generic, PlayerSettings_ModelHasPmSkin( "cg_enemyModel" ) );
+	for ( i = 0; i < 3; i++ ) {
+		PlayerSettings_SetFxEnabled( &s_playersettings.teamColor[i].generic, teamPm );
+		PlayerSettings_SetFxEnabled( &s_playersettings.enemyColor[i].generic, enemyPm );
+	}
+	PlayerSettings_SetFxEnabled( &s_playersettings.teamFx.generic, teamPm );
+	PlayerSettings_SetFxEnabled( &s_playersettings.enemyFx.generic, enemyPm );
 
+	Menu_Draw( &s_playersettings.menu );
 	PlayerSettings_DrawColorSwatch( &s_playersettings.effects, qtrue );
 	PlayerSettings_DrawColorSwatch( &s_playersettings.effects2, qtrue );
 	PlayerSettings_DrawColorSwatch( &s_playersettings.effects3, qtrue );
 	PlayerSettings_DrawColorSwatch( &s_playersettings.effects4, qtrue );
 	PlayerSettings_DrawColorSwatch( &s_playersettings.effects5, qtrue );
-	for ( i = 0; i < 5; i++ ) {
-		PlayerSettings_DrawColorSwatch( &s_playersettings.teamColor[i], qfalse );
-		PlayerSettings_DrawColorSwatch( &s_playersettings.enemyColor[i], qfalse );
-	}
-
-	Menu_Draw( &s_playersettings.menu );
 	PlayerSettings_DrawFxHint( &s_playersettings.teamFx );
 	PlayerSettings_DrawFxHint( &s_playersettings.enemyFx );
 	PlayerSettings_DrawPmBodyHint( &s_playersettings.effects3, "Pick a PM model/skin to color your head" );
 	PlayerSettings_DrawPmBodyHint( &s_playersettings.effects4, "Pick a PM model/skin to color your body" );
 	PlayerSettings_DrawPmBodyHint( &s_playersettings.effects5, "Pick a PM model/skin to color your legs" );
+	PlayerSettings_DrawPmBodyHint( &s_playersettings.teamColor[0], "Pick a PM model/skin to color teammates' heads" );
+	PlayerSettings_DrawPmBodyHint( &s_playersettings.teamColor[1], "Pick a PM model/skin to color teammates' bodies" );
+	PlayerSettings_DrawPmBodyHint( &s_playersettings.teamColor[2], "Pick a PM model/skin to color teammates' legs" );
+	PlayerSettings_DrawPmBodyHint( &s_playersettings.enemyColor[0], "Pick a PM model/skin to color enemies' heads" );
+	PlayerSettings_DrawPmBodyHint( &s_playersettings.enemyColor[1], "Pick a PM model/skin to color enemies' bodies" );
+	PlayerSettings_DrawPmBodyHint( &s_playersettings.enemyColor[2], "Pick a PM model/skin to color enemies' legs" );
 }
 
 /*
@@ -760,8 +987,20 @@ PlayerSettings_MenuKey
 =================
 */
 static sfxHandle_t PlayerSettings_MenuKey( int key ) {
+	sfxHandle_t	sound;
+
 	if( key == K_MOUSE2 || key == K_ESCAPE ) {
 		PlayerSettings_SaveChanges();
+	}
+	if ( key == K_MOUSE1 ) {
+		sound = PlayerSettings_YouExtraMouse();
+		if ( sound ) {
+			return sound;
+		}
+		sound = PlayerSettings_PaletteMouse();
+		if ( sound ) {
+			return sound;
+		}
 	}
 	return Menu_DefaultKey( &s_playersettings.menu, key );
 }
@@ -784,6 +1023,9 @@ int UI_GetEffectColor(char *cvar) {
 		c = atoi(buf+1);
 	} else {
 		c = UI_Randomcolor();
+	}
+	if (c == PS_YOU_WHITE || c == PS_YOU_BLACK) {
+		return c;
 	}
 	if (c < 0) {
 		c = 0;
@@ -930,11 +1172,23 @@ static void PlayerSettings_PartStatusBar( void* ptr ) {
 			msg = "Make enemies pulse, flash, or cycle through colors";
 		}
 	} else if ( !Q_stricmp( item->name, "Head" ) ) {
-		msg = team ? "Color of your teammates' heads" : "Color of your enemies' heads";
+		if ( item->flags & QMF_GRAYED ) {
+			msg = team ? "Pick a PM model/skin to color teammates' heads" : "Pick a PM model/skin to color enemies' heads";
+		} else {
+			msg = team ? "Color of your teammates' heads" : "Color of your enemies' heads";
+		}
 	} else if ( !Q_stricmp( item->name, "Body" ) ) {
-		msg = team ? "Color of your teammates' bodies" : "Color of your enemies' bodies";
+		if ( item->flags & QMF_GRAYED ) {
+			msg = team ? "Pick a PM model/skin to color teammates' bodies" : "Pick a PM model/skin to color enemies' bodies";
+		} else {
+			msg = team ? "Color of your teammates' bodies" : "Color of your enemies' bodies";
+		}
 	} else if ( !Q_stricmp( item->name, "Legs" ) ) {
-		msg = team ? "Color of your teammates' legs" : "Color of your enemies' legs";
+		if ( item->flags & QMF_GRAYED ) {
+			msg = team ? "Pick a PM model/skin to color teammates' legs" : "Pick a PM model/skin to color enemies' legs";
+		} else {
+			msg = team ? "Color of your teammates' legs" : "Color of your enemies' legs";
+		}
 	} else if ( !Q_stricmp( item->name, "Rail" ) ) {
 		msg = team ? "Your teammates' railgun beam color" : "Your enemies' railgun beam color";
 	} else if ( !Q_stricmp( item->name, "Spiral" ) ) {
@@ -991,17 +1245,29 @@ static void PlayerSettings_SoundStatusBar( void* ptr ) {
 	UI_DrawString( 320, 454, msg, UI_CENTER|UI_SMALLFONT, colorWhite );
 }
 
-static void PlayerSettings_SetupSlider( menuslider_s *s, const char *name, int id, int x, int y, float minvalue, float maxvalue ) {
+static void PlayerSettings_SetupPalette( menuslider_s *s, const char *name, int id, int x, int y ) {
+	int	len;
+
 	s->generic.type			= MTYPE_SLIDER;
 	s->generic.name			= name;
-	s->generic.flags		= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
+	s->generic.flags		= QMF_PULSEIFFOCUS|QMF_SMALLFONT|QMF_NODEFAULTINIT;
 	s->generic.id			= id;
 	s->generic.callback		= PlayerSettings_MenuEvent;
 	s->generic.statusbar	= PlayerSettings_PartStatusBar;
+	s->generic.ownerdraw	= PlayerSettings_DrawPalette;
 	s->generic.x			= x;
 	s->generic.y			= y;
-	s->minvalue				= minvalue;
-	s->maxvalue				= maxvalue;
+	s->minvalue				= 0.0f;
+	s->maxvalue				= (float)( PS_PALETTE_COLORS - 1 );
+	if ( name ) {
+		len = (int)strlen( name );
+	} else {
+		len = 0;
+	}
+	s->generic.left			= x - ( len + 1 ) * SMALLCHAR_WIDTH;
+	s->generic.right		= x + PS_PALETTE_W;
+	s->generic.top			= y;
+	s->generic.bottom		= y + SMALLCHAR_HEIGHT;
 }
 
 static void PlayerSettings_SetupFx( menulist_s *s, int id, int x, int y ) {
@@ -1132,33 +1398,13 @@ static void PlayerSettings_MenuInit( void ) {
 	s_playersettings.enemy.width					= PS_MODEL_W;
 	s_playersettings.enemy.height				= PS_MODEL_H;
 
-	s_playersettings.effects.generic.type		= MTYPE_SLIDER;
-	s_playersettings.effects.generic.name		= "Color 1";
-	s_playersettings.effects.generic.flags		= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
-	s_playersettings.effects.generic.id			= ID_EFFECTS;
-	s_playersettings.effects.generic.statusbar	= PlayerSettings_YouColorStatusBar;
-	s_playersettings.effects.generic.x			= PS_COL0 + 72;
-	s_playersettings.effects.generic.y			= PS_SLIDER_Y;
-	s_playersettings.effects.minvalue			= 0.0f;
-	s_playersettings.effects.maxvalue			= 360.0f;
-
-	s_playersettings.effects2.generic.type		= MTYPE_SLIDER;
-	s_playersettings.effects2.generic.name		= "Color 2";
-	s_playersettings.effects2.generic.flags		= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
-	s_playersettings.effects2.generic.id		= ID_EFFECTS2;
-	s_playersettings.effects2.generic.statusbar	= PlayerSettings_YouColorStatusBar;
-	s_playersettings.effects2.generic.x			= PS_COL0 + 72;
-	s_playersettings.effects2.generic.y			= PS_SLIDER_Y + PS_ROW_H;
-	s_playersettings.effects2.minvalue			= 0.0f;
-	s_playersettings.effects2.maxvalue			= 360.0f;
-
 	s_playersettings.effects3.generic.type		= MTYPE_SLIDER;
 	s_playersettings.effects3.generic.name		= "Head";
 	s_playersettings.effects3.generic.flags		= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	s_playersettings.effects3.generic.id		= ID_EFFECTS3;
 	s_playersettings.effects3.generic.statusbar	= PlayerSettings_YouColorStatusBar;
 	s_playersettings.effects3.generic.x			= PS_COL0 + 72;
-	s_playersettings.effects3.generic.y			= PS_SLIDER_Y + 2 * PS_ROW_H;
+	s_playersettings.effects3.generic.y			= PS_SLIDER_Y;
 	s_playersettings.effects3.minvalue			= 0.0f;
 	s_playersettings.effects3.maxvalue			= 360.0f;
 
@@ -1168,7 +1414,7 @@ static void PlayerSettings_MenuInit( void ) {
 	s_playersettings.effects4.generic.id		= ID_EFFECTS4;
 	s_playersettings.effects4.generic.statusbar	= PlayerSettings_YouColorStatusBar;
 	s_playersettings.effects4.generic.x			= PS_COL0 + 72;
-	s_playersettings.effects4.generic.y			= PS_SLIDER_Y + 3 * PS_ROW_H;
+	s_playersettings.effects4.generic.y			= PS_SLIDER_Y + PS_ROW_H;
 	s_playersettings.effects4.minvalue			= 0.0f;
 	s_playersettings.effects4.maxvalue			= 360.0f;
 
@@ -1178,15 +1424,35 @@ static void PlayerSettings_MenuInit( void ) {
 	s_playersettings.effects5.generic.id		= ID_EFFECTS5;
 	s_playersettings.effects5.generic.statusbar	= PlayerSettings_YouColorStatusBar;
 	s_playersettings.effects5.generic.x			= PS_COL0 + 72;
-	s_playersettings.effects5.generic.y			= PS_SLIDER_Y + 4 * PS_ROW_H;
+	s_playersettings.effects5.generic.y			= PS_SLIDER_Y + 2 * PS_ROW_H;
 	s_playersettings.effects5.minvalue			= 0.0f;
 	s_playersettings.effects5.maxvalue			= 360.0f;
 
+	s_playersettings.effects.generic.type		= MTYPE_SLIDER;
+	s_playersettings.effects.generic.name		= "Rail";
+	s_playersettings.effects.generic.flags		= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
+	s_playersettings.effects.generic.id			= ID_EFFECTS;
+	s_playersettings.effects.generic.statusbar	= PlayerSettings_YouColorStatusBar;
+	s_playersettings.effects.generic.x			= PS_COL0 + 72;
+	s_playersettings.effects.generic.y			= PS_SLIDER_Y + 3 * PS_ROW_H;
+	s_playersettings.effects.minvalue			= 0.0f;
+	s_playersettings.effects.maxvalue			= 360.0f;
+
+	s_playersettings.effects2.generic.type		= MTYPE_SLIDER;
+	s_playersettings.effects2.generic.name		= "Spiral";
+	s_playersettings.effects2.generic.flags		= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
+	s_playersettings.effects2.generic.id		= ID_EFFECTS2;
+	s_playersettings.effects2.generic.statusbar	= PlayerSettings_YouColorStatusBar;
+	s_playersettings.effects2.generic.x			= PS_COL0 + 72;
+	s_playersettings.effects2.generic.y			= PS_SLIDER_Y + 4 * PS_ROW_H;
+	s_playersettings.effects2.minvalue			= 0.0f;
+	s_playersettings.effects2.maxvalue			= 360.0f;
+
 	for ( i = 0; i < 5; i++ ) {
-		PlayerSettings_SetupSlider( &s_playersettings.teamColor[i], ps_part_names[i],
-				ID_TEAMCOLOR, PS_COL1 + 72, PS_SLIDER_Y + i * PS_ROW_H, 0.0f, 7.0f );
-		PlayerSettings_SetupSlider( &s_playersettings.enemyColor[i], ps_part_names[i],
-				ID_ENEMYCOLOR, PS_COL2 + 72, PS_SLIDER_Y + i * PS_ROW_H, 0.0f, 7.0f );
+		PlayerSettings_SetupPalette( &s_playersettings.teamColor[i], ps_part_names[i],
+				ID_TEAMCOLOR, PS_COL1 + 72, PS_SLIDER_Y + i * PS_ROW_H );
+		PlayerSettings_SetupPalette( &s_playersettings.enemyColor[i], ps_part_names[i],
+				ID_ENEMYCOLOR, PS_COL2 + 72, PS_SLIDER_Y + i * PS_ROW_H );
 	}
 
 	row = PS_SLIDER_Y + 5 * PS_ROW_H;
@@ -1277,11 +1543,11 @@ static void PlayerSettings_MenuInit( void ) {
 	Menu_AddItem( &s_playersettings.menu, &s_playersettings.player );
 	Menu_AddItem( &s_playersettings.menu, &s_playersettings.teammate );
 	Menu_AddItem( &s_playersettings.menu, &s_playersettings.enemy );
-	Menu_AddItem( &s_playersettings.menu, &s_playersettings.effects );
-	Menu_AddItem( &s_playersettings.menu, &s_playersettings.effects2 );
 	Menu_AddItem( &s_playersettings.menu, &s_playersettings.effects3 );
 	Menu_AddItem( &s_playersettings.menu, &s_playersettings.effects4 );
 	Menu_AddItem( &s_playersettings.menu, &s_playersettings.effects5 );
+	Menu_AddItem( &s_playersettings.menu, &s_playersettings.effects );
+	Menu_AddItem( &s_playersettings.menu, &s_playersettings.effects2 );
 	for ( i = 0; i < 5; i++ ) {
 		Menu_AddItem( &s_playersettings.menu, &s_playersettings.teamColor[i] );
 		Menu_AddItem( &s_playersettings.menu, &s_playersettings.enemyColor[i] );

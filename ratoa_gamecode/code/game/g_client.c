@@ -1202,10 +1202,8 @@ void respawnRound( gentity_t *ent ) {
 
 	//if(g_gametype.integer==GT_ELIMINATION && ent->client->ps.pm_type == PM_SPECTATOR && ent->client->ps.stats[STAT_HEALTH] > 0)
 	//	return;
-	/*
         if(ent->client->hook)
                 Weapon_HookFree(ent->client->hook);
-	*/
         trap_UnlinkEntity (ent);
 
 	ClientSpawn(ent);
@@ -3618,7 +3616,7 @@ if(!G_IsElimGT() && !g_elimination_allgametypes.integer)
 	
 	client->ps.stats[STAT_WEAPONS] |= ( 1 << WP_GAUNTLET );
 	client->ps.ammo[WP_GAUNTLET] = -1;
-	// client->ps.ammo[WP_GRAPPLING_HOOK] = -1;
+	client->ps.ammo[WP_GRAPPLING_HOOK] = -1;
 
 	// health will count down towards max_health
 	ent->health = client->ps.stats[STAT_HEALTH] = client->ps.stats[STAT_MAX_HEALTH] + g_spawnHealthBonus.integer;
@@ -3627,7 +3625,7 @@ else
 {
 	client->ps.stats[STAT_WEAPONS] |= ( 1 << WP_GAUNTLET );
 	client->ps.ammo[WP_GAUNTLET] = -1;
-	// client->ps.ammo[WP_GRAPPLING_HOOK] = -1;
+	client->ps.ammo[WP_GRAPPLING_HOOK] = -1;
 	if (g_elimination_machinegun.integer > 0) {
 		client->ps.stats[STAT_WEAPONS] |= ( 1 << WP_MACHINEGUN );
 		client->ps.ammo[WP_MACHINEGUN] = g_elimination_machinegun.integer;
@@ -3660,11 +3658,9 @@ else
 		client->ps.stats[STAT_WEAPONS] |= ( 1 << WP_BFG );
 		client->ps.ammo[WP_BFG] = g_elimination_bfg.integer;
 	}
-	/*
         if (g_elimination_grapple.integer) {
 		client->ps.stats[STAT_WEAPONS] |= ( 1 << WP_GRAPPLING_HOOK );
 	}
-	*/
 #ifdef MISSIONPACK
 	if (g_elimination_nail.integer > 0) {
 		client->ps.stats[STAT_WEAPONS] |= ( 1 << WP_NAILGUN );
@@ -3719,11 +3715,9 @@ else
 		client->ps.stats[STAT_WEAPONS] = ( 1 << WP_ROCKET_LAUNCHER );
 		client->ps.ammo[WP_ROCKET_LAUNCHER] = 999;
 	}
-	/*
 	if (g_grapple.integer) {
 		client->ps.stats[STAT_WEAPONS] |= ( 1 << WP_GRAPPLING_HOOK );
 	}
-	*/
 #ifdef WITH_TREASURE_HUNTER_GAMETYPE
 	if (g_gametype.integer == GT_TREASURE_HUNTER) {
 		ent->client->ps.generic1 = ent->client->pers.th_tokens 
@@ -3873,6 +3867,10 @@ void ClientDisconnect( int clientNum ) {
 	ent = g_entities + clientNum;
 	if ( !ent->client ) {
 		return;
+	}
+
+	if ( ent->client->hook ) {
+		Weapon_HookFree( ent->client->hook );
 	}
 
 #ifdef WITH_MULTITOURNAMENT

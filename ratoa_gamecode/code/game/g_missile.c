@@ -759,7 +759,6 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 		return;
 	}
 #endif
-	/*
 	if (!strcmp(ent->classname, "hook")) {
 		gentity_t *nent;
 		vec3_t v;
@@ -804,7 +803,6 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 
 		return;
 	}
-	*/
 	// is it cheaper in bandwidth to just remove this ent and create a new
 	// one, rather than changing the missile into the explosion?
 
@@ -1263,7 +1261,6 @@ gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir) {
 fire_grapple
 =================
 */
-/*
 gentity_t *fire_grapple (gentity_t *self, vec3_t start, vec3_t dir) {
 	gentity_t	*hook;
 	VectorNormalize (dir);
@@ -1274,7 +1271,7 @@ gentity_t *fire_grapple (gentity_t *self, vec3_t start, vec3_t dir) {
 	hook->think = Weapon_HookFree;
 	hook->s.eType = ET_MISSILE;
 	hook->r.svFlags = SVF_USE_CURRENT_ORIGIN;
-	// hook->s.weapon = WP_GRAPPLING_HOOK;
+	hook->s.weapon = WP_GRAPPLING_HOOK;
 	hook->r.ownerNum = self->s.number;
 	hook->methodOfDeath = MOD_GRAPPLE;
 	hook->clipmask = MASK_SHOT;
@@ -1282,18 +1279,11 @@ gentity_t *fire_grapple (gentity_t *self, vec3_t start, vec3_t dir) {
 	hook->target_ent = NULL;
 
 //unlagged - grapple
-	// we might want this later
 	hook->s.otherEntityNum = self->s.number;
-
-	hook->s.pos.trTime = level.time;
-	G_ApplyMissileNudge(self, hook);
-
+	G_SetMissileLaunchTime(self, hook);
 //unlagged - grapple
 
 	hook->s.pos.trType = TR_LINEAR;
-//unlagged - grapple
-	//hook->s.pos.trTime = level.time - MISSILE_PRESTEP_TIME;		// move a bit on the very first frame
-//unlagged - grapple
 	hook->s.otherEntityNum = self->s.number; // use to match beam in client
 	VectorCopy( start, hook->s.pos.trBase );
 	VectorScale( dir, g_swingGrapple.integer ? 2000 : 800, hook->s.pos.trDelta );
@@ -1304,7 +1294,6 @@ gentity_t *fire_grapple (gentity_t *self, vec3_t start, vec3_t dir) {
 
 	return hook;
 }
-*/
 
 #ifdef MISSIONPACK
 /*
