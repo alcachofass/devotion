@@ -878,6 +878,8 @@ void CG_PredictPlayerState( void ) {
         cg_pmove.pmove_movement = cgs.movement;
 		cg_pmove.pmove_accurate = pmove_accurate.integer;
 
+		cg_pmove.altFireEnabled = cgs.altFireMode != 0;	//mrd -- predict the state
+
 //unlagged - optimized prediction
 	// Like the comments described above, a player's state is entirely
 	// re-predicted from the last valid snapshot every client frame, which

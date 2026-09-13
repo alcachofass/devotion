@@ -134,7 +134,7 @@ void P_WorldEffects( gentity_t *ent ) {
 				ent->pain_debounce_time = level.time + 200;
 
 				G_Damage (ent, NULL, NULL, NULL, NULL, 
-					ent->damage, DAMAGE_NO_ARMOR, MOD_WATER);
+					ent->damage, DAMAGE_NO_ARMOR, MOD_WATER, qfalse);	//mrd
 			}
 		}
 	} else {
@@ -164,14 +164,14 @@ void P_WorldEffects( gentity_t *ent ) {
 					//G_Damage (ent, NULL, NULL, NULL, NULL, 
 					//	30*waterlevel, 0, MOD_LAVA);
 					G_Damage (ent, NULL, NULL, NULL, NULL, 
-						g_lavaDamage.integer*waterlevel, 0, MOD_LAVA);
+						g_lavaDamage.integer*waterlevel, 0, MOD_LAVA, qfalse);
 				}
 
 				if (ent->watertype & CONTENTS_SLIME) {
 					//G_Damage (ent, NULL, NULL, NULL, NULL, 
 					//	10*waterlevel, 0, MOD_SLIME);
 					G_Damage (ent, NULL, NULL, NULL, NULL, 
-						g_slimeDamage.integer*waterlevel, 0, MOD_SLIME);
+						g_slimeDamage.integer*waterlevel, 0, MOD_SLIME, qfalse);
 				}
 			}
 		}
@@ -200,10 +200,10 @@ void P_WorldEffectsFrozen( gentity_t *ent ) {
 
 	if (cont & CONTENTS_LAVA) {
 		G_Damage (ent, NULL, NULL, NULL, NULL, 
-			g_lavaDamage.integer*3, 0, MOD_LAVA);
+			g_lavaDamage.integer*3, 0, MOD_LAVA, qfalse);
 	} else if (cont & CONTENTS_SLIME) {
 		G_Damage (ent, NULL, NULL, NULL, NULL, 
-			g_slimeDamage.integer*3, 0, MOD_SLIME);
+			g_slimeDamage.integer*3, 0, MOD_SLIME, qfalse);
 	} 
 }
 
@@ -844,7 +844,7 @@ void ClientTimerActions( gentity_t *ent, int msec ) {
 			if(g_elimination_roundtime.integer&&g_gametype.integer==GT_LMS && TeamHealthCount( -1, TEAM_FREE ) != ent->health &&(level.roundNumber==level.roundNumberStarted)&&(level.time>=level.roundStartTime+1000*g_elimination_roundtime.integer)) {
 				ent->damage=5;
 				G_Damage (ent, NULL, NULL, NULL, NULL, 
-						ent->damage, DAMAGE_NO_ARMOR, MOD_UNKNOWN);
+						ent->damage, DAMAGE_NO_ARMOR, MOD_UNKNOWN, qfalse);
 			}
 			else
 				if ( ent->health < client->ps.stats[STAT_MAX_HEALTH] ) {
@@ -976,13 +976,21 @@ void ClientEvents( gentity_t *ent, int oldEventSequence ) {
 			}
 			//VectorSet (dir, 0, 0, 1);
 			ent->pain_debounce_time = level.time + 200;	// no normal pain sound
-			G_Damage (ent, NULL, NULL, NULL, NULL, damage, 0, MOD_FALLING);
+			G_Damage (ent, NULL, NULL, NULL, NULL, damage, 0, MOD_FALLING, qfalse);
 			break;
 
 		case EV_FIRE_WEAPON:
-			FireWeapon( ent );
+			FireWeapon( ent, qfalse);
 			break;
-
+		case EV_ALTFIRE_WEAPON:	//mrd
+			//if (!level.altFireEnabledLevel){
+			//	Com_Printf("Attempted alt-fire event!\n");	//mrd debug
+			//	FireWeapon( ent, qfalse);	//mrd - alt-fire attempt made without cvar being set
+			//} else {
+			//	Com_Printf("True alt-fire event!\n");	//mrd debug
+				FireWeapon( ent, qtrue);	
+			//}
+			break;
 		case EV_USE_ITEM1:		// teleporter
 			// drop flags in CTF
 			item = NULL;
@@ -1475,7 +1483,13 @@ void ClientThink_real( gentity_t *ent ) {
 	// go through as an attack unless it actually hits something
 	if ( client->ps.weapon == WP_GAUNTLET && !( ucmd->buttons & BUTTON_TALK ) &&
 		( ucmd->buttons & BUTTON_ATTACK ) && client->ps.weaponTime <= 0 ) {
-		pm.gauntletHit = CheckGauntletAttack( ent );
+		pm.gauntletHit = CheckGauntletAttack( ent, qfalse );	//mrd
+	}
+
+	if ( client->ps.weapon == WP_GAUNTLET && !( ucmd->buttons & BUTTON_TALK ) &&
+		( ucmd->buttons & BUTTON_ALT_ATTACK ) && client->ps.weaponTime <= 0 ) {
+		pm.gauntletHit = CheckGauntletAttack( ent, qtrue );	//mrd
+		//Com_Printf("Checking for alt fire gauntlet attack.\n");	//mrd debug
 	}
 
 	if ( ent->flags & FL_FORCE_GESTURE ) {
@@ -1541,6 +1555,7 @@ void ClientThink_real( gentity_t *ent ) {
     pm.pmove_ratflags = g_altFlags.integer;
     pm.pmove_movement = g_movement.integer;
 	pm.pmove_autohop = pmove_autohop.integer;
+	pm.altFireEnabled = g_altFireMode.integer != 0;	//mrd
 
 	VectorCopy( client->ps.origin, client->oldOrigin );
 

@@ -299,6 +299,9 @@ typedef struct centity_s {
 	qboolean		missileTeleported;
 	predictedMissileStatus_t missileStatus;
 	qboolean		demoDelagMissileNotYet;
+
+	//mrd - altFire
+	qboolean		altFire;
 } centity_t;
 
 
@@ -1610,6 +1613,8 @@ typedef struct {
 
 	int			team_gt;
 
+	int			altFireMode;	//mrd
+
 //Elimination
 	int				roundStartTime;	
 	int				roundtime;
@@ -2075,7 +2080,8 @@ void CG_RegisterItemVisuals( int itemNum );
 void CG_FireWeapon( centity_t *cent );
 void CG_MissileHitWall( int weapon, int clientNum, vec3_t origin, vec3_t dir, impactSound_t soundType, predictedMissileStatus_t *missileStatus );
 void CG_MissileHitPlayer( int weapon, vec3_t origin, vec3_t dir, int entityNum, predictedMissileStatus_t *missileStatus );
-void CG_ShotgunFire( entityState_t *es );
+//void CG_ShotgunFire( entityState_t *es );
+void CG_ShotgunFire( entityState_t *es, qboolean altFire );
 void CG_Bullet( vec3_t origin, int sourceEntityNum, vec3_t normal, qboolean flesh, int fleshEntityNum );
 
 void CG_RailTrail( clientInfo_t *ci, vec3_t start, vec3_t end );

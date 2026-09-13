@@ -509,7 +509,7 @@ gentity_t *G_TempEntity( vec3_t origin, int event ) {
 	e->freeAfterEvent = qtrue;
 
 	VectorCopy( origin, snapped );
-	SnapVector( snapped );		// save network bandwidth
+	//SnapVector( snapped );		// save network bandwidth	//mrd
 	G_SetOrigin( e, snapped );
 
 	// find cluster for PVS
@@ -551,7 +551,7 @@ void G_KillBox (gentity_t *ent) {
 		if ( hit->client ) {
 			// nail it
 			G_Damage ( hit, ent, ent, NULL, NULL,
-					100000, DAMAGE_NO_PROTECTION, MOD_TELEFRAG);
+					100000, DAMAGE_NO_PROTECTION, MOD_TELEFRAG, qfalse);	//mrd
 		} else if ( G_IsFrozenPlayerRemnant(hit) && hit->die ) {
 			hit->die(hit, ent, ent, 100000, MOD_TELEFRAG);
 		}

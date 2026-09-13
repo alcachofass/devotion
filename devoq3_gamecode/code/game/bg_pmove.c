@@ -1987,6 +1987,9 @@ Make this thing stop during warmup (done)
 static void PM_Weapon( void ) {
 	int		addTime;
 
+	qboolean altFire;	//mrd
+	qboolean fireRequested;	//mrd
+
 	// don't allow attack until all buttons are up
 	if ( pm->ps->pm_flags & PMF_RESPAWNED ) {
 		return;
@@ -2020,6 +2023,11 @@ static void PM_Weapon( void ) {
 		pm->ps->pm_flags &= ~PMF_USE_ITEM_HELD;
 	}
 
+	//mrd - assign altFire status
+	//mrd - if altFire is OFF, but user requests it, we fall back to a normal attack
+	//mrd TEST - this line might need to be higher up in this block
+	altFire = (pm->cmd.buttons & BUTTON_ALT_ATTACK) && pm->altFireEnabled;
+	fireRequested = pm->cmd.buttons & (BUTTON_ATTACK | BUTTON_ALT_ATTACK);
 
 	// make weapon function
 	if ( pm->ps->weaponTime > 0 ) {
@@ -2060,7 +2068,10 @@ static void PM_Weapon( void ) {
 	}
 
 	// check for fire
-	if ( ! (pm->cmd.buttons & BUTTON_ATTACK) ) {
+	//if ( ! (pm->cmd.buttons & BUTTON_ATTACK) ) {
+	//if ( ! (pm->cmd.buttons & (BUTTON_ATTACK | BUTTON_ALT_ATTACK)) ) {	//mrd
+	//if ( ! (pm->cmd.buttons & BUTTON_ATTACK) && !altFire) {	//mrd
+	if ( !fireRequested ) {		//mrd
 		pm->ps->weaponTime = 0;
 		pm->ps->weaponstate = WEAPON_READY;
 		return;
@@ -2094,7 +2105,15 @@ static void PM_Weapon( void ) {
 	}
 
 	// fire weapon
-	PM_AddEvent( EV_FIRE_WEAPON );
+	//mrd - alt-fire event
+	//if (pm->cmd.buttons & BUTTON_ALT_ATTACK) {
+	if (altFire) {
+		//Com_Printf("Alt fire event!\n");
+		PM_AddEvent( EV_ALTFIRE_WEAPON );
+	} else {
+		//Com_Printf("Regular fire event!\n");
+		PM_AddEvent( EV_FIRE_WEAPON );
+	}
 
 	switch( pm->ps->weapon ) {
 	default:
@@ -2155,6 +2174,11 @@ static void PM_Weapon( void ) {
 		addTime /= 1.3;
 	}
 
+	//if (pm->cmd.buttons & BUTTON_ALT_ATTACK)
+	if (altFire) {
+		addTime /= 2.0;	//mrd - alt-fire test, shorter cooldown. 
+	}
+		
 	pm->ps->weaponTime += addTime;
 }
 
@@ -2191,11 +2215,11 @@ static void PM_Animate( void ) {
 			PM_StartTorsoAnim( TORSO_FOLLOWME );
 			pm->ps->torsoTimer = 600;	//TIMER_GESTURE;
 		}
-	} else if ( pm->cmd.buttons & BUTTON_AFFIRMATIVE ) {
+	/*} else if ( pm->cmd.buttons & BUTTON_AFFIRMATIVE ) {	//mrd - this command bit was hijacked for alt-fire
 		if ( pm->ps->torsoTimer == 0 ) {
 			PM_StartTorsoAnim( TORSO_AFFIRMATIVE);
 			pm->ps->torsoTimer = 600;	//TIMER_GESTURE;
-		}
+		}*/
 	} else if ( pm->cmd.buttons & BUTTON_NEGATIVE ) {
 		if ( pm->ps->torsoTimer == 0 ) {
 			PM_StartTorsoAnim( TORSO_NEGATIVE );

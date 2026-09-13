@@ -1950,8 +1950,10 @@ dflags		these flags are used to control how T_Damage works
 ============
 */
 
+/*void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
+			   vec3_t dir, vec3_t point, int damage, int dflags, int mod ) {*/	//mrd
 void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
-			   vec3_t dir, vec3_t point, int damage, int dflags, int mod ) {
+			   vec3_t dir, vec3_t point, int damage, int dflags, int mod, qboolean altFire ) {
 	gclient_t	*client;
 	int			take;
 	//int			save;
@@ -2085,7 +2087,15 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		vec3_t	kvel;
 		float	mass;
 
-		mass = 200;
+		if (altFire && mod == MOD_RAILGUN) {	//mrd - altFire RG pushes enemy back more due to lower mass
+			knockback *= 3;	//mrd - RG does less damage, thus knockback is already lowered, so we have to compensate
+			mass = 145;	
+		} else if (altFire && mod == MOD_GAUNTLET) {
+			knockback *= 3;
+			mass = 200;
+		} else {
+			mass = 200;
+		}
 
 		VectorScale (dir, g_knockback.value * (float)knockback / mass, kvel);
 		VectorAdd (targ->client->ps.velocity, kvel, targ->client->ps.velocity);
@@ -2104,7 +2114,11 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 			if ( t > 200 ) {
 				t = 200;
 			}
-			targ->client->ps.pm_time = t;
+			if (altFire && mod == MOD_RAILGUN) {
+				targ->client->ps.pm_time = t * 2;	//mrd - altFire RG has annoyingly long knockback recovery time
+			} else {
+				targ->client->ps.pm_time = t;
+			}
 			targ->client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
 		}
                 //Remeber the last person to hurt the player
@@ -2141,7 +2155,7 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 			if ( g_friendlyFireReflect.integer && attacker) {
 				G_Damage(attacker, NULL, attacker, vec3_origin, vec3_origin,
 					       	damage * g_friendlyFireReflectFactor.value,
-					       	dflags | DAMAGE_NO_SELF_PROTECTION, mod );
+					       	dflags | DAMAGE_NO_SELF_PROTECTION, mod, qfalse );	//mrd
 				return;
 			}
 		}
@@ -2249,8 +2263,9 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	take -= asave;
 
 	if ( g_debugDamage.integer ) {
-		G_Printf( "%i: client:%i health:%i damage:%i armor:%i\n", level.time, targ->s.number,
-			targ->health, take, asave );
+		//G_Printf( "%i: client:%i health:%i damage:%i armor:%i\n", level.time, targ->s.number, targ->health, take, asave );	//mrd
+		Com_Printf( "%i: client:%i health:%i damage:%i armor:%i\n", level.time, targ->s.number, targ->health, take, asave );
+		Com_Printf( "inflictor:%i altFire:%s\n", inflictor->s.number, altFire ? "true" : "false");	//mrd
 	}
 
 	// add to the damage inflicted on a player this frame
@@ -2410,6 +2425,7 @@ Returns qtrue if the inflictor can directly damage the target.  Used for
 explosions and melee attacks.
 ============
 */
+//mrd - TODO: is this why rocket splash damage sucks on stairs?
 qboolean CanDamage (gentity_t *targ, vec3_t origin) {
 	vec3_t	dest;
 	trace_t	tr;
@@ -2491,7 +2507,7 @@ qboolean G_RailJump( vec3_t origin, gentity_t *attacker) {
 		// push the center of mass higher than the origin so players
 		// get knocked into the air more
 		dir[2] += 24;
-		G_Damage (attacker, attacker, attacker, dir, origin, (int)points, DAMAGE_RADIUS, MOD_RAILGUN);
+		G_Damage (attacker, attacker, attacker, dir, origin, (int)points, DAMAGE_RADIUS, MOD_RAILGUN, qfalse);	//mrd
 		if (attacker->client && attacker->client->ps.weaponTime > RAILJUMP_TIME) {
 			attacker->client->ps.weaponTime = RAILJUMP_TIME;
 		}
@@ -2563,7 +2579,7 @@ qboolean G_RadiusDamage ( vec3_t origin, gentity_t *inflictor, gentity_t *attack
 			// push the center of mass higher than the origin so players
 			// get knocked into the air more
 			dir[2] += 24;
-			G_Damage (ent, inflictor, attacker, dir, origin, (int)points, DAMAGE_RADIUS, mod);
+			G_Damage (ent, inflictor, attacker, dir, origin, (int)points, DAMAGE_RADIUS, mod, qfalse);	//mrd
 		}
 	}
 

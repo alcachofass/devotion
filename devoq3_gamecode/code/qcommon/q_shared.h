@@ -1134,7 +1134,8 @@ typedef struct playerState_s {
 										// only generate a small move value for that frame
 										// walking will use different animations and
 										// won't generate footsteps
-#define BUTTON_AFFIRMATIVE	32
+//#define BUTTON_AFFIRMATIVE	32
+
 #define	BUTTON_NEGATIVE		64
 
 #define BUTTON_GETFLAG		128
@@ -1146,6 +1147,8 @@ typedef struct playerState_s {
 
 #define	BUTTON_PING			4096			// ping the map to signal other players
 #define	BUTTON_PINGWARN			8192			// ping the map to warn other players
+
+#define BUTTON_ALT_ATTACK	(1<<14)		//+button14 for alt-fire
 
 #define	MOVE_RUN			120			// if forwardmove or rightmove are >= MOVE_RUN,
 										// then BUTTON_WALKING should be set

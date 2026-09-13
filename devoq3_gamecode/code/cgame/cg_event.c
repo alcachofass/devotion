@@ -966,9 +966,16 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		break;
 	case EV_FIRE_WEAPON:
 		DEBUGNAME("EV_FIRE_WEAPON");
+		//es->altFire = qfalse;
+		cent->altFire = qfalse;
 		CG_FireWeapon( cent );
 		break;
-
+	case EV_ALTFIRE_WEAPON:	//mrd
+		DEBUGNAME("EV_ALTFIRE_WEAPON");
+		//es->altFire = qtrue;
+		cent->altFire = qtrue;
+		CG_FireWeapon( cent );
+		break;
 	case EV_USE_ITEM0:
 		DEBUGNAME("EV_USE_ITEM0");
 		CG_UseItem( cent );
@@ -1279,7 +1286,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		}
 		else {
 			// do the shotgun pattern, because it wasn't predicted
-			CG_ShotgunFire( es );
+			//CG_ShotgunFire( es );	//mrd
+			CG_ShotgunFire( es, cent->altFire );
 			//Com_Printf("Non-predicted shotgun pattern\n");
 		}
 //unlagged - attack prediction #2

@@ -717,9 +717,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 			if ( VectorLength( velocity ) == 0 ) {
 				velocity[2] = 1;	// stepped on a grenade
 			}
-			G_Damage (other, ent, &g_entities[ent->r.ownerNum], velocity,
-				ent->s.origin, ent->damage, 
-				0, ent->methodOfDeath);
+			G_Damage (other, ent, &g_entities[ent->r.ownerNum], velocity, ent->s.origin, ent->damage, 0, ent->methodOfDeath, ent->altFire);	//mrd
 		}
 	}
 
@@ -1015,8 +1013,14 @@ gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t dir) {
 	VectorNormalize (dir);
 
 	bolt = G_Spawn();
+	if (self->altFire) {
+		bolt->altFire = qtrue;
+	}
 	bolt->classname = "plasma";
-	bolt->nextthink = level.time + PLASMA_THINKTIME;
+	if (bolt->altFire)
+		bolt->nextthink = level.time + (PLASMA_THINKTIME/4);
+	else
+		bolt->nextthink = level.time + PLASMA_THINKTIME;
 	bolt->think = G_ExplodeMissile;
 	//mrd - added for G_MissileDie / vulnerable missiles
 	if (g_vulnerableMissiles.integer == 1) {
@@ -1033,15 +1037,24 @@ gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
 	bolt->s.weapon = WP_PLASMAGUN;
+	if (bolt->altFire)
+		bolt->s.eFlags = EF_BOUNCE_HALF;
+
 	bolt->r.ownerNum = self->s.number;
 //unlagged - projectile nudge
 	// we'll need this for nudging projectiles later
 	bolt->s.otherEntityNum = self->s.number;
 //unlagged - projectile nudge
 	bolt->parent = self;
-	bolt->damage = 20;
-	bolt->splashDamage = 15;
-	bolt->splashRadius = 20;
+	if (bolt->altFire) {
+		bolt->damage = 10;
+		bolt->splashDamage = 5;
+		bolt->splashRadius = 110;
+	} else {
+		bolt->damage = 20;
+		bolt->splashDamage = 15;
+		bolt->splashRadius = 20;
+	}
 	bolt->methodOfDeath = MOD_PLASMA;
 	bolt->splashMethodOfDeath = MOD_PLASMA_SPLASH;
 	bolt->clipmask = MASK_SHOT;
@@ -1050,7 +1063,12 @@ gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t dir) {
 	//}
 	bolt->target_ent = NULL;
 
-	bolt->s.pos.trType = TR_LINEAR;
+	if (bolt->altFire) {
+		bolt->s.pos.trType = TR_GRAVITY;
+	} else {
+		bolt->s.pos.trType = TR_LINEAR;
+	}
+	bolt->s.pos.trTime = level.time;
 	//bolt->s.pos.trTime = level.time;
 	G_SetMissileLaunchTime(self, bolt);
 	VectorCopy( start, bolt->s.pos.trBase );
@@ -1076,8 +1094,14 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 	VectorNormalize (dir);
 
 	bolt = G_Spawn();
+	if (self->altFire) {
+		bolt->altFire = qtrue;
+	}
 	bolt->classname = "grenade";
-	bolt->nextthink = level.time + 2500;
+	if (bolt->altFire)
+		bolt->nextthink = level.time + 6500;
+	else
+		bolt->nextthink = level.time + 2500;
 	bolt->think = G_ExplodeMissile;
 	//mrd - added for G_MissileDie / vulnerable missiles 
 	if (g_vulnerableMissiles.integer == 1) {
@@ -1111,9 +1135,15 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 	}
 
 	bolt->parent = self;
-	bolt->damage = 100;
-	bolt->splashDamage = 100;
-	bolt->splashRadius = 150;
+	if (bolt->altFire) {
+		bolt->damage = 35;
+		bolt->splashDamage = 35;
+		bolt->splashRadius = 350;
+	} else {
+		bolt->damage = 100;
+		bolt->splashDamage = 100;
+		bolt->splashRadius = 150;
+	}
 	bolt->methodOfDeath = MOD_GRENADE;
 	bolt->splashMethodOfDeath = MOD_GRENADE_SPLASH;
 	bolt->clipmask = MASK_SHOT;
@@ -1122,12 +1152,21 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 	//}
 	bolt->target_ent = NULL;
 
-	bolt->s.pos.trType = TR_GRAVITY;
+	if (bolt->altFire)
+		bolt->s.pos.trType = TR_LINEAR;
+	else
+		bolt->s.pos.trType = TR_GRAVITY;
+
+	bolt->s.pos.trTime = level.time;
 	//bolt->s.pos.trTime = level.time;
 	G_SetMissileLaunchTime(self, bolt);
 	VectorCopy( start, bolt->s.pos.trBase );
-	VectorScale( dir, GRENADE_VELOCITY, bolt->s.pos.trDelta );
-	//SnapVector( bolt->s.pos.trDelta );			// save net bandwidth	//mrd - nah
+	if (bolt->altFire)
+		VectorScale( dir, (GRENADE_VELOCITY*3), bolt->s.pos.trDelta );
+	else
+		VectorScale( dir, GRENADE_VELOCITY, bolt->s.pos.trDelta );
+
+	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
 
 	VectorCopy (start, bolt->r.currentOrigin);
 
@@ -1148,6 +1187,8 @@ gentity_t *fire_bfg (gentity_t *self, vec3_t start, vec3_t dir) {
 	VectorNormalize (dir);
 
 	bolt = G_Spawn();
+	if (self->altFire)
+		bolt->altFire = qtrue;
 	bolt->classname = "bfg";
 	bolt->nextthink = level.time + 10000;
 	bolt->think = G_ExplodeMissile;
@@ -1208,6 +1249,9 @@ gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir) {
 	VectorNormalize (dir);
 
 	bolt = G_Spawn();
+	if (self->altFire) {
+		bolt->altFire = qtrue;
+	}
 	bolt->classname = "rocket";
 	bolt->nextthink = level.time + 15000;
 	bolt->think = G_ExplodeMissile;
@@ -1232,9 +1276,16 @@ gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->s.otherEntityNum = self->s.number;
 //unlagged - projectile nudge
 	bolt->parent = self;
-	bolt->damage = 100;
-	bolt->splashDamage = 100;
-	bolt->splashRadius = 120;
+	if (bolt->altFire) {
+		bolt->damage = 25;
+		bolt->splashDamage = 25;
+		bolt->splashRadius = 250;
+	} else {
+		bolt->damage = 100;
+		bolt->splashDamage = 100;
+		bolt->splashRadius = 120;
+	}
+
 	bolt->methodOfDeath = MOD_ROCKET;
 	bolt->splashMethodOfDeath = MOD_ROCKET_SPLASH;
 	bolt->clipmask = MASK_SHOT;

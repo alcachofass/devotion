@@ -25,7 +25,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "cg_local.h"
 
 // we'll need these prototypes
-void CG_ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, int otherEntNum );
+//void CG_ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, int otherEntNum );	//mrd
+void CG_ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, int otherEntNum, qboolean altFire );
 void CG_Bullet( vec3_t end, int sourceEntityNum, vec3_t normal, qboolean flesh, int fleshEntityNum );
 
 predictedMissile_t *CG_BasePredictMissile( entityState_t *ent,  vec3_t muzzlePoint );
@@ -1472,7 +1473,7 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			if ( demoRewind ) {
 				CG_DemoHistory_BeginHitscanRewind( attackTime, cg.predictedPlayerState.clientNum );
 			}
-			CG_ShotgunPattern( muzzlePoint, endPoint, seed, cg.predictedPlayerState.clientNum );
+			CG_ShotgunPattern( muzzlePoint, endPoint, seed, cg.predictedPlayerState.clientNum, cent->altFire );	//mrd
 			if ( demoRewind ) {
 				CG_DemoHistory_EndHitscanRewind();
 			}
@@ -1510,9 +1511,16 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			demoRewind = CG_DemoHistory_DemoDelagActive();
 			attackTime = CG_PredictHitAttackTime();
 			seed = attackTime % 256;
-			r = Q_random(&seed) * M_PI * 2.0f;
-			u = sin(r) * Q_crandom(&seed) * MACHINEGUN_SPREAD * 16;
-			r = cos(r) * Q_crandom(&seed) * MACHINEGUN_SPREAD * 16;
+
+			if (cent->altFire) {
+				r = Q_random(&seed) * M_PI *2.0f;
+				u = sin(r) * Q_crandom(&seed) * MACHINEGUN_SPREAD * 8;
+				r = cos(r) * Q_crandom(&seed) * MACHINEGUN_SPREAD * 8;
+			} else {
+				r = Q_random(&seed) * M_PI * 2.0f;
+				u = sin(r) * Q_crandom(&seed) * MACHINEGUN_SPREAD * 16;
+				r = cos(r) * Q_crandom(&seed) * MACHINEGUN_SPREAD * 16;
+			}
 
 			VectorMA( muzzlePoint, 8192*16, forward, endPoint );
 			VectorMA( endPoint, r, right, endPoint );

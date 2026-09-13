@@ -509,7 +509,7 @@ static void PortalTouch( gentity_t *self, gentity_t *other, trace_t *trace) {
 		if( self->pos1[0] || self->pos1[1] || self->pos1[2] ) {
 			TeleportPlayer( other, self->pos1, self->s.angles );
 		}
-		G_Damage( other, other, other, NULL, NULL, 100000, DAMAGE_NO_PROTECTION, MOD_TELEFRAG );
+		G_Damage( other, other, other, NULL, NULL, 100000, DAMAGE_NO_PROTECTION, MOD_TELEFRAG, qfalse );	//mrd
 		return;
 	}
 
