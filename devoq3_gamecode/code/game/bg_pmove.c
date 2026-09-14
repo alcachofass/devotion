@@ -1990,6 +1990,11 @@ static void PM_Weapon( void ) {
 	qboolean altFire;	//mrd
 	qboolean fireRequested;	//mrd
 
+	int ammoCost;		//mrd - altFire consumes 2x ammo for all weapons
+
+	qboolean	burstContinuing;	//mrd - for MG alt fire
+	int			burstShot;
+
 	// don't allow attack until all buttons are up
 	if ( pm->ps->pm_flags & PMF_RESPAWNED ) {
 		return;
@@ -2027,7 +2032,55 @@ static void PM_Weapon( void ) {
 	//mrd - if altFire is OFF, but user requests it, we fall back to a normal attack
 	//mrd TEST - this line might need to be higher up in this block
 	altFire = (pm->cmd.buttons & BUTTON_ALT_ATTACK) && pm->altFireEnabled;
+
+	//mrd - track MG alt fire burst shots as a single "shot", even though it shoots 4
+
+	burstContinuing =
+		pm->ps->weapon == WP_MACHINEGUN
+		&& pm->altFireBurstShots > 0
+		&& pm->altFireBurstShots < MACHINEGUN_ALT_BURST_SHOTS;
+
+	if ( burstContinuing ){
+		altFire = qtrue;
+	}
+	
+
 	fireRequested = pm->cmd.buttons & (BUTTON_ATTACK | BUTTON_ALT_ATTACK);
+
+	
+	if ( burstContinuing ) {
+		fireRequested = qtrue;
+	}
+	
+
+	burstShot = pm->altFireBurstShots;
+
+	//mrd - MG alt fire only consumes ammo on first firing event
+	if (altFire 
+		&& pm->ps->weapon == WP_MACHINEGUN
+		&& burstShot > 0 ){
+		ammoCost = 0;
+	//mrd - MG burst shot consumes all 4 at once
+	} else if ( altFire 
+		&& pm->ps->weapon == WP_MACHINEGUN){
+		ammoCost = MACHINEGUN_ALT_BURST_SHOTS;
+	//mrd - otherwise, other weapon alt shots take 2 ammo
+	} else if ( altFire ){
+		ammoCost = 2;
+	} else {
+		ammoCost = 1;
+	}
+
+	//mrd - give the user a regular shot if they request altFire but don't
+	//have enough ammo for it
+	//for MG altfire burst, only do fallback check on first of burst
+	if ( altFire
+		&& ammoCost > 0
+		&& pm->ps->ammo[ pm->ps->weapon] > 0
+		&& pm->ps->ammo[ pm->ps->weapon] < ammoCost ) {
+		altFire = qfalse;
+		ammoCost = 1;
+		}
 
 	// make weapon function
 	if ( pm->ps->weaponTime > 0 ) {
@@ -2046,6 +2099,16 @@ static void PM_Weapon( void ) {
 	if ( pm->ps->weaponTime > 0 ) {
 		return;
 	}
+
+	//mrd - reset burst shot state if user stops, changes weapon, etc.
+
+	if ( pm->ps->weapon != WP_MACHINEGUN
+		|| !pm->altFireEnabled
+		|| (pm->cmd.weapon != WP_MACHINEGUN
+			&& pm->ps->weaponTime <= 0 ) ) {
+				pm->altFireBurstShots = 0;
+			}
+	
 
 	// change weapon if time
 	if ( pm->ps->weaponstate == WEAPON_DROPPING ) {
@@ -2093,25 +2156,31 @@ static void PM_Weapon( void ) {
 	pm->ps->weaponstate = WEAPON_FIRING;
 
 	// check for out of ammo
-	if ( ! pm->ps->ammo[ pm->ps->weapon ] ) {
+	//mrd - ignore out of ammo events for MG alt fire burst shots (other than first shot)
+	if ( ammoCost > 0 && !pm->ps->ammo[ pm->ps->weapon ] ) {
 		PM_AddEvent( EV_NOAMMO );
 		pm->ps->weaponTime += 500;
 		return;
 	}
 
 	// take an ammo away if not infinite, 999 or up
-	if ( !(pm->ps->ammo[ pm->ps->weapon ] == -1 || pm->ps->ammo[ pm->ps->weapon ] >=999 )) {
+	//mrd - or if it's not the first shot of a MG alt fire burst shot
+	/*if ( !(pm->ps->ammo[ pm->ps->weapon ] == -1 || pm->ps->ammo[ pm->ps->weapon ] >=999 )) {
 		pm->ps->ammo[ pm->ps->weapon ]--;
+	}*/
+
+	if ( ammoCost > 0
+		&& pm->ps->ammo[ pm->ps->weapon ] != -1
+		&& pm->ps->ammo[ pm->ps->weapon ] < 999 ) {
+		pm->ps->ammo [ pm->ps->weapon] -= ammoCost;
 	}
 
 	// fire weapon
 	//mrd - alt-fire event
 	//if (pm->cmd.buttons & BUTTON_ALT_ATTACK) {
 	if (altFire) {
-		//Com_Printf("Alt fire event!\n");
 		PM_AddEvent( EV_ALTFIRE_WEAPON );
 	} else {
-		//Com_Printf("Regular fire event!\n");
 		PM_AddEvent( EV_FIRE_WEAPON );
 	}
 
@@ -2174,10 +2243,20 @@ static void PM_Weapon( void ) {
 		addTime /= 1.3;
 	}
 
-	//if (pm->cmd.buttons & BUTTON_ALT_ATTACK)
-	if (altFire) {
+	//mrd - implement MG alt fire burst shot cool down period
+
+	if ( altFire && pm->ps->weapon == WP_MACHINEGUN ) {
+		if ( burstShot + 1 < MACHINEGUN_ALT_BURST_SHOTS ) {
+			addTime = MACHINEGUN_ALT_BURST_INTERVAL;
+			pm->altFireBurstShots++;
+		} else {
+			addTime = MACHINEGUN_ALT_COOLDOWN;
+			pm->altFireBurstShots = 0;
+		}
+	} else if (altFire) {
 		addTime /= 2.0;	//mrd - alt-fire test, shorter cooldown. 
 	}
+	
 		
 	pm->ps->weaponTime += addTime;
 }
