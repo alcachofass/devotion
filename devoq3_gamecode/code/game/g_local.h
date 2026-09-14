@@ -718,6 +718,8 @@ struct gclient_s {
 
 	// throttle "you need the key" centerprints while standing in a door trigger
 	int	lastKeyDeniedTime;
+
+	int	altFireMGBurstShots;	//mrd
 };
 
 

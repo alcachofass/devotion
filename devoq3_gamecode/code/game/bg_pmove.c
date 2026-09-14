@@ -2037,20 +2037,23 @@ static void PM_Weapon( void ) {
 
 	burstContinuing =
 		pm->ps->weapon == WP_MACHINEGUN
-		&& pm->ps->altFireBurstShots > 0
-		&& pm->ps->altFireBurstShots < MACHINEGUN_ALT_BURST_SHOTS;
+		&& pm->altFireBurstShots > 0
+		&& pm->altFireBurstShots < MACHINEGUN_ALT_BURST_SHOTS;
 
 	if ( burstContinuing ){
 		altFire = qtrue;
 	}
+	
 
 	fireRequested = pm->cmd.buttons & (BUTTON_ATTACK | BUTTON_ALT_ATTACK);
 
+	
 	if ( burstContinuing ) {
 		fireRequested = qtrue;
 	}
+	
 
-	burstShot = pm->ps->altFireBurstShots;
+	burstShot = pm->altFireBurstShots;
 
 	//mrd - MG alt fire only consumes ammo on first firing event
 	if (altFire 
@@ -2093,12 +2096,14 @@ static void PM_Weapon( void ) {
 	}
 
 	//mrd - reset burst shot state if user stops, changes weapon, etc.
+
 	if ( pm->ps->weapon != WP_MACHINEGUN
 		|| !pm->altFireEnabled
 		|| (pm->cmd.weapon != WP_MACHINEGUN
 			&& pm->ps->weaponTime <= 0 ) ) {
-				pm->ps->altFireBurstShots = 0;
+				pm->altFireBurstShots = 0;
 			}
+	
 
 	// change weapon if time
 	if ( pm->ps->weaponstate == WEAPON_DROPPING ) {
@@ -2236,17 +2241,19 @@ static void PM_Weapon( void ) {
 	}
 
 	//mrd - implement MG alt fire burst shot cool down period
+
 	if ( altFire && pm->ps->weapon == WP_MACHINEGUN ) {
 		if ( burstShot + 1 < MACHINEGUN_ALT_BURST_SHOTS ) {
 			addTime = MACHINEGUN_ALT_BURST_INTERVAL;
-			pm->ps->altFireBurstShots++;
+			pm->altFireBurstShots++;
 		} else {
 			addTime = MACHINEGUN_ALT_COOLDOWN;
-			pm->ps->altFireBurstShots = 0;
+			pm->altFireBurstShots = 0;
 		}
 	} else if (altFire) {
 		addTime /= 2.0;	//mrd - alt-fire test, shorter cooldown. 
 	}
+	
 		
 	pm->ps->weaponTime += addTime;
 }

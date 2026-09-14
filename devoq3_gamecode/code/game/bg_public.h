@@ -285,6 +285,7 @@ typedef struct {
 	//Devotion
         int                     pmove_autohop;
 		qboolean				altFireEnabled;	//mrd
+		int						altFireBurstShots;	//mrd
 
 } pmove_t;
 
@@ -588,8 +589,7 @@ typedef enum {
 	EV_NOAMMO,
 	EV_CHANGE_WEAPON,
 	EV_FIRE_WEAPON,
-	EV_ALTFIRE_WEAPON,	//mrd
-
+	
 	EV_USE_ITEM0,                   //Event 24
 	EV_USE_ITEM1,
 	EV_USE_ITEM2,
@@ -669,6 +669,8 @@ typedef enum {
 	EV_FOOTSLIDE, // for crouch slide
 	EV_DAMAGEPLUM,
 	EV_PUSHNOTIFY,
+
+	EV_ALTFIRE_WEAPON,	//mrd
 } entity_event_t;
 
 

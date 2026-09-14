@@ -1698,8 +1698,7 @@ const char *eventnames[] = {
 	"EV_NOAMMO",
 	"EV_CHANGE_WEAPON",
 	"EV_FIRE_WEAPON",
-	"EV_ALTFIRE_WEAPON",	//mrd
-
+	
 	"EV_USE_ITEM0",
 	"EV_USE_ITEM1",
 	"EV_USE_ITEM2",
@@ -1777,7 +1776,9 @@ const char *eventnames[] = {
 	"EV_FREEZE",
 	"EV_FOOTSLIDE",
 	"EV_DAMAGEPLUM",
-	"EV_PUSHNOTIFY"
+	"EV_PUSHNOTIFY",
+
+	"EV_ALTFIRE_WEAPON"	//mrd
 
 };
 

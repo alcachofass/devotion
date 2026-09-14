@@ -1702,6 +1702,8 @@ static void CG_MapRestart( void ) {
 
 	cg.readyMask = 0;
 
+	cg.altFireMGBurstShots = 0;	//mrd
+
 	cg.mapRestart = qtrue;
 
 	CG_StartMusic();

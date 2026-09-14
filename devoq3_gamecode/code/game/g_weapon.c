@@ -351,7 +351,6 @@ void Bullet_Fire (gentity_t *ent, float spread, int damage, qboolean altFire ) {
 #endif
                             //{
 				if (altFire){
-					damage /= 3;
 					G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_MACHINEGUN, altFire);	//mrd
 				} else {
 					G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_MACHINEGUN, altFire);
