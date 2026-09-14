@@ -1992,6 +1992,9 @@ static void PM_Weapon( void ) {
 
 	int ammoCost;		//mrd - altFire consumes 2x ammo for all weapons
 
+	qboolean	burstContinuing;	//mrd - for MG alt fire
+	int			burstShot;
+
 	// don't allow attack until all buttons are up
 	if ( pm->ps->pm_flags & PMF_RESPAWNED ) {
 		return;
@@ -2029,9 +2032,32 @@ static void PM_Weapon( void ) {
 	//mrd - if altFire is OFF, but user requests it, we fall back to a normal attack
 	//mrd TEST - this line might need to be higher up in this block
 	altFire = (pm->cmd.buttons & BUTTON_ALT_ATTACK) && pm->altFireEnabled;
+
+	//mrd - track MG alt fire burst shots as a single "shot", even though it shoots 4
+
+	burstContinuing =
+		pm->ps->weapon == WP_MACHINEGUN
+		&& pm->ps->altFireBurstShots > 0
+		&& pm->ps->altFireBurstShots < MACHINEGUN_ALT_BURST_SHOTS;
+
+	if ( burstContinuing ){
+		altFire = qtrue;
+	}
+
 	fireRequested = pm->cmd.buttons & (BUTTON_ATTACK | BUTTON_ALT_ATTACK);
 
-	if (altFire){
+	if ( burstContinuing ) {
+		fireRequested = qtrue;
+	}
+
+	burstShot = pm->ps->altFireBurstShots;
+
+	//mrd - MG alt fire only consumes ammo on first firing event
+	if (altFire 
+		&& pm->ps->weapon == WP_MACHINEGUN
+		&& burstShot > 0 ){
+		ammoCost = 0;
+	} else if ( altFire ){
 		ammoCost = 2;
 	} else {
 		ammoCost = 1;
@@ -2039,7 +2065,9 @@ static void PM_Weapon( void ) {
 
 	//mrd - give the user a regular shot if they request altFire but don't
 	//have enough ammo for it
+	//for MG altfire burst, only do fallback check on first of burst
 	if ( altFire
+		&& ammoCost > 0
 		&& pm->ps->ammo[ pm->ps->weapon] > 0
 		&& pm->ps->ammo[ pm->ps->weapon] < ammoCost ) {
 		altFire = qfalse;
@@ -2063,6 +2091,14 @@ static void PM_Weapon( void ) {
 	if ( pm->ps->weaponTime > 0 ) {
 		return;
 	}
+
+	//mrd - reset burst shot state if user stops, changes weapon, etc.
+	if ( pm->ps->weapon != WP_MACHINEGUN
+		|| !pm->altFireEnabled
+		|| (pm->cmd.weapon != WP_MACHINEGUN
+			&& pm->ps->weaponTime <= 0 ) ) {
+				pm->ps->altFireBurstShots = 0;
+			}
 
 	// change weapon if time
 	if ( pm->ps->weaponstate == WEAPON_DROPPING ) {
@@ -2110,18 +2146,21 @@ static void PM_Weapon( void ) {
 	pm->ps->weaponstate = WEAPON_FIRING;
 
 	// check for out of ammo
-	if ( ! pm->ps->ammo[ pm->ps->weapon ] ) {
+	//mrd - ignore out of ammo events for MG alt fire burst shots (other than first shot)
+	if ( ammoCost > 0 && !pm->ps->ammo[ pm->ps->weapon ] ) {
 		PM_AddEvent( EV_NOAMMO );
 		pm->ps->weaponTime += 500;
 		return;
 	}
 
 	// take an ammo away if not infinite, 999 or up
+	//mrd - or if it's not the first shot of a MG alt fire burst shot
 	/*if ( !(pm->ps->ammo[ pm->ps->weapon ] == -1 || pm->ps->ammo[ pm->ps->weapon ] >=999 )) {
 		pm->ps->ammo[ pm->ps->weapon ]--;
 	}*/
 
-	if ( pm->ps->ammo[ pm->ps->weapon ] != -1
+	if ( ammoCost > 0
+		&& pm->ps->ammo[ pm->ps->weapon ] != -1
 		&& pm->ps->ammo[ pm->ps->weapon ] < 999 ) {
 		pm->ps->ammo [ pm->ps->weapon] -= ammoCost;
 	}
@@ -2196,8 +2235,16 @@ static void PM_Weapon( void ) {
 		addTime /= 1.3;
 	}
 
-	//if (pm->cmd.buttons & BUTTON_ALT_ATTACK)
-	if (altFire) {
+	//mrd - implement MG alt fire burst shot cool down period
+	if ( altFire && pm->ps->weapon == WP_MACHINEGUN ) {
+		if ( burstShot + 1 < MACHINEGUN_ALT_BURST_SHOTS ) {
+			addTime = MACHINEGUN_ALT_BURST_INTERVAL;
+			pm->ps->altFireBurstShots++;
+		} else {
+			addTime = MACHINEGUN_ALT_COOLDOWN;
+			pm->ps->altFireBurstShots = 0;
+		}
+	} else if (altFire) {
 		addTime /= 2.0;	//mrd - alt-fire test, shorter cooldown. 
 	}
 		

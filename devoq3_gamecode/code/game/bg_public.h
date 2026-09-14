@@ -45,6 +45,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define NEW_SHOTGUN_COUNT	12
 #define MAX_SHOTGUN_COUNT	NEW_SHOTGUN_COUNT
 
+//mrd
+#define	MACHINEGUN_ALT_BURST_SHOTS	4
+#define MACHINEGUN_ALT_BURST_INTERVAL 40
+#define MACHINEGUN_ALT_COOLDOWN	1200
+
 #define	ITEM_RADIUS			15		// item sizes are needed for client side pickup detection
 
 #define	LIGHTNING_RANGE		768

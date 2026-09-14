@@ -1189,6 +1189,8 @@ typedef struct playerState_s {
 	int			weapon;			// copied to entityState_t->weapon
 	int			weaponstate;
 
+	int			altFireMGBurstShots;	//mrd - track MG burst shots so cooldown starts after last shot
+
 	vec3_t		viewangles;		// for fixed views
 	int			viewheight;
 
