@@ -40,7 +40,9 @@ typedef enum {
 	DEMOEV_DEATH_OTHER,
 	DEMOEV_MATCH_START,
 	DEMOEV_MATCH_END,
-	DEMOEV_MAP_LOAD
+	DEMOEV_MAP_LOAD,
+	DEMOEV_ROUND_START,
+	DEMOEV_ROUND_END
 } demoEventKind_t;
 
 typedef struct {
@@ -90,7 +92,9 @@ static int				ev_gamestateCount;
 static qboolean			ev_warmupOn;
 static qboolean			ev_intermissionOn;
 static qboolean			ev_matchOn;
+static qboolean			ev_roundOn;
 static int				ev_warmupDeadline;
+static int				ev_pendingRoundStart;
 
 static demoNetField_t	ev_entFields[DEMOEV_MAX_NETFIELDS];
 static demoNetField_t	ev_psFields[DEMOEV_MAX_NETFIELDS];
@@ -515,6 +519,67 @@ static qboolean DemoEv_CsActive( const char *value ) {
 	return qtrue;
 }
 
+static int DemoEv_ParseInts( const char *s, int *out, int max ) {
+	int	n;
+
+	n = 0;
+	if ( !s ) {
+		return 0;
+	}
+	while ( *s && n < max ) {
+		while ( *s == ' ' || *s == '\t' ) {
+			s++;
+		}
+		if ( !*s ) {
+			break;
+		}
+		out[n] = atoi( s );
+		n++;
+		while ( *s && *s != ' ' && *s != '\t' ) {
+			s++;
+		}
+	}
+	return n;
+}
+
+static void DemoEv_MaybeRoundStart( int serverTime );
+static void DemoEv_MaybeRoundEnd( int serverTime );
+
+static void DemoEv_ApplyElimination( const char *args ) {
+	int	vals[6];
+	int	n;
+	int	roundStartTime;
+	int	now;
+
+	n = DemoEv_ParseInts( args, vals, 6 );
+	if ( n < 6 ) {
+		return;
+	}
+	roundStartTime = vals[2];
+	now = ev_lastServerTime;
+	if ( now <= 0 ) {
+		now = roundStartTime;
+	}
+	if ( !ev_matchOn ) {
+		if ( roundStartTime > 0 ) {
+			ev_pendingRoundStart = roundStartTime;
+		}
+		return;
+	}
+	if ( roundStartTime > now + 400 ) {
+		DemoEv_MaybeRoundEnd( now );
+		if ( roundStartTime > 0 ) {
+			ev_pendingRoundStart = roundStartTime;
+		}
+	} else {
+		if ( roundStartTime > 0 ) {
+			DemoEv_MaybeRoundStart( roundStartTime );
+		} else {
+			DemoEv_MaybeRoundStart( now );
+		}
+	}
+}
+
 static void DemoEv_MaybeMatchStart( int serverTime ) {
 	if ( ev_matchOn ) {
 		return;
@@ -526,6 +591,32 @@ static void DemoEv_MaybeMatchStart( int serverTime ) {
 	ev_warmupOn = qfalse;
 	ev_intermissionOn = qfalse;
 	DemoEv_Add( serverTime, DEMOEV_MATCH_START );
+	if ( ev_pendingRoundStart > 0 && ev_pendingRoundStart <= serverTime ) {
+		DemoEv_MaybeRoundStart( serverTime );
+	}
+}
+
+static void DemoEv_MaybeRoundStart( int serverTime ) {
+	if ( !ev_matchOn || ev_roundOn ) {
+		return;
+	}
+	if ( serverTime <= 0 ) {
+		return;
+	}
+	ev_roundOn = qtrue;
+	ev_pendingRoundStart = 0;
+	DemoEv_Add( serverTime, DEMOEV_ROUND_START );
+}
+
+static void DemoEv_MaybeRoundEnd( int serverTime ) {
+	if ( !ev_roundOn ) {
+		return;
+	}
+	if ( serverTime <= 0 ) {
+		return;
+	}
+	ev_roundOn = qfalse;
+	DemoEv_Add( serverTime, DEMOEV_ROUND_END );
 }
 
 static void DemoEv_MaybeMatchEnd( int serverTime ) {
@@ -537,6 +628,8 @@ static void DemoEv_MaybeMatchEnd( int serverTime ) {
 	}
 	ev_intermissionOn = qtrue;
 	ev_matchOn = qfalse;
+	DemoEv_MaybeRoundEnd( serverTime );
+	ev_pendingRoundStart = 0;
 	DemoEv_Add( serverTime, DEMOEV_MATCH_END );
 }
 
@@ -807,6 +900,9 @@ static qboolean DemoEv_ParseSnapshot( msg_t *msg, int messageNum ) {
 	if ( ev_warmupDeadline > 0 && serverTime >= ev_warmupDeadline ) {
 		DemoEv_MaybeMatchStart( ev_warmupDeadline );
 	}
+	if ( ev_matchOn && ev_pendingRoundStart > 0 && serverTime >= ev_pendingRoundStart ) {
+		DemoEv_MaybeRoundStart( ev_pendingRoundStart );
+	}
 
 	if ( newPs.pm_type == PM_INTERMISSION || newPs.pm_type == PM_SPINTERMISSION ) {
 		if ( !fromPs || ( fromPs->pm_type != PM_INTERMISSION
@@ -870,6 +966,8 @@ static void DemoEv_ParseGamestate( msg_t *msg ) {
 	ev_warmupOn = qfalse;
 	ev_warmupDeadline = 0;
 	ev_intermissionOn = qfalse;
+	ev_roundOn = qfalse;
+	ev_pendingRoundStart = 0;
 	Com_Memset( ev_playerNames, 0, sizeof( ev_playerNames ) );
 
 	while ( 1 ) {
@@ -921,6 +1019,10 @@ static void DemoEv_ParseServerCommand( const char *cmd ) {
 	int		idx;
 
 	if ( !cmd || !cmd[0] ) {
+		return;
+	}
+	if ( !Q_stricmpn( cmd, "elimination", 11 ) && ( cmd[11] == ' ' || cmd[11] == '\t' ) ) {
+		DemoEv_ApplyElimination( cmd + 11 );
 		return;
 	}
 	if ( cmd[0] != 'c' || cmd[1] != 's' || ( cmd[2] != ' ' && cmd[2] != '\t' ) ) {
@@ -1124,6 +1226,8 @@ static void DemoEv_ResetScanState( void ) {
 	ev_intermissionOn = qfalse;
 	ev_matchOn = qfalse;
 	ev_warmupDeadline = 0;
+	ev_roundOn = qfalse;
+	ev_pendingRoundStart = 0;
 	ev_haveSnap = qfalse;
 	ev_numEnts[0] = 0;
 	ev_numEnts[1] = 0;
@@ -1518,7 +1622,7 @@ static void DemoEv_DrawHoverTip( const demoEvent_t *ev, int markerX, int trackY 
 	CG_DrawStringExt( x, rowY, victimName, textColor, qfalse, qtrue, cw, ch, 0 );
 }
 
-#define DEMOEV_MAX_SPANS			32
+#define DEMOEV_MAX_SPANS			128
 
 typedef struct {
 	int	start;
@@ -1615,18 +1719,103 @@ static int DemoEv_BuildMatchSpans( int firstServerTime, int durationMs, demoEvSp
 	return n;
 }
 
-void CG_DemoEvents_DrawTrack( int trackX, int trackY, int trackW, int trackH,
-		int firstServerTime, int durationMs, int elapsedMs ) {
+static int DemoEv_BuildRoundGapSpans( int firstServerTime, int durationMs, demoEvSpan_t *spans, int maxSpans ) {
 	int			i;
 	int			n;
+	int			spanStart;
+	int			endTime;
+	qboolean		inGap;
+	qboolean		inRound;
+	const demoEvent_t	*ev;
+
+	n = 0;
+	inGap = qfalse;
+	inRound = qfalse;
+	spanStart = firstServerTime;
+	endTime = firstServerTime + durationMs;
+
+	for ( i = 0; i < ev_count; i++ ) {
+		if ( ev_events[i].kind == DEMOEV_ROUND_START || ev_events[i].kind == DEMOEV_ROUND_END ) {
+			break;
+		}
+	}
+	if ( i >= ev_count ) {
+		return 0;
+	}
+
+	for ( i = 0; i < ev_count; i++ ) {
+		ev = &ev_events[i];
+		if ( ev->kind == DEMOEV_MATCH_START ) {
+			if ( !inRound && !inGap ) {
+				inGap = qtrue;
+				spanStart = ev->serverTime;
+			}
+		} else if ( ev->kind == DEMOEV_ROUND_START ) {
+			if ( inGap && n < maxSpans && ev->serverTime > spanStart ) {
+				spans[n].start = spanStart;
+				spans[n].end = ev->serverTime;
+				n++;
+			}
+			inGap = qfalse;
+			inRound = qtrue;
+		} else if ( ev->kind == DEMOEV_ROUND_END ) {
+			inRound = qfalse;
+			inGap = qtrue;
+			spanStart = ev->serverTime;
+		} else if ( ev->kind == DEMOEV_MATCH_END ) {
+			if ( inGap && n < maxSpans && ev->serverTime > spanStart ) {
+				spans[n].start = spanStart;
+				spans[n].end = ev->serverTime;
+				n++;
+			}
+			inGap = qfalse;
+			inRound = qfalse;
+		}
+	}
+
+	if ( inGap && n < maxSpans && endTime > spanStart ) {
+		spans[n].start = spanStart;
+		spans[n].end = endTime;
+		n++;
+	}
+
+	return n;
+}
+
+static void DemoEv_FillElapsedSpans( int trackX, int trackY, int trackW, int trackH,
+		int firstServerTime, int durationMs, int elapsedEnd, const demoEvSpan_t *spans, int n,
+		const vec4_t color ) {
+	int	i;
+	int	t0;
+	int	t1;
+
+	for ( i = 0; i < n; i++ ) {
+		t0 = spans[i].start;
+		t1 = spans[i].end;
+		if ( t0 < firstServerTime ) {
+			t0 = firstServerTime;
+		}
+		if ( t1 > elapsedEnd ) {
+			t1 = elapsedEnd;
+		}
+		DemoEv_FillTimeRange( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
+				t0, t1, color );
+	}
+}
+
+void CG_DemoEvents_DrawTrack( int trackX, int trackY, int trackW, int trackH,
+		int firstServerTime, int durationMs, int elapsedMs ) {
+	int			n;
+	int			nGaps;
 	int			elapsedEnd;
-	int			t0;
-	int			t1;
 	demoEvSpan_t	spans[DEMOEV_MAX_SPANS];
+	demoEvSpan_t	gaps[DEMOEV_MAX_SPANS];
 	vec4_t		idleBg;
 	vec4_t		matchUnplayed;
+	vec4_t		roundGapUnplayed;
 	vec4_t		idlePlayed;
 	vec4_t		matchPlayed;
+	vec4_t		roundGapPlayed;
 
 	idleBg[0] = 0.30f;
 	idleBg[1] = 0.30f;
@@ -1636,6 +1825,10 @@ void CG_DemoEvents_DrawTrack( int trackX, int trackY, int trackW, int trackH,
 	matchUnplayed[1] = 0.08f;
 	matchUnplayed[2] = 0.10f;
 	matchUnplayed[3] = 0.90f;
+	roundGapUnplayed[0] = 0.19f;
+	roundGapUnplayed[1] = 0.19f;
+	roundGapUnplayed[2] = 0.22f;
+	roundGapUnplayed[3] = 0.90f;
 	idlePlayed[0] = 0.42f;
 	idlePlayed[1] = 0.42f;
 	idlePlayed[2] = 0.46f;
@@ -1644,6 +1837,10 @@ void CG_DemoEvents_DrawTrack( int trackX, int trackY, int trackW, int trackH,
 	matchPlayed[1] = 0.75f;
 	matchPlayed[2] = 0.80f;
 	matchPlayed[3] = 0.95f;
+	roundGapPlayed[0] = 0.585f;
+	roundGapPlayed[1] = 0.585f;
+	roundGapPlayed[2] = 0.63f;
+	roundGapPlayed[3] = 0.95f;
 
 	CG_FillRect( trackX, trackY, trackW, trackH, idleBg );
 
@@ -1652,27 +1849,20 @@ void CG_DemoEvents_DrawTrack( int trackX, int trackY, int trackW, int trackH,
 	}
 
 	n = DemoEv_BuildMatchSpans( firstServerTime, durationMs, spans, DEMOEV_MAX_SPANS );
-	for ( i = 0; i < n; i++ ) {
-		DemoEv_FillTimeRange( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
-				spans[i].start, spans[i].end, matchUnplayed );
-	}
+	nGaps = DemoEv_BuildRoundGapSpans( firstServerTime, durationMs, gaps, DEMOEV_MAX_SPANS );
+	DemoEv_FillElapsedSpans( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
+			firstServerTime + durationMs, spans, n, matchUnplayed );
+	DemoEv_FillElapsedSpans( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
+			firstServerTime + durationMs, gaps, nGaps, roundGapUnplayed );
 
 	elapsedEnd = firstServerTime + elapsedMs;
 	if ( elapsedMs > 0 ) {
 		DemoEv_FillTimeRange( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
 				firstServerTime, elapsedEnd, idlePlayed );
-		for ( i = 0; i < n; i++ ) {
-			t0 = spans[i].start;
-			t1 = spans[i].end;
-			if ( t0 < firstServerTime ) {
-				t0 = firstServerTime;
-			}
-			if ( t1 > elapsedEnd ) {
-				t1 = elapsedEnd;
-			}
-			DemoEv_FillTimeRange( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
-					t0, t1, matchPlayed );
-		}
+		DemoEv_FillElapsedSpans( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
+				elapsedEnd, spans, n, matchPlayed );
+		DemoEv_FillElapsedSpans( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
+				elapsedEnd, gaps, nGaps, roundGapPlayed );
 	}
 }
 
@@ -1705,6 +1895,9 @@ qboolean CG_DemoEvents_DrawMarkers( int trackX, int trackY, int trackW, int trac
 	bestDist = 9999;
 
 	for ( i = 0; i < ev_count; i++ ) {
+		if ( ev_events[i].kind == DEMOEV_ROUND_START || ev_events[i].kind == DEMOEV_ROUND_END ) {
+			continue;
+		}
 		mx = DemoEv_MarkerX( trackX, trackW, firstServerTime, durationMs, ev_events[i].serverTime );
 		DemoEv_KindColor( ev_events[i].kind, color );
 		CG_FillRect( mx, my, DEMOEV_MARKER_W, mh, color );
