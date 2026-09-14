@@ -583,7 +583,6 @@ typedef enum {
 	EV_NOAMMO,
 	EV_CHANGE_WEAPON,
 	EV_FIRE_WEAPON,
-	EV_ALTFIRE_WEAPON,	//mrd
 
 	EV_USE_ITEM0,                   //Event 24
 	EV_USE_ITEM1,
@@ -664,6 +663,7 @@ typedef enum {
 	EV_FOOTSLIDE, // for crouch slide
 	EV_DAMAGEPLUM,
 	EV_PUSHNOTIFY,
+	EV_ALTFIRE_WEAPON,	//mrd
 } entity_event_t;
 
 
@@ -1016,7 +1016,8 @@ typedef enum {
 	ET_PUSH_TRIGGER,
 	ET_TELEPORT_TRIGGER,
 	ET_INVISIBLE,
-	ET_GRAPPLE,				// grapple hooked on wall
+	// Do not insert ET_GRAPPLE here: it would shift ET_TEAM / ET_EVENTS and
+	// break obituaries in demos recorded without it. The stuck hook stays ET_MISSILE.
 	ET_TEAM,
 
 	ET_EVENTS				// any of the EV_* events can be added freestanding

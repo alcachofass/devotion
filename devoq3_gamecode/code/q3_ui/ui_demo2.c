@@ -164,7 +164,6 @@ typedef struct {
 	int					parseDebounceEntryIdx;
 	int					parseDebounceTime;
 	int					lastSelectedEntryIdx;
-	int					pendingPlayEntryIdx;
 } demos_t;
 
 static demos_t	s_demos;
@@ -189,8 +188,6 @@ static void UI_Demo_FormatDuration( int ms, char *out, int outSize ) {
 static void UI_Demo_SelectionChanged( void ) {
 	demoEntry_t	*entry;
 	int			idx;
-
-	s_demos.pendingPlayEntryIdx = -1;
 
 	if ( s_demos.viewMode.curvalue != 0 ) {
 		UI_Demo_ParseStop();
@@ -1530,49 +1527,12 @@ static void UI_Demo_StartPlayback( demoEntry_t *entry ) {
 	}
 
 	trap_Cvar_Set( "cg_currentDemo", entry->filename );
-	trap_Cvar_Set( "cg_demoDurationMs", va( "%d", entry->metaDurationMs ) );
-	trap_Cvar_Set( "cg_demoFirstServerTime", va( "%d", entry->metaFirstServerTime ) );
 	UI_ForceMenuOff();
 	trap_Cmd_ExecuteText( EXEC_APPEND, va( "demo \"%s\"\n", entry->filename ) );
 }
 
-static qboolean UI_Demo_EntryParseIncomplete( const demoEntry_t *entry ) {
-	if ( !entry ) {
-		return qfalse;
-	}
-	if ( s_demos.viewMode.curvalue != 0 ) {
-		return qfalse;
-	}
-	if ( entry->metaState == DEMO_META_DONE ||
-			entry->metaState == DEMO_META_ERROR ) {
-		return qfalse;
-	}
-	return qtrue;
-}
-
-static void UI_Demo_FinishPendingPlay( void ) {
-	demoEntry_t	*entry;
-
-	if ( s_demos.pendingPlayEntryIdx < 0 ) {
-		return;
-	}
-
-	entry = &s_demos.entries[s_demos.pendingPlayEntryIdx];
-	if ( UI_Demo_EntryParseIncomplete( entry ) ) {
-		Q_strncpyz( s_demos.statusMessage, "Parsing demo, please wait",
-				sizeof( s_demos.statusMessage ) );
-		s_demos.statusTime = uis.realtime + DEMO_STATUS_DURATION_MS;
-		return;
-	}
-
-	s_demos.pendingPlayEntryIdx = -1;
-	s_demos.statusMessage[0] = '\0';
-	UI_Demo_StartPlayback( entry );
-}
-
 static void UI_Demo_PlaySelected( void ) {
 	demoEntry_t	*entry;
-	int			idx;
 
 	entry = UI_Demo_GetSelectedEntry();
 	if ( !entry ) {
@@ -1583,19 +1543,6 @@ static void UI_Demo_PlaySelected( void ) {
 			entry->parseType == DEMO_PARSE_AUTORECORD &&
 			!UI_Demo_MapIsAvailable( entry->map ) ) {
 		UI_Demo_ShowMapMissing( entry->map );
-		return;
-	}
-
-	if ( UI_Demo_EntryParseIncomplete( entry ) ) {
-		idx = s_demos.viewToEntry[s_demos.list.curvalue];
-		s_demos.pendingPlayEntryIdx = idx;
-		s_demos.parseDebounceEntryIdx = -1;
-		if ( entry->metaState != DEMO_META_LOADING ) {
-			UI_Demo_ParseBegin( entry );
-		}
-		Q_strncpyz( s_demos.statusMessage, "Parsing demo, please wait",
-				sizeof( s_demos.statusMessage ) );
-		s_demos.statusTime = uis.realtime + DEMO_STATUS_DURATION_MS;
 		return;
 	}
 
@@ -1981,7 +1928,6 @@ static void Demos_Draw( void ) {
 	UI_Demo_CheckSelectionChanged();
 	UI_Demo_ParseDebounceTick();
 	UI_Demo_ParseTick();
-	UI_Demo_FinishPendingPlay();
 	Menu_Draw( &s_demos.menu );
 	UI_Demo_DrawInfoCard();
 	UI_Demo_DrawStatus();
@@ -2032,7 +1978,6 @@ static void Demos_MenuInit( void ) {
 	s_demos.sortDescending = qtrue;
 	s_demos.lastSelectedEntryIdx = -1;
 	s_demos.parseDebounceEntryIdx = -1;
-	s_demos.pendingPlayEntryIdx = -1;
 	UI_Demo_InitSortHeaders();
 
 	s_demos.arrows.generic.type		= MTYPE_BITMAP;

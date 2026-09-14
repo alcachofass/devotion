@@ -84,6 +84,7 @@ static playerState_t	ev_ps[DEMOEV_PS_BACKUP];
 static int				ev_psMsg[DEMOEV_PS_BACKUP];
 static qboolean			ev_psValid[DEMOEV_PS_BACKUP];
 
+static int				ev_firstServerTime;
 static int				ev_lastServerTime;
 static int				ev_gamestateCount;
 static qboolean			ev_warmupOn;
@@ -831,6 +832,9 @@ static qboolean DemoEv_ParseSnapshot( msg_t *msg, int messageNum ) {
 	ev_cur = newSlot;
 	ev_haveSnap = qtrue;
 	ev_lastMsgNum = messageNum;
+	if ( ev_firstServerTime <= 0 ) {
+		ev_firstServerTime = serverTime;
+	}
 	if ( serverTime > ev_lastServerTime ) {
 		ev_lastServerTime = serverTime;
 	}
@@ -1113,6 +1117,7 @@ static void DemoEv_AdaptBudget( int parseMs ) {
 
 static void DemoEv_ResetScanState( void ) {
 	ev_count = 0;
+	ev_firstServerTime = 0;
 	ev_lastServerTime = 0;
 	ev_gamestateCount = 0;
 	ev_warmupOn = qfalse;
@@ -1203,6 +1208,16 @@ void CG_DemoEvents_Shutdown( void ) {
 	ev_done = qfalse;
 	ev_openedName[0] = '\0';
 	ev_count = 0;
+	ev_firstServerTime = 0;
+	ev_lastServerTime = 0;
+}
+
+int CG_DemoEvents_FirstServerTime( void ) {
+	return ev_firstServerTime;
+}
+
+int CG_DemoEvents_LastServerTime( void ) {
+	return ev_lastServerTime;
 }
 
 void CG_DemoEvents_Frame( void ) {

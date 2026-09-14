@@ -1272,7 +1272,11 @@ static void CG_AddCEntity( centity_t *cent ) {
 		CG_Item( cent );
 		break;
 	case ET_MISSILE:
-		CG_Missile( cent );
+		if ( cent->currentState.weapon == WP_GRAPPLING_HOOK ) {
+			CG_Grapple( cent );
+		} else {
+			CG_Missile( cent );
+		}
 		break;
 	case ET_MOVER:
 		CG_Mover( cent );
@@ -1285,9 +1289,6 @@ static void CG_AddCEntity( centity_t *cent ) {
 		break;
 	case ET_SPEAKER:
 		CG_Speaker( cent );
-		break;
-	case ET_GRAPPLE:
-		CG_Grapple( cent );
 		break;
 	case ET_TEAM:
 		CG_TeamBase( cent );

@@ -785,7 +785,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 		nent->freeAfterEvent = qtrue;
 		// change over to a normal entity right at the point of impact
 		nent->s.eType = ET_GENERAL;
-		ent->s.eType = ET_GRAPPLE;
+		// Keep the hook as ET_MISSILE (do not use ET_GRAPPLE; that value shifts ET_EVENTS).
 
 		G_SetOrigin( ent, v );
 		G_SetOrigin( nent, v );
