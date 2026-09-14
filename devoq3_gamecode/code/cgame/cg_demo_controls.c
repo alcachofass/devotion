@@ -81,6 +81,7 @@ static int		dc_durationMs;
 static qboolean	dc_timingReady;
 static qboolean	dc_seeking;
 static qboolean	dc_seekKeepCvars;
+static qboolean	dc_keepViewCvars;
 static qboolean	dc_seekRestartPending;
 static qboolean	dc_seekMuted;
 static int		dc_seekTargetMs;
@@ -103,6 +104,7 @@ static void DemoCtrl_SeekBegin( int targetMs );
 static void DemoCtrl_SeekFrame( void );
 static void DemoCtrl_SeekWriteCvars( void );
 static void DemoCtrl_UpdateSpeedLabel( float ts );
+static void DemoCtrl_ViewSaveIfNeeded( void );
 
 static qboolean DemoCtrl_TimescaleNear( float a, float b ) {
 	float d;
@@ -327,6 +329,7 @@ static void DemoCtrl_Activate( int btn ) {
 		if ( dc_seeking ) {
 			DemoCtrl_SeekFinish( qfalse );
 		}
+		dc_keepViewCvars = qtrue;
 		trap_Cvar_Set( "timescale", "1" );
 		trap_SendConsoleCommand( va( "demo \"%s\"\n", demoName ) );
 		break;
@@ -506,6 +509,48 @@ static void DemoCtrl_UpdateSpeedLabel( float ts ) {
 	} else {
 		Com_sprintf( dc_speedLabel, sizeof( dc_speedLabel ), "%.1fx", ts );
 	}
+}
+
+static void DemoCtrl_CopyCvar( const char *from, const char *to ) {
+	char buf[MAX_CVAR_VALUE_STRING];
+
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( from, buf, sizeof( buf ) );
+	trap_Cvar_Set( to, buf );
+}
+
+static void DemoCtrl_ViewSaveIfNeeded( void ) {
+	char buf[32];
+
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "cg_demoViewSaved", buf, sizeof( buf ) );
+	if ( atoi( buf ) != 0 ) {
+		return;
+	}
+	DemoCtrl_CopyCvar( "cg_thirdPerson", "cg_demoViewThirdPerson" );
+	DemoCtrl_CopyCvar( "cg_thirdPersonRange", "cg_demoViewThirdPersonRange" );
+	DemoCtrl_CopyCvar( "cg_simpleItems", "cg_demoViewSimpleItems" );
+	DemoCtrl_CopyCvar( "cg_draw2D", "cg_demoViewDraw2D" );
+	DemoCtrl_CopyCvar( "cg_drawGun", "cg_demoViewDrawGun" );
+	DemoCtrl_CopyCvar( "cg_drawBBox", "cg_demoViewBBox" );
+	trap_Cvar_Set( "cg_demoViewSaved", "1" );
+}
+
+static void DemoCtrl_ViewRestore( void ) {
+	char buf[32];
+
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "cg_demoViewSaved", buf, sizeof( buf ) );
+	if ( atoi( buf ) == 0 ) {
+		return;
+	}
+	DemoCtrl_CopyCvar( "cg_demoViewThirdPerson", "cg_thirdPerson" );
+	DemoCtrl_CopyCvar( "cg_demoViewThirdPersonRange", "cg_thirdPersonRange" );
+	DemoCtrl_CopyCvar( "cg_demoViewSimpleItems", "cg_simpleItems" );
+	DemoCtrl_CopyCvar( "cg_demoViewDraw2D", "cg_draw2D" );
+	DemoCtrl_CopyCvar( "cg_demoViewDrawGun", "cg_drawGun" );
+	DemoCtrl_CopyCvar( "cg_demoViewBBox", "cg_drawBBox" );
+	trap_Cvar_Set( "cg_demoViewSaved", "0" );
 }
 
 static void DemoCtrl_SeekWriteCvars( void ) {
@@ -772,6 +817,9 @@ void CG_DemoControls_Shutdown( void ) {
 		DemoCtrl_SeekUnmute();
 		DemoCtrl_SeekClearCvars();
 		trap_Cvar_Set( "timescale", "1" );
+		if ( !dc_keepViewCvars ) {
+			DemoCtrl_ViewRestore();
+		}
 	}
 	dc_visible = qfalse;
 	dc_speedLabel[0] = '\0';
@@ -801,6 +849,7 @@ void CG_DemoControls_Frame( void ) {
 		return;
 	}
 
+	DemoCtrl_ViewSaveIfNeeded();
 	CG_DemoEvents_Frame();
 	DemoCtrl_UpdateTiming();
 	DemoCtrl_SeekFrame();
