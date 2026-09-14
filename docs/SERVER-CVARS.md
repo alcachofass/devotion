@@ -71,6 +71,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_banIPs` | Vanilla | `` | string or numeric (see default) | Semicolon-separated list of banned IP addresses. |
 | `g_battleSuitDamageSelf` | Devotion | `0` | 0 or 1 | When `1`, Battle Suit also blocks your own splash damage. |
 | `g_battleSuitFactor` | Devotion | `0.50` | float | Damage multiplier while Battle Suit is active (`0.5` = half damage). |
+| `g_bigHead` | Devotion | `0` | 0 or 1 | When `1`, enlarges players head when their score stands out from the pack. Purely cosmetic, no change to hitbox. |
 | `g_blueTeamClientNumbers` | RatMod | `0` | 0 or 1 | Read-only bitmask of blue team client numbers (used for VoIP). |
 | `g_blueclan` | RatMod | `rat` | string or numeric (see default) | Blue team clan tag shown on the scoreboard. |
 | `g_blueteam` | Vanilla | `Pagans` | string or numeric (see default) | Blue team display name. |
@@ -317,7 +318,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_voteMinCapturelimit` | RatMod | `0` | 0 or 1 | Minimum capturelimit players may vote for (`0` = no minimum). |
 | `g_voteMinFraglimit` | RatMod | `0` | 0 or 1 | Minimum fraglimit players may vote for (`0` = no minimum). |
 | `g_voteMinTimelimit` | RatMod | `0` | 0 or 1 | Minimum timelimit in minutes players may vote for. |
-| `g_voteNames` | RatMod | `/map_restart/nextmap/map/g_gametype/clientkick/g_doWarmup/timelimit/fraglimit/capturelimit/shuffle/bots/botskill/votenextmap/` | path list string | Slash-separated list of allowed callvote types. |
+| `g_voteNames` | RatMod | `/map_restart/nextmap/map/g_gametype/clientkick/g_doWarmup/timelimit/fraglimit/capturelimit/shuffle/bots/botskill/votenextmap/deathpit_mercy/bigheads/` | path list string | Slash-separated list of allowed callvote types. |
 | `g_voteRepeatLimit` | RatMod | `0` | 0 or 1 | Failed votes per player before cooldown (`0` = off). |
 | `g_votecustomfile` | RatMod | `votecustom.cfg` | filename | Path to custom callvote definitions file. |
 | `g_votemapsfile` | RatMod | `votemaps.cfg` | filename | Path to the map list allowed for map callvotes. |

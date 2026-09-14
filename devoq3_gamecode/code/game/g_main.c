@@ -775,6 +775,7 @@ void G_RegisterCvars( void ) {
 	BG_RegisterGameCvarDescriptions();
 
 	G_EnsureVoteName( "deathpit_mercy" );
+	G_EnsureVoteName( "bigheads" );
 }
 
 qboolean G_IsTeamGametype(void) {

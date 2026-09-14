@@ -1296,6 +1296,7 @@ void CG_ParseServerinfo( void ) {
 
 	//mrd - keep a client cache of altFire server cvar status
 	cgs.altFireMode = atoi( Info_ValueForKey( info, "g_altFireMode" ) );
+	cgs.bigHead = atoi( Info_ValueForKey( info, "g_bigHead" ) );
 
 	cgs.movement = atoi( Info_ValueForKey( info, "g_movement" ) );
 	if ((cgs.movement >= MOVEMENT_NUM_MOVEMENTS) || (cgs.movement < MOVEMENT_VQ3)) {
