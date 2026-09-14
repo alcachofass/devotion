@@ -26,6 +26,7 @@ Demo playback overlay: mouse cursor and timescale transport controls.
 #define DEMOCTRL_SEEK_KEYFRAME_COPIES	4
 #define DEMOCTRL_SIDE_MARGIN		8
 #define DEMOCTRL_SIDE_Y			140
+#define DEMOCTRL_SIDE_BTN_W		84
 #define DEMOCTRL_SHOT_HIDE_FRAMES	8
 
 typedef enum {
@@ -39,6 +40,7 @@ typedef enum {
 	DEMOCTRL_CAM,
 	DEMOCTRL_ITEMS,
 	DEMOCTRL_HUD,
+	DEMOCTRL_HITBOX,
 	DEMOCTRL_SHOT,
 	DEMOCTRL_NUM_BTNS
 } demoCtrlButton_t;
@@ -149,6 +151,8 @@ static const char *DemoCtrl_ButtonLabel( int btn ) {
 		return "Simple Items";
 	case DEMOCTRL_HUD:
 		return "Toggle HUD";
+	case DEMOCTRL_HITBOX:
+		return "Hitbox";
 	case DEMOCTRL_SHOT:
 		return "Screenshot";
 	default:
@@ -164,6 +168,8 @@ static qboolean DemoCtrl_ButtonActive( int btn ) {
 		return cg_simpleItems.integer ? qtrue : qfalse;
 	case DEMOCTRL_HUD:
 		return cg_draw2D.integer ? qtrue : qfalse;
+	case DEMOCTRL_HITBOX:
+		return cg_drawBBox.integer ? qtrue : qfalse;
 	default:
 		return qfalse;
 	}
@@ -209,7 +215,8 @@ static void DemoCtrl_ButtonRect( int btn, int *x, int *y, int *w, int *h ) {
 	*h = DEMOCTRL_BTN_H;
 	if ( DemoCtrl_IsSideButton( btn ) ) {
 		index = btn - DEMOCTRL_CAM;
-		*x = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_BTN_W;
+		*w = DEMOCTRL_SIDE_BTN_W;
+		*x = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_SIDE_BTN_W;
 		*y = DEMOCTRL_SIDE_Y + index * ( DEMOCTRL_BTN_H + DEMOCTRL_BTN_GAP );
 	} else if ( DemoCtrl_IsTopButton( btn ) ) {
 		index = btn - DEMOCTRL_RESTART;
@@ -346,6 +353,9 @@ static void DemoCtrl_Activate( int btn ) {
 		break;
 	case DEMOCTRL_ITEMS:
 		trap_Cvar_Set( "cg_simpleItems", cg_simpleItems.integer ? "0" : "1" );
+		break;
+	case DEMOCTRL_HITBOX:
+		trap_Cvar_Set( "cg_drawBBox", cg_drawBBox.integer ? "0" : "1" );
 		break;
 	case DEMOCTRL_HUD:
 		if ( cg_draw2D.integer || cg_drawGun.integer ) {
@@ -987,9 +997,10 @@ void CG_DemoControls_Draw( void ) {
 		int sideW;
 		int sideH;
 
-		sideW = DEMOCTRL_BTN_W + 16;
-		sideH = 4 * DEMOCTRL_BTN_H + 3 * DEMOCTRL_BTN_GAP + 12;
-		sideX = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_BTN_W - 8;
+		sideW = DEMOCTRL_SIDE_BTN_W + 16;
+		sideH = ( DEMOCTRL_SHOT - DEMOCTRL_CAM + 1 ) * DEMOCTRL_BTN_H
+			+ ( DEMOCTRL_SHOT - DEMOCTRL_CAM ) * DEMOCTRL_BTN_GAP + 12;
+		sideX = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_SIDE_BTN_W - 8;
 		sideY = DEMOCTRL_SIDE_Y - 6;
 		CG_FillRect( sideX, sideY, sideW, sideH, panel );
 	}
