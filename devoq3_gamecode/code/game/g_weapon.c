@@ -223,7 +223,7 @@ void SnapVectorTowards( vec3_t v, vec3_t to ) {
 #define MACHINEGUN_SPREAD	200
 //#define	MACHINEGUN_DAMAGE	6
 #define	MACHINEGUN_DAMAGE	(g_mgDamage.integer)
-#define	MACHINEGUN_ALT_DAMAGE	3	//mrd - weak burst MG alt fire dmg - max 12 dmg if you get off a clean shot
+#define	MACHINEGUN_ALT_DAMAGE	15	//mrd
 //#define	MACHINEGUN_TEAM_DAMAGE	5		// wimpier MG in teamplay
 #define	MACHINEGUN_TEAM_DAMAGE	(g_mgTeamDamage.integer)		// wimpier MG in teamplay
 
@@ -350,11 +350,11 @@ void Bullet_Fire (gentity_t *ent, float spread, int damage, qboolean altFire ) {
 				else
 #endif
                             //{
-				if (altFire){
-					G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_MACHINEGUN, altFire);	//mrd
-				} else {
-					G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_MACHINEGUN, altFire);
-				}
+				//if (altFire){
+				G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_MACHINEGUN, altFire);	//mrd
+				//} else {
+				//	G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_MACHINEGUN, altFire);
+				//}
 				if (logaccuracyhit) {
 					ent->client->accuracy[WP_MACHINEGUN][1]++;
 				}

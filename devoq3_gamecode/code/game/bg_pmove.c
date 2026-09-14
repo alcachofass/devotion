@@ -2060,6 +2060,11 @@ static void PM_Weapon( void ) {
 		&& pm->ps->weapon == WP_MACHINEGUN
 		&& burstShot > 0 ){
 		ammoCost = 0;
+	//mrd - MG burst shot consumes all 4 at once
+	} else if ( altFire 
+		&& pm->ps->weapon == WP_MACHINEGUN){
+		ammoCost = MACHINEGUN_ALT_BURST_SHOTS;
+	//mrd - otherwise, other weapon alt shots take 2 ammo
 	} else if ( altFire ){
 		ammoCost = 2;
 	} else {
@@ -2174,10 +2179,8 @@ static void PM_Weapon( void ) {
 	//mrd - alt-fire event
 	//if (pm->cmd.buttons & BUTTON_ALT_ATTACK) {
 	if (altFire) {
-		//Com_Printf("Alt fire event!\n");
 		PM_AddEvent( EV_ALTFIRE_WEAPON );
 	} else {
-		//Com_Printf("Regular fire event!\n");
 		PM_AddEvent( EV_FIRE_WEAPON );
 	}
 
