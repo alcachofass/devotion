@@ -1821,6 +1821,8 @@ qboolean CG_DemoControls_MouseEvent( int dx, int dy );
 qboolean CG_DemoControls_KeyEvent( int key, qboolean down );
 void CG_DemoEvents_Frame( void );
 void CG_DemoEvents_Shutdown( void );
+int CG_DemoEvents_FirstServerTime( void );
+int CG_DemoEvents_LastServerTime( void );
 qboolean CG_DemoEvents_DrawMarkers( int trackX, int trackY, int trackW, int trackH, int firstServerTime, int durationMs, int cursorX, int cursorY );
 void CG_DemoEvents_DrawTrack( int trackX, int trackY, int trackW, int trackH, int firstServerTime, int durationMs, int elapsedMs );
 void CG_RankRunFrame( void );
