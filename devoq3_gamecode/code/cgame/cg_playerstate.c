@@ -606,10 +606,12 @@ void CG_TransitionPlayerState( playerState_t *ps, playerState_t *ops ) {
 
 	// respawning
 	if ( ps->persistant[PERS_SPAWN_COUNT] != ops->persistant[PERS_SPAWN_COUNT] ) {
+		cg.altFireMGBurstShots = 0;	//mrd
 		CG_Respawn();
 	}
 
 	if ( cg.mapRestart ) {
+		cg.altFireMGBurstShots = 0;	//mrd
 		CG_Respawn();
 		cg.mapRestart = qfalse;
 	}

@@ -1556,6 +1556,7 @@ void ClientThink_real( gentity_t *ent ) {
     pm.pmove_movement = g_movement.integer;
 	pm.pmove_autohop = pmove_autohop.integer;
 	pm.altFireEnabled = g_altFireMode.integer != 0;	//mrd
+	pm.altFireBurstShots = client->altFireMGBurstShots; //mrd
 
 	VectorCopy( client->ps.origin, client->oldOrigin );
 
@@ -1574,6 +1575,8 @@ void ClientThink_real( gentity_t *ent ) {
 		}
         #endif
 	Pmove (&pm);
+
+	client->altFireMGBurstShots = pm.altFireBurstShots;	//mrd - update client state of ongoing MG burst shots
 
 	// save results of pmove
 	if ( ent->client->ps.eventSequence != oldEventSequence ) {

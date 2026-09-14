@@ -812,6 +812,8 @@ void CG_PredictPlayerState( void ) {
 		return;
 	}
 
+	cg_pmove.altFireBurstShots = cg.altFireMGBurstShots;	//mrd
+
 	// prepare for pmove
 	cg_pmove.ps = &cg.predictedPlayerState;
 	cg_pmove.trace = CG_Trace;
@@ -1053,6 +1055,7 @@ void CG_PredictPlayerState( void ) {
 			if ( cmdNum >= predictCmd || (stateIndex + 1) % NUM_SAVED_STATES == cg.stateHead ) {
 				// run the Pmove
 				Pmove (&cg_pmove);
+				cg.altFireMGBurstShots = cg_pmove.altFireBurstShots;	//mrd
 
 				numPredicted++; // debug code
 
@@ -1087,6 +1090,8 @@ void CG_PredictPlayerState( void ) {
 		else {
 			// run the Pmove
 			Pmove (&cg_pmove);
+
+			cg.altFireMGBurstShots = cg_pmove.altFireBurstShots;	//mrd
 
 			numPredicted++; // debug code
 		}
