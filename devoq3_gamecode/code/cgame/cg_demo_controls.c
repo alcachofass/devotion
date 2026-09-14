@@ -81,7 +81,6 @@ static qboolean	dc_seeking;
 static qboolean	dc_seekKeepCvars;
 static qboolean	dc_seekRestartPending;
 static qboolean	dc_seekMuted;
-static qboolean	dc_seekFpsBoosted;
 static int		dc_seekTargetMs;
 static float	dc_seekResumeTs;
 static float	dc_seekSavedVolume;
@@ -95,8 +94,6 @@ static int		dc_shotHideFrames;
 static int		dc_savedDraw2D;
 static int		dc_savedDrawGun;
 static qboolean	dc_hudSaved;
-
-#define DEMOCTRL_SEEK_MAXFPS		"1000"
 
 static void DemoCtrl_ReleaseCatcher( void );
 static void DemoCtrl_SeekFinish( qboolean applyResume );
@@ -524,18 +521,6 @@ static void DemoCtrl_SeekMute( void ) {
 	trap_Cvar_Set( "s_volume", "0" );
 }
 
-static void DemoCtrl_SeekBoostFps( void ) {
-	char buf[32];
-
-	if ( !dc_seekFpsBoosted ) {
-		buf[0] = '\0';
-		trap_Cvar_VariableStringBuffer( "com_maxfps", buf, sizeof( buf ) );
-		trap_Cvar_Set( "cg_demoSeekMaxFps", buf[0] ? buf : "125" );
-		dc_seekFpsBoosted = qtrue;
-	}
-	trap_Cvar_Set( "com_maxfps", DEMOCTRL_SEEK_MAXFPS );
-}
-
 static void DemoCtrl_SeekUnmute( void ) {
 	char buf[32];
 
@@ -548,14 +533,6 @@ static void DemoCtrl_SeekUnmute( void ) {
 			trap_Cvar_Set( "s_volume", va( "%f", dc_seekSavedVolume ) );
 		}
 		dc_seekMuted = qfalse;
-	}
-	if ( dc_seekFpsBoosted ) {
-		buf[0] = '\0';
-		trap_Cvar_VariableStringBuffer( "cg_demoSeekMaxFps", buf, sizeof( buf ) );
-		if ( buf[0] ) {
-			trap_Cvar_Set( "com_maxfps", buf );
-		}
-		dc_seekFpsBoosted = qfalse;
 	}
 }
 
@@ -633,9 +610,6 @@ static void DemoCtrl_SeekResumeFromCvars( void ) {
 	} else {
 		dc_seekMuted = qfalse;
 	}
-	buf[0] = '\0';
-	trap_Cvar_VariableStringBuffer( "cg_demoSeekMaxFps", buf, sizeof( buf ) );
-	dc_seekFpsBoosted = buf[0] ? qtrue : qfalse;
 	dc_seeking = qtrue;
 	dc_seekRestartPending = qfalse;
 	dc_seekAppliedTs = 0.0f;
@@ -648,7 +622,6 @@ static void DemoCtrl_SeekResumeFromCvars( void ) {
 	dc_lastMoveMs = trap_Milliseconds();
 	Q_strncpyz( dc_speedLabel, "SEEK", sizeof( dc_speedLabel ) );
 	DemoCtrl_SeekMute();
-	DemoCtrl_SeekBoostFps();
 }
 
 static void DemoCtrl_SeekBegin( int targetMs ) {
@@ -687,7 +660,6 @@ static void DemoCtrl_SeekBegin( int targetMs ) {
 	dc_lastMoveMs = trap_Milliseconds();
 	Q_strncpyz( dc_speedLabel, "SEEK", sizeof( dc_speedLabel ) );
 	DemoCtrl_SeekMute();
-	DemoCtrl_SeekBoostFps();
 	DemoCtrl_SeekWriteCvars();
 
 	if ( dc_seekRestartPending ) {
@@ -730,7 +702,6 @@ static void DemoCtrl_SeekFrame( void ) {
 	}
 
 	DemoCtrl_SeekMute();
-	DemoCtrl_SeekBoostFps();
 	remaining = dc_seekTargetMs - elapsed;
 	ts = (float)( remaining - DEMOCTRL_SEEK_SETTLE_MS ) / (float)DEMOCTRL_SEEK_WORST_FRAME;
 	DemoCtrl_SeekSetTimescale( ts );
@@ -785,9 +756,9 @@ qboolean CG_DemoControls_SeekKeyframeHold( void ) {
 }
 
 void CG_DemoControls_Shutdown( void ) {
-	if ( dc_seekKeepCvars || ( dc_seeking && cg.demoPlayback ) ) {
+	if ( dc_seekKeepCvars ) {
 		DemoCtrl_SeekWriteCvars();
-	} else if ( dc_seeking || dc_seekMuted || dc_seekFpsBoosted ) {
+	} else {
 		DemoCtrl_SeekUnmute();
 		DemoCtrl_SeekClearCvars();
 		trap_Cvar_Set( "timescale", "1" );
