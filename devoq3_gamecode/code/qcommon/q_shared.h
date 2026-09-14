@@ -1058,6 +1058,9 @@ typedef struct playerState_s {
 	vec3_t		origin;
 	vec3_t		velocity;
 	int			weaponTime;
+
+	int			altFireBurstShots;	//mrd - track MG alt fire burst shots
+
 	int			gravity;
 	int			speed;
 	int			delta_angles[3];	// add to command angles to get view direction
