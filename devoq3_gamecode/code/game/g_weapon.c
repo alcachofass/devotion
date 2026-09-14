@@ -223,6 +223,7 @@ void SnapVectorTowards( vec3_t v, vec3_t to ) {
 #define MACHINEGUN_SPREAD	200
 //#define	MACHINEGUN_DAMAGE	6
 #define	MACHINEGUN_DAMAGE	(g_mgDamage.integer)
+#define	MACHINEGUN_ALT_DAMAGE	15	//mrd
 //#define	MACHINEGUN_TEAM_DAMAGE	5		// wimpier MG in teamplay
 #define	MACHINEGUN_TEAM_DAMAGE	(g_mgTeamDamage.integer)		// wimpier MG in teamplay
 
@@ -349,12 +350,11 @@ void Bullet_Fire (gentity_t *ent, float spread, int damage, qboolean altFire ) {
 				else
 #endif
                             //{
-				if (altFire){
-					damage /= 3;
-					G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_MACHINEGUN, altFire);	//mrd
-				} else {
-					G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_MACHINEGUN, altFire);
-				}
+				//if (altFire){
+				G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_MACHINEGUN, altFire);	//mrd
+				//} else {
+				//	G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_MACHINEGUN, altFire);
+				//}
 				if (logaccuracyhit) {
 					ent->client->accuracy[WP_MACHINEGUN][1]++;
 				}
@@ -1296,12 +1296,12 @@ void FireWeapon( gentity_t *ent, qboolean altFire ) {	//mrd - capture routines f
 		if ( g_gametype.integer != GT_TEAM ) {
 			//Bullet_Fire( ent, MACHINEGUN_SPREAD, MACHINEGUN_DAMAGE );	//mrd
 			if (altFire)
-				Bullet_Fire( ent, MACHINEGUN_SPREAD, MACHINEGUN_DAMAGE, qtrue );
+				Bullet_Fire( ent, MACHINEGUN_SPREAD, MACHINEGUN_ALT_DAMAGE, qtrue );
 			else
 				Bullet_Fire( ent, MACHINEGUN_SPREAD, MACHINEGUN_DAMAGE, qfalse );
 		} else {
 			if (altFire)
-				Bullet_Fire( ent, MACHINEGUN_SPREAD, MACHINEGUN_TEAM_DAMAGE, qtrue );
+				Bullet_Fire( ent, MACHINEGUN_SPREAD, MACHINEGUN_ALT_DAMAGE, qtrue );
 			else
 				Bullet_Fire( ent, MACHINEGUN_SPREAD, MACHINEGUN_TEAM_DAMAGE, qfalse );
 		}

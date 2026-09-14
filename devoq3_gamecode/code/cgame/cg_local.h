@@ -924,6 +924,8 @@ typedef struct {
 	dotbar_t healthbar;
 	dotbar_t armorbar;
 	dotbar_t weaponbar;
+
+	int	altFireMGBurstShots;	//mrd
 } cg_t;
 
 
