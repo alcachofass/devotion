@@ -1,6 +1,7 @@
 /*
 ===========================================================================
 Demo playback overlay: mouse cursor and timescale transport controls.
+Chrome can hide after idle; hit-testing stays active so clicks still land.
 ===========================================================================
 */
 
@@ -11,6 +12,12 @@ Demo playback overlay: mouse cursor and timescale transport controls.
 #define DEMOCTRL_BTN_W			72
 #define DEMOCTRL_BTN_H			22
 #define DEMOCTRL_BTN_GAP		8
+#define DEMOCTRL_BAR_GAP		6
+#define DEMOCTRL_BAR_BTNS		8
+#define DEMOCTRL_BAR_SQ_W		22
+#define DEMOCTRL_BAR_MID_W		28
+#define DEMOCTRL_BAR_WIDE_W		36
+#define DEMOCTRL_BAR_TOGGLE_W	64
 #define DEMOCTRL_BAR_Y			392
 #define DEMOCTRL_TOP_Y			8
 #define DEMOCTRL_PROG_Y			364
@@ -27,13 +34,19 @@ Demo playback overlay: mouse cursor and timescale transport controls.
 #define DEMOCTRL_SIDE_MARGIN		8
 #define DEMOCTRL_SIDE_Y			140
 #define DEMOCTRL_SIDE_BTN_W		84
+#define DEMOCTRL_LOCK_W			24
+#define DEMOCTRL_LOCK_H			24
 #define DEMOCTRL_SHOT_HIDE_FRAMES	8
 
 typedef enum {
-	DEMOCTRL_SLOWER = 0,
-	DEMOCTRL_PAUSE,
-	DEMOCTRL_PLAY,
-	DEMOCTRL_FASTER,
+	DEMOCTRL_REW3 = 0,
+	DEMOCTRL_REW2,
+	DEMOCTRL_REW1,
+	DEMOCTRL_TOGGLE,
+	DEMOCTRL_RATE1X,
+	DEMOCTRL_FF1,
+	DEMOCTRL_FF2,
+	DEMOCTRL_FF3,
 	DEMOCTRL_RESTART,
 	DEMOCTRL_MENU,
 	DEMOCTRL_EXIT,
@@ -42,6 +55,7 @@ typedef enum {
 	DEMOCTRL_HUD,
 	DEMOCTRL_HITBOX,
 	DEMOCTRL_SHOT,
+	DEMOCTRL_LOCK,
 	DEMOCTRL_NUM_BTNS
 } demoCtrlButton_t;
 
@@ -63,13 +77,9 @@ static const demoTimescaleStep_t demoTimescaleSteps[] = {
 };
 #define DEMOCTRL_NUM_STEPS (int)( sizeof( demoTimescaleSteps ) / sizeof( demoTimescaleSteps[0] ) )
 
-static const char *demoCtrlLabels[] = {
-	"SLOWER", "PAUSE", "PLAY", "FASTER",
-	"RESTART", "MENU", "EXIT"
-};
-
 static qboolean	dc_inited;
 static qboolean	dc_visible;
+static qboolean	dc_locked;
 static qboolean	dc_catcherHeld;
 static int		dc_cursorX;
 static int		dc_cursorY;
@@ -86,6 +96,7 @@ static qboolean	dc_seekRestartPending;
 static qboolean	dc_seekMuted;
 static int		dc_seekTargetMs;
 static float	dc_seekResumeTs;
+static float	dc_playResumeTs = 1.0f;
 static float	dc_seekSavedVolume;
 static float	dc_seekAppliedTs;
 static int		dc_seekLastKeyframeMs;
@@ -98,6 +109,7 @@ static int		dc_savedDraw2D;
 static int		dc_savedDrawGun;
 static qboolean	dc_hudSaved;
 
+static void DemoCtrl_Wake( void );
 static void DemoCtrl_ReleaseCatcher( void );
 static void DemoCtrl_SeekFinish( qboolean applyResume );
 static void DemoCtrl_SeekBegin( int targetMs );
@@ -105,6 +117,7 @@ static void DemoCtrl_SeekFrame( void );
 static void DemoCtrl_SeekWriteCvars( void );
 static void DemoCtrl_UpdateSpeedLabel( float ts );
 static void DemoCtrl_ViewSaveIfNeeded( void );
+static qboolean DemoCtrl_IsPaused( void );
 
 static qboolean DemoCtrl_TimescaleNear( float a, float b ) {
 	float d;
@@ -145,8 +158,44 @@ static qboolean DemoCtrl_IsSideButton( int btn ) {
 	return btn >= DEMOCTRL_CAM && btn <= DEMOCTRL_SHOT;
 }
 
+static qboolean DemoCtrl_IsPaused( void ) {
+	if ( dc_seeking ) {
+		return DemoCtrl_TimescaleNear( dc_seekResumeTs, 0.0f );
+	}
+	return DemoCtrl_TimescaleNear( cg_timescale.value, 0.0f );
+}
+
+static float DemoCtrl_PlaySpeed( void ) {
+	if ( dc_playResumeTs < 0.1f ) {
+		return 1.0f;
+	}
+	return dc_playResumeTs;
+}
+
 static const char *DemoCtrl_ButtonLabel( int btn ) {
 	switch ( btn ) {
+	case DEMOCTRL_REW3:
+		return "<<<";
+	case DEMOCTRL_REW2:
+		return "<<";
+	case DEMOCTRL_REW1:
+		return "<";
+	case DEMOCTRL_TOGGLE:
+		return DemoCtrl_IsPaused() ? "PLAY" : "PAUSE";
+	case DEMOCTRL_RATE1X:
+		return "1x";
+	case DEMOCTRL_FF1:
+		return ">";
+	case DEMOCTRL_FF2:
+		return ">>";
+	case DEMOCTRL_FF3:
+		return ">>>";
+	case DEMOCTRL_RESTART:
+		return "RESTART";
+	case DEMOCTRL_MENU:
+		return "MENU";
+	case DEMOCTRL_EXIT:
+		return "EXIT";
 	case DEMOCTRL_CAM:
 		return cg_thirdPerson.integer ? "Camera: 3rd" : "Camera: 1st";
 	case DEMOCTRL_ITEMS:
@@ -158,12 +207,51 @@ static const char *DemoCtrl_ButtonLabel( int btn ) {
 	case DEMOCTRL_SHOT:
 		return "Screenshot";
 	default:
-		return demoCtrlLabels[btn];
+		return "";
 	}
 }
 
 static qboolean DemoCtrl_ButtonActive( int btn ) {
+	float ts;
+
 	switch ( btn ) {
+	case DEMOCTRL_TOGGLE:
+		return DemoCtrl_IsPaused();
+	case DEMOCTRL_REW3:
+	case DEMOCTRL_REW2:
+	case DEMOCTRL_REW1:
+	case DEMOCTRL_RATE1X:
+	case DEMOCTRL_FF1:
+	case DEMOCTRL_FF2:
+	case DEMOCTRL_FF3:
+		if ( DemoCtrl_IsPaused() ) {
+			ts = DemoCtrl_PlaySpeed();
+		} else if ( dc_seeking ) {
+			ts = dc_seekResumeTs;
+		} else {
+			ts = cg_timescale.value;
+		}
+		if ( btn == DEMOCTRL_REW3 ) {
+			return DemoCtrl_TimescaleNear( ts, 0.1f );
+		}
+		if ( btn == DEMOCTRL_REW2 ) {
+			return DemoCtrl_TimescaleNear( ts, 0.25f );
+		}
+		if ( btn == DEMOCTRL_REW1 ) {
+			return DemoCtrl_TimescaleNear( ts, 0.5f );
+		}
+		if ( btn == DEMOCTRL_RATE1X ) {
+			return DemoCtrl_TimescaleNear( ts, 1.0f );
+		}
+		if ( btn == DEMOCTRL_FF1 ) {
+			return DemoCtrl_TimescaleNear( ts, 2.0f );
+		}
+		if ( btn == DEMOCTRL_FF2 ) {
+			return DemoCtrl_TimescaleNear( ts, 4.0f );
+		}
+		return DemoCtrl_TimescaleNear( ts, 8.0f );
+	case DEMOCTRL_LOCK:
+		return dc_locked;
 	case DEMOCTRL_CAM:
 		return cg_thirdPerson.integer ? qtrue : qfalse;
 	case DEMOCTRL_ITEMS:
@@ -184,12 +272,45 @@ static int DemoCtrl_BarX( int numBtns ) {
 	return ( SCREEN_WIDTH - totalW ) / 2;
 }
 
+static int DemoCtrl_BarBtnW( int btn ) {
+	switch ( btn ) {
+	case DEMOCTRL_TOGGLE:
+		return DEMOCTRL_BAR_TOGGLE_W;
+	case DEMOCTRL_REW3:
+	case DEMOCTRL_FF3:
+		return DEMOCTRL_BAR_WIDE_W;
+	case DEMOCTRL_REW2:
+	case DEMOCTRL_FF2:
+		return DEMOCTRL_BAR_MID_W;
+	default:
+		return DEMOCTRL_BAR_SQ_W;
+	}
+}
+
+static int DemoCtrl_TransportTotalW( void ) {
+	int i;
+	int w;
+
+	w = 0;
+	for ( i = 0; i < DEMOCTRL_BAR_BTNS; i++ ) {
+		w += DemoCtrl_BarBtnW( i );
+		if ( i < DEMOCTRL_BAR_BTNS - 1 ) {
+			w += DEMOCTRL_BAR_GAP;
+		}
+	}
+	return w;
+}
+
+static int DemoCtrl_TransportBarX( void ) {
+	return ( SCREEN_WIDTH - DemoCtrl_TransportTotalW() ) / 2;
+}
+
 static void DemoCtrl_TrackRect( int *x, int *y, int *w, int *h ) {
 	int panelX;
 	int panelW;
 
-	panelX = DemoCtrl_BarX( 4 ) - 8;
-	panelW = 4 * DEMOCTRL_BTN_W + 3 * DEMOCTRL_BTN_GAP + 16;
+	panelX = DemoCtrl_TransportBarX() - 8;
+	panelW = DemoCtrl_TransportTotalW() + 16;
 	*x = panelX + 10;
 	*y = DEMOCTRL_PROG_Y;
 	*w = panelW - 20;
@@ -215,7 +336,12 @@ static void DemoCtrl_ButtonRect( int btn, int *x, int *y, int *w, int *h ) {
 
 	*w = DEMOCTRL_BTN_W;
 	*h = DEMOCTRL_BTN_H;
-	if ( DemoCtrl_IsSideButton( btn ) ) {
+	if ( btn == DEMOCTRL_LOCK ) {
+		*w = DEMOCTRL_LOCK_W;
+		*h = DEMOCTRL_LOCK_H;
+		*x = DEMOCTRL_SIDE_MARGIN;
+		*y = ( SCREEN_HEIGHT - DEMOCTRL_LOCK_H ) / 2;
+	} else if ( DemoCtrl_IsSideButton( btn ) ) {
 		index = btn - DEMOCTRL_CAM;
 		*w = DEMOCTRL_SIDE_BTN_W;
 		*x = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_SIDE_BTN_W;
@@ -226,8 +352,16 @@ static void DemoCtrl_ButtonRect( int btn, int *x, int *y, int *w, int *h ) {
 		*x = barX + index * ( DEMOCTRL_BTN_W + DEMOCTRL_BTN_GAP );
 		*y = DEMOCTRL_TOP_Y;
 	} else {
-		barX = DemoCtrl_BarX( 4 );
-		*x = barX + btn * ( DEMOCTRL_BTN_W + DEMOCTRL_BTN_GAP );
+		int i;
+		int xPos;
+
+		barX = DemoCtrl_TransportBarX();
+		xPos = barX;
+		for ( i = 0; i < btn; i++ ) {
+			xPos += DemoCtrl_BarBtnW( i ) + DEMOCTRL_BAR_GAP;
+		}
+		*w = DemoCtrl_BarBtnW( btn );
+		*x = xPos;
 		*y = DEMOCTRL_BAR_Y;
 	}
 }
@@ -252,8 +386,58 @@ static void DemoCtrl_ApplyStep( int step ) {
 	if ( step >= DEMOCTRL_NUM_STEPS ) {
 		step = DEMOCTRL_NUM_STEPS - 1;
 	}
+	if ( demoTimescaleSteps[step].timescale > 0.05f ) {
+		dc_playResumeTs = demoTimescaleSteps[step].timescale;
+	}
 	trap_Cvar_Set( "timescale", demoTimescaleSteps[step].cvarValue );
 	DemoCtrl_UpdateSpeedLabel( demoTimescaleSteps[step].timescale );
+}
+
+static void DemoCtrl_TogglePause( void ) {
+	if ( dc_seeking ) {
+		if ( DemoCtrl_TimescaleNear( dc_seekResumeTs, 0.0f ) ) {
+			dc_seekResumeTs = DemoCtrl_PlaySpeed();
+			DemoCtrl_SeekWriteCvars();
+		} else {
+			if ( dc_seekResumeTs > 0.05f ) {
+				dc_playResumeTs = dc_seekResumeTs;
+			}
+			dc_seekResumeTs = 0.0f;
+			DemoCtrl_SeekFinish( qtrue );
+		}
+		return;
+	}
+	if ( DemoCtrl_TimescaleNear( cg_timescale.value, 0.0f ) ) {
+		DemoCtrl_ApplyStep( DemoCtrl_StepIndexForTimescale( DemoCtrl_PlaySpeed() ) );
+	} else {
+		if ( cg_timescale.value > 0.05f ) {
+			dc_playResumeTs = cg_timescale.value;
+		}
+		DemoCtrl_ApplyStep( 0 );
+	}
+}
+
+static void DemoCtrl_SetPlaySpeedStep( int step ) {
+	if ( step < 1 ) {
+		step = 1;
+	}
+	if ( step >= DEMOCTRL_NUM_STEPS ) {
+		step = DEMOCTRL_NUM_STEPS - 1;
+	}
+	dc_playResumeTs = demoTimescaleSteps[step].timescale;
+	if ( dc_seeking ) {
+		if ( !DemoCtrl_TimescaleNear( dc_seekResumeTs, 0.0f ) ) {
+			dc_seekResumeTs = dc_playResumeTs;
+		}
+		DemoCtrl_SeekWriteCvars();
+		DemoCtrl_UpdateSpeedLabel( dc_playResumeTs );
+		return;
+	}
+	if ( DemoCtrl_IsPaused() ) {
+		DemoCtrl_UpdateSpeedLabel( dc_playResumeTs );
+		return;
+	}
+	DemoCtrl_ApplyStep( step );
 }
 
 static void DemoCtrl_ReadCurrentDemo( char *name, int nameSize ) {
@@ -268,57 +452,38 @@ static void DemoCtrl_ReadCurrentDemo( char *name, int nameSize ) {
 }
 
 static void DemoCtrl_Activate( int btn ) {
-	int idx;
 	char demoName[MAX_OSPATH];
-	float speedSrc;
 
-	speedSrc = dc_seeking ? dc_seekResumeTs : cg_timescale.value;
-	idx = DemoCtrl_StepIndexForTimescale( speedSrc );
 	switch ( btn ) {
-	case DEMOCTRL_PAUSE:
-		if ( dc_seeking ) {
-			dc_seekResumeTs = 0.0f;
-			DemoCtrl_SeekFinish( qtrue );
-			break;
-		}
-		DemoCtrl_ApplyStep( 0 );
+	case DEMOCTRL_TOGGLE:
+		DemoCtrl_TogglePause();
 		break;
-	case DEMOCTRL_PLAY:
-		if ( dc_seeking ) {
-			dc_seekResumeTs = 1.0f;
-			DemoCtrl_SeekWriteCvars();
-			break;
-		}
-		DemoCtrl_ApplyStep( 4 );
+	case DEMOCTRL_RATE1X:
+		DemoCtrl_SetPlaySpeedStep( 4 );
 		break;
-	case DEMOCTRL_SLOWER:
-		if ( idx <= 1 ) {
-			idx = 1;
-		} else {
-			idx = idx - 1;
-		}
-		if ( dc_seeking ) {
-			dc_seekResumeTs = demoTimescaleSteps[idx].timescale;
-			DemoCtrl_SeekWriteCvars();
-			break;
-		}
-		DemoCtrl_ApplyStep( idx );
+	case DEMOCTRL_REW1:
+		DemoCtrl_SetPlaySpeedStep( 3 );
 		break;
-	case DEMOCTRL_FASTER:
-		if ( idx < 1 ) {
-			idx = 1;
-		} else {
-			idx = idx + 1;
+	case DEMOCTRL_REW2:
+		DemoCtrl_SetPlaySpeedStep( 2 );
+		break;
+	case DEMOCTRL_REW3:
+		DemoCtrl_SetPlaySpeedStep( 1 );
+		break;
+	case DEMOCTRL_FF1:
+		DemoCtrl_SetPlaySpeedStep( 5 );
+		break;
+	case DEMOCTRL_FF2:
+		DemoCtrl_SetPlaySpeedStep( 6 );
+		break;
+	case DEMOCTRL_FF3:
+		DemoCtrl_SetPlaySpeedStep( 7 );
+		break;
+	case DEMOCTRL_LOCK:
+		dc_locked = dc_locked ? qfalse : qtrue;
+		if ( dc_locked ) {
+			DemoCtrl_Wake();
 		}
-		if ( idx >= DEMOCTRL_NUM_STEPS ) {
-			idx = DEMOCTRL_NUM_STEPS - 1;
-		}
-		if ( dc_seeking ) {
-			dc_seekResumeTs = demoTimescaleSteps[idx].timescale;
-			DemoCtrl_SeekWriteCvars();
-			break;
-		}
-		DemoCtrl_ApplyStep( idx );
 		break;
 	case DEMOCTRL_RESTART:
 		DemoCtrl_ReadCurrentDemo( demoName, sizeof( demoName ) );
@@ -342,7 +507,8 @@ static void DemoCtrl_Activate( int btn ) {
 			DemoCtrl_SeekFinish( qfalse );
 		}
 		trap_Cvar_Set( "timescale", "1" );
-		trap_SendConsoleCommand( "disconnect\n" );
+		DemoCtrl_ReleaseCatcher();
+		CG_BeginLeaveFade();
 		break;
 	case DEMOCTRL_CAM:
 		if ( cg_thirdPerson.integer ) {
@@ -437,6 +603,14 @@ static void DemoCtrl_EnsureInit( void ) {
 	dc_cursorX = SCREEN_WIDTH / 2;
 	dc_cursorY = DEMOCTRL_BAR_Y + DEMOCTRL_BTN_H / 2;
 	dc_speedLabel[0] = '\0';
+}
+
+static void DemoCtrl_Wake( void ) {
+	if ( dc_shotHideFrames > 0 ) {
+		return;
+	}
+	dc_visible = qtrue;
+	dc_lastMoveMs = trap_Milliseconds();
 }
 
 static void DemoCtrl_ReleaseCatcher( void ) {
@@ -673,8 +847,7 @@ static void DemoCtrl_SeekResumeFromCvars( void ) {
 	dc_seekHoldTime = 0;
 	dc_seekModeKey = qfalse;
 	dc_seekModeHold = qfalse;
-	dc_visible = qtrue;
-	dc_lastMoveMs = trap_Milliseconds();
+	DemoCtrl_Wake();
 	Q_strncpyz( dc_speedLabel, "SEEK", sizeof( dc_speedLabel ) );
 	DemoCtrl_SeekMute();
 }
@@ -711,8 +884,7 @@ static void DemoCtrl_SeekBegin( int targetMs ) {
 	dc_seekHoldTime = 0;
 	dc_seekModeKey = qfalse;
 	dc_seekModeHold = qfalse;
-	dc_visible = qtrue;
-	dc_lastMoveMs = trap_Milliseconds();
+	DemoCtrl_Wake();
 	Q_strncpyz( dc_speedLabel, "SEEK", sizeof( dc_speedLabel ) );
 	DemoCtrl_SeekMute();
 	DemoCtrl_SeekWriteCvars();
@@ -736,8 +908,7 @@ static void DemoCtrl_SeekFrame( void ) {
 		return;
 	}
 
-	dc_visible = qtrue;
-	dc_lastMoveMs = trap_Milliseconds();
+	DemoCtrl_Wake();
 
 	if ( dc_seekRestartPending ) {
 		return;
@@ -883,6 +1054,11 @@ void CG_DemoControls_Frame( void ) {
 		return;
 	}
 
+	if ( dc_locked ) {
+		dc_visible = qtrue;
+		return;
+	}
+
 	if ( !dc_visible ) {
 		return;
 	}
@@ -920,11 +1096,8 @@ qboolean CG_DemoControls_MouseEvent( int dx, int dy ) {
 			dc_cursorY = SCREEN_HEIGHT;
 		}
 
-		if ( dc_shotHideFrames <= 0 ) {
-			dc_visible = qtrue;
-			dc_lastMoveMs = trap_Milliseconds();
-			dc_hoverBtn = DemoCtrl_HitTest( dc_cursorX, dc_cursorY );
-		}
+		DemoCtrl_Wake();
+		dc_hoverBtn = DemoCtrl_HitTest( dc_cursorX, dc_cursorY );
 	}
 
 	cgs.cursorX = dc_cursorX;
@@ -943,12 +1116,28 @@ qboolean CG_DemoControls_KeyEvent( int key, qboolean down ) {
 		return qfalse;
 	}
 
-	if ( key == K_MOUSE1 && dc_visible ) {
+	if ( key == K_SPACE ) {
+		if ( dc_shotHideFrames > 0 ) {
+			return qtrue;
+		}
+		if ( down ) {
+			DemoCtrl_Wake();
+			DemoCtrl_TogglePause();
+		}
+		return qtrue;
+	}
+
+	if ( key == K_MOUSE1 ) {
+		if ( dc_shotHideFrames > 0 ) {
+			return qtrue;
+		}
+		if ( down ) {
+			DemoCtrl_Wake();
+		}
 		btn = DemoCtrl_HitTest( dc_cursorX, dc_cursorY );
 		if ( btn >= 0 ) {
 			if ( down ) {
 				DemoCtrl_Activate( btn );
-				dc_lastMoveMs = trap_Milliseconds();
 			}
 			return qtrue;
 		}
@@ -972,7 +1161,6 @@ qboolean CG_DemoControls_KeyEvent( int key, qboolean down ) {
 				targetMs = (int)( frac * (float)dc_durationMs + 0.5f );
 				DemoCtrl_SeekBegin( targetMs );
 			}
-			dc_lastMoveMs = trap_Milliseconds();
 			return qtrue;
 		}
 	}
@@ -1034,8 +1222,8 @@ void CG_DemoControls_Draw( void ) {
 	panelW = 3 * DEMOCTRL_BTN_W + 2 * DEMOCTRL_BTN_GAP + 16;
 	CG_FillRect( panelX, DEMOCTRL_TOP_Y - 6, panelW, DEMOCTRL_BTN_H + 12, panel );
 
-	panelX = DemoCtrl_BarX( 4 ) - 8;
-	panelW = 4 * DEMOCTRL_BTN_W + 3 * DEMOCTRL_BTN_GAP + 16;
+	panelX = DemoCtrl_TransportBarX() - 8;
+	panelW = DemoCtrl_TransportTotalW() + 16;
 	CG_FillRect( panelX, DEMOCTRL_PROG_Y - 16, panelW,
 			( DEMOCTRL_BAR_Y - ( DEMOCTRL_PROG_Y - 16 ) ) + DEMOCTRL_BTN_H + ( dc_speedLabel[0] ? 28 : 12 ),
 			panel );
@@ -1052,6 +1240,9 @@ void CG_DemoControls_Draw( void ) {
 		sideX = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_SIDE_BTN_W - 8;
 		sideY = DEMOCTRL_SIDE_Y - 6;
 		CG_FillRect( sideX, sideY, sideW, sideH, panel );
+
+		DemoCtrl_ButtonRect( DEMOCTRL_LOCK, &x, &y, &w, &h );
+		CG_FillRect( x - 8, y - 6, w + 16, h + 12, panel );
 	}
 
 	{
@@ -1144,12 +1335,6 @@ void CG_DemoControls_Draw( void ) {
 		isActive = qfalse;
 		if ( DemoCtrl_ButtonActive( i ) ) {
 			isActive = qtrue;
-		} else if ( !dc_seeking ) {
-			if ( i == DEMOCTRL_PAUSE && DemoCtrl_TimescaleNear( cg_timescale.value, 0.0f ) ) {
-				isActive = qtrue;
-			} else if ( i == DEMOCTRL_PLAY && DemoCtrl_TimescaleNear( cg_timescale.value, 1.0f ) ) {
-				isActive = qtrue;
-			}
 		}
 
 		if ( isActive ) {
@@ -1162,6 +1347,20 @@ void CG_DemoControls_Draw( void ) {
 
 		CG_FillRect( x, y, w, h, fill );
 		CG_DrawRect( x, y, w, h, 1, border );
+
+		if ( i == DEMOCTRL_LOCK ) {
+			qhandle_t icon;
+			int pad;
+
+			icon = dc_locked ? cgs.media.demoLockShader : cgs.media.demoUnlockShader;
+			pad = 3;
+			if ( icon ) {
+				trap_R_SetColor( textColor );
+				CG_DrawPic( x + pad, y + pad, w - pad * 2, h - pad * 2, icon );
+				trap_R_SetColor( NULL );
+			}
+			continue;
+		}
 
 		cw = 6;
 		ch = 10;

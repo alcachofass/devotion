@@ -744,6 +744,9 @@ typedef struct {
 
 	// information screen text during loading
 	char		infoScreenText[MAX_STRING_CHARS];
+	int			loadFadeStart;		// trap_Milliseconds() when 3D first became visible; 0 = not started
+	int			leaveFadeStart;		// trap_Milliseconds() when fade-to-black started; 0 = inactive
+	qboolean	leaveFadeDisconnect;	// disconnect already issued after leave fade
 
 	// scoreboard
 	int			scoresRequestTime;
@@ -1521,6 +1524,8 @@ typedef struct {
 	qhandle_t cursor;
 	qhandle_t selectCursor;
 	qhandle_t sizeCursor;
+	qhandle_t demoLockShader;
+	qhandle_t demoUnlockShader;
 
 	sfxHandle_t	regenSound;
 	sfxHandle_t	protectSound;
@@ -2217,6 +2222,9 @@ void CG_LoadingString( const char *s );
 void CG_LoadingItem( int itemNum );
 void CG_LoadingClient( int clientNum );
 void CG_DrawInformation( void );
+void CG_DrawLoadFade( void );
+void CG_BeginLeaveFade( void );
+void CG_DrawLeaveFade( stereoFrame_t stereoView );
 
 //
 // cg_scoreboard.c

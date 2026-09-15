@@ -665,6 +665,7 @@ typedef struct {
 	float				bias;
 	qboolean			demoversion;
 	qboolean			firstdraw;
+	int					menuFadeStart;	// uis.realtime when fade-from-black began; 0 = off, -1 = start next refresh
 } uiStatic_t;
 
 extern void			UI_Init( void );

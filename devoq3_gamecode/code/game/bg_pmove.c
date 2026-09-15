@@ -488,7 +488,8 @@ static float PM_GetJumpVelocity( qboolean stepJump ) {
 		jumpVel = (float)JUMP_VELOCITY;
 	}
 
-	if ( stepJump ) {
+	// VQL chain-jump is scale-replace; +48 is only used in QL additive/interpolated chain modes.
+	if ( stepJump && pm->pmove_movement != MOVEMENT_QL ) {
 		jumpVel += pm_StepJumpVelocity;
 	}
 
@@ -1215,15 +1216,18 @@ static void PM_WalkMove( void ) {
 //		pm->ps->velocity[2] = 0;
 	}
 
-	vel = VectorLength(pm->ps->velocity);
-
 	// slide along the ground plane
-	PM_ClipVelocity (pm->ps->velocity, pml.groundTrace.plane.normal, 
-		pm->ps->velocity, OVERCLIP );
-
-	// don't decrease velocity when going up or down a slope
-	VectorNormalize(pm->ps->velocity);
-	VectorScale(pm->ps->velocity, vel, pm->ps->velocity);
+	if ( pm->pmove_movement == MOVEMENT_QL ) {
+		PM_ClipVelocity (pm->ps->velocity, pml.groundTrace.plane.normal, 
+			pm->ps->velocity, OVERCLIP );
+	} else {
+		vel = VectorLength(pm->ps->velocity);
+		PM_ClipVelocity (pm->ps->velocity, pml.groundTrace.plane.normal, 
+			pm->ps->velocity, OVERCLIP );
+		// don't decrease velocity when going up or down a slope
+		VectorNormalize(pm->ps->velocity);
+		VectorScale(pm->ps->velocity, vel, pm->ps->velocity);
+	}
 
 	// don't do anything if standing still
 	if (!pm->ps->velocity[0] && !pm->ps->velocity[1]) {

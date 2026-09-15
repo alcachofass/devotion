@@ -1372,6 +1372,10 @@ static void CG_Rec_f( void ) {
 	cg.demoRecording = qtrue;
 }
 
+static void CG_FadeDisconnect_f( void ) {
+	CG_BeginLeaveFade();
+}
+
 static consoleCommand_t	commands[] = {
 	{ "testgun", CG_TestGun_f },
 	{ "testmodel", CG_TestModel_f },
@@ -1449,6 +1453,7 @@ static consoleCommand_t	commands[] = {
 		{ "hud_hide", CG_HudHide_f },
 		{ "hud_show", CG_HudShow_f },
 		{ "sh_dumpHud", CG_SH_Dump_f },
+		{ "fadeDisconnect", CG_FadeDisconnect_f },
 //        { "ratversion", CG_RatVersion_f }
 };
 

@@ -1285,3 +1285,19 @@ menu/art/skill5 {
 		blendFunc blend
 	}
 }
+
+menu/art/lock {
+	nopicmip
+	{
+		clampmap menu/art/lock
+		blendFunc blend
+	}
+}
+
+menu/art/unlock {
+	nopicmip
+	{
+		clampmap menu/art/unlock
+		blendFunc blend
+	}
+}

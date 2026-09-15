@@ -1844,6 +1844,8 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.deathShader = trap_R_RegisterShaderNoMip( "gfx/2d/defer" );
 #endif
 	cgs.media.cursor = trap_R_RegisterShaderNoMip( "menu/art/3_cursor2" );
+	cgs.media.demoLockShader = trap_R_RegisterShaderNoMip( "menu/art/lock" );
+	cgs.media.demoUnlockShader = trap_R_RegisterShaderNoMip( "menu/art/unlock" );
 	CG_ClearParticles ();
 /*
 	for (i=1; i<MAX_PARTICLES_AREAS; i++)
