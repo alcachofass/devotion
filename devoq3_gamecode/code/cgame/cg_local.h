@@ -1521,6 +1521,8 @@ typedef struct {
 	qhandle_t cursor;
 	qhandle_t selectCursor;
 	qhandle_t sizeCursor;
+	qhandle_t demoLockShader;
+	qhandle_t demoUnlockShader;
 
 	sfxHandle_t	regenSound;
 	sfxHandle_t	protectSound;
