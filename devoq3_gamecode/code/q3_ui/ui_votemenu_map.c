@@ -41,15 +41,26 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define ID_TYPE				9
 #define ID_BACK				10
 #define ID_GO				11
-#define ID_PICTURES			12	// 12-22
-#define ID_PREVPAGE			23
-#define ID_NEXTPAGE			24
+#define ID_PICTURES			12	// 12 .. 12+MAX_MAPSPERPAGE-1
+#define ID_PREVPAGE			40
+#define ID_NEXTPAGE			41
 
 #define SIZE_OF_NAME                    32
 
-#define MAX_MAPROWS		5
-#define MAX_MAPCOLS		2
+#define MAX_MAPCOLS		6
+#define MAX_MAPROWS		4
 #define MAX_MAPSPERPAGE	(MAX_MAPROWS * MAX_MAPCOLS)
+
+#define MAP_THUMB_WIDTH		84
+#define MAP_THUMB_HEIGHT	63
+#define MAP_NAME_HEIGHT		12
+#define MAP_COL_GAP		4
+#define MAP_ROW_GAP		1
+#define MAP_CELL_HEIGHT		(MAP_THUMB_HEIGHT + MAP_NAME_HEIGHT)
+#define MAP_GRID_WIDTH		(MAX_MAPCOLS * MAP_THUMB_WIDTH + (MAX_MAPCOLS - 1) * MAP_COL_GAP)
+#define MAP_GRID_LEFT		((640 - MAP_GRID_WIDTH) / 2)
+#define MAP_GRID_TOP		86
+#define MAP_PAGE_ARROWS_Y	394
 
 void UI_VoteMapMenu_Update( void );
 
@@ -64,7 +75,7 @@ typedef struct {
 	menubitmap_s	go;
         menufield_s	        filter;
 	menulist_s		type;
-	menuradiobutton_s	sort;
+	menulist_s		sort;
 	menubitmap_s	mappics[MAX_MAPSPERPAGE];
 	menubitmap_s	mapbuttons[MAX_MAPSPERPAGE];
 
@@ -90,6 +101,14 @@ static const char *mappage_type_items[] = {
 	NULL
 };
 
+#define MAPPAGE_SORT_AZ 0
+#define MAPPAGE_SORT_ZA 1
+static const char *mappage_sort_items[] = {
+	"A-Z",
+	"Z-A",
+	NULL
+};
+
 static const char *getmappage_all_cmd = "getmappage";
 static const char *getmappage_recommened_cmd = "getrecmappage";
 static const char *getmappage_cmd = "getrecmappage";
@@ -100,7 +119,7 @@ static int mappage_in_flight = 0;
 t_mappage mappage;
 
 // XXX: must be multiple of MAX_MAPSPERPAGE
-#define MAX_MAP_NUMBER 1000
+#define MAX_MAP_NUMBER 1008
 struct maplist_s {
 	int reset;
 	int num_sent_cmds;
@@ -203,10 +222,63 @@ static qboolean VoteMaps_Filtered(char *map) {
 
 }
 
+static int Mapnames_AlnumCmp( const char *a, const char *b ) {
+	while ( *a && *b ) {
+		if ( isdigit( (unsigned char)*a ) && isdigit( (unsigned char)*b ) ) {
+			int lena, lenb, cmp;
+
+			while ( *a == '0' && isdigit( (unsigned char)a[1] ) ) {
+				a++;
+			}
+			while ( *b == '0' && isdigit( (unsigned char)b[1] ) ) {
+				b++;
+			}
+
+			lena = 0;
+			while ( isdigit( (unsigned char)a[lena] ) ) {
+				lena++;
+			}
+			lenb = 0;
+			while ( isdigit( (unsigned char)b[lenb] ) ) {
+				lenb++;
+			}
+
+			if ( lena != lenb ) {
+				return lena - lenb;
+			}
+			cmp = Q_strncmp( a, b, lena );
+			if ( cmp ) {
+				return cmp;
+			}
+			a += lena;
+			b += lenb;
+			continue;
+		}
+
+		if ( tolower( (unsigned char)*a ) != tolower( (unsigned char)*b ) ) {
+			return tolower( (unsigned char)*a ) - tolower( (unsigned char)*b );
+		}
+		a++;
+		b++;
+	}
+
+	if ( *a ) {
+		return 1;
+	}
+	if ( *b ) {
+		return -1;
+	}
+	return 0;
+}
+
 static int QDECL Mapnames_Compare( const void *arg1, const void *arg2 ) {
-	const char *n1 = arg1;
-	const char *n2 = arg2;
-	return Q_stricmp(n1, n2);
+	int cmp;
+
+	cmp = Mapnames_AlnumCmp( (const char *)arg1, (const char *)arg2 );
+	if ( s_votemenu_map.sort.curvalue == MAPPAGE_SORT_ZA ) {
+		return -cmp;
+	}
+	return cmp;
 }
 
 static void UpdateFilter(void) {
@@ -218,9 +290,7 @@ static void UpdateFilter(void) {
 			filtered_list.num_maps++;
 		}
 	}
-	if (s_votemenu_map.sort.curvalue) {
-		qsort( filtered_list.mapname, filtered_list.num_maps, MAX_MAPNAME_LENGTH, Mapnames_Compare);
-	}
+	qsort( filtered_list.mapname, filtered_list.num_maps, MAX_MAPNAME_LENGTH, Mapnames_Compare);
 }
 
 static void ResetMaplist(void) {
@@ -282,23 +352,39 @@ static void UI_VoteMapMenu_NextPageEvent( void* ptr, int event ) {
 }
 
 
-static void VoteMapMenu_TypeEvent( void* ptr, int event ) {
-	if( event != QM_ACTIVATED) {
-		return;
-	}
-	if (s_votemenu_map.type.curvalue == MAPPAGE_TYPE_RECOMMENDED) {
+static void VoteMapMenu_UseType( int type ) {
+	if (type == MAPPAGE_TYPE_RECOMMENDED) {
 		getmappage_cmd = getmappage_recommened_cmd;
 		current_list = &maplists[MAPPAGE_TYPE_RECOMMENDED];
 	} else {
 		getmappage_cmd = getmappage_all_cmd;
 		current_list = &maplists[MAPPAGE_TYPE_ALL];
+		type = MAPPAGE_TYPE_ALL;
 	}
+	s_votemenu_map.type.curvalue = type;
 	ResetMaplist();
 	if (!mappage_in_flight) {
 		Maplist_RequestNextPage(current_list);
 	} else {
 		ignore_next_cmd = 1;
 	}
+}
+
+static void VoteMapMenu_MaybeFallbackToAll( void ) {
+	if ( current_list != &maplists[MAPPAGE_TYPE_RECOMMENDED] ) {
+		return;
+	}
+	if ( !current_list->loaded_all || current_list->num_maps > 0 ) {
+		return;
+	}
+	VoteMapMenu_UseType( MAPPAGE_TYPE_ALL );
+}
+
+static void VoteMapMenu_TypeEvent( void* ptr, int event ) {
+	if( event != QM_ACTIVATED) {
+		return;
+	}
+	VoteMapMenu_UseType(s_votemenu_map.type.curvalue);
 }
 
 /*
@@ -396,22 +482,23 @@ static void VoteMapMenu_LevelshotDraw( void *self ) {
 
 	x = b->generic.x;
 	y = b->generic.y + b->height;
-	UI_FillRect( x, y, b->width, 28, colorBlack );
+	UI_FillRect( x, y, b->width, MAP_NAME_HEIGHT, colorBlack );
 
 	x += b->width / 2;
-	y += 4;
+	y += 1;
 	n = s_votemenu_map.pagenum * MAX_MAPSPERPAGE + b->generic.id - ID_PICTURES;
 
 	if (n > MAX_MAP_NUMBER) {
 		n = MAX_MAP_NUMBER;
 	}
-        
-	UI_DrawString( x, y, filtered_list.mapname[n], UI_CENTER|UI_SMALLFONT, color_orange );
+
+	UI_DrawStringFitted( x, y, filtered_list.mapname[n], UI_CENTER, color_orange,
+		b->width - 2, SUPERTINYCHAR_WIDTH, SUPERTINYCHAR_HEIGHT, 4, 6 );
 
 	x = b->generic.x;
 	y = b->generic.y;
 	w = b->width;
-	h =	b->height + 28;
+	h =	b->height + MAP_NAME_HEIGHT;
 	if( b->generic.flags & QMF_HIGHLIGHT ) {	
 		UI_DrawHandlePic( x, y, w, h, b->focusshader );
 	}
@@ -605,6 +692,7 @@ void UI_VoteMapMenuInternal( void )
 	
 	UpdateFilter();
 	UI_VoteMapMenu_Update();
+	VoteMapMenu_MaybeFallbackToAll();
 }
 
 
@@ -724,29 +812,27 @@ void UI_VoteMapMenu( void ) {
     s_votemenu_map.type.generic.y		= 70;
     s_votemenu_map.type.itemnames		= mappage_type_items;
 
-    s_votemenu_map.sort.generic.type        = MTYPE_RADIOBUTTON;
-    s_votemenu_map.sort.generic.name	      = "Sort:";
+    s_votemenu_map.sort.generic.type		= MTYPE_SPINCONTROL;
+    s_votemenu_map.sort.generic.name		= "Sort:";
+    s_votemenu_map.sort.generic.flags	= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
     s_votemenu_map.sort.generic.callback	= VoteMapMenu_FilterEvent;
-    s_votemenu_map.sort.generic.id			= ID_FILTER;
-    s_votemenu_map.sort.generic.flags	      = QMF_PULSEIFFOCUS|QMF_SMALLFONT;
-    s_votemenu_map.sort.generic.x	          = 440;
-    s_votemenu_map.sort.generic.y	          = 70;
+    s_votemenu_map.sort.generic.id		= ID_FILTER;
+    s_votemenu_map.sort.generic.x		= 440;
+    s_votemenu_map.sort.generic.y		= 70;
+    s_votemenu_map.sort.itemnames		= mappage_sort_items;
 
     for (i=0; i<MAX_MAPSPERPAGE; i++)
     {
-    	//x =	(i % MAX_MAPCOLS) * (128+8) + 188;
-    	//y = (i / MAX_MAPROWS) * (128+8) + 96;
-    	//x = (640-MAX_MAPROWS*140)/2 + ( (i % MAX_MAPROWS) * 140 );
-    	x = (640-MAX_MAPROWS*128)/2 + ( (i % MAX_MAPROWS) * 128 );
-    	y = 96 + ( (i / MAX_MAPROWS) * 140 );
+    	x = MAP_GRID_LEFT + ( (i % MAX_MAPCOLS) * (MAP_THUMB_WIDTH + MAP_COL_GAP) );
+    	y = MAP_GRID_TOP + ( (i / MAX_MAPCOLS) * (MAP_CELL_HEIGHT + MAP_ROW_GAP) );
     
     	s_votemenu_map.mappics[i].generic.type   = MTYPE_BITMAP;
     	s_votemenu_map.mappics[i].generic.flags  = QMF_LEFT_JUSTIFY|QMF_INACTIVE;
     	s_votemenu_map.mappics[i].generic.x	    = x;
     	s_votemenu_map.mappics[i].generic.y	    = y;
     	s_votemenu_map.mappics[i].generic.id		= ID_PICTURES+i;
-    	s_votemenu_map.mappics[i].width  		= 128;
-    	s_votemenu_map.mappics[i].height  	    = 96;
+    	s_votemenu_map.mappics[i].width  		= MAP_THUMB_WIDTH;
+    	s_votemenu_map.mappics[i].height  	    = MAP_THUMB_HEIGHT;
     	s_votemenu_map.mappics[i].focuspic       = ART_SELECTED;
     	s_votemenu_map.mappics[i].errorpic       = ART_UNKNOWNMAP;
     	s_votemenu_map.mappics[i].generic.ownerdraw = VoteMapMenu_LevelshotDraw;
@@ -755,14 +841,14 @@ void UI_VoteMapMenu( void ) {
     	s_votemenu_map.mapbuttons[i].generic.flags    = QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS|QMF_NODEFAULTINIT;
     	s_votemenu_map.mapbuttons[i].generic.id       = ID_PICTURES+i;
     	s_votemenu_map.mapbuttons[i].generic.callback = VoteMapMenu_MapEvent;
-    	s_votemenu_map.mapbuttons[i].generic.x	     = x - 30;
-    	s_votemenu_map.mapbuttons[i].generic.y	     = y - 32;
-    	s_votemenu_map.mapbuttons[i].width  		     = 256;
-    	s_votemenu_map.mapbuttons[i].height  	     = 248;
+    	s_votemenu_map.mapbuttons[i].generic.x	     = x;
+    	s_votemenu_map.mapbuttons[i].generic.y	     = y;
+    	s_votemenu_map.mapbuttons[i].width  		     = MAP_THUMB_WIDTH;
+    	s_votemenu_map.mapbuttons[i].height  	     = MAP_CELL_HEIGHT;
     	s_votemenu_map.mapbuttons[i].generic.left     = x;
     	s_votemenu_map.mapbuttons[i].generic.top  	 = y;
-    	s_votemenu_map.mapbuttons[i].generic.right    = x + 128;
-    	s_votemenu_map.mapbuttons[i].generic.bottom   = y + 128;
+    	s_votemenu_map.mapbuttons[i].generic.right    = x + MAP_THUMB_WIDTH;
+    	s_votemenu_map.mapbuttons[i].generic.bottom   = y + MAP_CELL_HEIGHT;
     	s_votemenu_map.mapbuttons[i].focuspic         = ART_SELECT;
     }
     
@@ -770,7 +856,7 @@ void UI_VoteMapMenu( void ) {
     s_votemenu_map.arrows.generic.name  = ART_ARROWSH;
     s_votemenu_map.arrows.generic.flags = QMF_INACTIVE;
     s_votemenu_map.arrows.generic.x	   = 260;
-    s_votemenu_map.arrows.generic.y	   = 400;
+    s_votemenu_map.arrows.generic.y	   = MAP_PAGE_ARROWS_Y;
     s_votemenu_map.arrows.width  	   = 128;
     s_votemenu_map.arrows.height  	   = 32;
     
@@ -779,7 +865,7 @@ void UI_VoteMapMenu( void ) {
     s_votemenu_map.prevpage.generic.callback = UI_VoteMapMenu_PreviousPageEvent;
     s_votemenu_map.prevpage.generic.id	    = ID_PREVPAGE;
     s_votemenu_map.prevpage.generic.x		= 260;
-    s_votemenu_map.prevpage.generic.y		= 400;
+    s_votemenu_map.prevpage.generic.y		= MAP_PAGE_ARROWS_Y;
     s_votemenu_map.prevpage.width  		    = 64;
     s_votemenu_map.prevpage.height  		    = 32;
     s_votemenu_map.prevpage.focuspic         = ART_ARROWSHL;
@@ -789,26 +875,26 @@ void UI_VoteMapMenu( void ) {
     s_votemenu_map.nextpage.generic.callback = UI_VoteMapMenu_NextPageEvent;
     s_votemenu_map.nextpage.generic.id	    = ID_NEXTPAGE;
     s_votemenu_map.nextpage.generic.x		= 321;
-    s_votemenu_map.nextpage.generic.y		= 400;
+    s_votemenu_map.nextpage.generic.y		= MAP_PAGE_ARROWS_Y;
     s_votemenu_map.nextpage.width  		    = 64;
     s_votemenu_map.nextpage.height  		    = 32;
     s_votemenu_map.nextpage.focuspic         = ART_ARROWSHR;
 
     s_votemenu_map.page.generic.type		= MTYPE_TEXT;
-    s_votemenu_map.page.generic.flags	= QMF_CENTER_JUSTIFY|QMF_SMALLFONT;
-    s_votemenu_map.page.generic.x		= 320;
-    s_votemenu_map.page.generic.y		= 368;
+    s_votemenu_map.page.generic.flags	= QMF_LEFT_JUSTIFY|QMF_SMALLFONT;
+    s_votemenu_map.page.generic.x		= 400;
+    s_votemenu_map.page.generic.y		= MAP_PAGE_ARROWS_Y + 8;
     s_votemenu_map.page.string			= pagebuffer;
     s_votemenu_map.page.color         = color_white;
-    s_votemenu_map.page.style         = UI_CENTER;
+    s_votemenu_map.page.style         = UI_LEFT;
 
     
     s_votemenu_map.mapname.generic.type  = MTYPE_PTEXT;
     s_votemenu_map.mapname.generic.flags = QMF_CENTER_JUSTIFY|QMF_INACTIVE;
     s_votemenu_map.mapname.generic.x	    = 320;
-    s_votemenu_map.mapname.generic.y	    = 440;
+    s_votemenu_map.mapname.generic.y	    = 448;
     s_votemenu_map.mapname.string        = mapnamebuffer;
-    s_votemenu_map.mapname.style         = UI_CENTER|UI_BIGFONT;
+    s_votemenu_map.mapname.style         = UI_CENTER|UI_SMALLFONT;
     s_votemenu_map.mapname.color         = text_color_normal;
     
     
@@ -831,18 +917,17 @@ void UI_VoteMapMenu( void ) {
     Menu_AddItem( &s_votemenu_map.menu, (void*) &s_votemenu_map.filter );
     Menu_AddItem( &s_votemenu_map.menu, (void*) &s_votemenu_map.sort );
 
-    s_votemenu_map.sort.curvalue = trap_Cvar_VariableValue( "ui_mapvote_sort") ? 1 : 0;
+    s_votemenu_map.sort.curvalue = trap_Cvar_VariableValue( "ui_mapvote_sort") ? MAPPAGE_SORT_ZA : MAPPAGE_SORT_AZ;
 
     trap_Cvar_VariableStringBuffer( "ui_mapvote_filter", 
 		    s_votemenu_map.filter.field.buffer,
 		    sizeof(s_votemenu_map.filter.field.buffer));
 
-    getmappage_cmd = getmappage_recommened_cmd;
-
-    current_list = &maplists[MAPPAGE_TYPE_RECOMMENDED];
-    ResetMaplist();
-    if (!current_list->loaded_all) {
-	    Maplist_RequestNextPage(current_list);
+    if ( maplists[MAPPAGE_TYPE_RECOMMENDED].loaded_all &&
+		    maplists[MAPPAGE_TYPE_RECOMMENDED].num_maps < 1 ) {
+	    VoteMapMenu_UseType( MAPPAGE_TYPE_ALL );
+    } else {
+	    VoteMapMenu_UseType( MAPPAGE_TYPE_RECOMMENDED );
     }
 
     trap_Cvar_Set( "cl_paused", "0" ); //We cannot send server commands while paused!
