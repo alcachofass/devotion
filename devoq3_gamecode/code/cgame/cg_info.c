@@ -26,6 +26,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define MAX_LOADING_PLAYER_ICONS	16
 #define MAX_LOADING_ITEM_ICONS		26
+#define LOAD_FADE_TIME			3000
+#define LEAVE_FADE_TIME			1500
 
 static int			loadingPlayerIconCount;
 static int			loadingItemIconCount;
@@ -332,5 +334,109 @@ void CG_DrawInformation( void ) {
 		}
 	}
 
+}
+
+/*
+====================
+CG_DrawLoadFade
+
+Fullscreen levelshot overlay that fades out after the first playable frame.
+====================
+*/
+void CG_DrawLoadFade( void ) {
+	const char	*s;
+	const char	*info;
+	int			elapsed;
+	float		color[4];
+	qhandle_t	levelshot;
+
+	if ( cg.levelShot ) {
+		return;
+	}
+
+	if ( !cg.loadFadeStart ) {
+		cg.loadFadeStart = trap_Milliseconds();
+		if ( !cg.loadFadeStart ) {
+			cg.loadFadeStart = 1;
+		}
+	}
+
+	elapsed = trap_Milliseconds() - cg.loadFadeStart;
+	if ( elapsed >= LOAD_FADE_TIME ) {
+		return;
+	}
+	if ( elapsed < 0 ) {
+		elapsed = 0;
+	}
+
+	info = CG_ConfigString( CS_SERVERINFO );
+	s = Info_ValueForKey( info, "mapname" );
+	levelshot = trap_R_RegisterShaderNoMip( va( "levelshots/%s.tga", s ) );
+	if ( !levelshot ) {
+		levelshot = trap_R_RegisterShaderNoMip( "menu/art/unknownmap" );
+	}
+
+	color[0] = color[1] = color[2] = 1.0f;
+	color[3] = 1.0f - (float)elapsed / (float)LOAD_FADE_TIME;
+	trap_R_SetColor( color );
+	CG_DrawPic( 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, levelshot );
+	trap_R_SetColor( NULL );
+}
+
+/*
+====================
+CG_BeginLeaveFade
+
+Start the gameplay/replay fade to black that precedes disconnect.
+====================
+*/
+void CG_BeginLeaveFade( void ) {
+	if ( cg.leaveFadeStart ) {
+		return;
+	}
+
+	cg.leaveFadeStart = trap_Milliseconds();
+	if ( !cg.leaveFadeStart ) {
+		cg.leaveFadeStart = 1;
+	}
+	cg.leaveFadeDisconnect = qfalse;
+}
+
+/*
+====================
+CG_DrawLeaveFade
+
+Fullscreen black overlay that fades in, then disconnects to the menu.
+====================
+*/
+void CG_DrawLeaveFade( stereoFrame_t stereoView ) {
+	int		elapsed;
+	float	color[4];
+
+	if ( !cg.leaveFadeStart ) {
+		return;
+	}
+
+	elapsed = trap_Milliseconds() - cg.leaveFadeStart;
+	if ( elapsed < 0 ) {
+		elapsed = 0;
+	}
+
+	color[0] = color[1] = color[2] = 0.0f;
+	if ( elapsed >= LEAVE_FADE_TIME ) {
+		color[3] = 1.0f;
+	} else {
+		color[3] = (float)elapsed / (float)LEAVE_FADE_TIME;
+	}
+
+	if ( !cg.levelShot ) {
+		CG_FillRect( 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, color );
+	}
+
+	if ( elapsed >= LEAVE_FADE_TIME && !cg.leaveFadeDisconnect && stereoView != STEREO_LEFT ) {
+		cg.leaveFadeDisconnect = qtrue;
+		trap_Cvar_Set( "ui_menuFadeFromBlack", "1" );
+		trap_SendConsoleCommand( "disconnect\n" );
+	}
 }
 

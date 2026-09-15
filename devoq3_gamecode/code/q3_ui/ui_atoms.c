@@ -27,6 +27,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 **********************************************************************/
 #include "ui_local.h"
 
+#define MENU_FADE_FROM_BLACK_TIME	1500
+
 uiStatic_t		uis;
 qboolean		m_entersound;		// after a frame, so caching won't disrupt the sound
 
@@ -1130,6 +1132,10 @@ void UI_SetActiveMenu( uiMenuCommand_t menu ) {
 		if ( (int)trap_Cvar_VariableValue( "cg_demoSeekActive" ) == 0 ) {
 			trap_Cvar_Set( "timescale", "1" );
 		}
+		if ( (int)trap_Cvar_VariableValue( "ui_menuFadeFromBlack" ) ) {
+			trap_Cvar_Set( "ui_menuFadeFromBlack", "0" );
+			uis.menuFadeStart = -1;
+		}
 		UI_MainMenu();
 		return;
 	case UIMENU_NEED_CD:
@@ -1605,6 +1611,29 @@ void UI_Refresh( int realtime )
 		if( uis.firstdraw ) {
 			UI_MouseEvent( 0, 0 );
 			uis.firstdraw = qfalse;
+		}
+	}
+
+	if ( uis.menuFadeStart ) {
+		int		elapsed;
+		float	fadeColor[4];
+
+		if ( uis.menuFadeStart < 0 ) {
+			uis.menuFadeStart = uis.realtime;
+			if ( !uis.menuFadeStart ) {
+				uis.menuFadeStart = 1;
+			}
+		}
+		elapsed = uis.realtime - uis.menuFadeStart;
+		if ( elapsed >= MENU_FADE_FROM_BLACK_TIME ) {
+			uis.menuFadeStart = 0;
+		} else {
+			if ( elapsed < 0 ) {
+				elapsed = 0;
+			}
+			fadeColor[0] = fadeColor[1] = fadeColor[2] = 0.0f;
+			fadeColor[3] = 1.0f - (float)elapsed / (float)MENU_FADE_FROM_BLACK_TIME;
+			UI_FillRect( 0, 0, 640, 480, fadeColor );
 		}
 	}
 

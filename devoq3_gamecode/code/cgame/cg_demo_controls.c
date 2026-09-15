@@ -507,7 +507,8 @@ static void DemoCtrl_Activate( int btn ) {
 			DemoCtrl_SeekFinish( qfalse );
 		}
 		trap_Cvar_Set( "timescale", "1" );
-		trap_SendConsoleCommand( "disconnect\n" );
+		DemoCtrl_ReleaseCatcher();
+		CG_BeginLeaveFade();
 		break;
 	case DEMOCTRL_CAM:
 		if ( cg_thirdPerson.integer ) {

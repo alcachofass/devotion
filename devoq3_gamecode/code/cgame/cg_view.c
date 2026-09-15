@@ -1008,6 +1008,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// pacifier, don't even try to read snapshots
 	if ( cg.infoScreenText[0] != 0 ) {
 		CG_DrawInformation();
+		CG_DrawLeaveFade( stereoView );
 		return;
 	}
 
@@ -1032,6 +1033,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// we can draw is the information screen
 	if ( !cg.snap || ( cg.snap->snapFlags & SNAPFLAG_NOT_ACTIVE ) ) {
 		CG_DrawInformation();
+		CG_DrawLeaveFade( stereoView );
 		return;
 	}
 
@@ -1059,6 +1061,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 			cg.oldTime = cg.time;
 		}
 		CG_DrawActive( stereoView );
+		CG_DrawLeaveFade( stereoView );
 		return;
 	}
 
@@ -1141,6 +1144,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	// actually issue the rendering calls
 	CG_DrawActive( stereoView );
+	CG_DrawLeaveFade( stereoView );
 
 	if ( cg_stats.integer ) {
 		CG_Printf( "cg.clientFrame:%i\n", cg.clientFrame );
