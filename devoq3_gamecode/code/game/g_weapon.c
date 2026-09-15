@@ -398,9 +398,10 @@ SHOTGUN
 
 // DEFAULT_SHOTGUN_SPREAD and DEFAULT_SHOTGUN_COUNT	are in bg_public.h, because
 // client predicts same spreads
-// mrd - so is SHOTGUN_ALT_FIRE_PELLETS
+// mrd - so are SHOTGUN_ALT_FIRE_PELLETS and SHOTGUN_ALT_FIRE_SPREAD
 #define	DEFAULT_SHOTGUN_DAMAGE	10
 #define	NEW_SHOTGUN_DAMAGE	9
+#define SHOTGUN_ALT_FIRE_DAMAGE	7	//mrd
 
 struct hitShotgunTargets_s {
 	gentity_t *targets[MAX_SHOTGUN_COUNT];
@@ -474,10 +475,7 @@ qboolean ShotgunPellet( vec3_t start, vec3_t end, gentity_t *ent, struct hitShot
 
 		if ( traceEnt->takedamage) {
 			if (altFire) {
-				pellets = SHOTGUN_ALT_FIRE_PELLETS;
-				altDamage = (g_newShotgun.integer ? NEW_SHOTGUN_DAMAGE : DEFAULT_SHOTGUN_DAMAGE) * s_quadFactor;
-				altDamage *= (float)pellets/(float)3;
-				damage = (int)altDamage;
+				damage = SHOTGUN_ALT_FIRE_DAMAGE * s_quadFactor;
 			} else {
 				damage = (g_newShotgun.integer ? NEW_SHOTGUN_DAMAGE : DEFAULT_SHOTGUN_DAMAGE) * s_quadFactor;
 			}
@@ -581,15 +579,15 @@ void ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, gentity_t *ent, qb
 		}
 	} else if (altFire) {
 		for ( i = 0 ; i < SHOTGUN_ALT_FIRE_PELLETS ; i++ ) {
-			int randomness = 125;
-			float t = i*((360/(float)SHOTGUN_ALT_FIRE_PELLETS)*M_PI/180.0) + M_PI/(float)SHOTGUN_ALT_FIRE_PELLETS;
-			//mrd - tight pattern
-			r = 300 * 16 * cos(t);
-			u = 300 * 16 * sin(t);
-			// add some randomness
-			r += Q_crandom( &seed ) * randomness * 16;
-			u += Q_crandom( &seed ) * randomness * 16;
+			float angle;
+			float radius;
 
+			angle = Q_crandom( &seed ) * 2.0f * M_PI;
+			radius = sqrt( Q_crandom ( &seed ) ) * SHOTGUN_ALT_FIRE_SPREAD * 16;
+
+			r = cos ( angle ) * radius;
+			u = sin ( angle ) * radius;
+		
 			VectorMA( origin, 8192 * 16, forward, end);
 			VectorMA (end, r, right, end);
 			VectorMA (end, u, up, end);
