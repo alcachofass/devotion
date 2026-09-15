@@ -226,7 +226,6 @@ qboolean	PM_SlideMove( qboolean gravity ) {
 
 static float PM_GetUpStepVelocityCap(pmove_t *pm) {
 	switch (pm->pmove_movement) {
-	case MOVEMENT_QL:
 	case MOVEMENT_CPM_CPMA:
 	case MOVEMENT_CPM_DEFRAG:
 	case MOVEMENT_RM:
@@ -234,6 +233,13 @@ static float PM_GetUpStepVelocityCap(pmove_t *pm) {
 	default:
 		return 0.0f;
 	}
+}
+
+static float PM_GetStepHeight(pmove_t *pm) {
+	if ( pm->pmove_movement == MOVEMENT_QL ) {
+		return pm_ql_StepHeight;
+	}
+	return (float)STEPSIZE;
 }
 
 /*
@@ -250,6 +256,7 @@ void PM_StepSlideMove( qboolean gravity ) {
 //	vec3_t		delta, delta2;
 	vec3_t		up, down;
 	float		stepSize;
+	float		stepHeight;
 
 	VectorCopy (pm->ps->origin, start_o);
 	VectorCopy (pm->ps->velocity, start_v);
@@ -258,21 +265,27 @@ void PM_StepSlideMove( qboolean gravity ) {
 		return;		// we got exactly where we wanted to go first try	
 	}
 
-	VectorCopy(start_o, down);
-	down[2] -= STEPSIZE;
-	pm->trace (&trace, start_o, pm->mins, pm->maxs, down, pm->ps->clientNum, pm->tracemask);
-	VectorSet(up, 0, 0, 1);
-	// almost never step up when you still have up velocity
-	if ( pm->ps->velocity[2] > PM_GetUpStepVelocityCap(pm) && (trace.fraction == 1.0 ||
-										DotProduct(trace.plane.normal, up) < 0.7)) {
-		return;
+	stepHeight = PM_GetStepHeight( pm );
+
+	// QL air-step: skip the floor-oriented up-velocity gate so the lift is
+	// current origin vs lip, even mid-jump.
+	if ( pm->pmove_movement != MOVEMENT_QL ) {
+		VectorCopy(start_o, down);
+		down[2] -= stepHeight;
+		pm->trace (&trace, start_o, pm->mins, pm->maxs, down, pm->ps->clientNum, pm->tracemask);
+		VectorSet(up, 0, 0, 1);
+		// almost never step up when you still have up velocity
+		if ( pm->ps->velocity[2] > PM_GetUpStepVelocityCap(pm) && (trace.fraction == 1.0 ||
+											DotProduct(trace.plane.normal, up) < 0.7)) {
+			return;
+		}
 	}
 
 	//VectorCopy (pm->ps->origin, down_o);
 	//VectorCopy (pm->ps->velocity, down_v);
 
 	VectorCopy (start_o, up);
-	up[2] += STEPSIZE;
+	up[2] += stepHeight;
 
 	// test the player position if they were a stepheight higher
 	pm->trace (&trace, start_o, pm->mins, pm->maxs, up, pm->ps->clientNum, pm->tracemask);
@@ -317,6 +330,11 @@ void PM_StepSlideMove( qboolean gravity ) {
 			else {
 				PM_OneSidedClipVelocity( pm->ps->velocity, trace.plane.normal, pm->ps->velocity, OVERCLIP );
 			}
+		} else if ( pm->pmove_movement == MOVEMENT_QL ) {
+			float dot = DotProduct( pm->ps->velocity, trace.plane.normal );
+			if ( dot < 0.001f ) {
+				PM_ClipVelocity( pm->ps->velocity, trace.plane.normal, pm->ps->velocity, OVERCLIP );
+			}
 		} else {
 			PM_ClipVelocity( pm->ps->velocity, trace.plane.normal, pm->ps->velocity, OVERCLIP );
 		}
@@ -350,6 +368,21 @@ void PM_StepSlideMove( qboolean gravity ) {
 				PM_AddEvent( EV_STEP_16 );
 			}
 		}
+
+		if ( pm->pmove_movement == MOVEMENT_QL && delta > 0 ) {
+			if ( !pml.groundPlane && start_v[2] > 0 ) {
+				float dampen = 1.0f - pm_ql_airStepFriction;
+				pm->ps->velocity[0] *= dampen;
+				pm->ps->velocity[1] *= dampen;
+			}
+
+			if ( pm_ql_StepJump && !pml.jumped && pm->waterlevel < 2 && PM_QL_WantJump()
+				&& trace.fraction < 1.0 && !trace.startsolid && !trace.allsolid
+				&& trace.plane.normal[2] >= MIN_WALK_NORMAL ) {
+				PM_QL_DoJump( qtrue );
+			}
+		}
+
 		if ( pm->debugLevel ) {
 			Com_Printf("%i:stepped\n", c_pmove);
 		}

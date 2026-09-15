@@ -24,7 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define	MIN_WALK_NORMAL	0.7f		// can't walk on very steep slopes
 
-//#define	STEPSIZE		22 // QL stepsize
+// QL uses pm_ql_StepHeight (22) via PM_GetStepHeight; other modes use 18.
 #define	STEPSIZE		18
 
 #define JUMP_VELOCITY_SCALE_ADD 0.4
@@ -54,6 +54,8 @@ typedef struct {
 	vec3_t		previous_origin;
 	vec3_t		previous_velocity;
 	int			previous_waterlevel;
+
+	qboolean	jumped;				// already jumped this pmove (blocks same-frame step-jump)
 } pml_t;
 
 extern	pmove_t		*pm;
@@ -74,12 +76,18 @@ extern	const float	pm_friction;
 extern	const float	pm_waterfriction;
 extern	const float	pm_flightfriction;
 
+extern	const float	pm_ql_StepHeight;
+extern	const float	pm_ql_airStepFriction;
+extern	const int	pm_ql_StepJump;
+
 extern	int		c_pmove;
 
 void PM_ClipVelocity( vec3_t in, vec3_t normal, vec3_t out, float overbounce );
 void PM_OneSidedClipVelocity( vec3_t in, vec3_t normal, vec3_t out, float overbounce );
 void PM_AddTouchEnt( int entityNum );
 void PM_AddEvent( int newEvent );
+qboolean PM_QL_WantJump( void );
+void PM_QL_DoJump( qboolean stepJump );
 
 qboolean	PM_SlideMove( qboolean gravity );
 void		PM_StepSlideMove( qboolean gravity );

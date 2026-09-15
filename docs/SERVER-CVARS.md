@@ -184,7 +184,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_mixedMode` | RatMod | `0` | 0 or 1 | When `1`, allows non-RatEngine clients with limited features. |
 | `g_motd` | Vanilla | `` | string or numeric (see default) | Message of the day string shown to joining players. |
 | `g_motdfile` | RatMod | `motd.cfg` | filename | Path to the MOTD text file. |
-| `g_movement` | RatMod | `0` | `0`-`4` | Movement physics preset. `0` VQ3 (default), `1` CPMD (Defrag), `2` RM (Rat), `3` CPMA, `4` QL (Quake Live - VQ3 with CPMA-style stepping). |
+| `g_movement` | RatMod | `0` | `0`-`4` | Movement physics preset. `0` VQ3 (default), `1` CPMD (Defrag), `2` RM (Rat), `3` CPMA, `4` QL (Quake Live VQL: VQ3 accel/air with 22-unit air-step, jump 275, chain-jump, autohop, and a light forward bunny assist). `pmove_fixed 1` is recommended with QL. |
 | `g_multiTournamentAutoRePair` | RatMod | `1` | 0 or 1 | When `1`, re-pairs players between multi-tournament games. |
 | `g_multiTournamentEndgameRePair` | RatMod | `1` | 0 or 1 | When `1`, re-pairs players at the end of a multi-tournament bracket. |
 | `g_multiTournamentGames` | RatMod | `4` | integer >= 0 (typical) | Number of simultaneous tournament games in multi-tournament mode. |

@@ -57,7 +57,7 @@ map pro-q3dm6
 
 ### Movement Presets
 
-Set `g_movement` to choose how players move. `0` is standard Quake 3. `4` is Quake Live style (VQ3 movement with CPMA-style stepping). See [Server CVARs](SERVER-CVARS.md) for the full list (`CPMD`, `RM`, `CPMA`, `QL`).
+Set `g_movement` to choose how players move. `0` is standard Quake 3. `4` is Quake Live (VQL): VQ3 air/ground acceleration with 22-unit air-capable step-up, jump 275, scale chain-jump, autohop, and a light forward bunny assist. `pmove_fixed 1` is recommended with this preset. See [Server CVARs](SERVER-CVARS.md) for the full list (`CPMD`, `RM`, `CPMA`, `QL`).
 
 ### Restricting Callvote Verbs
 

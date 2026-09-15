@@ -598,6 +598,7 @@ void G_PredictPlayerStepSlideMove( gentity_t *ent, float frametime ) {
 	vec3_t down, up;
 	trace_t trace;
 	float stepSize;
+	float stepHeight = ( g_movement.integer == MOVEMENT_QL ) ? 22.0f : (float)STEPSIZE;
 
 	VectorCopy (ent->s.pos.trBase, start_o);
 	VectorCopy (ent->s.pos.trDelta, start_v);
@@ -611,7 +612,7 @@ void G_PredictPlayerStepSlideMove( gentity_t *ent, float frametime ) {
 	//VectorCopy( ent->s.pos.trDelta, down_v);
 
 	VectorCopy (start_o, up);
-	up[2] += STEPSIZE;
+	up[2] += stepHeight;
 
 	// test the player position if they were a stepheight higher
 	trap_Trace( &trace, start_o, ent->r.mins, ent->r.maxs, up, ent->s.number, ent->clipmask );
