@@ -229,9 +229,8 @@ typedef enum {
 	// RATMODE
 	MOVEMENT_RM,
 	MOVEMENT_CPM_CPMA,
-	//MOVEMENT_QL,
-	// Quake Live movement. From what I've been told, this is just VQ3 with
-	// CPMA's stepping, so that's what is implemented.
+	// Quake Live (VQL): VQ3 accel/air, with 22-unit air-capable step-up,
+	// jump 275, scale chain-jump, autohop, and a light forward bunny assist.
 	MOVEMENT_QL,
 
 	MOVEMENT_NUM_MOVEMENTS,

@@ -43,14 +43,9 @@ const float	pm_duckaccelerate = 10.0f;
 const float	pm_wateraccelerate = 4.0f;
 const float	pm_flyaccelerate = 8.0f;
 const int	pm_jumpvelocity = 270;
-/*
-const float	pm_ql_accelerate = 10.0f;
-const int	pm_ql_airsteps = 1;
-const int	pm_ql_jumpvelocity = 275;
-const float	pm_ql_jumpvelocityscaleadd = 0.4;
-const float	pm_ql_jumpvelocitytimethreshold = 0.4;
-const float	pm_ql_jumptimedeltamin = 100.0;
-*/
+const float	pm_ql_jumpvelocity = 275.0f;
+const float	pm_ql_bunnyHopOveraccel = 0.55f;
+const float	pm_ql_airStepFriction = 0.03f;
 
 const float	pm_rat_accelerate = 14.0f;
 const float	pm_rat_airaccelerate = 2.4f;
@@ -74,7 +69,7 @@ const float	pm_ql_WalkAccel = 6.0f;
 const int	pm_ql_velocity_gh = 800;
 const float	pm_StrafeAccel = 1.0f;
 const float	pm_StepJumpVelocity = 48.0f;
-const int 	pm_ql_StepJump = 1;
+const int	pm_ql_StepJump = 1;
 const float	pm_ql_StepHeight = 22.0f;
 const float	pm_ql_RampJumpScale = 1.0f;
 const int	pm_ql_RampJump = 0;
@@ -309,11 +304,13 @@ static void PM_Friction( void ) {
 	vel[2] = vel[2] * newspeed;
 }
 
+static qboolean PM_HasAutohop( void ) {
+	return ( pm->pmove_autohop || pm->pmove_movement == MOVEMENT_QL );
+}
+
 /*
 ==============
 PM_Accelerate
-
-TODO: bunny hoping
 
 Handles user intended acceleration
 ==============
@@ -329,6 +326,24 @@ if(! (pm->pmove_flags & DF_NO_BUNNY) ) {
 	currentspeed = DotProduct (pm->ps->velocity, wishdir);
 	addspeed = wishspeed - currentspeed;
 	if (addspeed <= 0) {
+		// QL: limited forward bunny overaccel when already at/above wishspeed.
+		if ( pm->pmove_movement == MOVEMENT_QL && pm->ps->movementDir == 0 ) {
+			float speed2d, maxspeed, maxspeed2, overaccel;
+
+			speed2d = sqrt( pm->ps->velocity[0] * pm->ps->velocity[0]
+				+ pm->ps->velocity[1] * pm->ps->velocity[1] );
+			maxspeed = (float)pm->ps->speed;
+			maxspeed2 = maxspeed + maxspeed;
+			if ( speed2d <= maxspeed2 ) {
+				overaccel = pm_ql_bunnyHopOveraccel;
+				if ( speed2d > maxspeed ) {
+					overaccel = ( ( maxspeed2 - speed2d ) / maxspeed ) * pm_ql_bunnyHopOveraccel;
+				}
+				pm->ps->velocity[0] += overaccel * wishdir[0];
+				pm->ps->velocity[1] += overaccel * wishdir[1];
+				pm->ps->velocity[2] += overaccel * wishdir[2];
+			}
+		}
 		return;
 	}
 	accelspeed = accel*pml.frametime*wishspeed;
@@ -376,20 +391,28 @@ static float PM_CmdScale( usercmd_t *cmd ) {
 	int		max;
 	float	total;
 	float	scale;
+	int		upmove;
+
+	// After a jump the key is still down; don't let +moveup shrink wishspeed.
+	// Crouch (negative upmove) still counts.
+	upmove = cmd->upmove;
+	if ( ( pm->ps->pm_flags & PMF_JUMP_HELD ) && upmove > 0 ) {
+		upmove = 0;
+	}
 
 	max = abs( cmd->forwardmove );
 	if ( abs( cmd->rightmove ) > max ) {
 		max = abs( cmd->rightmove );
 	}
-	if ( abs( cmd->upmove ) > max ) {
-		max = abs( cmd->upmove );
+	if ( abs( upmove ) > max ) {
+		max = abs( upmove );
 	}
 	if ( !max ) {
 		return 0;
 	}
 
 	total = sqrt( cmd->forwardmove * cmd->forwardmove
-		+ cmd->rightmove * cmd->rightmove + cmd->upmove * cmd->upmove );
+		+ cmd->rightmove * cmd->rightmove + upmove * upmove );
 	scale = (float)pm->ps->speed * max / ( 127.0 * total );
 
 	return scale;
@@ -438,47 +461,68 @@ static void PM_SetMovementDir( void ) {
 
 /*
 =============
-PM_CheckJump
+PM_QL_WantJump
+
+True if this pmove should start a jump (used by CheckJump and QL step-jump).
 =============
 */
-static qboolean PM_CheckJump( void ) {
-
-
+qboolean PM_QL_WantJump( void ) {
 	if ( pm->ps->pm_flags & PMF_RESPAWNED ) {
-		return qfalse;		// don't allow jump until all buttons are up
+		return qfalse;
 	}
-
 	if ( pm->cmd.upmove < 10 ) {
-		// not holding jump
 		return qfalse;
 	}
-
-
-	// must wait for jump to be released
-	if ( pm->ps->pm_flags & PMF_JUMP_HELD ) {
-		// clear upmove so cmdscale doesn't lower running speed
-		pm->cmd.upmove = 0;
+	if ( !PM_HasAutohop() && ( pm->ps->pm_flags & PMF_JUMP_HELD ) ) {
 		return qfalse;
 	}
+	return qtrue;
+}
 
-	pml.groundPlane = qfalse;		// jumping away
+static float PM_GetJumpVelocity( qboolean stepJump ) {
+	float jumpVel;
+
+	if ( pm->pmove_movement == MOVEMENT_QL ) {
+		jumpVel = pm_ql_jumpvelocity;
+	} else {
+		jumpVel = (float)JUMP_VELOCITY;
+	}
+
+	if ( stepJump ) {
+		jumpVel += pm_StepJumpVelocity;
+	}
+
+	if ( pm->pmove_movement == MOVEMENT_QL && pm->ps->stats[STAT_JUMPTIME] > 0 ) {
+		jumpVel *= 1.0f + ( (float)pm->ps->stats[STAT_JUMPTIME] / 400.0f ) * JUMP_VELOCITY_SCALE_ADD;
+	}
+
+	return jumpVel;
+}
+
+/*
+=============
+PM_QL_DoJump
+
+Shared jump impulse for CheckJump and QL same-frame step-jump.
+=============
+*/
+void PM_QL_DoJump( qboolean stepJump ) {
+	float jumpVel = PM_GetJumpVelocity( stepJump );
+
+	pml.groundPlane = qfalse;
 	pml.walking = qfalse;
-	if ( !pm->pmove_autohop ) {
-		pm->ps->pm_flags |= PMF_JUMP_HELD;
-	}
+	pml.jumped = qtrue;
+	pm->ps->pm_flags |= PMF_JUMP_HELD;
 
 	pm->ps->groundEntityNum = ENTITYNUM_NONE;
 
-	if ( (pm->pmove_ratflags & (RAT_RAMPJUMP | RAT_ADDITIVEJUMP)) && ((pm->ps->velocity[2] >= 0)) ) {
-		pm->ps->velocity[2] += JUMP_VELOCITY;
+	if ( ( pm->pmove_ratflags & ( RAT_RAMPJUMP | RAT_ADDITIVEJUMP ) ) && ( pm->ps->velocity[2] >= 0 ) ) {
+		pm->ps->velocity[2] += jumpVel;
 	} else {
-		pm->ps->velocity[2] = JUMP_VELOCITY;
+		pm->ps->velocity[2] = jumpVel;
 	}
 
-	if (pm->ps->stats[STAT_JUMPTIME] > 0 && (pm->pmove_ratflags & RAT_RAMPJUMP)) {
-		//float speed = sqrt(pml.forward[0]*pml.forward[0] + pml.forward[1]*pml.forward[1]);
-		//pm->ps->velocity[0] += (pml.forward[0]/speed)*80;
-		//pm->ps->velocity[1] += (pml.forward[1]/speed)*80;
+	if ( pm->ps->stats[STAT_JUMPTIME] > 0 && ( pm->pmove_ratflags & RAT_RAMPJUMP ) ) {
 		pm->ps->velocity[2] += 100;
 	}
 	pm->ps->stats[STAT_JUMPTIME] = 400;
@@ -492,7 +536,31 @@ static qboolean PM_CheckJump( void ) {
 		PM_ForceLegsAnim( LEGS_JUMPB );
 		pm->ps->pm_flags |= PMF_BACKWARDS_JUMP;
 	}
+}
 
+/*
+=============
+PM_CheckJump
+=============
+*/
+static qboolean PM_CheckJump( void ) {
+	if ( pm->ps->pm_flags & PMF_RESPAWNED ) {
+		return qfalse;		// don't allow jump until all buttons are up
+	}
+
+	if ( pm->cmd.upmove < 10 ) {
+		// not holding jump
+		return qfalse;
+	}
+
+	// must wait for jump to be released (unless autohop / QL)
+	if ( !PM_HasAutohop() && ( pm->ps->pm_flags & PMF_JUMP_HELD ) ) {
+		// clear upmove so cmdscale doesn't lower running speed
+		pm->cmd.upmove = 0;
+		return qfalse;
+	}
+
+	PM_QL_DoJump( qfalse );
 	return qtrue;
 }
 

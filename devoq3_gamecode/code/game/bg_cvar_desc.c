@@ -186,7 +186,7 @@ static const cvarDesc_t gameCvarDescriptions[] = {
 	{ "g_mixedMode", "When `1`, allows non-RatEngine clients with limited features." },
 	{ "g_motd", "Message of the day string shown to joining players." },
 	{ "g_motdfile", "Path to the MOTD text file." },
-	{ "g_movement", "Movement physics preset. `0` VQ3 (default), `1` CPMD (Defrag), `2` RM (Rat), `3` CPMA, `4` QL (Quake Live - VQ3 with CPMA-style stepping)." },
+	{ "g_movement", "Movement physics preset. `0` VQ3 (default), `1` CPMD (Defrag), `2` RM (Rat), `3` CPMA, `4` QL (Quake Live VQL: VQ3 accel/air with 22-unit air-step, jump 275, chain-jump, autohop, and a light forward bunny assist). `pmove_fixed 1` is recommended with QL." },
 	{ "g_multiTournamentAutoRePair", "When `1`, re-pairs players between multi-tournament games." },
 	{ "g_multiTournamentEndgameRePair", "When `1`, re-pairs players at the end of a multi-tournament bracket." },
 	{ "g_multiTournamentGames", "Number of simultaneous tournament games in multi-tournament mode." },
