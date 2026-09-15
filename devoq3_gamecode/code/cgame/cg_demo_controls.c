@@ -26,6 +26,7 @@ Demo playback overlay: mouse cursor and timescale transport controls.
 #define DEMOCTRL_SEEK_KEYFRAME_COPIES	4
 #define DEMOCTRL_SIDE_MARGIN		8
 #define DEMOCTRL_SIDE_Y			140
+#define DEMOCTRL_SIDE_BTN_W		84
 #define DEMOCTRL_SHOT_HIDE_FRAMES	8
 
 typedef enum {
@@ -39,6 +40,7 @@ typedef enum {
 	DEMOCTRL_CAM,
 	DEMOCTRL_ITEMS,
 	DEMOCTRL_HUD,
+	DEMOCTRL_HITBOX,
 	DEMOCTRL_SHOT,
 	DEMOCTRL_NUM_BTNS
 } demoCtrlButton_t;
@@ -79,9 +81,9 @@ static int		dc_durationMs;
 static qboolean	dc_timingReady;
 static qboolean	dc_seeking;
 static qboolean	dc_seekKeepCvars;
+static qboolean	dc_keepViewCvars;
 static qboolean	dc_seekRestartPending;
 static qboolean	dc_seekMuted;
-static qboolean	dc_seekFpsBoosted;
 static int		dc_seekTargetMs;
 static float	dc_seekResumeTs;
 static float	dc_seekSavedVolume;
@@ -96,14 +98,13 @@ static int		dc_savedDraw2D;
 static int		dc_savedDrawGun;
 static qboolean	dc_hudSaved;
 
-#define DEMOCTRL_SEEK_MAXFPS		"1000"
-
 static void DemoCtrl_ReleaseCatcher( void );
 static void DemoCtrl_SeekFinish( qboolean applyResume );
 static void DemoCtrl_SeekBegin( int targetMs );
 static void DemoCtrl_SeekFrame( void );
 static void DemoCtrl_SeekWriteCvars( void );
 static void DemoCtrl_UpdateSpeedLabel( float ts );
+static void DemoCtrl_ViewSaveIfNeeded( void );
 
 static qboolean DemoCtrl_TimescaleNear( float a, float b ) {
 	float d;
@@ -152,6 +153,8 @@ static const char *DemoCtrl_ButtonLabel( int btn ) {
 		return "Simple Items";
 	case DEMOCTRL_HUD:
 		return "Toggle HUD";
+	case DEMOCTRL_HITBOX:
+		return "Hitbox";
 	case DEMOCTRL_SHOT:
 		return "Screenshot";
 	default:
@@ -167,6 +170,8 @@ static qboolean DemoCtrl_ButtonActive( int btn ) {
 		return cg_simpleItems.integer ? qtrue : qfalse;
 	case DEMOCTRL_HUD:
 		return cg_draw2D.integer ? qtrue : qfalse;
+	case DEMOCTRL_HITBOX:
+		return cg_drawBBox.integer ? qtrue : qfalse;
 	default:
 		return qfalse;
 	}
@@ -212,7 +217,8 @@ static void DemoCtrl_ButtonRect( int btn, int *x, int *y, int *w, int *h ) {
 	*h = DEMOCTRL_BTN_H;
 	if ( DemoCtrl_IsSideButton( btn ) ) {
 		index = btn - DEMOCTRL_CAM;
-		*x = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_BTN_W;
+		*w = DEMOCTRL_SIDE_BTN_W;
+		*x = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_SIDE_BTN_W;
 		*y = DEMOCTRL_SIDE_Y + index * ( DEMOCTRL_BTN_H + DEMOCTRL_BTN_GAP );
 	} else if ( DemoCtrl_IsTopButton( btn ) ) {
 		index = btn - DEMOCTRL_RESTART;
@@ -323,6 +329,7 @@ static void DemoCtrl_Activate( int btn ) {
 		if ( dc_seeking ) {
 			DemoCtrl_SeekFinish( qfalse );
 		}
+		dc_keepViewCvars = qtrue;
 		trap_Cvar_Set( "timescale", "1" );
 		trap_SendConsoleCommand( va( "demo \"%s\"\n", demoName ) );
 		break;
@@ -349,6 +356,9 @@ static void DemoCtrl_Activate( int btn ) {
 		break;
 	case DEMOCTRL_ITEMS:
 		trap_Cvar_Set( "cg_simpleItems", cg_simpleItems.integer ? "0" : "1" );
+		break;
+	case DEMOCTRL_HITBOX:
+		trap_Cvar_Set( "cg_drawBBox", cg_drawBBox.integer ? "0" : "1" );
 		break;
 	case DEMOCTRL_HUD:
 		if ( cg_draw2D.integer || cg_drawGun.integer ) {
@@ -501,6 +511,48 @@ static void DemoCtrl_UpdateSpeedLabel( float ts ) {
 	}
 }
 
+static void DemoCtrl_CopyCvar( const char *from, const char *to ) {
+	char buf[MAX_CVAR_VALUE_STRING];
+
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( from, buf, sizeof( buf ) );
+	trap_Cvar_Set( to, buf );
+}
+
+static void DemoCtrl_ViewSaveIfNeeded( void ) {
+	char buf[32];
+
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "cg_demoViewSaved", buf, sizeof( buf ) );
+	if ( atoi( buf ) != 0 ) {
+		return;
+	}
+	DemoCtrl_CopyCvar( "cg_thirdPerson", "cg_demoViewThirdPerson" );
+	DemoCtrl_CopyCvar( "cg_thirdPersonRange", "cg_demoViewThirdPersonRange" );
+	DemoCtrl_CopyCvar( "cg_simpleItems", "cg_demoViewSimpleItems" );
+	DemoCtrl_CopyCvar( "cg_draw2D", "cg_demoViewDraw2D" );
+	DemoCtrl_CopyCvar( "cg_drawGun", "cg_demoViewDrawGun" );
+	DemoCtrl_CopyCvar( "cg_drawBBox", "cg_demoViewBBox" );
+	trap_Cvar_Set( "cg_demoViewSaved", "1" );
+}
+
+static void DemoCtrl_ViewRestore( void ) {
+	char buf[32];
+
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "cg_demoViewSaved", buf, sizeof( buf ) );
+	if ( atoi( buf ) == 0 ) {
+		return;
+	}
+	DemoCtrl_CopyCvar( "cg_demoViewThirdPerson", "cg_thirdPerson" );
+	DemoCtrl_CopyCvar( "cg_demoViewThirdPersonRange", "cg_thirdPersonRange" );
+	DemoCtrl_CopyCvar( "cg_demoViewSimpleItems", "cg_simpleItems" );
+	DemoCtrl_CopyCvar( "cg_demoViewDraw2D", "cg_draw2D" );
+	DemoCtrl_CopyCvar( "cg_demoViewDrawGun", "cg_drawGun" );
+	DemoCtrl_CopyCvar( "cg_demoViewBBox", "cg_drawBBox" );
+	trap_Cvar_Set( "cg_demoViewSaved", "0" );
+}
+
 static void DemoCtrl_SeekWriteCvars( void ) {
 	trap_Cvar_Set( "cg_demoSeekActive", "1" );
 	trap_Cvar_Set( "cg_demoSeekTargetMs", va( "%d", dc_seekTargetMs ) );
@@ -524,18 +576,6 @@ static void DemoCtrl_SeekMute( void ) {
 	trap_Cvar_Set( "s_volume", "0" );
 }
 
-static void DemoCtrl_SeekBoostFps( void ) {
-	char buf[32];
-
-	if ( !dc_seekFpsBoosted ) {
-		buf[0] = '\0';
-		trap_Cvar_VariableStringBuffer( "com_maxfps", buf, sizeof( buf ) );
-		trap_Cvar_Set( "cg_demoSeekMaxFps", buf[0] ? buf : "125" );
-		dc_seekFpsBoosted = qtrue;
-	}
-	trap_Cvar_Set( "com_maxfps", DEMOCTRL_SEEK_MAXFPS );
-}
-
 static void DemoCtrl_SeekUnmute( void ) {
 	char buf[32];
 
@@ -548,14 +588,6 @@ static void DemoCtrl_SeekUnmute( void ) {
 			trap_Cvar_Set( "s_volume", va( "%f", dc_seekSavedVolume ) );
 		}
 		dc_seekMuted = qfalse;
-	}
-	if ( dc_seekFpsBoosted ) {
-		buf[0] = '\0';
-		trap_Cvar_VariableStringBuffer( "cg_demoSeekMaxFps", buf, sizeof( buf ) );
-		if ( buf[0] ) {
-			trap_Cvar_Set( "com_maxfps", buf );
-		}
-		dc_seekFpsBoosted = qfalse;
 	}
 }
 
@@ -633,9 +665,6 @@ static void DemoCtrl_SeekResumeFromCvars( void ) {
 	} else {
 		dc_seekMuted = qfalse;
 	}
-	buf[0] = '\0';
-	trap_Cvar_VariableStringBuffer( "cg_demoSeekMaxFps", buf, sizeof( buf ) );
-	dc_seekFpsBoosted = buf[0] ? qtrue : qfalse;
 	dc_seeking = qtrue;
 	dc_seekRestartPending = qfalse;
 	dc_seekAppliedTs = 0.0f;
@@ -648,7 +677,6 @@ static void DemoCtrl_SeekResumeFromCvars( void ) {
 	dc_lastMoveMs = trap_Milliseconds();
 	Q_strncpyz( dc_speedLabel, "SEEK", sizeof( dc_speedLabel ) );
 	DemoCtrl_SeekMute();
-	DemoCtrl_SeekBoostFps();
 }
 
 static void DemoCtrl_SeekBegin( int targetMs ) {
@@ -687,7 +715,6 @@ static void DemoCtrl_SeekBegin( int targetMs ) {
 	dc_lastMoveMs = trap_Milliseconds();
 	Q_strncpyz( dc_speedLabel, "SEEK", sizeof( dc_speedLabel ) );
 	DemoCtrl_SeekMute();
-	DemoCtrl_SeekBoostFps();
 	DemoCtrl_SeekWriteCvars();
 
 	if ( dc_seekRestartPending ) {
@@ -730,7 +757,6 @@ static void DemoCtrl_SeekFrame( void ) {
 	}
 
 	DemoCtrl_SeekMute();
-	DemoCtrl_SeekBoostFps();
 	remaining = dc_seekTargetMs - elapsed;
 	ts = (float)( remaining - DEMOCTRL_SEEK_SETTLE_MS ) / (float)DEMOCTRL_SEEK_WORST_FRAME;
 	DemoCtrl_SeekSetTimescale( ts );
@@ -785,12 +811,15 @@ qboolean CG_DemoControls_SeekKeyframeHold( void ) {
 }
 
 void CG_DemoControls_Shutdown( void ) {
-	if ( dc_seekKeepCvars || ( dc_seeking && cg.demoPlayback ) ) {
+	if ( dc_seekKeepCvars ) {
 		DemoCtrl_SeekWriteCvars();
-	} else if ( dc_seeking || dc_seekMuted || dc_seekFpsBoosted ) {
+	} else {
 		DemoCtrl_SeekUnmute();
 		DemoCtrl_SeekClearCvars();
 		trap_Cvar_Set( "timescale", "1" );
+		if ( !dc_keepViewCvars ) {
+			DemoCtrl_ViewRestore();
+		}
 	}
 	dc_visible = qfalse;
 	dc_speedLabel[0] = '\0';
@@ -820,6 +849,7 @@ void CG_DemoControls_Frame( void ) {
 		return;
 	}
 
+	DemoCtrl_ViewSaveIfNeeded();
 	CG_DemoEvents_Frame();
 	DemoCtrl_UpdateTiming();
 	DemoCtrl_SeekFrame();
@@ -1016,9 +1046,10 @@ void CG_DemoControls_Draw( void ) {
 		int sideW;
 		int sideH;
 
-		sideW = DEMOCTRL_BTN_W + 16;
-		sideH = 4 * DEMOCTRL_BTN_H + 3 * DEMOCTRL_BTN_GAP + 12;
-		sideX = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_BTN_W - 8;
+		sideW = DEMOCTRL_SIDE_BTN_W + 16;
+		sideH = ( DEMOCTRL_SHOT - DEMOCTRL_CAM + 1 ) * DEMOCTRL_BTN_H
+			+ ( DEMOCTRL_SHOT - DEMOCTRL_CAM ) * DEMOCTRL_BTN_GAP + 12;
+		sideX = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_SIDE_BTN_W - 8;
 		sideY = DEMOCTRL_SIDE_Y - 6;
 		CG_FillRect( sideX, sideY, sideW, sideH, panel );
 	}

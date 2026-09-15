@@ -44,7 +44,7 @@ Structured view for autorecord/rec filenames; raw file list fallback.
 #define ART_UNKNOWNMAP		"menu/art/unknownmap"
 
 #define MAX_DEMOS			128
-#define DEMO_LIST_BUF_SIZE	8192
+#define DEMO_LIST_BUF_SIZE	65536
 #define DEMO_LABEL_SIZE		80
 #define DEMO_DATE_PREFIX_LEN	17
 
@@ -169,6 +169,7 @@ typedef struct {
 static demos_t	s_demos;
 
 static demoEntry_t *UI_Demo_GetSelectedEntry( void );
+static void UI_Demo_StripExtension( char *name );
 
 static void UI_Demo_FormatDuration( int ms, char *out, int outSize ) {
 	int	sec;
@@ -404,6 +405,56 @@ static qboolean UI_Demo_ParseAutorecord( const char *name, demoEntry_t *entry ) 
 
 	entry->parseType = DEMO_PARSE_AUTORECORD;
 	return qtrue;
+}
+
+static qboolean UI_Demo_NameIsAutorecord( const char *fsName ) {
+	static demoEntry_t	probe;
+	char				stripped[MAX_OSPATH];
+
+	Q_strncpyz( stripped, fsName, sizeof( stripped ) );
+	UI_Demo_StripExtension( stripped );
+	if ( !UI_Demo_ValidateDatePrefix( stripped ) ) {
+		return qfalse;
+	}
+	memset( &probe, 0, sizeof( probe ) );
+	return UI_Demo_ParseAutorecord( stripped, &probe );
+}
+
+static int UI_Demo_InsertNewestName( char **list, int *count, int max, char *name ) {
+	int	j;
+
+	for ( j = 0; j < *count; j++ ) {
+		if ( Q_stricmp( name, list[j] ) > 0 ) {
+			break;
+		}
+	}
+	if ( *count < max ) {
+		if ( j < *count ) {
+			memmove( &list[j + 1], &list[j], ( *count - j ) * sizeof( char * ) );
+		}
+		list[j] = name;
+		( *count )++;
+		return j;
+	}
+	if ( j >= max ) {
+		return -1;
+	}
+	if ( j < max - 1 ) {
+		memmove( &list[j + 1], &list[j], ( max - 1 - j ) * sizeof( char * ) );
+	}
+	list[j] = name;
+	return j;
+}
+
+static qboolean UI_Demo_NameListContains( char **list, int count, const char *name ) {
+	int	i;
+
+	for ( i = 0; i < count; i++ ) {
+		if ( list[i] == name ) {
+			return qtrue;
+		}
+	}
+	return qfalse;
 }
 
 static void UI_Demo_UpdateListBounds( void ) {
@@ -1664,54 +1715,82 @@ static void UI_Demo_LoadFileSize( const char *listName, demoEntry_t *entry ) {
 	}
 }
 
+static void UI_Demo_AddEntryFromFsName( const char *demoname ) {
+	demoEntry_t	*entry;
+	char		stripped[MAX_OSPATH];
+
+	if ( s_demos.numAll >= MAX_DEMOS ) {
+		return;
+	}
+
+	entry = &s_demos.entries[s_demos.numAll];
+	memset( entry, 0, sizeof( *entry ) );
+
+	Q_strncpyz( entry->fsName, demoname, sizeof( entry->fsName ) );
+	UI_Demo_LoadFileSize( demoname, entry );
+
+	Q_strncpyz( stripped, demoname, sizeof( stripped ) );
+	UI_Demo_StripExtension( stripped );
+	Q_strncpyz( entry->filename, stripped, sizeof( entry->filename ) );
+
+	if ( UI_Demo_ParseAutorecord( entry->filename, entry ) ) {
+		UI_Demo_BuildStructuredLabel( entry );
+		s_demos.numParsed++;
+	} else {
+		Q_strncpyz( entry->label, entry->filename, sizeof( entry->label ) );
+	}
+
+	s_demos.numAll++;
+}
+
 static void UI_Demo_LoadAll( void ) {
-	char extension[32];
-	char *demoname;
-	int count;
-	int i;
-	int len;
+	char	extension[32];
+	char	*demoname;
+	char	*parsedNames[MAX_DEMOS];
+	char	*otherNames[MAX_DEMOS];
+	int		count;
+	int		i;
+	int		len;
+	int		nParsed;
+	int		nOther;
+	int		otherSlots;
 
 	s_demos.numAll = 0;
 	s_demos.numParsed = 0;
+	nParsed = 0;
+	nOther = 0;
 
 	Com_sprintf( extension, sizeof( extension ), "dm_%d",
 			(int)trap_Cvar_VariableValue( "protocol" ) );
 
 	count = trap_FS_GetFileList( "demos", extension, s_demos.fileListBuf,
 			DEMO_LIST_BUF_SIZE );
-	if ( count > MAX_DEMOS ) {
-		count = MAX_DEMOS;
-	}
 
 	demoname = s_demos.fileListBuf;
 	for ( i = 0; i < count; i++ ) {
-		demoEntry_t *entry;
-		char stripped[MAX_OSPATH];
 		len = strlen( demoname );
-
-		if ( s_demos.numAll >= MAX_DEMOS ) {
-			break;
+		if ( UI_Demo_NameIsAutorecord( demoname ) ) {
+			UI_Demo_InsertNewestName( parsedNames, &nParsed, MAX_DEMOS, demoname );
 		}
-
-		entry = &s_demos.entries[s_demos.numAll];
-		memset( entry, 0, sizeof( *entry ) );
-
-		Q_strncpyz( entry->fsName, demoname, sizeof( entry->fsName ) );
-		UI_Demo_LoadFileSize( demoname, entry );
-
-		Q_strncpyz( stripped, demoname, sizeof( stripped ) );
-		UI_Demo_StripExtension( stripped );
-		Q_strncpyz( entry->filename, stripped, sizeof( entry->filename ) );
-
-		if ( UI_Demo_ParseAutorecord( entry->filename, entry ) ) {
-			UI_Demo_BuildStructuredLabel( entry );
-			s_demos.numParsed++;
-		} else {
-			Q_strncpyz( entry->label, entry->filename, sizeof( entry->label ) );
-		}
-
-		s_demos.numAll++;
 		demoname += len + 1;
+	}
+
+	otherSlots = MAX_DEMOS - nParsed;
+	demoname = s_demos.fileListBuf;
+	for ( i = 0; i < count && nOther < otherSlots; i++ ) {
+		len = strlen( demoname );
+		if ( !UI_Demo_NameListContains( parsedNames, nParsed, demoname ) ) {
+			otherNames[nOther] = demoname;
+			nOther++;
+		}
+		demoname += len + 1;
+	}
+
+	for ( i = 0; i < nParsed; i++ ) {
+		UI_Demo_AddEntryFromFsName( parsedNames[i] );
+	}
+	for ( i = 0; i < nOther; i++ ) {
+		UI_Demo_AddEntryFromFsName( otherNames[i] );
 	}
 }
 

@@ -3866,6 +3866,241 @@ void CG_PlayerAutoHeadColor(clientInfo_t *ci, byte *outColor) {
 
 /*
 ===============
+CG_BigHeadScoreForClient
+===============
+*/
+static int CG_BigHeadScoreForClient( int clientNum ) {
+	if ( cg.snap && clientNum == cg.snap->ps.clientNum ) {
+		return cg.snap->ps.persistant[PERS_SCORE];
+	}
+	return cgs.clientinfo[clientNum].score;
+}
+
+/*
+===============
+CG_BigHeadSortScores
+===============
+*/
+static void CG_BigHeadSortScores( int *a, int n ) {
+	int i, j, key;
+
+	for ( i = 1; i < n; i++ ) {
+		key = a[i];
+		for ( j = i; j > 0 && a[j - 1] > key; j-- ) {
+			a[j] = a[j - 1];
+		}
+		a[j] = key;
+	}
+}
+
+/*
+===============
+CG_BigHeadScaleFromStats
+
+Leaders who stand out from the pack get larger heads. Everyone else stays 1.0.
+===============
+*/
+#define BIGHEAD_RANGE_FACTOR		2.0f
+#define BIGHEAD_DEADZONE			0.2f
+#define BIGHEAD_MIN_RANGE			4
+#define BIGHEAD_MIN_SCALE			1.0f
+#define BIGHEAD_MAX_SCALE			3.0f
+#define BIGHEAD_TARGET_INTERVAL		1000
+#define BIGHEAD_LERP_MSEC			250
+#define BIGHEAD_SCORE_REQUEST_MSEC	2000
+
+static float CG_BigHeadScaleFromStats( int score, int range, float median ) {
+	float	dev;
+	float	adj;
+	float	scale;
+
+	if ( range < BIGHEAD_MIN_RANGE ) {
+		return 1.0f;
+	}
+
+	dev = ( (float)score - median ) / (float)range;
+	if ( dev <= BIGHEAD_DEADZONE ) {
+		return 1.0f;
+	}
+	adj = dev - BIGHEAD_DEADZONE;
+
+	scale = 1.0f + BIGHEAD_RANGE_FACTOR * adj * (float)cgs.bigHead;
+	if ( scale < BIGHEAD_MIN_SCALE ) {
+		scale = BIGHEAD_MIN_SCALE;
+	} else if ( scale > BIGHEAD_MAX_SCALE ) {
+		scale = BIGHEAD_MAX_SCALE;
+	}
+	return scale;
+}
+
+static void CG_BigHeadResetScales( void ) {
+	int i;
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		cg.bigHeadTarget[i] = 1.0f;
+		cg.bigHeadDisplay[i] = 1.0f;
+	}
+	cg.bigHeadInited = qtrue;
+	cg.bigHeadUpdateTime = 0;
+}
+
+static qboolean CG_BigHeadClientIsDead( int clientNum ) {
+	centity_t *cent;
+
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	if ( cgs.clientinfo[clientNum].isDead ) {
+		return qtrue;
+	}
+	if ( cg.snap && clientNum == cg.snap->ps.clientNum
+			&& cg.snap->ps.stats[STAT_HEALTH] <= 0 ) {
+		return qtrue;
+	}
+	cent = &cg_entities[clientNum];
+	if ( cent->currentState.eFlags & EF_DEAD ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+static void CG_BigHeadRefreshTargets( void ) {
+	int		i;
+	int		scores[MAX_CLIENTS];
+	int		n;
+	int		range;
+	float	median;
+	clientInfo_t *ci;
+
+	n = 0;
+	for ( i = 0; i < cgs.maxclients; i++ ) {
+		ci = &cgs.clientinfo[i];
+		if ( !ci->infoValid || ci->team == TEAM_SPECTATOR ) {
+			continue;
+		}
+		if ( n >= MAX_CLIENTS ) {
+			break;
+		}
+		scores[n++] = CG_BigHeadScoreForClient( i );
+	}
+
+	if ( n < 2 ) {
+		for ( i = 0; i < MAX_CLIENTS; i++ ) {
+			if ( !CG_BigHeadClientIsDead( i ) ) {
+				cg.bigHeadTarget[i] = 1.0f;
+			}
+		}
+		return;
+	}
+
+	CG_BigHeadSortScores( scores, n );
+	range = scores[n - 1] - scores[0];
+	if ( n & 1 ) {
+		median = (float)scores[n / 2];
+	} else {
+		median = 0.5f * (float)( scores[n / 2 - 1] + scores[n / 2] );
+	}
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		ci = &cgs.clientinfo[i];
+		if ( CG_BigHeadClientIsDead( i ) ) {
+			continue;
+		}
+		if ( i >= cgs.maxclients || !ci->infoValid || ci->team == TEAM_SPECTATOR ) {
+			cg.bigHeadTarget[i] = 1.0f;
+			continue;
+		}
+		cg.bigHeadTarget[i] = CG_BigHeadScaleFromStats( CG_BigHeadScoreForClient( i ), range, median );
+	}
+}
+
+static void CG_BigHeadLerpDisplays( void ) {
+	int		i;
+	float	frac;
+	float	delta;
+
+	frac = (float)cg.frametime / (float)BIGHEAD_LERP_MSEC;
+	if ( frac > 1.0f ) {
+		frac = 1.0f;
+	} else if ( frac < 0.0f ) {
+		frac = 0.0f;
+	}
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		if ( CG_BigHeadClientIsDead( i ) ) {
+			continue;
+		}
+		delta = cg.bigHeadTarget[i] - cg.bigHeadDisplay[i];
+		if ( delta > -0.001f && delta < 0.001f ) {
+			cg.bigHeadDisplay[i] = cg.bigHeadTarget[i];
+			continue;
+		}
+		cg.bigHeadDisplay[i] += delta * frac;
+	}
+}
+
+/*
+===============
+CG_BigHeadScaleForClient
+===============
+*/
+static float CG_BigHeadScaleForClient( int clientNum ) {
+	if ( cgs.bigHead <= 0 ) {
+		return 1.0f;
+	}
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return 1.0f;
+	}
+	if ( !cg.bigHeadInited ) {
+		return 1.0f;
+	}
+	return cg.bigHeadDisplay[clientNum];
+}
+
+/*
+===============
+CG_BigHeadUpdateScores
+
+Refresh scoreboard scores occasionally, cache head-scale targets from
+clientinfo (ignore scoreboard numScores wipes), and lerp displayed size.
+===============
+*/
+void CG_BigHeadUpdateScores( void ) {
+	int i;
+
+	if ( cgs.bigHead <= 0 ) {
+		if ( cg.bigHeadInited ) {
+			CG_BigHeadResetScales();
+		}
+		return;
+	}
+
+	if ( !cg.bigHeadInited ) {
+		for ( i = 0; i < MAX_CLIENTS; i++ ) {
+			cg.bigHeadTarget[i] = 1.0f;
+			cg.bigHeadDisplay[i] = 1.0f;
+		}
+		cg.bigHeadInited = qtrue;
+		CG_BigHeadRefreshTargets();
+		cg.bigHeadUpdateTime = cg.time;
+	} else if ( cg.bigHeadUpdateTime + BIGHEAD_TARGET_INTERVAL <= cg.time ) {
+		CG_BigHeadRefreshTargets();
+		cg.bigHeadUpdateTime = cg.time;
+	}
+
+	CG_BigHeadLerpDisplays();
+
+	if ( cg.scoresRequestTime + BIGHEAD_SCORE_REQUEST_MSEC > cg.time ) {
+		return;
+	}
+	cg.scoresRequestTime = cg.time;
+	if ( !cg.demoPlayback ) {
+		trap_SendClientCommand( "score" );
+	}
+}
+
+/*
+===============
 CG_Player
 ===============
 */
@@ -4257,6 +4492,16 @@ void CG_Player( centity_t *cent ) {
 	VectorCopy( cent->lerpOrigin, head.lightingOrigin );
 
 	CG_PositionRotatedEntityOnTag( &head, &torso, ci->torsoModel, "tag_head");
+
+	{
+		float headScale = CG_BigHeadScaleForClient( clientNum );
+		if ( headScale < 0.999f || headScale > 1.001f ) {
+			VectorScale( head.axis[0], headScale, head.axis[0] );
+			VectorScale( head.axis[1], headScale, head.axis[1] );
+			VectorScale( head.axis[2], headScale, head.axis[2] );
+			head.nonNormalizedAxes = qtrue;
+		}
+	}
 
 	head.shadowPlane = shadowPlane;
 	head.renderfx = renderfx;

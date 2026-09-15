@@ -1125,6 +1125,11 @@ void UI_SetActiveMenu( uiMenuCommand_t menu ) {
 		UI_ForceMenuOff();
 		return;
 	case UIMENU_MAIN:
+		/* Replay transport can leave timescale at 0x/Nx after disconnect.
+		 * Skip the reset while reverse-seek is reloading the same demo. */
+		if ( (int)trap_Cvar_VariableValue( "cg_demoSeekActive" ) == 0 ) {
+			trap_Cvar_Set( "timescale", "1" );
+		}
 		UI_MainMenu();
 		return;
 	case UIMENU_NEED_CD:

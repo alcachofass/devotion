@@ -19,7 +19,7 @@ Players can vote in-game to adjust various aspects of the server configuration.
 
 These are only exposed to players if listed in `g_voteNames`.
 
-**Default `g_voteNames`:** `/map_restart/nextmap/map/g_gametype/clientkick/g_doWarmup/timelimit/fraglimit/capturelimit/shuffle/bots/botskill/votenextmap/`
+**Default `g_voteNames`:** `/map_restart/nextmap/map/g_gametype/clientkick/g_doWarmup/timelimit/fraglimit/capturelimit/shuffle/bots/botskill/votenextmap/deathpit_mercy/bigheads/`
 
 Set `g_voteNames` to `*` to allow all.
 
@@ -43,6 +43,8 @@ Set `g_voteNames` to `*` to allow all.
 | `unlock` | RatMod | `callvote unlock` | Unlock teams. |
 | `arena` | RatMod | `callvote arena 2` | Switch RA3 arena on supported maps. |
 | `custom` | RatMod | `callvote custom instagib_on` | Run entry from `g_votecustomfile`. |
+| `deathpit_mercy` | Devotion | `callvote deathpit_mercy 1` | Enable or disable death pit mercy. |
+| `bigheads` | Devotion | `callvote bigheads 1` | Enable or disable cosmetic head scaling. |
 
 ## Custom votes
 Server operator only - Allows you to define custom voteable verbs so players can vote for additional configuration changes during play.
@@ -90,7 +92,7 @@ Restrict votable types with `g_voteGametypes` (default includes several IDs).
 | `g_voteMinCapturelimit` | RatMod | `0` | Vote system configuration. |
 | `g_voteMinFraglimit` | RatMod | `0` | Vote system configuration. |
 | `g_voteMinTimelimit` | RatMod | `0` | Vote system configuration. |
-| `g_voteNames` | RatMod | `/map_restart/nextmap/map/g_gametype/clientkick/g_doWarmup/timelimit/fraglimit/capturelimit/shuffle/bots/botskill/votenextmap/` | Vote system configuration. |
+| `g_voteNames` | RatMod | `/map_restart/nextmap/map/g_gametype/clientkick/g_doWarmup/timelimit/fraglimit/capturelimit/shuffle/bots/botskill/votenextmap/deathpit_mercy/bigheads/` | Vote system configuration. |
 | `g_voteRepeatLimit` | RatMod | `0` | Vote system configuration. |
 | `g_votecustomfile` | RatMod | `votecustom.cfg` | Vote system configuration. |
 | `g_votemapsfile` | RatMod | `votemaps.cfg` | Vote system configuration. |

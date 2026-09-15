@@ -767,6 +767,11 @@ typedef struct {
 	qboolean	scoreBoardShowing;
 	int			scoreFadeTime;
 
+	float		bigHeadTarget[MAX_CLIENTS];
+	float		bigHeadDisplay[MAX_CLIENTS];
+	int			bigHeadUpdateTime;
+	qboolean	bigHeadInited;
+
 	qboolean teamsLocked;
 	qboolean teamQueueSystem;
 
@@ -1616,6 +1621,7 @@ typedef struct {
 	int			team_gt;
 
 	int			altFireMode;	//mrd
+	int			bigHead;		// g_bigHead: cosmetic head scale from score
 
 //Elimination
 	int				roundStartTime;	
@@ -2009,6 +2015,7 @@ int CG_GetScoresMtrn(int scoreNum);
 // cg_player.c
 //
 void CG_Player( centity_t *cent );
+void CG_BigHeadUpdateScores( void );
 void CG_PlayerGetColors(clientInfo_t *ci, qboolean isDead, int bodyPart, byte *outColor);
 void CG_ResetPlayerEntity( centity_t *cent );
 void CG_DemoDelagResetPlayerAnims( centity_t *cent, int legsAnim, int torsoAnim );
