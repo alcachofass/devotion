@@ -330,8 +330,14 @@ void PM_StepSlideMove( qboolean gravity ) {
 			else {
 				PM_OneSidedClipVelocity( pm->ps->velocity, trace.plane.normal, pm->ps->velocity, OVERCLIP );
 			}
+		} else if ( pm->pmove_movement == MOVEMENT_QL ) {
+			// ioquakelive: only clip when moving into the lip so jumppad/jump
+			// leftover Z is not zeroed. Kickoff then continues the ascent.
+			float dot = DotProduct( pm->ps->velocity, trace.plane.normal );
+			if ( dot < 0.001f ) {
+				PM_ClipVelocity( pm->ps->velocity, trace.plane.normal, pm->ps->velocity, OVERCLIP );
+			}
 		} else {
-			// QL: always clip on the lip so leftover swim/jump Z cannot ride over.
 			PM_ClipVelocity( pm->ps->velocity, trace.plane.normal, pm->ps->velocity, OVERCLIP );
 		}
 	}
