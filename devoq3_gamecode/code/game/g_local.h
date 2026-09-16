@@ -63,6 +63,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define FL_NO_BOTS				0x00002000	// spawn point not for bot use
 #define FL_NO_HUMANS			0x00004000	// spawn point just for bots
 #define FL_FORCE_GESTURE		0x00008000	// force gesture on client
+#define FL_ITEM_TIMER			0x00010000	// picked-up major item broadcasting a respawn timer
 
 // for delagged projectiles
 #define	DELAG_MAX_BACKTRACK (g_delagMissileMaxLatency.integer + 1000/sv_fps.integer * 2)
@@ -755,6 +756,7 @@ typedef struct {
 
 	int			teamScores[TEAM_NUM_TEAMS];
 	int			lastTeamLocationTime;		// last time of client team location update
+	int			lastSpecStatusTime;		// last spectator health/armor/origin broadcast
 
 	qboolean	newSession;				// don't use any old session data, because
 										// we changed gametype
@@ -1040,6 +1042,8 @@ void Think_Weapon (gentity_t *ent);
 int ArmorIndex (gentity_t *ent);
 void	Add_Ammo (gentity_t *ent, int weapon, int count);
 void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace);
+void Item_NotifySpectatorPending( gentity_t *clientEnt );
+void G_RefreshItemTimerBroadcast( void );
 
 void ClearRegisteredItems( void );
 void RegisterItem( gitem_t *item );

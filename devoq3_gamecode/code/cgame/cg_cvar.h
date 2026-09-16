@@ -309,6 +309,16 @@ CG_CVAR( cg_teamCorpseValue ,           "cg_teamCorpseValue", "0.2", CVAR_ARCHIV
 
 CG_CVAR( cg_itemFade ,           "cg_itemFade", "1", CVAR_ARCHIVE )
 CG_CVAR( cg_itemFadeTime ,           "cg_itemFadeTime", "3000", CVAR_CHEAT )
+CG_CVAR( cg_itemTimers ,         "cg_itemTimers", "0", CVAR_ARCHIVE )
+CG_CVAR( cg_itemTimersScale ,    "cg_itemTimersScale", "1.0", CVAR_ARCHIVE )
+CG_CVAR( cg_itemTimersOffset ,   "cg_itemTimersOffset", "8", CVAR_ARCHIVE )
+CG_CVAR( cg_itemTimersAlpha ,    "cg_itemTimersAlpha", "200", CVAR_ARCHIVE )
+CG_CVAR( cg_specItemTimers ,     "cg_specItemTimers", "15", CVAR_ARCHIVE )
+CG_CVAR( cg_specItemTimersX ,    "cg_specItemTimersX", "10", CVAR_ARCHIVE )
+CG_CVAR( cg_specItemTimersY ,    "cg_specItemTimersY", "200", CVAR_ARCHIVE )
+CG_CVAR( cg_specItemTimersSize , "cg_specItemTimersSize", "0.24", CVAR_ARCHIVE )
+CG_CVAR( cg_demoItemTimers ,     "cg_demoItemTimers", "1", CVAR_ARCHIVE )
+CG_CVAR( cg_specPlayerStatus ,   "cg_specPlayerStatus", "1", CVAR_ARCHIVE )
 
 CG_CVAR( cg_pingLocationTime,          "cg_pingLocationTime", "1000", CVAR_ARCHIVE )
 CG_CVAR( cg_pingLocationTime2,         "cg_pingLocationTime2", "3500", CVAR_ARCHIVE )

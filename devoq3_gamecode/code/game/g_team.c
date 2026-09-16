@@ -2260,6 +2260,97 @@ void TeamplayInfoMessage( gentity_t *ent ) {
 	trap_SendServerCommand( ent-g_entities, va("tinfo %i %s", cnt, string) );
 }
 
+static qboolean G_ClientWantsSpecStatus( gentity_t *ent ) {
+	if ( !ent || !ent->client ) {
+		return qfalse;
+	}
+	if ( ent->client->pers.connected != CON_CONNECTED ) {
+		return qfalse;
+	}
+	if ( ent->r.svFlags & SVF_BOT ) {
+		return qfalse;
+	}
+	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+		return qtrue;
+	}
+	if ( ent->client->ps.pm_type == PM_SPECTATOR ) {
+		return qtrue;
+	}
+	if ( ent->client->isEliminated ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+/*
+==================
+SpectatorStatusMessage
+
+Health, armor, and origin for every living player. Spectators only.
+==================
+*/
+void SpectatorStatusMessage( gentity_t *ent ) {
+	char		entry[128];
+	char		string[1024];
+	int			stringlength;
+	int			i;
+	int			cnt;
+	int			h, a;
+	gentity_t	*player;
+
+	if ( !g_specPlayerStatus.integer ) {
+		return;
+	}
+	if ( !G_ClientWantsSpecStatus( ent ) ) {
+		return;
+	}
+
+	string[0] = 0;
+	stringlength = 0;
+	cnt = 0;
+
+	for ( i = 0; i < g_maxclients.integer; i++ ) {
+		player = g_entities + i;
+		if ( !G_InUse( player ) || !player->client ) {
+			continue;
+		}
+		if ( player->client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( player->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+			continue;
+		}
+		if ( player->client->ps.pm_type == PM_SPECTATOR ) {
+			continue;
+		}
+		h = player->client->ps.stats[STAT_HEALTH];
+		a = player->client->ps.stats[STAT_ARMOR];
+		if ( player->client->isEliminated ) {
+			continue;
+		}
+		if ( h <= 0 ) {
+			continue;
+		}
+		if ( a < 0 ) {
+			a = 0;
+		}
+
+		Com_sprintf( entry, sizeof( entry ), " %i %i %i %i %i %i",
+				i, h, a,
+				(int)player->r.currentOrigin[0],
+				(int)player->r.currentOrigin[1],
+				(int)player->r.currentOrigin[2] );
+		if ( stringlength + (int)strlen( entry ) >= (int)sizeof( string ) - 1 ) {
+			break;
+		}
+		Q_strcat( string, sizeof( string ), entry );
+		stringlength += strlen( entry );
+		cnt++;
+	}
+
+	trap_SendServerCommand( ent - g_entities, va( "sinfo %i %i%s", level.time, cnt, string ) );
+}
+
 void CheckTeamStatus(void) {
 	int i;
 	gentity_t *loc, *ent;
@@ -2294,6 +2385,18 @@ void CheckTeamStatus(void) {
 			if (G_InUse(ent) && (ent->client->sess.sessionTeam == TEAM_RED ||	ent->client->sess.sessionTeam == TEAM_BLUE)) {
 				TeamplayInfoMessage( ent );
 			}
+		}
+	}
+
+	if ( g_specPlayerStatus.integer &&
+			level.time - level.lastSpecStatusTime >= SPEC_STATUS_UPDATE_TIME ) {
+		level.lastSpecStatusTime = level.time;
+		for ( i = 0; i < g_maxclients.integer; i++ ) {
+			ent = g_entities + i;
+			if ( !ent->client || ent->client->pers.connected != CON_CONNECTED ) {
+				continue;
+			}
+			SpectatorStatusMessage( ent );
 		}
 	}
 }

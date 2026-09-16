@@ -1236,6 +1236,51 @@ static void CG_ParseTeamInfo( void ) {
 	}
 }
 
+static void CG_ParseSpecPlayerStatus( void ) {
+	int		i;
+	int		n;
+	int		client;
+	int		base;
+	int		serverTime;
+	qboolean	seen[MAX_CLIENTS];
+	clientInfo_t	*ci;
+
+	serverTime = atoi( CG_Argv( 1 ) );
+	n = atoi( CG_Argv( 2 ) );
+	if ( n < 0 || n > MAX_CLIENTS ) {
+		return;
+	}
+
+	memset( seen, 0, sizeof( seen ) );
+
+	for ( i = 0; i < n; i++ ) {
+		base = i * 6 + 3;
+		client = atoi( CG_Argv( base ) );
+		if ( client < 0 || client >= MAX_CLIENTS ) {
+			continue;
+		}
+		ci = &cgs.clientinfo[client];
+		if ( ci->specInfoValid && ci->specServerTime != serverTime ) {
+			VectorCopy( ci->specOrigin, ci->specOriginPrev );
+			ci->specServerTimePrev = ci->specServerTime;
+		}
+		ci->health = atoi( CG_Argv( base + 1 ) );
+		ci->armor = atoi( CG_Argv( base + 2 ) );
+		ci->specOrigin[0] = (float)atoi( CG_Argv( base + 3 ) );
+		ci->specOrigin[1] = (float)atoi( CG_Argv( base + 4 ) );
+		ci->specOrigin[2] = (float)atoi( CG_Argv( base + 5 ) );
+		ci->specServerTime = serverTime;
+		ci->specInfoValid = qtrue;
+		seen[client] = qtrue;
+	}
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		if ( !seen[i] ) {
+			cgs.clientinfo[i].specInfoValid = qfalse;
+		}
+	}
+}
+
 
 /*
 ================
@@ -1574,9 +1619,10 @@ static void CG_ConfigStringModified( void ) {
 		}
 //#endif
 */
-	}
-	else if ( num == CS_SHADERSTATE ) {
+	} else if ( num == CS_SHADERSTATE ) {
 		CG_ShaderStateChanged();
+	} else if ( num == CS_ITEMTIMERS ) {
+		CG_ItemTimersReadConfig();
 	}
 }
 
@@ -1678,6 +1724,8 @@ static void CG_MapRestart( void ) {
 	CG_InitLocalEntities();
 	CG_InitMarkPolys();
 	CG_ClearParticles ();
+
+	CG_ItemTimersBuildRoster();
 
 	cgs.redflag = 0;
 	cgs.blueflag = 0;
@@ -2544,6 +2592,11 @@ static void CG_ServerCommand( void ) {
 
 	if ( !strcmp( cmd, "tinfo" ) ) {
 		CG_ParseTeamInfo();
+		return;
+	}
+
+	if ( !strcmp( cmd, "sinfo" ) ) {
+		CG_ParseSpecPlayerStatus();
 		return;
 	}
 

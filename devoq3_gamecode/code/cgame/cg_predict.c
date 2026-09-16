@@ -297,7 +297,8 @@ static void CG_InterpolatePlayerState( qboolean grabAngles ) {
 }
 
 qboolean CG_ItemPredictionDangerous(centity_t *item) {
-	if (item->currentState.time2 > 0 
+	if (item->currentState.time2 > 0
+			&& !(item->currentState.eFlags & EF_NODRAW)
 			&& cg.time + CG_ReliablePing() + 10 >= item->currentState.time2) {
 		// item is about to disappear, so don't predict it
 		return qtrue;

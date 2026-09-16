@@ -24,6 +24,7 @@ cg_demo_events
 cg_demo_msg_stub
 cg_visualsounds
 cg_superhud
+cg_itemtimers
 cg_unlagged
 cg_view
 cg_weapons

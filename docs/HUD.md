@@ -69,8 +69,16 @@ Custom HUD support in Devo is only partial. Most everyday CPMA HUD pieces (e.g. 
 
 Some specific limitations:
 - No custom font rendering, so text will look and be spaced a bit different than in CPMA.
-- Item timers, keyboard indicators, and multiview are not implemented (yet).
+- Keyboard indicators and multiview are not implemented (yet).
 - Unknown SuperHUD names are skipped. Set `developer 1` to see a one-time warning list when a HUD loads.
+
+### Item timers (SuperHUD)
+
+CPMA `ItemTimers1`–`4` `_Icons` / `_Times` are implemented. Place them with `rect`, `spacing`, `direction`, and `itteam` (`F` all, `O` own/CTF-near-your-flag, `N` enemy). Icons stay for the whole match; the time is hidden while the item is up and counts down after it is taken. Spectators get the full-map list at join (server `g_specItemTimers`). Playing clients only see pads the server is broadcasting (`g_itemTimers`). During demo playback, `cg_demoItemTimers` (replay sidebar **Timers**) shows the overlay even if you were playing in the recording. The pad list is built once at session start (server roster, or the map entity list in older recordings) and does not grow during seeks. Countdowns on old demos come from pickup events; unknown pads show `--`. The default `devotion_default` HUD shows a spectator list at 10,200 (`visflags follow`).
+
+World-space pies at the pad are independent of HUD mode (`cg_itemTimers`).
+
+Spectators also get a QL-style overhead status box (`cg_specPlayerStatus`, server `g_specPlayerStatus`): name, four health pips, and an armor bar, drawn in 2D so it shows through walls even when the player model is not in PVS.
 
 ---
 
@@ -117,3 +125,5 @@ reloadHUD
 - Text uses Quake’s bitmap font, not QL’s TrueType look. This can change appearance and spacing.
 - Widescreen keywords in `.menu` files are ignored.
 - Stock **Team Arena** menus use different ID numbers than Quake Live - they need converting. Devotion follows the **Quake Live** ID set.
+
+Spectator item timers are **not** a `.menu` ownerdraw (same as QL). They use the fixed overlay `cg_specItemTimers` / `X` / `Y` / `Size` (defaults `15`, `10`, `200`, `0.24`). World pies use `cg_itemTimers`.

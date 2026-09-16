@@ -776,6 +776,8 @@ void G_RegisterCvars( void ) {
 
 	G_EnsureVoteName( "deathpit_mercy" );
 	G_EnsureVoteName( "bigheads" );
+	G_EnsureVoteName( "itemtimers" );
+	G_EnsureVoteName( "item_timers" );
 }
 
 qboolean G_IsTeamGametype(void) {
@@ -982,6 +984,10 @@ void G_UpdateCvars( void ) {
 
                                     trap_Cvar_Set("voteflags",va("%i",voteflags));
                                 }
+
+				if ( cv->vmCvar == &g_itemTimers ) {
+					G_RefreshItemTimerBroadcast();
+				}
       
 				if (cv->teamShader) {
 					remapped = qtrue;

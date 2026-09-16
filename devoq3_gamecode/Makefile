@@ -1722,6 +1722,7 @@ Q3CGOBJ_ = \
   $(B)/baseq3/cgame/cg_demo_msg_stub.o \
   $(B)/baseq3/cgame/cg_visualsounds.o \
   $(B)/baseq3/cgame/cg_superhud.o \
+  $(B)/baseq3/cgame/cg_itemtimers.o \
   $(B)/baseq3/cgame/cg_menuhud.o \
   $(B)/baseq3/cgame/cg_menuhud_draw.o \
   $(B)/baseq3/cgame/ui_shared.o \
@@ -1780,6 +1781,7 @@ MPCGOBJ_ = \
   $(B)/missionpack/cgame/cg_demo_msg_stub.o \
   $(B)/missionpack/cgame/cg_visualsounds.o \
   $(B)/missionpack/cgame/cg_superhud.o \
+  $(B)/missionpack/cgame/cg_itemtimers.o \
   $(B)/missionpack/cgame/cg_unlagged.o \
   $(B)/missionpack/cgame/cg_view.o \
   $(B)/missionpack/cgame/cg_weapons.o \

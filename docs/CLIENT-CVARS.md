@@ -188,6 +188,16 @@ Client-side variables registered by the **cgame** module (`cg_*`, plus related n
 | `cg_ignore` | Vanilla | `0` | 0 or 1 | Internal debug flag. Currently unused. |
 | `cg_itemFade` | RatMod | `1` | 0 or 1 | When `1`, fades dropped items shortly before they despawn. |
 | `cg_itemFadeTime` | RatMod | `3000` | integer >= 0 (typical) | How long the fade-out of an expiring dropped item lasts, in milliseconds. |
+| `cg_itemTimers` | Devotion | `0` | 0, 1, or 2 | World-space item respawn pies: `0` off, `1` on, `2` draw through walls. Requires server `g_itemTimers`. |
+| `cg_itemTimersAlpha` | Devotion | `200` | 0–255 | Opacity of world-space item timer pies. |
+| `cg_itemTimersOffset` | Devotion | `8` | float | Vertical offset of world-space item timer pies, in game units. |
+| `cg_itemTimersScale` | Devotion | `1.0` | float | Size of world-space item timer pies. |
+| `cg_specItemTimers` | Devotion | `15` | bitmask | Spectator HUD overlay: `0` off. Default `15` = RA+YA+MH+powerups. `7` is treated as `15`. |
+| `cg_specItemTimersSize` | Devotion | `0.24` | float | Overlay icon scale (QL default `0.24` ≈ 24px). |
+| `cg_specItemTimersX` | Devotion | `10` | float | Overlay X in 640-wide HUD coordinates. |
+| `cg_specItemTimersY` | Devotion | `200` | float | Overlay Y in 480-tall HUD coordinates. |
+| `cg_demoItemTimers` | Devotion | `1` | 0 or 1 | When `1`, shows the item-timer overlay while watching demos (replay sidebar Timers toggle). Old recordings reconstruct countdowns from pickups; unknown pads show `--`. |
+| `cg_specPlayerStatus` | Devotion | `1` | 0 or 1 | When `1`, spectators see a QL-style name / 4 health pips / armor bar above each player, including through walls. |
 | `cg_lagometer` | Vanilla | `1` | 0 or 1 | When `1`, shows the lagometer graph (ping, packet loss, and snapshot rate). |
 | `cg_latentCmds` | RatMod | `0` | 0 or 1 | Simulated delay on outgoing commands for network testing. Currently unused. |
 | `cg_latentSnaps` | RatMod | `0` | 0 or 1 | Simulated delay on incoming snapshots for network testing. Currently unused. |

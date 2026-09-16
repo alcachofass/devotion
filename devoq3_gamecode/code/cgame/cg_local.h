@@ -491,8 +491,16 @@ typedef struct {
 
 	int				score;			// updated by score servercmds
 	int				location;		// location index for team mode
-	int				health;			// you only get this info about your teammates
+	int				health;			// teammates (tinfo) and spectators (sinfo)
 	int				armor;
+	vec3_t			specOrigin;		// last origin from spectator status
+	vec3_t			specOriginPrev;
+	int				specServerTime;
+	int				specServerTimePrev;
+	vec3_t			specDrawOrigin;
+	vec3_t			specDrawVel;
+	qboolean		specDrawValid;
+	qboolean		specInfoValid;
 	int				curWeapon;
 	int				respawnTime;
 
@@ -950,6 +958,7 @@ typedef struct {
 	qhandle_t	charsetPropGlow;
 	qhandle_t	charsetPropB;
 	qhandle_t	whiteShader;
+	qhandle_t	itemTimerShader;
 
 	qhandle_t	redCubeModel;
 	qhandle_t	blueCubeModel;
@@ -1895,6 +1904,36 @@ qboolean CG_SH_HasVote( void );
 qboolean CG_SH_HasTeamVote( void );
 qboolean CG_SH_HasWarmupInfo( void );
 void CG_SH_AddGameEvent( const char *text );
+qboolean CG_SH_HasItemTimers( void );
+
+//
+// cg_itemtimers.c
+//
+#define MAX_CG_ITEMTIMERS		64
+
+typedef struct {
+	int		entNum;
+	int		itemIndex;
+	int		respawnTime;
+	int		duration;
+	int		side;
+	qboolean	unknown;
+} cgItemTimer_t;
+
+void CG_ItemTimersInit( void );
+void CG_ItemTimersReset( void );
+void CG_ItemTimersReadConfig( void );
+void CG_ItemTimersBuildRoster( void );
+void CG_ItemTimersSpecEvent( const entityState_t *es );
+void CG_ItemTimersTouchEntity( const centity_t *cent );
+void CG_ItemTimersNotePickup( int itemIndex, const vec3_t origin );
+void CG_ItemTimersDemoFrame( void );
+void CG_DrawItemTimerPie( const centity_t *cent );
+void CG_DrawSpecItemTimers( void );
+void CG_DrawSpecPlayerStatus( void );
+int CG_ItemTimersCollect( cgItemTimer_t *out, int max, int sideFilter, int bitMask );
+int CG_ItemTimerFollowSideFilter( int itTeam );
+
 void CG_ReloadHUD_f( void );
 void CG_SH_Dump_f( void );
 void CG_HudHide_f( void );
@@ -1915,6 +1954,7 @@ void CG_LoadHudMenu( void );
 // cg_drawtools.c
 //
 void CG_AdjustFrom640( float *x, float *y, float *w, float *h );
+qboolean CG_WorldToScreen( const vec3_t point, float *x, float *y );
 void CG_FillRect( float x, float y, float width, float height, const float *color );
 void CG_DrawPic( float x, float y, float width, float height, qhandle_t hShader );
 void CG_DrawString( float x, float y, const char *string, 

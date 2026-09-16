@@ -113,7 +113,7 @@ G_CVAR( g_podiumDrop, "g_podiumDrop", "70", 0, 0, qfalse, qfalse )
 G_CVAR( g_allowVote, "g_allowVote", "1", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse )
 G_CVAR( g_maxvotes, "g_maxVotes", MAX_VOTE_COUNT, CVAR_ARCHIVE, 0, qfalse, qfalse )
 G_CVAR( g_voteRepeatLimit, "g_voteRepeatLimit", "0", CVAR_ARCHIVE, 0, qfalse, qfalse )
-G_CVAR( g_voteNames, "g_voteNames", "/map_restart/nextmap/map/g_gametype/clientkick/g_doWarmup/timelimit/fraglimit/capturelimit/shuffle/bots/botskill/votenextmap/deathpit_mercy/bigheads/", CVAR_ARCHIVE, 0, qfalse, qfalse ) //clientkick g_doWarmup timelimit fraglimit
+G_CVAR( g_voteNames, "g_voteNames", "/map_restart/nextmap/map/g_gametype/clientkick/g_doWarmup/timelimit/fraglimit/capturelimit/shuffle/bots/botskill/votenextmap/deathpit_mercy/bigheads/itemtimers/", CVAR_ARCHIVE, 0, qfalse, qfalse ) //clientkick g_doWarmup timelimit fraglimit
 G_CVAR( g_voteBan, "g_voteBan", "0", CVAR_ARCHIVE, 0, qfalse, qfalse )
 G_CVAR( g_voteGametypes, "g_voteGametypes", "/0/1/3/4/5/6/7/8/9/10/11/12/", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse )
 G_CVAR( g_voteMaxTimelimit, "g_voteMaxTimelimit", "1000", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse )
@@ -455,6 +455,9 @@ G_CVAR( g_adminTempBan, "g_adminTempBan", "2m", CVAR_ARCHIVE, 0, qfalse, qfalse 
 G_CVAR( g_adminMaxBan, "g_adminMaxBan", "2w", CVAR_ARCHIVE, 0, qfalse, qfalse )
 
 G_CVAR( g_specChat, "g_specChat", "1", CVAR_ARCHIVE, 0, qfalse, qfalse )
+G_CVAR( g_itemTimers, "g_itemTimers", "0", CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qtrue, qfalse )
+G_CVAR( g_specItemTimers, "g_specItemTimers", "1", CVAR_ARCHIVE, 0, qfalse, qfalse )
+G_CVAR( g_specPlayerStatus, "g_specPlayerStatus", "1", CVAR_ARCHIVE, 0, qfalse, qfalse )
 G_CVAR( g_publicAdminMessages, "g_publicAdminMessages", "1", CVAR_ARCHIVE, 0, qfalse, qfalse )
 
 G_CVAR( g_maxWarnings, "g_maxWarnings", "3", CVAR_ARCHIVE, 0, qfalse, qfalse )

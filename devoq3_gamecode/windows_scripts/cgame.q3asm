@@ -23,6 +23,7 @@ cg_demo_events
 cg_demo_msg_stub
 cg_visualsounds
 cg_superhud
+cg_itemtimers
 cg_menuhud
 cg_menuhud_draw
 ui_shared
