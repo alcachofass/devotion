@@ -100,3 +100,16 @@ jobs:
           make_latest: false
           generate_release_notes: false
           overwrite_files: true
+
+      - name: Copy PK3 to server
+        if: github.event_name == 'push'
+        continue-on-error: true
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USER}}
+          port: ${{ secrets.SSH_PORT }}
+          password: ${{ secrets.SSH_PASS }}
+          source: build/*.pk3
+          target: ${{ secrets.SSH_FOLDER }}
+          overwrite: true
