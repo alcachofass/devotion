@@ -103,6 +103,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	CS_MTRNFLAGS				28		// game status flags for multitournament
 #endif
 
+#define CS_ITEMTIMERS			29		// map major-item timer roster for HUD / demos
+
 #define	CS_MODELS				32
 #define	CS_SOUNDS				(CS_MODELS+MAX_MODELS)
 #define	CS_PLAYERS				(CS_SOUNDS+MAX_SOUNDS)
@@ -670,6 +672,7 @@ typedef enum {
 	EV_DAMAGEPLUM,
 	EV_PUSHNOTIFY,
 	EV_ALTFIRE_WEAPON,	//mrd
+	EV_ITEM_PICKUP_SPEC,	// spectator item-timer notification
 } entity_event_t;
 
 
@@ -901,6 +904,7 @@ gitem_t	*BG_FindItemForHoldable( holdable_t pw );
 #define	ITEM_INDEX(x) ((x)-bg_itemlist)
 
 qboolean	BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const playerState_t *ps );
+qboolean	BG_ItemHasTimer( const gitem_t *item );
 
 
 // g_dmflags->integer flags

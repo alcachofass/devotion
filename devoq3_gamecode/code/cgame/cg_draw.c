@@ -6803,6 +6803,8 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		CG_SH_DrawFrame();
 	}
 
+	CG_DrawSpecItemTimers();
+
 	//if ( !CG_DrawFollow() ) {
 	//	CG_DrawWarmup();
 	//}

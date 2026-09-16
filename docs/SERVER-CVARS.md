@@ -158,6 +158,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_instantgib` | RatMod | `0` | 0 or 1 | Instagib mode: rail-only one-hit kills. `2` enables extra variants. |
 | `g_itemDrop` | RatMod | `7` | integer >= 0 (typical) | Bitmask controlling which items players can drop. |
 | `g_itemPickup` | RatMod | `1` | 0 or 1 | When `1`, enables extended item pickup behavior. |
+| `g_itemTimers` | Devotion | `0` | 0 or 1 | When `1`, players see world-space respawn pies on major items. |
 | `g_killDisable` | RatMod | `0` | 0 or 1 | When `1`, disables the kill/suicide command. |
 | `g_killDropsFlag` | RatMod | `1` | 0 or 1 | When `1`, dying drops your carried flag. |
 | `g_killSafety` | RatMod | `500` | integer >= 0 (typical) | Spawn protection in milliseconds after using kill. |
@@ -237,7 +238,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_redteam` | Vanilla | `Stroggs` | string or numeric (see default) | Red team display name. |
 | `g_regen` | RatMod | `0` | 0 or 1 | Health regenerated per tick when regen mode is active (`0` = off). |
 | `g_regularFootsteps` | RatMod | `1` | 0 or 1 | When `1`, uses standard footstep sounds at all movement speeds. |
-| `g_respawntime` | RatMod | `0` | 0 or 1 | When `1`, shows item respawn timers to players. |
+| `g_respawntime` | RatMod | `0` | integer >= 0 (typical) | Minimum player respawn delay in seconds after death (`0` = no extra delay). |
 | `g_restarted` | Vanilla | `0` | 0 or 1 | Read-only flag set after a `map_restart`. |
 | `g_rocketSpeed` | RatMod | `900` | integer >= 0 (typical) | Rocket launcher projectile speed. |
 | `g_rockets` | RatMod | `0` | 0 or 1 | When `1`, enables rockets-only mode with limited weapons. |
@@ -255,6 +256,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_spawnHealthBonus` | RatMod | `25` | integer >= 0 (typical) | Bonus health given on spawn. |
 | `g_spawnprotect` | RatMod | `0` | 0 or 1 | Spawn protection in milliseconds after respawn (`0` = off). |
 | `g_specChat` | RatMod | `1` | 0 or 1 | When `1`, spectators can use global chat. |
+| `g_specItemTimers` | Devotion | `1` | 0 or 1 | When `1`, spectators get a persistent HUD list of major items (icons always; countdown only while the pad is empty). |
 | `g_specMuted` | RatMod | `0` | 0 or 1 | When `1`, spectators cannot chat. |
 | `g_specShowZoom` | RatMod | `0` | 0 or 1 | When `1`, spectators can use zoom. |
 | `g_spectatorSpeed` | RatMod | `650` | integer >= 0 (typical) | Movement speed for spectators. |
@@ -318,7 +320,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_voteMinCapturelimit` | RatMod | `0` | 0 or 1 | Minimum capturelimit players may vote for (`0` = no minimum). |
 | `g_voteMinFraglimit` | RatMod | `0` | 0 or 1 | Minimum fraglimit players may vote for (`0` = no minimum). |
 | `g_voteMinTimelimit` | RatMod | `0` | 0 or 1 | Minimum timelimit in minutes players may vote for. |
-| `g_voteNames` | RatMod | `/map_restart/nextmap/map/g_gametype/clientkick/g_doWarmup/timelimit/fraglimit/capturelimit/shuffle/bots/botskill/votenextmap/deathpit_mercy/bigheads/` | path list string | Slash-separated list of allowed callvote types. |
+| `g_voteNames` | RatMod | `/map_restart/nextmap/map/g_gametype/clientkick/g_doWarmup/timelimit/fraglimit/capturelimit/shuffle/bots/botskill/votenextmap/deathpit_mercy/bigheads/itemtimers/` | path list string | Slash-separated list of allowed callvote types. |
 | `g_voteRepeatLimit` | RatMod | `0` | 0 or 1 | Failed votes per player before cooldown (`0` = off). |
 | `g_votecustomfile` | RatMod | `votecustom.cfg` | filename | Path to custom callvote definitions file. |
 | `g_votemapsfile` | RatMod | `votemaps.cfg` | filename | Path to the map list allowed for map callvotes. |

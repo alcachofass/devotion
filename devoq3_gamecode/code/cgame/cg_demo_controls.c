@@ -52,6 +52,7 @@ typedef enum {
 	DEMOCTRL_EXIT,
 	DEMOCTRL_CAM,
 	DEMOCTRL_ITEMS,
+	DEMOCTRL_TIMERS,
 	DEMOCTRL_HUD,
 	DEMOCTRL_HITBOX,
 	DEMOCTRL_SHOT,
@@ -200,6 +201,8 @@ static const char *DemoCtrl_ButtonLabel( int btn ) {
 		return cg_thirdPerson.integer ? "Camera: 3rd" : "Camera: 1st";
 	case DEMOCTRL_ITEMS:
 		return "Simple Items";
+	case DEMOCTRL_TIMERS:
+		return "Timers";
 	case DEMOCTRL_HUD:
 		return "Toggle HUD";
 	case DEMOCTRL_HITBOX:
@@ -256,6 +259,8 @@ static qboolean DemoCtrl_ButtonActive( int btn ) {
 		return cg_thirdPerson.integer ? qtrue : qfalse;
 	case DEMOCTRL_ITEMS:
 		return cg_simpleItems.integer ? qtrue : qfalse;
+	case DEMOCTRL_TIMERS:
+		return cg_demoItemTimers.integer ? qtrue : qfalse;
 	case DEMOCTRL_HUD:
 		return cg_draw2D.integer ? qtrue : qfalse;
 	case DEMOCTRL_HITBOX:
@@ -340,7 +345,7 @@ static void DemoCtrl_ButtonRect( int btn, int *x, int *y, int *w, int *h ) {
 		*w = DEMOCTRL_LOCK_W;
 		*h = DEMOCTRL_LOCK_H;
 		*x = DEMOCTRL_SIDE_MARGIN;
-		*y = ( SCREEN_HEIGHT - DEMOCTRL_LOCK_H ) / 2;
+		*y = DEMOCTRL_BAR_Y;
 	} else if ( DemoCtrl_IsSideButton( btn ) ) {
 		index = btn - DEMOCTRL_CAM;
 		*w = DEMOCTRL_SIDE_BTN_W;
@@ -522,6 +527,9 @@ static void DemoCtrl_Activate( int btn ) {
 		break;
 	case DEMOCTRL_ITEMS:
 		trap_Cvar_Set( "cg_simpleItems", cg_simpleItems.integer ? "0" : "1" );
+		break;
+	case DEMOCTRL_TIMERS:
+		trap_Cvar_Set( "cg_demoItemTimers", cg_demoItemTimers.integer ? "0" : "1" );
 		break;
 	case DEMOCTRL_HITBOX:
 		trap_Cvar_Set( "cg_drawBBox", cg_drawBBox.integer ? "0" : "1" );

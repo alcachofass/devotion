@@ -3855,6 +3855,8 @@ void G_PrintVoteCommands(gentity_t *ent) {
 		strcat(buffer, " deathpit_mercy <0|1>\n");
 	if(allowedVote("bigheads"))
 		strcat(buffer, " bigheads <0|1>\n");
+	if(allowedVote("itemtimers") || allowedVote("item_timers") || allowedVote("timers"))
+		strcat(buffer, " itemtimers <0|1>\n");
 	buffer[strlen(buffer)-1] = 0;
 	strcat(buffer, "\n\"");
 	trap_SendServerCommand( ent-g_entities, buffer);
@@ -3931,17 +3933,27 @@ void Cmd_CallVote_f( gentity_t *ent ) {
         } else if ( !Q_stricmp( arg1, "votenextmap" ) ) {
 	} else if ( !Q_stricmp( arg1, "deathpit_mercy" ) ) {
 	} else if ( !Q_stricmp( arg1, "bigheads" ) ) {
+	} else if ( !Q_stricmp( arg1, "itemtimers" ) || !Q_stricmp( arg1, "item_timers" )
+			|| !Q_stricmp( arg1, "timers" ) ) {
 	} else {
 		trap_SendServerCommand( ent-g_entities, "print \"Invalid vote string.\n\"" );
 		G_PrintVoteCommands(ent);
 		return;
 	}
         
-        if(!allowedVote(arg1)) {
-                trap_SendServerCommand( ent-g_entities, "print \"Not allowed here.\n\"" );
+	if ( !Q_stricmp( arg1, "itemtimers" ) || !Q_stricmp( arg1, "item_timers" )
+			|| !Q_stricmp( arg1, "timers" ) ) {
+		if ( !allowedVote( "itemtimers" ) && !allowedVote( "item_timers" )
+				&& !allowedVote( "timers" ) ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Not allowed here.\n\"" );
+			G_PrintVoteCommands(ent);
+			return;
+		}
+	} else if ( !allowedVote( arg1 ) ) {
+		trap_SendServerCommand( ent-g_entities, "print \"Not allowed here.\n\"" );
 		G_PrintVoteCommands(ent);
 		return;
-        }
+	}
 
 	// if there is still a vote to be executed
 	if ( level.voteExecuteTime ) {
@@ -4138,6 +4150,21 @@ void Cmd_CallVote_f( gentity_t *ent ) {
                 else {
                     Com_sprintf( level.voteString, sizeof( level.voteString ), "g_bigHead \"0\"" );
                     Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable big heads?" );
+                }
+        } else if ( !Q_stricmp( arg1, "itemtimers" ) || !Q_stricmp( arg1, "item_timers" )
+			|| !Q_stricmp( arg1, "timers" ) ) {
+                if ( arg2[0] ) {
+                    i = atoi( arg2 );
+                } else {
+                    i = !g_itemTimers.integer;
+                }
+                if(i) {
+                    Com_sprintf( level.voteString, sizeof( level.voteString ), "g_itemTimers \"1\"" );
+                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Enable item timers for players?" );
+                }
+                else {
+                    Com_sprintf( level.voteString, sizeof( level.voteString ), "g_itemTimers \"0\"" );
+                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable item timers for players?" );
                 }
         } else if ( !Q_stricmp( arg1, "clientkick" ) ) {
 		for( c = arg2; *c; ++c) {

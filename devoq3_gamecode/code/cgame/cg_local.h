@@ -950,6 +950,7 @@ typedef struct {
 	qhandle_t	charsetPropGlow;
 	qhandle_t	charsetPropB;
 	qhandle_t	whiteShader;
+	qhandle_t	itemTimerShader;
 
 	qhandle_t	redCubeModel;
 	qhandle_t	blueCubeModel;
@@ -1895,6 +1896,35 @@ qboolean CG_SH_HasVote( void );
 qboolean CG_SH_HasTeamVote( void );
 qboolean CG_SH_HasWarmupInfo( void );
 void CG_SH_AddGameEvent( const char *text );
+qboolean CG_SH_HasItemTimers( void );
+
+//
+// cg_itemtimers.c
+//
+#define MAX_CG_ITEMTIMERS		64
+
+typedef struct {
+	int		entNum;
+	int		itemIndex;
+	int		respawnTime;
+	int		duration;
+	int		side;
+	qboolean	unknown;
+} cgItemTimer_t;
+
+void CG_ItemTimersInit( void );
+void CG_ItemTimersReset( void );
+void CG_ItemTimersReadConfig( void );
+void CG_ItemTimersBuildRoster( void );
+void CG_ItemTimersSpecEvent( const entityState_t *es );
+void CG_ItemTimersTouchEntity( const centity_t *cent );
+void CG_ItemTimersNotePickup( int itemIndex, const vec3_t origin );
+void CG_ItemTimersDemoFrame( void );
+void CG_DrawItemTimerPie( const centity_t *cent );
+void CG_DrawSpecItemTimers( void );
+int CG_ItemTimersCollect( cgItemTimer_t *out, int max, int sideFilter, int bitMask );
+int CG_ItemTimerFollowSideFilter( int itTeam );
+
 void CG_ReloadHUD_f( void );
 void CG_SH_Dump_f( void );
 void CG_HudHide_f( void );

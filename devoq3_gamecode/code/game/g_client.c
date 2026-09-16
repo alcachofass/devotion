@@ -3232,6 +3232,8 @@ void ClientBegin( int clientNum ) {
 
 	// allow previously rejected votes again because teams may have changed
 	G_ResetRejectedVote();
+
+	Item_NotifySpectatorPending( ent );
 }
 
 

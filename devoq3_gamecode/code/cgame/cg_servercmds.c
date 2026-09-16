@@ -1574,9 +1574,10 @@ static void CG_ConfigStringModified( void ) {
 		}
 //#endif
 */
-	}
-	else if ( num == CS_SHADERSTATE ) {
+	} else if ( num == CS_SHADERSTATE ) {
 		CG_ShaderStateChanged();
+	} else if ( num == CS_ITEMTIMERS ) {
+		CG_ItemTimersReadConfig();
 	}
 }
 
@@ -1678,6 +1679,8 @@ static void CG_MapRestart( void ) {
 	CG_InitLocalEntities();
 	CG_InitMarkPolys();
 	CG_ClearParticles ();
+
+	CG_ItemTimersBuildRoster();
 
 	cgs.redflag = 0;
 	cgs.blueflag = 0;

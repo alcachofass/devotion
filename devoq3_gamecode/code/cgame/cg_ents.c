@@ -356,8 +356,14 @@ static void CG_Item( centity_t *cent ) {
 
 	// if set to invisible, skip
 	if ( !es->modelindex || ( es->eFlags & EF_NODRAW ) ) {
+		if ( es->modelindex && ( es->eFlags & EF_NODRAW ) ) {
+			CG_ItemTimersTouchEntity( cent );
+			CG_DrawItemTimerPie( cent );
+		}
 		return;
 	}
+
+	CG_ItemTimersTouchEntity( cent );
 
 	item = &bg_itemlist[ es->modelindex ];
 	if ( (cg_simpleItems.integer && item->giType != IT_TEAM) || item->giType == IT_COIN ) {
@@ -371,6 +377,7 @@ static void CG_Item( centity_t *cent ) {
 		ent.shaderRGBA[2] = 255;
 		// fade out if the item is about to disappear (for dropped items)
 		if (es->time2 > 0 
+				&& !(es->eFlags & EF_NODRAW)
 				&& cg_itemFade.integer == 1
 				&& es->time2 < cg.time + cg_itemFadeTime.value
 				) {
@@ -444,6 +451,7 @@ static void CG_Item( centity_t *cent ) {
 		VectorScale( ent.axis[2], frac, ent.axis[2] );
 		ent.nonNormalizedAxes = qtrue;
 	} else if (es->time2 > 0 
+			&& !(es->eFlags & EF_NODRAW)
 			&& cg_itemFade.integer == 1
 			&& es->time2 < cg.time + cg_itemFadeTime.value) {
 		// if they're about to disappear, slowly scale down
@@ -1381,5 +1389,6 @@ void CG_AddPacketEntities( void ) {
 	}
 
 	CG_SaveHitPredictPoses();
+	CG_ItemTimersDemoFrame();
 }
 
