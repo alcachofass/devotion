@@ -46,6 +46,8 @@ const int	pm_jumpvelocity = 270;
 const float	pm_ql_jumpvelocity = 275.0f;
 const float	pm_ql_bunnyHopOveraccel = 0.55f;
 const float	pm_ql_airStepFriction = 0.03f;
+const int	pm_ql_jumpTimeDeltaMin = 100;		// ioquakelive: min ms between jumps
+const int	pm_ql_jumpVelocityTimeThreshold = 500;	// ioquakelive VQL chain window
 
 const float	pm_rat_accelerate = 14.0f;
 const float	pm_rat_airaccelerate = 2.4f;
@@ -476,6 +478,11 @@ qboolean PM_QL_WantJump( void ) {
 	if ( !PM_HasAutohop() && ( pm->ps->pm_flags & PMF_JUMP_HELD ) ) {
 		return qfalse;
 	}
+	// QL: STAT_JUMPTIME counts down from 500; reject until 100 ms have elapsed.
+	if ( pm->pmove_movement == MOVEMENT_QL
+		&& pm->ps->stats[STAT_JUMPTIME] > pm_ql_jumpVelocityTimeThreshold - pm_ql_jumpTimeDeltaMin ) {
+		return qfalse;
+	}
 	return qtrue;
 }
 
@@ -494,7 +501,8 @@ static float PM_GetJumpVelocity( qboolean stepJump ) {
 	}
 
 	if ( pm->pmove_movement == MOVEMENT_QL && pm->ps->stats[STAT_JUMPTIME] > 0 ) {
-		jumpVel *= 1.0f + ( (float)pm->ps->stats[STAT_JUMPTIME] / 400.0f ) * JUMP_VELOCITY_SCALE_ADD;
+		jumpVel *= 1.0f + ( (float)pm->ps->stats[STAT_JUMPTIME] / (float)pm_ql_jumpVelocityTimeThreshold )
+			* JUMP_VELOCITY_SCALE_ADD;
 	}
 
 	return jumpVel;
@@ -526,7 +534,11 @@ void PM_QL_DoJump( qboolean stepJump ) {
 	if ( pm->ps->stats[STAT_JUMPTIME] > 0 && ( pm->pmove_ratflags & RAT_RAMPJUMP ) ) {
 		pm->ps->velocity[2] += 100;
 	}
-	pm->ps->stats[STAT_JUMPTIME] = 400;
+	if ( pm->pmove_movement == MOVEMENT_QL ) {
+		pm->ps->stats[STAT_JUMPTIME] = pm_ql_jumpVelocityTimeThreshold;
+	} else {
+		pm->ps->stats[STAT_JUMPTIME] = 400;
+	}
 
 	PM_AddEvent( EV_JUMP );
 
@@ -545,19 +557,12 @@ PM_CheckJump
 =============
 */
 static qboolean PM_CheckJump( void ) {
-	if ( pm->ps->pm_flags & PMF_RESPAWNED ) {
-		return qfalse;		// don't allow jump until all buttons are up
-	}
-
-	if ( pm->cmd.upmove < 10 ) {
-		// not holding jump
-		return qfalse;
-	}
-
-	// must wait for jump to be released (unless autohop / QL)
-	if ( !PM_HasAutohop() && ( pm->ps->pm_flags & PMF_JUMP_HELD ) ) {
-		// clear upmove so cmdscale doesn't lower running speed
-		pm->cmd.upmove = 0;
+	if ( !PM_QL_WantJump() ) {
+		// must wait for jump to be released (unless autohop / QL)
+		if ( !PM_HasAutohop() && ( pm->ps->pm_flags & PMF_JUMP_HELD ) ) {
+			// clear upmove so cmdscale doesn't lower running speed
+			pm->cmd.upmove = 0;
+		}
 		return qfalse;
 	}
 
