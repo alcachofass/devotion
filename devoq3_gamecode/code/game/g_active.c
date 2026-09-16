@@ -983,13 +983,7 @@ void ClientEvents( gentity_t *ent, int oldEventSequence ) {
 			FireWeapon( ent, qfalse);
 			break;
 		case EV_ALTFIRE_WEAPON:	//mrd
-			//if (!level.altFireEnabledLevel){
-			//	Com_Printf("Attempted alt-fire event!\n");	//mrd debug
-			//	FireWeapon( ent, qfalse);	//mrd - alt-fire attempt made without cvar being set
-			//} else {
-			//	Com_Printf("True alt-fire event!\n");	//mrd debug
-				FireWeapon( ent, qtrue);	
-			//}
+			FireWeapon( ent, qtrue);	
 			break;
 		case EV_USE_ITEM1:		// teleporter
 			// drop flags in CTF
