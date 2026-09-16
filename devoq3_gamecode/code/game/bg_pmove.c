@@ -2270,7 +2270,11 @@ static void PM_Weapon( void ) {
 		addTime = 50;
 		break;
 	case WP_SHOTGUN:
-		addTime = 1000;
+		if (altFire){
+			addTime = 500;
+		} else {
+			addTime = 1000;
+		}
 		break;
 	case WP_MACHINEGUN:
 		addTime = 100;
@@ -2330,9 +2334,9 @@ static void PM_Weapon( void ) {
 			addTime = MACHINEGUN_ALT_COOLDOWN;
 			pm->altFireBurstShots = 0;
 		}
-	} else if (altFire) {
-		addTime /= 2.0;	//mrd - alt-fire test, shorter cooldown. 
-	}
+	}// else if (altFire) {
+		//addTime /= 2.0;	//mrd - alt-fire test, shorter cooldown. 
+	//}
 	
 		
 	pm->ps->weaponTime += addTime;

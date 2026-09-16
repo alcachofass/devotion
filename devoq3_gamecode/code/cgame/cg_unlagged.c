@@ -706,7 +706,8 @@ static void CG_PredictWeaponEffects_PlayerHit( int victim, int weapon, int attac
 	CG_PlayPredictedHitBeep( victim, weapon, attackTime, 0 );
 }
 
-static int CG_ShotgunPattern_PlayerHit( vec3_t origin, vec3_t origin2, int seed, int skipNum, int *outDamage ) {
+//static int CG_ShotgunPattern_PlayerHit( vec3_t origin, vec3_t origin2, int seed, int skipNum, int *outDamage ) {	//mrd
+static int CG_ShotgunPattern_PlayerHit( vec3_t origin, vec3_t origin2, int seed, int skipNum, int *outDamage, qboolean altFire ) {
 	int i;
 	int pellets;
 	int victim;
@@ -723,7 +724,7 @@ static int CG_ShotgunPattern_PlayerHit( vec3_t origin, vec3_t origin2, int seed,
 	PerpendicularVector( right, forward );
 	CrossProduct( forward, right, up );
 
-	if ( cgs.ratFlags & RAT_NEWSHOTGUN ) {
+	if ( (cgs.ratFlags & RAT_NEWSHOTGUN) && !altFire) {	//mrd
 		for ( i = 0; i < NEW_SHOTGUN_COUNT; i++ ) {
 			int randomness = 100;
 
@@ -757,6 +758,33 @@ static int CG_ShotgunPattern_PlayerHit( vec3_t origin, vec3_t origin2, int seed,
 				}
 			}
 		}
+	} else if (altFire) {	//mrd
+		for ( i = 0; i < SHOTGUN_ALT_FIRE_PELLETS; i++) {
+			float angle;
+			float radius;
+
+			angle = Q_random ( &seed ) * 2.0f * M_PI;
+			radius = sqrt( Q_random( &seed ) ) * SHOTGUN_ALT_FIRE_SPREAD * 16;
+
+			r = cos ( angle ) * radius;
+			u = sin ( angle ) * radius;
+
+			VectorMA( origin, 8192 * 16, forward, end );
+			VectorMA( end, r, right, end);
+			VectorMA( end, u, up, end);
+
+			CG_Trace( &tr, origin, NULL, NULL, end, skipNum, MASK_SHOT );
+			if ( tr.surfaceFlags & SURF_NOIMPACT ) {
+				continue;
+			}
+			if ( tr.entityNum < MAX_CLIENTS && CG_IsValidPredictedHitTarget( tr.entityNum ) ) {
+				pellets++;
+				if (victim < 0 ) {
+					victim = tr.entityNum;
+				}
+			}
+		}
+
 	} else {
 		for ( i = 0; i < DEFAULT_SHOTGUN_COUNT; i++ ) {
 			r = Q_crandom( &seed ) * DEFAULT_SHOTGUN_SPREAD * 16;
@@ -1483,7 +1511,8 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 
 				CG_BeginPredictHitRewind( attackTime, cg.predictedPlayerState.clientNum );
 				shotgunVictim = CG_ShotgunPattern_PlayerHit( muzzlePoint, endPoint, seed,
-					cg.predictedPlayerState.clientNum, &shotgunDamage );
+					//cg.predictedPlayerState.clientNum, &shotgunDamage );	//mrd
+					cg.predictedPlayerState.clientNum, &shotgunDamage, cent->altFire );
 				CG_EndPredictHitRewind();
 				if ( shotgunVictim >= 0 ) {
 					CG_PlayPredictedHitBeep( shotgunVictim, WP_SHOTGUN, attackTime, shotgunDamage );
