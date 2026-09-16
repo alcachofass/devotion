@@ -104,12 +104,16 @@ jobs:
       - name: Copy PK3 to server
         if: github.event_name == 'push'
         continue-on-error: true
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.SSH_SERVER }}
-          username: ${{ secrets.SSH_USER}}
-          port: ${{ secrets.SSH_PORT }}
-          password: ${{ secrets.SSH_PASS }}
-          source: build/*.pk3
-          target: ${{ secrets.SSH_FOLDER }}
-          overwrite: true
+        run: |
+          sudo apt-get install -y sshpass
+          sshpass -e scp \
+            -P "${SSH_PORT}" \
+            -o StrictHostKeyChecking=accept-new \
+            build/*.pk3 \
+            "${SSH_USER}@${SSH_SERVER}:${SSH_PATH}/"
+        env:
+          SSHPASS: ${{ secrets.SSH_PASS }}
+          SSH_SERVER: ${{ secrets.SSH_SERVER }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_PATH: ${{ secrets.SSH_PATH }}
