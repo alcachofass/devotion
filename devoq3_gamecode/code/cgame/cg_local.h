@@ -491,8 +491,16 @@ typedef struct {
 
 	int				score;			// updated by score servercmds
 	int				location;		// location index for team mode
-	int				health;			// you only get this info about your teammates
+	int				health;			// teammates (tinfo) and spectators (sinfo)
 	int				armor;
+	vec3_t			specOrigin;		// last origin from spectator status
+	vec3_t			specOriginPrev;
+	int				specServerTime;
+	int				specServerTimePrev;
+	vec3_t			specDrawOrigin;
+	vec3_t			specDrawVel;
+	qboolean		specDrawValid;
+	qboolean		specInfoValid;
 	int				curWeapon;
 	int				respawnTime;
 
@@ -1922,6 +1930,7 @@ void CG_ItemTimersNotePickup( int itemIndex, const vec3_t origin );
 void CG_ItemTimersDemoFrame( void );
 void CG_DrawItemTimerPie( const centity_t *cent );
 void CG_DrawSpecItemTimers( void );
+void CG_DrawSpecPlayerStatus( void );
 int CG_ItemTimersCollect( cgItemTimer_t *out, int max, int sideFilter, int bitMask );
 int CG_ItemTimerFollowSideFilter( int itTeam );
 
@@ -1945,6 +1954,7 @@ void CG_LoadHudMenu( void );
 // cg_drawtools.c
 //
 void CG_AdjustFrom640( float *x, float *y, float *w, float *h );
+qboolean CG_WorldToScreen( const vec3_t point, float *x, float *y );
 void CG_FillRect( float x, float y, float width, float height, const float *color );
 void CG_DrawPic( float x, float y, float width, float height, qhandle_t hShader );
 void CG_DrawString( float x, float y, const char *string, 

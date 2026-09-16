@@ -6640,6 +6640,305 @@ static void CG_DrawConsoles(void) {
 
 }
 
+static qboolean CG_SpecPlayerStatusActive( void ) {
+	if ( !cg_specPlayerStatus.integer ) {
+		return qfalse;
+	}
+	if ( !cg.snap ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.pm_type == PM_INTERMISSION ) {
+		return qfalse;
+	}
+	if ( cg.showScores ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.pm_type == PM_SPECTATOR ) {
+		return qtrue;
+	}
+	if ( cg.clientNum >= 0 && cg.clientNum < MAX_CLIENTS
+			&& cgs.clientinfo[cg.clientNum].infoValid
+			&& cgs.clientinfo[cg.clientNum].team == TEAM_SPECTATOR ) {
+		return qtrue;
+	}
+	if ( cg.demoPlayback ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+static void CG_DrawSpecPlayerStatusBox( float cx, float cy, float scale, const clientInfo_t *ci ) {
+	float		charW;
+	float		charH;
+	float		nameW;
+	float		pip;
+	float		gap;
+	float		barH;
+	float		pad;
+	float		pipsW;
+	float		boxW;
+	float		boxH;
+	float		x;
+	float		y;
+	float		barFill;
+	int			i;
+	int			filled;
+	int			health;
+	int			armor;
+	float		*tc;
+	float		outlineSize;
+	vec4_t		bg;
+	vec4_t		outline;
+	vec4_t		pipOn;
+	vec4_t		pipOff;
+	vec4_t		barBg;
+	vec4_t		barFg;
+	vec4_t		nameColor;
+
+	if ( scale < 0.80f ) {
+		scale = 0.80f;
+	} else if ( scale > 1.05f ) {
+		scale = 1.05f;
+	}
+
+	health = ci->health;
+	armor = ci->armor;
+	if ( health < 0 ) {
+		health = 0;
+	}
+	if ( armor < 0 ) {
+		armor = 0;
+	}
+
+	charH = 6.0f * scale;
+	charW = CG_HeightToWidth( charH );
+	nameW = (float)CG_DrawStrlen( ci->name ) * charW;
+	pip = 4.0f * scale;
+	gap = 1.0f * scale;
+	barH = 2.0f * scale;
+	pad = 2.0f * scale;
+	pipsW = 4.0f * pip + 3.0f * gap;
+	boxW = nameW;
+	if ( boxW < pipsW ) {
+		boxW = pipsW;
+	}
+	boxW += pad * 2.0f;
+	boxH = pad + charH + 2.0f + pip + 2.0f + barH + pad;
+
+	x = cx - boxW * 0.5f;
+	y = cy - boxH;
+
+	if ( CG_IsTeamGametype() && ( ci->team == TEAM_RED || ci->team == TEAM_BLUE ) ) {
+		tc = CG_TeamColor( ci->team );
+		bg[0] = tc[0] * 0.28f;
+		bg[1] = tc[1] * 0.28f;
+		bg[2] = tc[2] * 0.28f;
+		bg[3] = 0.62f;
+		outline[0] = tc[0] * 0.45f + 0.55f;
+		outline[1] = tc[1] * 0.45f + 0.55f;
+		outline[2] = tc[2] * 0.45f + 0.55f;
+		outline[3] = 0.90f;
+	} else {
+		bg[0] = 0.0f;
+		bg[1] = 0.0f;
+		bg[2] = 0.0f;
+		bg[3] = 0.55f;
+		outline[0] = 0.75f;
+		outline[1] = 0.75f;
+		outline[2] = 0.75f;
+		outline[3] = 0.0f;
+	}
+	CG_FillRect( x, y, boxW, boxH, bg );
+	if ( outline[3] > 0.0f ) {
+		outlineSize = 1.0f * scale;
+		if ( outlineSize < 0.75f ) {
+			outlineSize = 0.75f;
+		}
+		CG_DrawRectAspect( x, y, boxW, boxH, outlineSize, outline );
+	}
+
+	Vector4Copy( colorWhite, nameColor );
+	CG_DrawStringExtFloat( x + pad, y + pad, ci->name, nameColor, qfalse, qfalse, charW, charH, 0 );
+
+	filled = ( health + 24 ) / 25;
+	if ( filled > 4 ) {
+		filled = 4;
+	}
+	if ( health > 0 && filled < 1 ) {
+		filled = 1;
+	}
+
+	if ( health >= 75 ) {
+		pipOn[0] = 0.20f;
+		pipOn[1] = 0.85f;
+		pipOn[2] = 0.25f;
+	} else if ( health >= 50 ) {
+		pipOn[0] = 0.95f;
+		pipOn[1] = 0.85f;
+		pipOn[2] = 0.15f;
+	} else {
+		pipOn[0] = 0.90f;
+		pipOn[1] = 0.18f;
+		pipOn[2] = 0.15f;
+	}
+	pipOn[3] = 1.0f;
+	pipOff[0] = 0.18f;
+	pipOff[1] = 0.18f;
+	pipOff[2] = 0.18f;
+	pipOff[3] = 0.90f;
+
+	for ( i = 0; i < 4; i++ ) {
+		CG_FillRect( x + pad + (float)i * ( pip + gap ), y + pad + charH + 2.0f,
+				pip, pip, i < filled ? pipOn : pipOff );
+	}
+
+	barBg[0] = 0.15f;
+	barBg[1] = 0.15f;
+	barBg[2] = 0.15f;
+	barBg[3] = 0.90f;
+	barFg[0] = 0.35f;
+	barFg[1] = 0.70f;
+	barFg[2] = 1.00f;
+	barFg[3] = 1.00f;
+	CG_FillRect( x + pad, y + pad + charH + 2.0f + pip + 2.0f, pipsW, barH, barBg );
+	barFill = (float)armor / 200.0f;
+	if ( barFill > 1.0f ) {
+		barFill = 1.0f;
+	}
+	if ( barFill > 0.0f ) {
+		CG_FillRect( x + pad, y + pad + charH + 2.0f + pip + 2.0f, pipsW * barFill, barH, barFg );
+	}
+}
+
+static void CG_SpecStatusSpringTo( clientInfo_t *ci, const vec3_t target, float dt ) {
+	float	omega;
+	float	zeta;
+	float	acc;
+	float	maxSpeed;
+	int		i;
+
+	omega = 8.0f;
+	zeta = 0.68f;
+	maxSpeed = 900.0f;
+	if ( dt <= 0.0f ) {
+		return;
+	}
+	if ( dt > 0.05f ) {
+		dt = 0.05f;
+	}
+	if ( !ci->specDrawValid ) {
+		VectorCopy( target, ci->specDrawOrigin );
+		VectorClear( ci->specDrawVel );
+		ci->specDrawValid = qtrue;
+		return;
+	}
+
+	for ( i = 0; i < 3; i++ ) {
+		acc = omega * omega * ( target[i] - ci->specDrawOrigin[i] )
+				- 2.0f * zeta * omega * ci->specDrawVel[i];
+		ci->specDrawVel[i] += acc * dt;
+		if ( ci->specDrawVel[i] > maxSpeed ) {
+			ci->specDrawVel[i] = maxSpeed;
+		} else if ( ci->specDrawVel[i] < -maxSpeed ) {
+			ci->specDrawVel[i] = -maxSpeed;
+		}
+		ci->specDrawOrigin[i] += ci->specDrawVel[i] * dt;
+	}
+}
+
+static void CG_SpecStatusFollowOrigin( clientInfo_t *ci, const vec3_t sample, vec3_t origin ) {
+	float dt;
+	int i;
+
+	dt = (float)cg.frametime * 0.001f;
+	if ( dt < 0.0f ) {
+		dt = 0.0f;
+	}
+
+	if ( !ci->specDrawValid ) {
+		VectorCopy( sample, ci->specDrawOrigin );
+		VectorClear( ci->specDrawVel );
+		ci->specDrawValid = qtrue;
+		VectorCopy( sample, origin );
+		return;
+	}
+
+	if ( dt > 0.0001f && dt <= 0.05f ) {
+		for ( i = 0; i < 3; i++ ) {
+			ci->specDrawVel[i] = ( sample[i] - ci->specDrawOrigin[i] ) / dt;
+		}
+	}
+	VectorCopy( sample, ci->specDrawOrigin );
+	VectorCopy( sample, origin );
+}
+
+void CG_DrawSpecPlayerStatus( void ) {
+	int				i;
+	clientInfo_t	*ci;
+	centity_t		*cent;
+	vec3_t			origin;
+	vec3_t			delta;
+	float			sx;
+	float			sy;
+	float			dist;
+	float			scale;
+	qboolean		inPvs;
+
+	if ( !CG_SpecPlayerStatusActive() ) {
+		return;
+	}
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		ci = &cgs.clientinfo[i];
+		if ( !ci->infoValid || !ci->specInfoValid ) {
+			ci->specDrawValid = qfalse;
+			continue;
+		}
+		if ( ci->health <= 0 ) {
+			ci->specDrawValid = qfalse;
+			continue;
+		}
+		if ( i == cg.snap->ps.clientNum && !cg.renderingThirdPerson ) {
+			continue;
+		}
+
+		cent = &cg_entities[i];
+		inPvs = qfalse;
+		if ( i == cg.snap->ps.clientNum && cg.renderingThirdPerson ) {
+			VectorCopy( cg.predictedPlayerEntity.lerpOrigin, origin );
+			inPvs = qtrue;
+		} else if ( cent->currentValid && cent->currentState.eType == ET_PLAYER ) {
+			VectorCopy( cent->lerpOrigin, origin );
+			inPvs = qtrue;
+		}
+
+		if ( inPvs ) {
+			CG_SpecStatusFollowOrigin( ci, origin, origin );
+		} else {
+			CG_SpecStatusSpringTo( ci, ci->specOrigin, (float)cg.frametime * 0.001f );
+			VectorCopy( ci->specDrawOrigin, origin );
+		}
+		origin[2] += 48.0f;
+
+		if ( !CG_WorldToScreen( origin, &sx, &sy ) ) {
+			continue;
+		}
+		if ( sx < -80.0f || sx > 720.0f || sy < -40.0f || sy > 520.0f ) {
+			continue;
+		}
+
+		VectorSubtract( origin, cg.refdef.vieworg, delta );
+		dist = VectorLength( delta );
+		scale = 1.0f - ( dist - 280.0f ) * ( 0.18f / 1900.0f );
+		if ( scale > 1.04f ) {
+			scale = 1.04f;
+		} else if ( scale < 0.82f ) {
+			scale = 0.82f;
+		}
+
+		CG_DrawSpecPlayerStatusBox( sx, sy, scale, ci );
+	}
+}
 
 /*
 =================
@@ -6804,6 +7103,7 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 	}
 
 	CG_DrawSpecItemTimers();
+	CG_DrawSpecPlayerStatus();
 
 	//if ( !CG_DrawFollow() ) {
 	//	CG_DrawWarmup();

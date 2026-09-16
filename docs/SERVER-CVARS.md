@@ -257,6 +257,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_spawnprotect` | RatMod | `0` | 0 or 1 | Spawn protection in milliseconds after respawn (`0` = off). |
 | `g_specChat` | RatMod | `1` | 0 or 1 | When `1`, spectators can use global chat. |
 | `g_specItemTimers` | Devotion | `1` | 0 or 1 | When `1`, spectators get a persistent HUD list of major items (icons always; countdown only while the pad is empty). |
+| `g_specPlayerStatus` | Devotion | `1` | 0 or 1 | When `1`, spectators receive every living player's health, armor, and origin even outside PVS, for the overhead status box. |
 | `g_specMuted` | RatMod | `0` | 0 or 1 | When `1`, spectators cannot chat. |
 | `g_specShowZoom` | RatMod | `0` | 0 or 1 | When `1`, spectators can use zoom. |
 | `g_spectatorSpeed` | RatMod | `650` | integer >= 0 (typical) | Movement speed for spectators. |

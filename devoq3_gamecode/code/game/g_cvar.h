@@ -457,6 +457,7 @@ G_CVAR( g_adminMaxBan, "g_adminMaxBan", "2w", CVAR_ARCHIVE, 0, qfalse, qfalse )
 G_CVAR( g_specChat, "g_specChat", "1", CVAR_ARCHIVE, 0, qfalse, qfalse )
 G_CVAR( g_itemTimers, "g_itemTimers", "0", CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qtrue, qfalse )
 G_CVAR( g_specItemTimers, "g_specItemTimers", "1", CVAR_ARCHIVE, 0, qfalse, qfalse )
+G_CVAR( g_specPlayerStatus, "g_specPlayerStatus", "1", CVAR_ARCHIVE, 0, qfalse, qfalse )
 G_CVAR( g_publicAdminMessages, "g_publicAdminMessages", "1", CVAR_ARCHIVE, 0, qfalse, qfalse )
 
 G_CVAR( g_maxWarnings, "g_maxWarnings", "3", CVAR_ARCHIVE, 0, qfalse, qfalse )
