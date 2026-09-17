@@ -56,6 +56,7 @@ typedef struct {
 	int			previous_waterlevel;
 
 	qboolean	jumped;				// already jumped this pmove (blocks same-frame step-jump)
+	qboolean	ladder;				// VQL SURF_LADDER climb this pmove
 } pml_t;
 
 extern	pmove_t		*pm;
@@ -87,7 +88,9 @@ void PM_OneSidedClipVelocity( vec3_t in, vec3_t normal, vec3_t out, float overbo
 void PM_AddTouchEnt( int entityNum );
 void PM_AddEvent( int newEvent );
 qboolean PM_QL_WantJump( void );
-void PM_QL_DoJump( qboolean stepJump );
+qboolean PM_QL_WantCrouchStepJump( void );
+qboolean PM_QL_CanPerformCrouchStepJump( void );
+void PM_QL_DoJump( qboolean stepJump, qboolean fromCrouchStep );
 
 qboolean	PM_SlideMove( qboolean gravity );
 void		PM_StepSlideMove( qboolean gravity );

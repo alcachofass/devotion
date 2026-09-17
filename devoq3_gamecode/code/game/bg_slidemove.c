@@ -331,10 +331,9 @@ void PM_StepSlideMove( qboolean gravity ) {
 				PM_OneSidedClipVelocity( pm->ps->velocity, trace.plane.normal, pm->ps->velocity, OVERCLIP );
 			}
 		} else if ( pm->pmove_movement == MOVEMENT_QL ) {
-			// ioquakelive: only clip when moving into the lip so jumppad/jump
-			// leftover Z is not zeroed. Kickoff then continues the ascent.
+			// only clip when moving into the lip so jumppad/jump leftover Z is not zeroed
 			float dot = DotProduct( pm->ps->velocity, trace.plane.normal );
-			if ( dot < 0.001f ) {
+			if ( dot < 0.0f || Q_fabs( dot ) < 0.001f ) {
 				PM_ClipVelocity( pm->ps->velocity, trace.plane.normal, pm->ps->velocity, OVERCLIP );
 			}
 		} else {
@@ -355,38 +354,83 @@ void PM_StepSlideMove( qboolean gravity ) {
 	} else 
 #endif
 	{
-		// use the step move
 		float	delta;
 
 		delta = pm->ps->origin[2] - start_o[2];
-		if ( delta > 2 ) {
-			if ( delta < 7 ) {
-				PM_AddEvent( EV_STEP_4 );
-			} else if ( delta < 11 ) {
-				PM_AddEvent( EV_STEP_8 );
-			} else if ( delta < 15 ) {
-				PM_AddEvent( EV_STEP_12 );
-			} else {
-				PM_AddEvent( EV_STEP_16 );
-			}
-		}
 
-		if ( pm->pmove_movement == MOVEMENT_QL && delta > 0 ) {
-			if ( !pml.groundPlane && start_v[2] > 0 ) {
-				float dampen = 1.0f - pm_ql_airStepFriction;
-				pm->ps->velocity[0] *= dampen;
-				pm->ps->velocity[1] *= dampen;
+		if ( pm->pmove_movement == MOVEMENT_QL ) {
+			pm->trace( &trace, start_o, pm->mins, pm->maxs, pm->ps->origin, pm->ps->clientNum, pm->tracemask );
+			if ( trace.fraction < 1.0f ) {
+				qboolean	canStepJump;
+				qboolean	canCrouchStepJump;
+
+				if ( delta > 2 ) {
+					if ( delta < 7 ) {
+						PM_AddEvent( EV_STEP_4 );
+					} else if ( delta < 11 ) {
+						PM_AddEvent( EV_STEP_8 );
+					} else if ( delta < 15 ) {
+						PM_AddEvent( EV_STEP_12 );
+					} else {
+						PM_AddEvent( EV_STEP_16 );
+					}
+				}
+
+				if ( delta > 0 ) {
+					if ( !pml.groundPlane && start_v[2] > 0 ) {
+						float dampen = 1.0f - pm_ql_airStepFriction;
+						if ( dampen < 0.0f ) {
+							dampen = 0.0f;
+						}
+						pm->ps->velocity[0] *= dampen;
+						pm->ps->velocity[1] *= dampen;
+					}
+
+					canStepJump = ( pm_ql_StepJump && !pml.jumped && pm->waterlevel < 2 && PM_QL_WantJump() );
+					canCrouchStepJump = PM_QL_WantCrouchStepJump();
+					if ( canStepJump || canCrouchStepJump ) {
+						vec3_t	projectedEnd, probeStart, probeEnd;
+
+						VectorMA( start_o, pml.frametime, start_v, projectedEnd );
+						VectorCopy( projectedEnd, probeStart );
+						VectorCopy( projectedEnd, probeEnd );
+						probeStart[2] += stepHeight;
+						probeEnd[2] -= stepHeight;
+						pm->trace( &trace, probeStart, pm->mins, pm->maxs, probeEnd,
+							pm->ps->clientNum, pm->tracemask );
+
+						if ( !trace.startsolid && !trace.allsolid && trace.fraction < 1.0f
+							&& trace.plane.normal[2] >= MIN_WALK_NORMAL ) {
+							if ( canStepJump && PM_QL_WantJump() ) {
+								PM_QL_DoJump( qtrue, qfalse );
+							} else if ( canCrouchStepJump && PM_QL_WantCrouchStepJump()
+								&& PM_QL_CanPerformCrouchStepJump() ) {
+								PM_QL_DoJump( qfalse, qtrue );
+							}
+						}
+					}
+				}
+
+				if ( pm->debugLevel ) {
+					Com_Printf("%i:stepped %f\n", c_pmove, delta);
+				}
+			}
+		} else {
+			if ( delta > 2 ) {
+				if ( delta < 7 ) {
+					PM_AddEvent( EV_STEP_4 );
+				} else if ( delta < 11 ) {
+					PM_AddEvent( EV_STEP_8 );
+				} else if ( delta < 15 ) {
+					PM_AddEvent( EV_STEP_12 );
+				} else {
+					PM_AddEvent( EV_STEP_16 );
+				}
 			}
 
-			if ( pm_ql_StepJump && !pml.jumped && pm->waterlevel < 2 && PM_QL_WantJump()
-				&& trace.fraction < 1.0 && !trace.startsolid && !trace.allsolid
-				&& trace.plane.normal[2] >= MIN_WALK_NORMAL ) {
-				PM_QL_DoJump( qtrue );
+			if ( pm->debugLevel ) {
+				Com_Printf("%i:stepped\n", c_pmove);
 			}
-		}
-
-		if ( pm->debugLevel ) {
-			Com_Printf("%i:stepped\n", c_pmove);
 		}
 	}
 }

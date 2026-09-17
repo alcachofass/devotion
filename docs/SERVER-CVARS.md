@@ -185,7 +185,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_mixedMode` | RatMod | `0` | 0 or 1 | When `1`, allows non-RatEngine clients with limited features. |
 | `g_motd` | Vanilla | `` | string or numeric (see default) | Message of the day string shown to joining players. |
 | `g_motdfile` | RatMod | `motd.cfg` | filename | Path to the MOTD text file. |
-| `g_movement` | RatMod | `0` | `0`-`4` | Movement physics preset. `0` VQ3 (default), `1` CPMD (Defrag), `2` RM (Rat), `3` CPMA, `4` QL (Quake Live VQL: VQ3 accel/air with 22-unit air-step, jump 275, chain-jump, autohop, and a light forward bunny assist). `pmove_fixed 1` is recommended with QL. |
+| `g_movement` | RatMod | `0` | `0`-`4` | Movement physics preset. `0` Vanilla Quake 3, `1` CPMD (Defrag), `2` RM (Rat), `3` CPMA, `4` Quake Live. |
 | `g_multiTournamentAutoRePair` | RatMod | `1` | 0 or 1 | When `1`, re-pairs players between multi-tournament games. |
 | `g_multiTournamentEndgameRePair` | RatMod | `1` | 0 or 1 | When `1`, re-pairs players at the end of a multi-tournament bracket. |
 | `g_multiTournamentGames` | RatMod | `4` | integer >= 0 (typical) | Number of simultaneous tournament games in multi-tournament mode. |
@@ -229,7 +229,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_ra3nextForceArena` | RatMod | `-1` | integer >= 0 (typical) | Arena to use on next map load (`-1` = none). |
 | `g_railJump` | RatMod | `0` | 0 or 1 | When `1`, railgun knockback can be used for jumping. |
 | `g_railgunDamage` | RatMod | `100` | integer >= 0 (typical) | Railgun damage per hit. |
-| `g_rampJump` | RatMod | `0` | 0 or 1 | When `1`, allows ramp jumping. Ramp-jump state is kept across teleports in CPMA, CPMD, and QL movement modes. |
+| `g_rampJump` | RatMod | `0` | 0 or 1 | When `1`, Enables higher jumps when moving up ramped surfaces. |
 | `g_rankings` | Vanilla | `0` | 0 or 1 | When `1`, enables Woland global rankings integration. |
 | `g_readSpawnVarFiles` | RatMod | `0` | 0 or 1 | When `1`, loads per-map spawn override files. |
 | `g_recommendedMapsFile` | RatMod | `recommendedmaps.cfg` | filename | Path to the recommended maps list for votes and the map browser. |
