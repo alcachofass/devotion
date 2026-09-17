@@ -67,7 +67,9 @@ void G_SetMissileLaunchTime (gentity_t *self, gentity_t *bolt) {
 	// need to remember the true launch time for delag in case the missile gets bounced/teleported
 	bolt->launchTime = bolt->s.pos.trTime;
 	bolt->needsDelag = qtrue;
-	
+	// rewind players to the shot's command time (hitscan uses this same clock)
+	bolt->delagShiftTime = self->client->attackTime;
+
 	if (G_IsElimGT() && level.time > level.roundStartTime - 1000*g_elimination_activewarmup.integer) {
 		if (bolt->launchTime < level.roundStartTime) {
 			int prestep = 0;
@@ -83,12 +85,22 @@ void G_SetMissileLaunchTime (gentity_t *self, gentity_t *bolt) {
 		}
 	}
 
+	// don't rewind players earlier than this rocket was allowed to exist,
+	// or into the future
+	if (bolt->delagShiftTime < bolt->launchTime) {
+		bolt->delagShiftTime = bolt->launchTime;
+	} else if (bolt->delagShiftTime > level.time) {
+		bolt->delagShiftTime = level.time;
+	}
+
 }
 
 void G_MissileRunDelag(gentity_t *ent, int stepmsec) {
 	int prevTimeSaved;
 	int lvlTimeSaved;
 	int projectileDelagTime;
+	int baseShiftTime;
+	qboolean latencyMode;
 
 	if (g_delagMissileNudgeOnly.integer
 			|| level.previousTime <= DELAG_MAX_BACKTRACK
@@ -108,6 +120,12 @@ void G_MissileRunDelag(gentity_t *ent, int stepmsec) {
 
 	prevTimeSaved = level.previousTime;
 	lvlTimeSaved = level.time;
+	latencyMode = (g_delagMissileLatencyMode.integer != 0) ? qtrue : qfalse;
+	baseShiftTime = ent->delagShiftTime;
+	if (baseShiftTime <= 0) {
+		baseShiftTime = ent->launchTime;
+	}
+
 	projectileDelagTime = level.previousTime - (DELAG_MAX_BACKTRACK/stepmsec) * stepmsec;
 	while (projectileDelagTime < prevTimeSaved) {
 		if ( !G_InUse(ent) || ent->freeAfterEvent ) {
@@ -116,11 +134,28 @@ void G_MissileRunDelag(gentity_t *ent, int stepmsec) {
 			break;
 		}
 		if (projectileDelagTime >= ent->launchTime) {
-			int shiftTime = projectileDelagTime;
-			G_TimeShiftAllClients( shiftTime, ent->parent );
-			level.time = projectileDelagTime + stepmsec;
-			level.previousTime = projectileDelagTime;
+			int rocketTime = projectileDelagTime + stepmsec;
+			int shiftTime;
 
+			// Latency mode (default): start at the owner's attackTime (what
+			// they aimed at) and walk other players forward in lockstep with
+			// the rocket. Legacy mode 0 keeps players one server frame behind
+			// the rocket on the raw sim clock.
+			if (latencyMode) {
+				shiftTime = baseShiftTime + (rocketTime - ent->launchTime);
+				if (shiftTime < ent->launchTime) {
+					shiftTime = ent->launchTime;
+				} else if (shiftTime > lvlTimeSaved) {
+					shiftTime = lvlTimeSaved;
+				}
+			} else {
+				shiftTime = projectileDelagTime;
+			}
+
+			G_TimeShiftAllClients( shiftTime, ent->parent );
+
+			level.time = rocketTime;
+			level.previousTime = projectileDelagTime;
 
 			G_RunMissile( ent );
 
@@ -130,6 +165,7 @@ void G_MissileRunDelag(gentity_t *ent, int stepmsec) {
 		}
 		projectileDelagTime += stepmsec;
 	}
+
 	ent->needsDelag = qfalse;
 }
 

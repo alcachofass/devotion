@@ -105,7 +105,7 @@ static const cvarDesc_t gameCvarDescriptions[] = {
 	{ "g_delagMissileCorrectFrameOffset", "When `1`, corrects frame offset in missile delag calculations." },
 	{ "g_delagMissileDebug", "Debug output for missile delag." },
 	{ "g_delagMissileImmediateRun", "How many missile simulation steps run immediately on fire." },
-	{ "g_delagMissileLatencyMode", "Missile delag latency compensation mode." },
+	{ "g_delagMissileLatencyMode", "Perform missile catch-up player rewind. Server starts at the shooter's attack time and walks opponents forward in lockstep with the rocket." },
 	{ "g_delagMissileLimitVariance", "When `1`, caps ping variance used for missile delag." },
 	{ "g_delagMissileLimitVarianceMs", "Maximum ping variance in milliseconds for missile delag." },
 	{ "g_delagMissileMaxLatency", "Maximum ping in ms used when rewinding for missile hits." },

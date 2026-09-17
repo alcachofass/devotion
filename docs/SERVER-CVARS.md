@@ -103,7 +103,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_delagMissileCorrectFrameOffset` | Devotion | `1` | 0 or 1 | When `1`, corrects frame offset in missile delag calculations. |
 | `g_delagMissileDebug` | RatMod | `0` | 0 or 1 | Debug output for missile delag. |
 | `g_delagMissileImmediateRun` | RatMod | `2` | integer >= 0 (typical) | How many missile simulation steps run immediately on fire. |
-| `g_delagMissileLatencyMode` | Devotion | `1` | 0 or 1 | Missile delag latency compensation mode. |
+| `g_delagMissileLatencyMode` | Devotion | `1` | 0 or 1 | Perform missile catch-up player rewind. Server starts at the shooter's attack time and walks opponents forward in lockstep with the rocket. |
 | `g_delagMissileLimitVariance` | Devotion | `1` | 0 or 1 | When `1`, caps ping variance used for missile delag. |
 | `g_delagMissileLimitVarianceMs` | Devotion | `25` | integer >= 0 (typical) | Maximum ping variance in milliseconds for missile delag. |
 | `g_delagMissileMaxLatency` | RatMod | `500` | integer >= 0 (typical) | Maximum ping in ms used when rewinding for missile hits. |
