@@ -1100,6 +1100,8 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	level.snd_fry = G_SoundIndex("sound/player/fry.wav");	// FIXME standing in lava / slime
 	level.snd_thaw = G_FreezeThawSound();
 
+	G_SoundIndex("sound/world/button_zap.wav");	//mrd - cache the vortex grenade sound to avoid NULL on first attempt
+
 	if ( g_gametype.integer != GT_SINGLE_PLAYER && g_logfile.string[0] ) {
 		if ( g_logfileSync.integer ) {
 			trap_FS_FOpenFile( g_logfile.string, &level.logFile, FS_APPEND_SYNC );
