@@ -266,6 +266,7 @@ static const cvarDesc_t gameCvarDescriptions[] = {
 	{ "g_speed", "Maximum player run speed." },
 	{ "g_spreeDiv", "Kills between killing-spree announcements. Values below `2` are ignored and reset to `5`." },
 	{ "g_sprees", "Path to the killing/death spree config file (see `sprees.dat` in the mod assets)." },
+	{ "g_stairSplash", "When `1`, splash damage can pass through a stair crux if the explosion is within 18 units of a floor-wall step edge, a neighboring step is detected, and the target is standing on a short tread." },
 	{ "g_startWhenReady", "Ready-up mode: `0` off, `1` >50% ready, `2` all ready, `3` >50% ready in team games." },
 	{ "g_statsboard", "Scoreboard detail level (`0` minimal, higher = more stats)." },
 	{ "g_swingGrapple", "When `1`, grapple swings the player on a rope arc." },

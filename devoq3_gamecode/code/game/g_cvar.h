@@ -226,6 +226,7 @@ G_CVAR( g_enableGreenArmor, "g_enableGreenArmor", "1", CVAR_ARCHIVE, 0, qfalse, 
 G_CVAR( g_readSpawnVarFiles, "g_readSpawnVarFiles", "0", CVAR_ARCHIVE, 0, qfalse, qfalse )
 
 G_CVAR( g_damageThroughWalls, "g_damageThroughWalls", "0", CVAR_ARCHIVE, 0, qtrue, qfalse )
+G_CVAR( g_stairSplash, "g_stairSplash", "1", CVAR_ARCHIVE, 0, qtrue, qfalse )
 
 G_CVAR( g_pingEqualizer, "g_pingEqualizer", "0", CVAR_ARCHIVE, 0, qfalse, qfalse )
 G_CVAR( g_eqpingMax, "g_eqpingMax", "400", CVAR_ARCHIVE, 0, qfalse, qfalse )

@@ -264,6 +264,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_speed` | Vanilla | `320` | integer >= 0 (typical) | Maximum player run speed. |
 | `g_spreeDiv` | RatMod | `5` | integer >= 2 | Kills between killing-spree announcements. Values below `2` are ignored and reset to `5`. |
 | `g_sprees` | RatMod | `sprees.dat` | filename | Path to the killing/death spree config file (see `sprees.dat` in the mod assets). |
+| `g_stairSplash` | Devotion | `1` | 0 or 1 | When `1`, splash damage can pass through a stair edges. Makes fighting on staircases more balanced. |
 | `g_startWhenReady` | RatMod | `0` | 0 or 1 | Ready-up mode: `0` off, `1` >50% ready, `2` all ready, `3` >50% ready in team games. |
 | `g_statsboard` | RatMod | `2` | integer >= 0 (typical) | Scoreboard detail level (`0` minimal, higher = more stats). |
 | `g_swingGrapple` | RatMod | `0` | 0 or 1 | When `1`, grapple swings the player on a rope arc. |
