@@ -44,7 +44,8 @@ const float	pm_wateraccelerate = 4.0f;
 const float	pm_flyaccelerate = 8.0f;
 const int	pm_jumpvelocity = 270;
 const float	pm_ql_jumpvelocity = 275.0f;
-const float	pm_ql_bunnyHopOveraccel = 0.55f;
+const float	pm_ql_bunnyHopOveraccel = 0.55f;	// VQL forward bunny; decomp left bunnyHop unused
+const float	pm_ql_jumpVelocityMax = 700.0f;
 const float	pm_ql_airStepFriction = 0.03f;
 const int	pm_ql_jumpTimeDeltaMin = 100;		// ioquakelive: min ms between jumps
 const int	pm_ql_jumpVelocityTimeThreshold = 500;	// ioquakelive VQL chain window
@@ -328,7 +329,9 @@ if(! (pm->pmove_flags & DF_NO_BUNNY) ) {
 	currentspeed = DotProduct (pm->ps->velocity, wishdir);
 	addspeed = wishspeed - currentspeed;
 	if (addspeed <= 0) {
-		// QL: limited forward bunny overaccel when already at/above wishspeed.
+		// VQL: when already at/above wishspeed, keep a diminishing forward
+		// overaccel instead of returning. Stock VQL has bunnyHop on; only
+		// +forward (movementDir 0) gets it, tapering out by 2x run speed.
 		if ( pm->pmove_movement == MOVEMENT_QL && pm->ps->movementDir == 0 ) {
 			float speed2d, maxspeed, maxspeed2, overaccel;
 
@@ -393,28 +396,20 @@ static float PM_CmdScale( usercmd_t *cmd ) {
 	int		max;
 	float	total;
 	float	scale;
-	int		upmove;
-
-	// After a jump the key is still down; don't let +moveup shrink wishspeed.
-	// Crouch (negative upmove) still counts.
-	upmove = cmd->upmove;
-	if ( ( pm->ps->pm_flags & PMF_JUMP_HELD ) && upmove > 0 ) {
-		upmove = 0;
-	}
 
 	max = abs( cmd->forwardmove );
 	if ( abs( cmd->rightmove ) > max ) {
 		max = abs( cmd->rightmove );
 	}
-	if ( abs( upmove ) > max ) {
-		max = abs( upmove );
+	if ( abs( cmd->upmove ) > max ) {
+		max = abs( cmd->upmove );
 	}
 	if ( !max ) {
 		return 0;
 	}
 
 	total = sqrt( cmd->forwardmove * cmd->forwardmove
-		+ cmd->rightmove * cmd->rightmove + upmove * upmove );
+		+ cmd->rightmove * cmd->rightmove + cmd->upmove * cmd->upmove );
 	scale = (float)pm->ps->speed * max / ( 127.0 * total );
 
 	return scale;
@@ -463,6 +458,18 @@ static void PM_SetMovementDir( void ) {
 
 /*
 =============
+PM_QL_JumpDelaySatisfied
+
+True when the VQL 100 ms rejump lockout has elapsed (STAT_JUMPTIME counts down from 500).
+=============
+*/
+static qboolean PM_QL_JumpDelaySatisfied( void ) {
+	return ( pm->ps->stats[STAT_JUMPTIME]
+		<= pm_ql_jumpVelocityTimeThreshold - pm_ql_jumpTimeDeltaMin );
+}
+
+/*
+=============
 PM_QL_WantJump
 
 True if this pmove should start a jump (used by CheckJump and QL step-jump).
@@ -479,11 +486,72 @@ qboolean PM_QL_WantJump( void ) {
 		return qfalse;
 	}
 	// QL: STAT_JUMPTIME counts down from 500; reject until 100 ms have elapsed.
-	if ( pm->pmove_movement == MOVEMENT_QL
-		&& pm->ps->stats[STAT_JUMPTIME] > pm_ql_jumpVelocityTimeThreshold - pm_ql_jumpTimeDeltaMin ) {
+	if ( pm->pmove_movement == MOVEMENT_QL && !PM_QL_JumpDelaySatisfied() ) {
+		// Keep CmdScale from taxing ground speed during the lockout.
+		pm->cmd.upmove = 0;
 		return qfalse;
 	}
 	return qtrue;
+}
+
+/*
+=============
+PM_QL_WantCrouchStepJump
+
+VQL crouch-step takeoff gate (ducked, airborne, rising, delay elapsed).
+=============
+*/
+qboolean PM_QL_WantCrouchStepJump( void ) {
+	if ( pm->pmove_movement != MOVEMENT_QL ) {
+		return qfalse;
+	}
+	if ( !pm_ql_StepJump ) {
+		return qfalse;
+	}
+	if ( pm->ps->pm_type != PM_NORMAL ) {
+		return qfalse;
+	}
+	if ( pm->waterlevel >= 2 ) {
+		return qfalse;
+	}
+	if ( !( pm->ps->pm_flags & PMF_DUCKED ) ) {
+		return qfalse;
+	}
+	if ( pml.groundPlane ) {
+		return qfalse;
+	}
+	if ( pm->ps->velocity[2] < 0.0f ) {
+		return qfalse;
+	}
+	if ( !PM_QL_JumpDelaySatisfied() ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+/*
+=============
+PM_QL_CanPerformCrouchStepJump
+
+Extra shrunk-bbox clearance trace used by VQL crouch step-jumps.
+=============
+*/
+qboolean PM_QL_CanPerformCrouchStepJump( void ) {
+	vec3_t		mins, maxs, end;
+	trace_t		trace;
+
+	VectorCopy( pm->mins, mins );
+	VectorCopy( pm->maxs, maxs );
+	mins[0] += 1.0f;
+	mins[1] += 1.0f;
+	maxs[0] -= 1.0f;
+	maxs[1] -= 1.0f;
+
+	VectorCopy( pm->ps->origin, end );
+	end[2] -= 64.0f;
+	pm->trace( &trace, pm->ps->origin, mins, maxs, end, pm->ps->clientNum, pm->tracemask );
+
+	return ( trace.fraction == 1.0f );
 }
 
 static float PM_GetJumpVelocity( qboolean stepJump ) {
@@ -515,7 +583,7 @@ PM_QL_DoJump
 Shared jump impulse for CheckJump and QL same-frame step-jump.
 =============
 */
-void PM_QL_DoJump( qboolean stepJump ) {
+void PM_QL_DoJump( qboolean stepJump, qboolean fromCrouchStep ) {
 	float jumpVel = PM_GetJumpVelocity( stepJump );
 
 	pml.groundPlane = qfalse;
@@ -525,13 +593,27 @@ void PM_QL_DoJump( qboolean stepJump ) {
 
 	pm->ps->groundEntityNum = ENTITYNUM_NONE;
 
-	if ( ( pm->pmove_ratflags & ( RAT_RAMPJUMP | RAT_ADDITIVEJUMP ) ) && ( pm->ps->velocity[2] >= 0 ) ) {
+	if ( pm->pmove_movement == MOVEMENT_QL ) {
+		float takeoff = jumpVel;
+
+		if ( !fromCrouchStep && ( pm->pmove_ratflags & RAT_RAMPJUMP ) ) {
+			takeoff = pm->ps->velocity[2] * pm_ql_RampJumpScale + jumpVel;
+			if ( takeoff < jumpVel ) {
+				takeoff = jumpVel;
+			}
+		}
+		if ( takeoff > pm_ql_jumpVelocityMax ) {
+			takeoff = pm_ql_jumpVelocityMax;
+		}
+		pm->ps->velocity[2] = takeoff;
+	} else if ( ( pm->pmove_ratflags & ( RAT_RAMPJUMP | RAT_ADDITIVEJUMP ) ) && ( pm->ps->velocity[2] >= 0 ) ) {
 		pm->ps->velocity[2] += jumpVel;
 	} else {
 		pm->ps->velocity[2] = jumpVel;
 	}
 
-	if ( pm->ps->stats[STAT_JUMPTIME] > 0 && ( pm->pmove_ratflags & RAT_RAMPJUMP ) ) {
+	if ( pm->pmove_movement != MOVEMENT_QL
+		&& pm->ps->stats[STAT_JUMPTIME] > 0 && ( pm->pmove_ratflags & RAT_RAMPJUMP ) ) {
 		pm->ps->velocity[2] += 100;
 	}
 	if ( pm->pmove_movement == MOVEMENT_QL ) {
@@ -566,7 +648,7 @@ static qboolean PM_CheckJump( void ) {
 		return qfalse;
 	}
 
-	PM_QL_DoJump( qfalse );
+	PM_QL_DoJump( qfalse, qfalse );
 	return qtrue;
 }
 
@@ -714,6 +796,87 @@ static void PM_WaterMove( void ) {
 
 /*
 ===================
+PM_CheckLadder
+
+VQL: facing a SURF_LADDER brush within one unit.
+===================
+*/
+static void PM_CheckLadder( void ) {
+	trace_t	trace;
+	vec3_t	spot;
+	vec3_t	flatforward;
+
+	pml.ladder = qfalse;
+	if ( pm->pmove_movement != MOVEMENT_QL ) {
+		return;
+	}
+
+	VectorCopy( pml.forward, flatforward );
+	flatforward[2] = 0;
+	VectorNormalize( flatforward );
+
+	VectorAdd( pm->ps->origin, flatforward, spot );
+	pm->trace( &trace, pm->ps->origin, pm->mins, pm->maxs, spot, pm->ps->clientNum, MASK_PLAYERSOLID );
+	if ( trace.fraction < 1.0f && ( trace.surfaceFlags & SURF_LADDER ) ) {
+		pml.ladder = qtrue;
+	}
+}
+
+/*
+===================
+PM_LadderMove
+
+VQL climb: 0.66 of run speed, jump/crouch set vertical wish.
+===================
+*/
+static void PM_LadderMove( void ) {
+	int			i;
+	vec3_t		wishvel;
+	vec3_t		wishdir;
+	float		wishspeed;
+	float		scale;
+	float		vel;
+
+	PM_Friction();
+
+	scale = PM_CmdScale( &pm->cmd );
+	if ( scale ) {
+		for ( i = 0 ; i < 3 ; i++ ) {
+			wishvel[i] = scale * pml.forward[i] * pm->cmd.forwardmove
+				+ scale * pml.right[i] * pm->cmd.rightmove;
+		}
+		wishvel[2] += scale * pm->cmd.upmove;
+	} else {
+		VectorClear( wishvel );
+	}
+
+	if ( pm->cmd.upmove > 0 ) {
+		wishvel[2] = pm->ps->speed * 0.66f;
+	} else if ( pm->cmd.upmove < 0 ) {
+		wishvel[2] = -pm->ps->speed * 0.66f;
+	}
+
+	VectorCopy( wishvel, wishdir );
+	wishspeed = VectorNormalize( wishdir );
+
+	if ( wishspeed > pm->ps->speed * 0.66f ) {
+		wishspeed = pm->ps->speed * 0.66f;
+	}
+
+	PM_Accelerate( wishdir, wishspeed, pm_accelerate );
+
+	if ( pml.groundPlane && DotProduct( pm->ps->velocity, pml.groundTrace.plane.normal ) < 0 ) {
+		vel = VectorLength( pm->ps->velocity );
+		PM_ClipVelocity( pm->ps->velocity, pml.groundTrace.plane.normal, pm->ps->velocity, OVERCLIP );
+		VectorNormalize( pm->ps->velocity );
+		VectorScale( pm->ps->velocity, vel, pm->ps->velocity );
+	}
+
+	PM_SlideMove( qfalse );
+}
+
+/*
+===================
 PM_InvulnerabilityMove
 
 Only with the invulnerability powerup
@@ -770,6 +933,9 @@ static void PM_FlyMove( void ) {
 static float PM_GetSwimscale(pmove_t *pm) {
 	if (pm->pmove_ratflags & RAT_FASTSWIM) {
 		return pm_swimScaleFast;
+	}
+	if (pm->pmove_movement == MOVEMENT_QL) {
+		return pm_ql_WaterSwimScale;
 	}
 	return pm_swimScale;
 }
@@ -1154,7 +1320,16 @@ static void PM_WalkMove( void ) {
 	if ( pm->waterlevel ) {
 		float	waterScale;
 
-		if ((pm->pmove_movement != MOVEMENT_RM) || pm->waterlevel != 1) {
+		if ( pm->pmove_movement == MOVEMENT_QL ) {
+			if ( pm->waterlevel == 1 ) {
+				waterScale = pm_ql_WaterWadeScale;
+			} else {
+				waterScale = 1.0f - ( ( (float)pm->waterlevel ) / 3.0f ) * ( 1.0f - PM_GetSwimscale( pm ) );
+			}
+			if ( waterScale > 0.0f && wishspeed > pm->ps->speed * waterScale ) {
+				wishspeed = pm->ps->speed * waterScale;
+			}
+		} else if ((pm->pmove_movement != MOVEMENT_RM) || pm->waterlevel != 1) {
 			waterScale = pm->waterlevel / 3.0;
 			waterScale = 1.0 - ( 1.0 - PM_GetSwimscale(pm) ) * waterScale;
 			if ( wishspeed > pm->ps->speed * waterScale ) {
@@ -1222,17 +1397,12 @@ static void PM_WalkMove( void ) {
 	}
 
 	// slide along the ground plane
-	if ( pm->pmove_movement == MOVEMENT_QL ) {
-		PM_ClipVelocity (pm->ps->velocity, pml.groundTrace.plane.normal, 
-			pm->ps->velocity, OVERCLIP );
-	} else {
-		vel = VectorLength(pm->ps->velocity);
-		PM_ClipVelocity (pm->ps->velocity, pml.groundTrace.plane.normal, 
-			pm->ps->velocity, OVERCLIP );
-		// don't decrease velocity when going up or down a slope
-		VectorNormalize(pm->ps->velocity);
-		VectorScale(pm->ps->velocity, vel, pm->ps->velocity);
-	}
+	vel = VectorLength(pm->ps->velocity);
+	PM_ClipVelocity (pm->ps->velocity, pml.groundTrace.plane.normal, 
+		pm->ps->velocity, OVERCLIP );
+	// don't decrease velocity when going up or down a slope
+	VectorNormalize(pm->ps->velocity);
+	VectorScale(pm->ps->velocity, vel, pm->ps->velocity);
 
 	// don't do anything if standing still
 	if (!pm->ps->velocity[0] && !pm->ps->velocity[1]) {
@@ -2623,6 +2793,8 @@ void PmoveSingle (pmove_t *pmove) {
 		}
 	}
 
+	PM_CheckLadder();
+
 	/* if ( pm->ps->powerups[PW_INVULNERABILITY] ) {
 		PM_InvulnerabilityMove();
 	} else */
@@ -2642,6 +2814,8 @@ void PmoveSingle (pmove_t *pmove) {
 	} else if ( pm->waterlevel > 1 ) {
 		// swimming
 		PM_WaterMove();
+	} else if ( pml.ladder ) {
+		PM_LadderMove();
 	} else if ( pml.walking ) {
 		// walking on ground
 		PM_WalkMove();
