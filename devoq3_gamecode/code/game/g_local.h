@@ -232,6 +232,7 @@ struct gentity_s {
 	// for delagged projectiles
 	qboolean	needsDelag;
 	int		launchTime;
+	int		delagShiftTime;	// owner's attackTime at fire (player rewind during catch-up)
 	int		missileRan;
 
 	int		pushed_at;
