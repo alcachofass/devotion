@@ -150,7 +150,7 @@ typedef struct {
 	float		spacing;		/* gap between WeaponList rows */
 	float		margins[4];		/* L T R B; positive = inward */
 	qboolean	hasMargins;
-	int			visFlags;		/* 0 = default; bit0 all, bit1 follow, bit2 free, bit3 team, bit4 warmup */
+	int			visFlags;		/* 0 = default; bit0 all, bit1 follow, bit2 free, bit3 team, bit4 warmup, bit5 alive, bit6 dead */
 	int			itTeam;			/* ItemTimers: 0 all/F, 1 own, 2 enemy */
 	int			fadeDelay;		/* ms before fade starts */
 	int			fadeIn;			/* ms fade-in (parsed; appearance delay) */
@@ -833,8 +833,11 @@ static unsigned SH_ApplyProps( shElement_t *e, shToken_t *tok, int start, int en
 					e->visFlags |= 8;
 				} else if ( !Q_stricmp( vf, "warmup" ) ) {
 					e->visFlags |= 16;
-				} else if ( !Q_stricmp( vf, "alive" ) || !Q_stricmp( vf, "dead" ) ||
-						!Q_stricmp( vf, "intermission" ) ||
+				} else if ( !Q_stricmp( vf, "alive" ) ) {
+					e->visFlags |= 32;
+				} else if ( !Q_stricmp( vf, "dead" ) ) {
+					e->visFlags |= 64;
+				} else if ( !Q_stricmp( vf, "intermission" ) ||
 						!Q_stricmp( vf, "enemy" ) ) {
 					/* accepted, not separately gated yet */
 				} else {
@@ -1554,7 +1557,7 @@ static void SH_DrawBar( const shElement_t *e, float frac ) {
 
 static qboolean SH_Visible( const shElement_t *e ) {
 	int flags;
-	qboolean follow, spec, freeSpec;
+	qboolean follow, spec, freeSpec, playing, alive;
 
 	if ( !e->inuse || e->hidden || e->isStub ) {
 		return qfalse;
@@ -1570,6 +1573,8 @@ static qboolean SH_Visible( const shElement_t *e ) {
 	spec = ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ||
 			cg.snap->ps.pm_type == PM_SPECTATOR ) ? qtrue : qfalse;
 	freeSpec = ( spec && !follow ) ? qtrue : qfalse;
+	playing = ( !spec && cg.snap->ps.pm_type != PM_INTERMISSION ) ? qtrue : qfalse;
+	alive = ( playing && cg.snap->ps.stats[STAT_HEALTH] > 0 ) ? qtrue : qfalse;
 	if ( ( flags & 2 ) && ( follow || spec ) ) {
 		return qtrue;
 	}
@@ -1580,6 +1585,12 @@ static qboolean SH_Visible( const shElement_t *e ) {
 		return qtrue;
 	}
 	if ( ( flags & 16 ) && CG_IsHudWarmup() ) {
+		return qtrue;
+	}
+	if ( ( flags & 32 ) && alive ) {
+		return qtrue;
+	}
+	if ( ( flags & 64 ) && playing && !alive ) {
 		return qtrue;
 	}
 	return qfalse;
@@ -2672,7 +2683,7 @@ static void SH_DrawItemTimers( void ) {
 	shElement_t		*icons;
 	shElement_t		*times;
 
-	if ( cg.demoPlayback && !cg_demoItemTimers.integer ) {
+	if ( !CG_HudItemTimersAllowed() ) {
 		return;
 	}
 

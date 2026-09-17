@@ -1929,6 +1929,7 @@ void CG_ItemTimersTouchEntity( const centity_t *cent );
 void CG_ItemTimersNotePickup( int itemIndex, const vec3_t origin );
 void CG_ItemTimersDemoFrame( void );
 void CG_DrawItemTimerPie( const centity_t *cent );
+qboolean CG_HudItemTimersAllowed( void );
 void CG_DrawSpecItemTimers( void );
 void CG_DrawSpecPlayerStatus( void );
 int CG_ItemTimersCollect( cgItemTimer_t *out, int max, int sideFilter, int bitMask );

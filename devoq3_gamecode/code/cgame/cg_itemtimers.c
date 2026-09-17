@@ -62,16 +62,24 @@ static int CG_ItemTimerBits( const gitem_t *item ) {
 	return 0;
 }
 
-static qboolean CG_LocalClientIsSpectator( void ) {
+/*
+ * HUD item timers (SuperHUD ItemTimers* and the spec overlay) are spectator-only.
+ * visflags / custom HUD files cannot enable them while playing.
+ */
+qboolean CG_HudItemTimersAllowed( void ) {
 	if ( !cg.snap ) {
 		return qfalse;
 	}
 	if ( cg.snap->ps.pm_type == PM_INTERMISSION ) {
 		return qfalse;
 	}
-	if ( cg.clientNum >= 0 && cg.clientNum < MAX_CLIENTS
-			&& cgs.clientinfo[cg.clientNum].infoValid
-			&& cgs.clientinfo[cg.clientNum].team == TEAM_SPECTATOR ) {
+	if ( cg.demoPlayback ) {
+		return cg_demoItemTimers.integer ? qtrue : qfalse;
+	}
+	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
+		return qtrue;
+	}
+	if ( cg.snap->ps.pm_type == PM_SPECTATOR ) {
 		return qtrue;
 	}
 	return qfalse;
@@ -989,17 +997,11 @@ void CG_DrawSpecItemTimers( void ) {
 	if ( cg.snap->ps.pm_type == PM_INTERMISSION ) {
 		return;
 	}
-	if ( cg.demoPlayback ) {
-		if ( !cg_demoItemTimers.integer ) {
-			return;
-		}
-	} else {
-		if ( !CG_LocalClientIsSpectator() ) {
-			return;
-		}
-		if ( cg_specItemTimers.integer <= 0 ) {
-			return;
-		}
+	if ( !CG_HudItemTimersAllowed() ) {
+		return;
+	}
+	if ( !cg.demoPlayback && cg_specItemTimers.integer <= 0 ) {
+		return;
 	}
 	if ( CG_SH_Active() && CG_SH_HasItemTimers() ) {
 		return;
