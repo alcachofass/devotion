@@ -397,12 +397,12 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 
 	// reward sounds
 	reward = qfalse;
-	if (ps->persistant[PERS_CAPTURES] != ops->persistant[PERS_CAPTURES]) {
+	if (ps->persistant[PERS_CAPTURES] > ops->persistant[PERS_CAPTURES]) {
 		CG_PushReward(cgs.media.captureAwardSound, cgs.media.medalCapture, ps->persistant[PERS_CAPTURES]);
 		reward = qtrue;
 		//Com_Printf("capture\n");
 	}
-	if (ps->persistant[PERS_IMPRESSIVE_COUNT] != ops->persistant[PERS_IMPRESSIVE_COUNT]) {
+	if (ps->persistant[PERS_IMPRESSIVE_COUNT] > ops->persistant[PERS_IMPRESSIVE_COUNT]) {
 #ifdef MISSIONPACK
 		if (ps->persistant[PERS_IMPRESSIVE_COUNT] == 1) {
 			sfx = cgs.media.firstImpressiveSound;
@@ -418,7 +418,7 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 	}
 	//KK-OAX We Just Won't Draw The Excellent Stuff if Multikills are Enabled!!!
 	if( !cgs.altExcellent ) {
-	    if (ps->persistant[PERS_EXCELLENT_COUNT] != ops->persistant[PERS_EXCELLENT_COUNT]) {
+	    if (ps->persistant[PERS_EXCELLENT_COUNT] > ops->persistant[PERS_EXCELLENT_COUNT]) {
 #ifdef MISSIONPACK
 		    if (ps->persistant[PERS_EXCELLENT_COUNT] == 1) {
 			    sfx = cgs.media.firstExcellentSound;
@@ -434,7 +434,7 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 		    //Com_Printf("excellent\n");
 	    }
 	}
-	if (ps->persistant[PERS_GAUNTLET_FRAG_COUNT] != ops->persistant[PERS_GAUNTLET_FRAG_COUNT]) {
+	if (ps->persistant[PERS_GAUNTLET_FRAG_COUNT] > ops->persistant[PERS_GAUNTLET_FRAG_COUNT]) {
 #ifdef MISSIONPACK
 		if (ops->persistant[PERS_GAUNTLET_FRAG_COUNT] == 1) {
 			sfx = cgs.media.firstHumiliationSound;
@@ -448,12 +448,12 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 		reward = qtrue;
 		//Com_Printf("guantlet frag\n");
 	}
-	if (ps->persistant[PERS_DEFEND_COUNT] != ops->persistant[PERS_DEFEND_COUNT]) {
+	if (ps->persistant[PERS_DEFEND_COUNT] > ops->persistant[PERS_DEFEND_COUNT]) {
 		CG_PushReward(cgs.media.defendSound, cgs.media.medalDefend, ps->persistant[PERS_DEFEND_COUNT]);
 		reward = qtrue;
 		//Com_Printf("defend\n");
 	}
-	if (ps->persistant[PERS_ASSIST_COUNT] != ops->persistant[PERS_ASSIST_COUNT]) {
+	if (ps->persistant[PERS_ASSIST_COUNT] > ops->persistant[PERS_ASSIST_COUNT]) {
 		CG_PushReward(cgs.media.assistSound, cgs.media.medalAssist, ps->persistant[PERS_ASSIST_COUNT]);
 		reward = qtrue;
 		//Com_Printf("assist\n");
@@ -614,6 +614,9 @@ void CG_TransitionPlayerState( playerState_t *ps, playerState_t *ops ) {
 		cg.altFireMGBurstShots = 0;	//mrd
 		CG_Respawn();
 		cg.mapRestart = qfalse;
+		/* Warmup→match is a new server epoch. Drop persistant diffs so
+		 * reset-to-zero award counts cannot fire a ghost medal. */
+		*ops = *ps;
 	}
 
 	if ( cg.snap->ps.pm_type != PM_INTERMISSION 
