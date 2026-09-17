@@ -807,7 +807,15 @@ static int CG_ShotgunPattern_PlayerHit( vec3_t origin, vec3_t origin2, int seed,
 	}
 
 	if ( outDamage ) {
-		pelletDamage = ( cgs.ratFlags & RAT_NEWSHOTGUN ) ? 9 : 10;
+		if ( cgs.ratFlags & RAT_NEWSHOTGUN )
+		{
+			pelletDamage = 9;
+		} else if ( altFire ) {
+			pelletDamage = 7;
+		} else {
+			pelletDamage = 10;
+		}
+		//pelletDamage = ( cgs.ratFlags & RAT_NEWSHOTGUN ) ? 9 : 10;	//mrd
 		*outDamage = pellets * pelletDamage * CG_PredictedQuadFactor();
 	}
 

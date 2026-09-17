@@ -255,6 +255,12 @@ struct gentity_s {
 
 	//mrd - for alt-fire on missiles
 	qboolean altFire;
+
+	//mrd - for vortex grenades
+	int	vortexEndTime;
+	int	vortexRadius;
+	int	vortexForce;
+	int vortexNextTickTime;
 };
 
 

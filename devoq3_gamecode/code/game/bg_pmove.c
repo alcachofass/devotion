@@ -2132,6 +2132,11 @@ static void PM_Weapon( void ) {
 
 	burstShot = pm->altFireBurstShots;
 
+	//mrd - vortex grenades have a special reload time
+	if ( pm->ps->weapon == WP_GRENADE_LAUNCHER && altFire && pm->ps->stats[STAT_VORTEX_RELOAD] > 0 ) {
+		return;
+	}
+
 	//mrd - MG alt fire only consumes ammo on first firing event
 	if (altFire 
 		&& pm->ps->weapon == WP_MACHINEGUN
@@ -2162,6 +2167,11 @@ static void PM_Weapon( void ) {
 	// make weapon function
 	if ( pm->ps->weaponTime > 0 ) {
 		pm->ps->weaponTime -= pml.msec;
+	}
+
+	//mrd - track vortex grenade reload separately
+	if ( pm->ps->stats[STAT_VORTEX_RELOAD] > 0 ) {
+		pm->ps->stats[STAT_VORTEX_RELOAD] -= pml.msec;
 	}
 
 	// check for weapon change
@@ -2257,6 +2267,9 @@ static void PM_Weapon( void ) {
 	//if (pm->cmd.buttons & BUTTON_ALT_ATTACK) {
 	if (altFire) {
 		PM_AddEvent( EV_ALTFIRE_WEAPON );
+		if (pm->ps->weapon == WP_GRENADE_LAUNCHER){
+			pm->ps->stats[STAT_VORTEX_RELOAD] = VORTEX_RELOAD;
+		}
 	} else {
 		PM_AddEvent( EV_FIRE_WEAPON );
 	}
@@ -2280,7 +2293,11 @@ static void PM_Weapon( void ) {
 		addTime = 100;
 		break;
 	case WP_GRENADE_LAUNCHER:
-		addTime = 800;
+		if (altFire){
+			addTime = 1000;
+		} else {
+			addTime = 800;
+		}
 		break;
 	case WP_ROCKET_LAUNCHER:
 		addTime = 800;

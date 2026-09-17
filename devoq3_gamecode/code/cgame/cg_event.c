@@ -1093,6 +1093,12 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		}
 		break;
 
+	//mrd
+	case EV_VORTEX_GRENADE_STICK:
+		DEBUGNAME("EV_VORTEX_GRENADE_STICK");
+		trap_S_StartSound (NULL, es->number, CHAN_AUTO, cgs.media.hgrenb1aSound );
+		break;
+
 	/*
 	case EV_PROXIMITY_MINE_STICK:
 		DEBUGNAME("EV_PROXIMITY_MINE_STICK");
