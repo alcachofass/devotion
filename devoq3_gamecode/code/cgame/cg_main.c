@@ -2695,6 +2695,7 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	CG_RegisterGraphics();
 
 	CG_ItemTimersBuildRoster();
+	CG_FreeCamParseMap();
 
 	CG_LoadingString( "clients" );
 

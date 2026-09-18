@@ -1834,6 +1834,7 @@ void CG_DemoControls_Frame( void );
 void CG_DemoControls_Shutdown( void );
 void CG_DemoControls_Draw( void );
 qboolean CG_DemoControls_IsSeeking( void );
+qboolean CG_DemoControls_IsPaused( void );
 void CG_DemoControls_PrepareSeekDraw( void );
 qboolean CG_DemoControls_SeekWantsKeyframe( void );
 qboolean CG_DemoControls_SeekKeyframeHold( void );
@@ -1841,6 +1842,8 @@ void CG_DemoControls_SeekCaptureTime( int t );
 int CG_DemoControls_SeekHoldTime( void );
 qboolean CG_DemoControls_MouseEvent( int dx, int dy );
 qboolean CG_DemoControls_KeyEvent( int key, qboolean down );
+qboolean CG_DemoControls_FreeCamActive( void );
+void CG_DemoControls_FreeCamView( vec3_t origin, vec3_t angles );
 void CG_DemoEvents_Frame( void );
 void CG_DemoEvents_Shutdown( void );
 int CG_DemoEvents_FirstServerTime( void );
@@ -2095,6 +2098,9 @@ void CG_Trace( trace_t *result, const vec3_t start, const vec3_t mins, const vec
 void CG_PredictPlayerState( void );
 void CG_LoadDeferredPlayers( void );
 qboolean CG_MissileTouchedPortal(const vec3_t start, const vec3_t end);
+void CG_FreeCamParseMap( void );
+qboolean CG_FreeCamTouchTeleporter( vec3_t origin, vec3_t angles );
+void CG_FreeCamAddAmbientMovers( void );
 void CG_EncodePlayerBBox( pmove_t *pm, entityState_t *ent);
 
 

@@ -559,17 +559,19 @@ static int CG_CalcFovImpl( float fov, float zoomFov ) {
                                 zoomFov = MAX_BASICLOCK_FOV;
                 }
 
-		if ( cg.zoomed ) {
-			f = ( cg.time - cg.zoomTime ) / (float)ZOOM_TIME*cg_zoomAnimScale.value;
-			if ( f > 1.0 || cg_zoomAnim.integer == 0) {
-				fov_x = zoomFov;
+		if ( !CG_DemoControls_FreeCamActive() ) {
+			if ( cg.zoomed ) {
+				f = ( cg.time - cg.zoomTime ) / (float)ZOOM_TIME*cg_zoomAnimScale.value;
+				if ( f > 1.0 || cg_zoomAnim.integer == 0) {
+					fov_x = zoomFov;
+				} else {
+					fov_x = fov_x + f * ( zoomFov - fov_x );
+				}
 			} else {
-				fov_x = fov_x + f * ( zoomFov - fov_x );
-			}
-		} else {
-			f = ( cg.time - cg.zoomTime ) / (float)ZOOM_TIME*cg_zoomAnimScale.value;
-			if ( f <= 1.0 && cg_zoomAnim.integer != 0 ) {
-				fov_x = zoomFov + f * ( fov_x - zoomFov );
+				f = ( cg.time - cg.zoomTime ) / (float)ZOOM_TIME*cg_zoomAnimScale.value;
+				if ( f <= 1.0 && cg_zoomAnim.integer != 0 ) {
+					fov_x = zoomFov + f * ( fov_x - zoomFov );
+				}
 			}
 		}
 	}
@@ -724,20 +726,16 @@ static int CG_CalcViewValues( void ) {
 	CG_CalcVrect();
 
 	ps = &cg.predictedPlayerState;
-/*
-	if (cg.cameraMode) {
-		vec3_t origin, angles;
-		if (trap_getCameraInfo(cg.time, &origin, &angles)) {
-			VectorCopy(origin, cg.refdef.vieworg);
-			angles[ROLL] = 0;
-			VectorCopy(angles, cg.refdefViewAngles);
-			AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
-			return CG_CalcFov();
-		} else {
-			cg.cameraMode = qfalse;
+
+	if ( CG_DemoControls_FreeCamActive() ) {
+		CG_DemoControls_FreeCamView( cg.refdef.vieworg, cg.refdefViewAngles );
+		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
+		if ( cg.hyperspace ) {
+			cg.refdef.rdflags |= RDF_NOWORLDMODEL | RDF_HYPERSPACE;
 		}
+		return CG_CalcFov();
 	}
-*/
+
 	// intermission view
 	if ( ps->pm_type == PM_INTERMISSION ) {
 		VectorCopy( ps->origin, cg.refdef.vieworg );
@@ -993,6 +991,7 @@ Generates and draws a game scene and status information at the given time.
 */
 void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demoPlayback ) {
 	int		inwater;
+	qboolean	freeCam;
 
 	cg.time = serverTime;
 	cg.demoPlayback = demoPlayback;
@@ -1069,10 +1068,17 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	CG_PredictPlayerState();
 	CG_BigHeadUpdateScores();
 
+	freeCam = CG_DemoControls_FreeCamActive();
+
 	// decide on third person view
 	cg.renderingThirdPerson = cg_thirdPerson.integer || (cg.snap->ps.stats[STAT_HEALTH] <= 0);
+	if ( freeCam ) {
+		cg.renderingThirdPerson = qtrue;
+	}
 
-	CG_SpecZooming();
+	if ( !freeCam ) {
+		CG_SpecZooming();
+	}
 
 	// build cg.refdef
 	inwater = CG_CalcViewValues();
@@ -1085,7 +1091,10 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// build the render lists
 	if ( !cg.hyperspace ) {
 		CG_AddPacketEntities();			// adter calcViewValues, so predicted player state is correct
-		CG_DrawBotAimFollowFirstPerson();
+		CG_FreeCamAddAmbientMovers();
+		if ( !freeCam ) {
+			CG_DrawBotAimFollowFirstPerson();
+		}
 		CG_AddPredictedMissiles();
 		CG_AddMarks();
 		CG_AddParticles ();
@@ -1110,12 +1119,16 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 	cg.refdef.time = cg.time;
 	memcpy( cg.refdef.areamask, cg.snap->areamask, sizeof( cg.refdef.areamask ) );
+	if ( freeCam ) {
+		memset( cg.refdef.areamask, 0, sizeof( cg.refdef.areamask ) );
+	}
 
 	// warning sounds when powerup is wearing off
 	CG_PowerupTimerSounds();
 
 	// update audio positions
-	trap_S_Respatialize( cg.snap->ps.clientNum, cg.refdef.vieworg, cg.refdef.viewaxis, inwater );
+	trap_S_Respatialize( freeCam ? ENTITYNUM_NONE : cg.snap->ps.clientNum,
+			cg.refdef.vieworg, cg.refdef.viewaxis, inwater );
 
 	// make sure the lagometerSample and frame timing isn't done twice when in stereo
 	if ( stereoView != STEREO_RIGHT ) {
