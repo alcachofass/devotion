@@ -24,6 +24,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define MISSILE_PRESTEP_TIME	50
 
+#define VORTEX_THINK_TIME	50
+#define VORTEX_TICK_TIME	666
+
 void G_SetMissileLaunchTime (gentity_t *self, gentity_t *bolt) {
 	if (!self->client) {
 		bolt->s.pos.trTime = level.time;
@@ -67,7 +70,9 @@ void G_SetMissileLaunchTime (gentity_t *self, gentity_t *bolt) {
 	// need to remember the true launch time for delag in case the missile gets bounced/teleported
 	bolt->launchTime = bolt->s.pos.trTime;
 	bolt->needsDelag = qtrue;
-	
+	// rewind players to the shot's command time (hitscan uses this same clock)
+	bolt->delagShiftTime = self->client->attackTime;
+
 	if (G_IsElimGT() && level.time > level.roundStartTime - 1000*g_elimination_activewarmup.integer) {
 		if (bolt->launchTime < level.roundStartTime) {
 			int prestep = 0;
@@ -83,12 +88,22 @@ void G_SetMissileLaunchTime (gentity_t *self, gentity_t *bolt) {
 		}
 	}
 
+	// don't rewind players earlier than this rocket was allowed to exist,
+	// or into the future
+	if (bolt->delagShiftTime < bolt->launchTime) {
+		bolt->delagShiftTime = bolt->launchTime;
+	} else if (bolt->delagShiftTime > level.time) {
+		bolt->delagShiftTime = level.time;
+	}
+
 }
 
 void G_MissileRunDelag(gentity_t *ent, int stepmsec) {
 	int prevTimeSaved;
 	int lvlTimeSaved;
 	int projectileDelagTime;
+	int baseShiftTime;
+	qboolean latencyMode;
 
 	if (g_delagMissileNudgeOnly.integer
 			|| level.previousTime <= DELAG_MAX_BACKTRACK
@@ -108,6 +123,12 @@ void G_MissileRunDelag(gentity_t *ent, int stepmsec) {
 
 	prevTimeSaved = level.previousTime;
 	lvlTimeSaved = level.time;
+	latencyMode = (g_delagMissileLatencyMode.integer != 0) ? qtrue : qfalse;
+	baseShiftTime = ent->delagShiftTime;
+	if (baseShiftTime <= 0) {
+		baseShiftTime = ent->launchTime;
+	}
+
 	projectileDelagTime = level.previousTime - (DELAG_MAX_BACKTRACK/stepmsec) * stepmsec;
 	while (projectileDelagTime < prevTimeSaved) {
 		if ( !G_InUse(ent) || ent->freeAfterEvent ) {
@@ -116,11 +137,28 @@ void G_MissileRunDelag(gentity_t *ent, int stepmsec) {
 			break;
 		}
 		if (projectileDelagTime >= ent->launchTime) {
-			int shiftTime = projectileDelagTime;
-			G_TimeShiftAllClients( shiftTime, ent->parent );
-			level.time = projectileDelagTime + stepmsec;
-			level.previousTime = projectileDelagTime;
+			int rocketTime = projectileDelagTime + stepmsec;
+			int shiftTime;
 
+			// Latency mode (default): start at the owner's attackTime (what
+			// they aimed at) and walk other players forward in lockstep with
+			// the rocket. Legacy mode 0 keeps players one server frame behind
+			// the rocket on the raw sim clock.
+			if (latencyMode) {
+				shiftTime = baseShiftTime + (rocketTime - ent->launchTime);
+				if (shiftTime < ent->launchTime) {
+					shiftTime = ent->launchTime;
+				} else if (shiftTime > lvlTimeSaved) {
+					shiftTime = lvlTimeSaved;
+				}
+			} else {
+				shiftTime = projectileDelagTime;
+			}
+
+			G_TimeShiftAllClients( shiftTime, ent->parent );
+
+			level.time = rocketTime;
+			level.previousTime = projectileDelagTime;
 
 			G_RunMissile( ent );
 
@@ -130,6 +168,7 @@ void G_MissileRunDelag(gentity_t *ent, int stepmsec) {
 		}
 		projectileDelagTime += stepmsec;
 	}
+
 	ent->needsDelag = qfalse;
 }
 
@@ -358,6 +397,114 @@ void G_ExplodeMissile( gentity_t *ent ) {
 	G_CheckKamikazeAward(ent->parent, ownerKills, ownerDeaths);
 #endif
 }
+
+
+/*
+================
+G_VortexThink
+
+//mrd - vortex grenade
+================
+*/
+void G_VortexThink( gentity_t *ent ) {
+	vec3_t mins, maxs;
+	vec3_t dir;
+	float dist, falloff, pullSpeed;
+
+	int i, e;
+
+	gentity_t *other;
+
+	int entityList[MAX_GENTITIES];
+	int numTrapped;
+
+	if ( level.time >= ent->vortexEndTime ) {
+		G_ExplodeMissile ( ent );
+		return;
+	}
+	
+	//build a search box
+	for ( i = 0; i < 3; i++ ) {
+		mins[i] = ent->r.currentOrigin[i] - ent->vortexRadius;
+		maxs[i] = ent->r.currentOrigin[i] + ent->vortexRadius;
+	}
+
+	numTrapped = trap_EntitiesInBox( mins, maxs, entityList, MAX_GENTITIES );
+
+	//mrd ignore non-players and dead players, otherwise figure out distance and normalize it
+	for ( e = 0; e < numTrapped; e++ ) {
+		other = &g_entities[entityList[e]];
+
+		if ( !other->client || other->health <=0 ){
+			continue;
+		}
+
+		if ( other->client->ps.pm_type != PM_NORMAL ){
+			continue;
+		}
+
+		VectorSubtract( ent->r.currentOrigin, other->r.currentOrigin, dir );
+		dist = VectorLength( dir );
+		if ( dist < 1.0 )
+		{
+			dist = 1.0;
+		}
+		if ( dist >= ent->vortexRadius ){
+			continue;
+		}
+		VectorNormalize(dir);
+
+		//scalar fall off similar to G_RadiusDamage
+		falloff = ( 1.0 - dist / ent->vortexRadius );
+		pullSpeed = ent->vortexForce * falloff * ( VORTEX_THINK_TIME / 1000.0f );
+
+		//pull them in
+		VectorMA( other->client->ps.velocity, pullSpeed, dir, other->client->ps.velocity );
+	}
+
+	if ( level.time >= ent->vortexNextTickTime ) {
+		G_AddEvent ( ent, EV_GENERAL_SOUND, G_SoundIndex( "sound/world/button_zap.wav" ) );
+		ent->vortexNextTickTime = level.time + VORTEX_TICK_TIME;
+	}	
+	ent->nextthink = level.time + 50;
+}
+
+/*
+================
+G_VortexStick
+//mrd - snap to surface, freeze it, orient it, arm it, re-link it
+================
+*/
+static void G_VortexStick( gentity_t *ent, trace_t *trace ) {
+	
+	vec3_t outward, velocity, probeEnd;
+	int hitTime;
+	trace_t probe;
+
+	ent->r.contents = CONTENTS_CORPSE;
+
+	VectorCopy( trace->plane.normal, outward );
+	VectorMA( trace->endpos, 4, outward, probeEnd );
+	trap_Trace( &probe, trace->endpos, NULL, NULL, probeEnd, ENTITYNUM_NONE, MASK_SOLID );
+
+	SnapVectorTowards( trace->endpos, ent->s.pos.trBase );
+	G_SetOrigin( ent, trace->endpos );
+	
+	if ( probe.fraction < 1.0f || probe.startsolid ) {
+		VectorNegate( outward, outward );
+	}
+	
+	vectoangles( outward, ent->s.angles ) ;
+	ent->s.angles[0] += 90;
+
+	ent->vortexEndTime = level.time + g_vortexGrenadeDuration.integer;
+	ent->vortexNextTickTime = level.time + VORTEX_TICK_TIME;
+
+	ent->think = G_VortexThink;
+	ent->nextthink = level.time + VORTEX_THINK_TIME;
+
+	trap_LinkEntity ( ent );
+}	
 
 /*
 ================
@@ -644,11 +791,21 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 	//	return;
 	//}
 	
-	// check for bounce
-	if ( !other->takedamage &&
+	// check for bounce or vortex grenade stick
+	//if ( !other->takedamage &&
+	if ( !ent->altFire && !other->takedamage &&
 		( ent->s.eFlags & ( EF_BOUNCE | EF_BOUNCE_HALF ) ) ) {
 		G_BounceMissile( ent, trace );
 		G_AddEvent( ent, EV_GRENADE_BOUNCE, 0 );
+		return;
+	//mrd - create the vortex event and enter vortex think
+	} else if ( !strcmp(ent->classname, "grenade") && ent->altFire && !other->takedamage &&
+		( ent->s.eFlags & ( EF_BOUNCE | EF_BOUNCE_HALF ) ) ) {
+			if ( ent->s.pos.trType == TR_STATIONARY ){
+				return;	//call it just once
+			}
+		G_VortexStick( ent, trace );
+		G_AddEvent( ent, EV_VORTEX_GRENADE_STICK, 0 );
 		return;
 	}
 
@@ -1096,6 +1253,8 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt = G_Spawn();
 	if (self->altFire) {
 		bolt->altFire = qtrue;
+		bolt->vortexRadius = g_vortexGrenadeRadius.integer;
+		bolt->vortexForce = g_vortexGrenadeForce.integer;
 	}
 	bolt->classname = "grenade";
 	if (bolt->altFire)
@@ -1120,6 +1279,9 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
 	bolt->s.weapon = WP_GRENADE_LAUNCHER;
 	bolt->s.eFlags = EF_BOUNCE_HALF;
+	if (bolt->altFire){
+		bolt->s.eFlags |= EF_VORTEX;
+	}
 	bolt->r.ownerNum = self->s.number;
 //unlagged - projectile nudge
 	// we'll need this for nudging projectiles later

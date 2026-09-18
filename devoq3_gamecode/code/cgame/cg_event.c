@@ -919,11 +919,18 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 				trap_S_StartSound (NULL, es->number, CHAN_AUTO,	trap_S_RegisterSound( item->pickup_sound, qfalse ) );
 			}
 
+			CG_ItemTimersNotePickup( index, position );
+
 			// show icon and name on status bar
 			if ( es->number == cg.snap->ps.clientNum ) {
 				CG_ItemPickup( index );
 			}
 		}
+		break;
+
+	case EV_ITEM_PICKUP_SPEC:
+		DEBUGNAME("EV_ITEM_PICKUP_SPEC");
+		CG_ItemTimersSpecEvent( es );
 		break;
 
 	case EV_GLOBAL_ITEM_PICKUP:
@@ -942,6 +949,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			if( item->pickup_sound ) {
 				trap_S_StartSound (NULL, cg.snap->ps.clientNum, CHAN_AUTO, trap_S_RegisterSound( item->pickup_sound, qfalse ) );
 			}
+
+			CG_ItemTimersNotePickup( index, position );
 
 			// show icon and name on status bar
 			if ( es->number == cg.snap->ps.clientNum ) {
@@ -1082,6 +1091,12 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		} else {
 			trap_S_StartSound (NULL, es->number, CHAN_AUTO, cgs.media.hgrenb2aSound );
 		}
+		break;
+
+	//mrd
+	case EV_VORTEX_GRENADE_STICK:
+		DEBUGNAME("EV_VORTEX_GRENADE_STICK");
+		trap_S_StartSound (NULL, es->number, CHAN_AUTO, cgs.media.hgrenb1aSound );
 		break;
 
 	/*

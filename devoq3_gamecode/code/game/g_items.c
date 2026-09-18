@@ -452,15 +452,249 @@ qboolean G_IsKeyPowerup( int powerup ) {
 
 //======================================================================
 
+static int Item_CtfSide( gentity_t *ent );
+static void G_UpdateItemTimerConfigstring( void );
+static void Item_NotifySpectators( gentity_t *ent, qboolean isAvailable );
+
+static int Item_CtfSide( gentity_t *ent ) {
+	gentity_t	*redFlag;
+	gentity_t	*blueFlag;
+	vec3_t		diff;
+	float		distRed;
+	float		distBlue;
+
+	if ( g_gametype.integer != GT_CTF && g_gametype.integer != GT_CTF_ELIMINATION ) {
+		return 0;
+	}
+
+	redFlag = G_Find( NULL, FOFS( classname ), "team_CTF_redflag" );
+	blueFlag = G_Find( NULL, FOFS( classname ), "team_CTF_blueflag" );
+	if ( !redFlag || !blueFlag ) {
+		return 0;
+	}
+
+	VectorSubtract( redFlag->r.currentOrigin, ent->r.currentOrigin, diff );
+	distRed = DotProduct( diff, diff );
+	VectorSubtract( blueFlag->r.currentOrigin, ent->r.currentOrigin, diff );
+	distBlue = DotProduct( diff, diff );
+	return ( distBlue <= distRed ) ? 2 : 1;
+}
+
+/*
+===============
+Item_NotifySpectator
+
+Send EV_ITEM_PICKUP_SPEC to one spectator so the HUD overlay can track
+items outside PVS. generic1 1 = item is available (icon stays, hide time);
+generic1 0 = countdown until respawn.
+===============
+*/
+static void Item_NotifySpectator( gentity_t *ent, int clientNum, qboolean isAvailable ) {
+	gclient_t	*cl;
+	gentity_t	*te;
+
+	if ( clientNum < 0 || clientNum >= level.maxclients ) {
+		return;
+	}
+	cl = &level.clients[clientNum];
+	if ( cl->pers.connected != CON_CONNECTED ) {
+		return;
+	}
+	if ( cl->sess.sessionTeam != TEAM_SPECTATOR ) {
+		return;
+	}
+	if ( g_entities[clientNum].r.svFlags & SVF_BOT ) {
+		return;
+	}
+	if ( !ent || !ent->item || !BG_ItemHasTimer( ent->item ) ) {
+		return;
+	}
+
+	te = G_TempEntity( ent->r.currentOrigin, EV_ITEM_PICKUP_SPEC );
+	/* otherEntityNum2 is GENTITYNUM_BITS; eventParm is only 8 bits. */
+	te->s.otherEntityNum2 = ent->s.number;
+	te->s.eventParm = ent->s.number & 255;
+	te->s.modelindex = ent->s.modelindex;
+	if ( isAvailable ) {
+		te->s.time = 0;
+		te->s.time2 = 0;
+	} else {
+		te->s.time = ent->s.time;
+		te->s.time2 = ent->s.time2;
+		if ( te->s.time <= 0 && ent->nextthink > level.time ) {
+			te->s.time = ent->nextthink;
+			if ( te->s.time2 <= 0 ) {
+				te->s.time2 = ent->nextthink - level.time;
+			}
+		}
+	}
+	te->s.otherEntityNum = Item_CtfSide( ent );
+	te->s.generic1 = isAvailable ? 1 : 0;
+	te->r.svFlags |= SVF_BROADCAST | SVF_SINGLECLIENT;
+	te->r.singleClient = clientNum;
+}
+
+static void Item_NotifySpectators( gentity_t *ent, qboolean isRespawn ) {
+	int i;
+
+	if ( !ent || !ent->item || !BG_ItemHasTimer( ent->item ) ) {
+		return;
+	}
+
+	G_UpdateItemTimerConfigstring();
+
+	if ( !g_specItemTimers.integer ) {
+		return;
+	}
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		Item_NotifySpectator( ent, i, isRespawn );
+	}
+}
+
+void Item_NotifySpectatorPending( gentity_t *clientEnt ) {
+	int			i;
+	gentity_t	*ent;
+
+	if ( !g_specItemTimers.integer || !clientEnt || !clientEnt->client ) {
+		return;
+	}
+	if ( clientEnt->client->sess.sessionTeam != TEAM_SPECTATOR ) {
+		return;
+	}
+	if ( clientEnt->r.svFlags & SVF_BOT ) {
+		return;
+	}
+
+	for ( i = 0; i < level.num_entities; i++ ) {
+		ent = &g_entities[i];
+		if ( !G_InUse( ent ) || !ent->item ) {
+			continue;
+		}
+		if ( ent->flags & ( FL_DROPPED_ITEM | FL_TEAMSLAVE ) ) {
+			continue;
+		}
+		if ( !BG_ItemHasTimer( ent->item ) ) {
+			continue;
+		}
+		if ( ( ent->s.eFlags & EF_NODRAW ) && ent->think != RespawnItem ) {
+			continue;
+		}
+		if ( ( ent->s.eFlags & EF_NODRAW ) && ent->think == RespawnItem
+				&& ent->nextthink > level.time ) {
+			Item_NotifySpectator( ent, clientEnt - g_entities, qfalse );
+		} else {
+			Item_NotifySpectator( ent, clientEnt - g_entities, qtrue );
+		}
+	}
+}
+
+static void Item_SetRespawnTimer( gentity_t *ent, int respawn ) {
+	if ( !ent || !ent->item || !BG_ItemHasTimer( ent->item ) ) {
+		return;
+	}
+	if ( respawn <= 0 ) {
+		return;
+	}
+
+	ent->s.time = level.time + respawn * 1000;
+	ent->s.time2 = respawn * 1000;
+	ent->s.generic1 = ( ent->team != NULL ) ? 1 : 0;
+	ent->s.otherEntityNum = Item_CtfSide( ent );
+	ent->flags |= FL_ITEM_TIMER;
+
+	if ( g_itemTimers.integer ) {
+		ent->r.svFlags &= ~SVF_NOCLIENT;
+	}
+}
+
+void G_RefreshItemTimerBroadcast( void ) {
+	int			i;
+	gentity_t	*ent;
+
+	for ( i = MAX_CLIENTS; i < level.num_entities; i++ ) {
+		ent = &g_entities[i];
+		if ( !G_InUse( ent ) || !ent->item ) {
+			continue;
+		}
+		if ( !( ent->flags & FL_ITEM_TIMER ) ) {
+			continue;
+		}
+		if ( g_itemTimers.integer ) {
+			ent->r.svFlags &= ~SVF_NOCLIENT;
+		} else {
+			ent->r.svFlags |= SVF_NOCLIENT;
+		}
+		trap_LinkEntity( ent );
+	}
+}
+
+static void G_UpdateItemTimerConfigstring( void ) {
+	char		buf[MAX_STRING_CHARS];
+	char		rec[48];
+	int			i;
+	int			respawn;
+	int			side;
+	gentity_t	*ent;
+
+	buf[0] = '\0';
+	for ( i = MAX_CLIENTS; i < level.num_entities; i++ ) {
+		ent = &g_entities[i];
+		if ( !G_InUse( ent ) || !ent->item ) {
+			continue;
+		}
+		if ( ent->flags & ( FL_DROPPED_ITEM | FL_TEAMSLAVE ) ) {
+			continue;
+		}
+		if ( !BG_ItemHasTimer( ent->item ) ) {
+			continue;
+		}
+		if ( ent->s.modelindex <= 0 ) {
+			continue;
+		}
+		if ( ( ent->s.eFlags & EF_NODRAW ) && ent->think != RespawnItem ) {
+			continue;
+		}
+
+		respawn = 0;
+		if ( ( ent->s.eFlags & EF_NODRAW ) && ent->think == RespawnItem
+				&& ent->nextthink > level.time ) {
+			respawn = ent->s.time;
+			if ( respawn <= 0 ) {
+				respawn = ent->nextthink;
+			}
+		}
+		side = Item_CtfSide( ent );
+		Com_sprintf( rec, sizeof( rec ), "%s%i,%i,%i,%i",
+				buf[0] ? " " : "",
+				ent->s.number, ent->s.modelindex, respawn, side );
+		if ( strlen( buf ) + strlen( rec ) >= sizeof( buf ) - 1 ) {
+			break;
+		}
+		Q_strcat( buf, sizeof( buf ), rec );
+	}
+	trap_SetConfigstring( CS_ITEMTIMERS, buf );
+}
+
 /*
 ===============
 RespawnItem
 ===============
 */
 void RespawnItem( gentity_t *ent ) {
+        gentity_t *thinker;
+
         //Don't spawn quad if quadfactor are 1.0 or less
         //if(ent->item->giType == IT_POWERUP && ent->item->giTag == PW_QUAD && g_quadfactor.value <= 1.0)
         //    return;
+
+	thinker = ent;
+	thinker->s.time = 0;
+	thinker->s.time2 = 0;
+	thinker->s.generic1 = 0;
+	thinker->s.otherEntityNum = 0;
+	thinker->flags &= ~FL_ITEM_TIMER;
+	Item_NotifySpectators( thinker, qtrue );
 
 	// randomly select from teamed entities
 	if (ent->team) {
@@ -485,6 +719,11 @@ void RespawnItem( gentity_t *ent ) {
 	ent->r.contents = CONTENTS_TRIGGER;
 	ent->s.eFlags &= ~EF_NODRAW;
 	ent->r.svFlags &= ~SVF_NOCLIENT;
+	ent->s.time = 0;
+	ent->s.time2 = 0;
+	ent->s.generic1 = 0;
+	ent->s.otherEntityNum = 0;
+	ent->flags &= ~FL_ITEM_TIMER;
 	trap_LinkEntity (ent);
 
 	if ( ent->item->giType == IT_POWERUP ) {
@@ -720,11 +959,22 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 	if ( respawn <= 0 ) {
 		ent->nextthink = 0;
 		ent->think = 0;
+		ent->s.time = 0;
+		ent->s.time2 = 0;
+		ent->flags &= ~FL_ITEM_TIMER;
 	} else {
 		ent->nextthink = level.time + respawn * 1000;
 		ent->think = RespawnItem;
+		if ( !( ent->flags & FL_DROPPED_ITEM ) ) {
+			Item_SetRespawnTimer( ent, respawn );
+		}
 	}
 	trap_LinkEntity( ent );
+
+	if ( !( ent->flags & FL_DROPPED_ITEM ) && BG_ItemHasTimer( ent->item )
+			&& ent->nextthink > level.time ) {
+		Item_NotifySpectators( ent, qfalse );
+	}
 }
 
 
@@ -915,11 +1165,15 @@ void FinishSpawningItem( gentity_t *ent ) {
 		ent->r.contents = 0;
 		ent->nextthink = level.time + respawn * 1000;
 		ent->think = RespawnItem;
+		Item_NotifySpectators( ent, qfalse );
 		return;
 	}
 
 
 	trap_LinkEntity (ent);
+	if ( BG_ItemHasTimer( ent->item ) ) {
+		Item_NotifySpectators( ent, qtrue );
+	}
 }
 
 

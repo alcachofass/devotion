@@ -103,7 +103,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_delagMissileCorrectFrameOffset` | Devotion | `1` | 0 or 1 | When `1`, corrects frame offset in missile delag calculations. |
 | `g_delagMissileDebug` | RatMod | `0` | 0 or 1 | Debug output for missile delag. |
 | `g_delagMissileImmediateRun` | RatMod | `2` | integer >= 0 (typical) | How many missile simulation steps run immediately on fire. |
-| `g_delagMissileLatencyMode` | Devotion | `1` | 0 or 1 | Missile delag latency compensation mode. |
+| `g_delagMissileLatencyMode` | Devotion | `1` | 0 or 1 | Perform missile catch-up player rewind. Server starts at the shooter's attack time and walks opponents forward in lockstep with the rocket. |
 | `g_delagMissileLimitVariance` | Devotion | `1` | 0 or 1 | When `1`, caps ping variance used for missile delag. |
 | `g_delagMissileLimitVarianceMs` | Devotion | `25` | integer >= 0 (typical) | Maximum ping variance in milliseconds for missile delag. |
 | `g_delagMissileMaxLatency` | RatMod | `500` | integer >= 0 (typical) | Maximum ping in ms used when rewinding for missile hits. |
@@ -158,6 +158,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_instantgib` | RatMod | `0` | 0 or 1 | Instagib mode: rail-only one-hit kills. `2` enables extra variants. |
 | `g_itemDrop` | RatMod | `7` | integer >= 0 (typical) | Bitmask controlling which items players can drop. |
 | `g_itemPickup` | RatMod | `1` | 0 or 1 | When `1`, enables extended item pickup behavior. |
+| `g_itemTimers` | Devotion | `0` | 0 or 1 | When `1`, players see world-space respawn pies on major items. |
 | `g_killDisable` | RatMod | `0` | 0 or 1 | When `1`, disables the kill/suicide command. |
 | `g_killDropsFlag` | RatMod | `1` | 0 or 1 | When `1`, dying drops your carried flag. |
 | `g_killSafety` | RatMod | `500` | integer >= 0 (typical) | Spawn protection in milliseconds after using kill. |
@@ -184,7 +185,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_mixedMode` | RatMod | `0` | 0 or 1 | When `1`, allows non-RatEngine clients with limited features. |
 | `g_motd` | Vanilla | `` | string or numeric (see default) | Message of the day string shown to joining players. |
 | `g_motdfile` | RatMod | `motd.cfg` | filename | Path to the MOTD text file. |
-| `g_movement` | RatMod | `0` | `0`-`4` | Movement physics preset. `0` VQ3 (default), `1` CPMD (Defrag), `2` RM (Rat), `3` CPMA, `4` QL (Quake Live VQL: VQ3 accel/air with 22-unit air-step, jump 275, chain-jump, autohop, and a light forward bunny assist). `pmove_fixed 1` is recommended with QL. |
+| `g_movement` | RatMod | `0` | `0`-`4` | Movement physics preset. `0` Vanilla Quake 3, `1` CPMD (Defrag), `2` RM (Rat), `3` CPMA, `4` Quake Live. |
 | `g_multiTournamentAutoRePair` | RatMod | `1` | 0 or 1 | When `1`, re-pairs players between multi-tournament games. |
 | `g_multiTournamentEndgameRePair` | RatMod | `1` | 0 or 1 | When `1`, re-pairs players at the end of a multi-tournament bracket. |
 | `g_multiTournamentGames` | RatMod | `4` | integer >= 0 (typical) | Number of simultaneous tournament games in multi-tournament mode. |
@@ -228,7 +229,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_ra3nextForceArena` | RatMod | `-1` | integer >= 0 (typical) | Arena to use on next map load (`-1` = none). |
 | `g_railJump` | RatMod | `0` | 0 or 1 | When `1`, railgun knockback can be used for jumping. |
 | `g_railgunDamage` | RatMod | `100` | integer >= 0 (typical) | Railgun damage per hit. |
-| `g_rampJump` | RatMod | `0` | 0 or 1 | When `1`, allows ramp jumping. Ramp-jump state is kept across teleports in CPMA, CPMD, and QL movement modes. |
+| `g_rampJump` | RatMod | `0` | 0 or 1 | When `1`, Enables higher jumps when moving up ramped surfaces. |
 | `g_rankings` | Vanilla | `0` | 0 or 1 | When `1`, enables Woland global rankings integration. |
 | `g_readSpawnVarFiles` | RatMod | `0` | 0 or 1 | When `1`, loads per-map spawn override files. |
 | `g_recommendedMapsFile` | RatMod | `recommendedmaps.cfg` | filename | Path to the recommended maps list for votes and the map browser. |
@@ -237,7 +238,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_redteam` | Vanilla | `Stroggs` | string or numeric (see default) | Red team display name. |
 | `g_regen` | RatMod | `0` | 0 or 1 | Health regenerated per tick when regen mode is active (`0` = off). |
 | `g_regularFootsteps` | RatMod | `1` | 0 or 1 | When `1`, uses standard footstep sounds at all movement speeds. |
-| `g_respawntime` | RatMod | `0` | 0 or 1 | When `1`, shows item respawn timers to players. |
+| `g_respawntime` | RatMod | `0` | integer >= 0 (typical) | Minimum player respawn delay in seconds after death (`0` = no extra delay). |
 | `g_restarted` | Vanilla | `0` | 0 or 1 | Read-only flag set after a `map_restart`. |
 | `g_rocketSpeed` | RatMod | `900` | integer >= 0 (typical) | Rocket launcher projectile speed. |
 | `g_rockets` | RatMod | `0` | 0 or 1 | When `1`, enables rockets-only mode with limited weapons. |
@@ -255,12 +256,15 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_spawnHealthBonus` | RatMod | `25` | integer >= 0 (typical) | Bonus health given on spawn. |
 | `g_spawnprotect` | RatMod | `0` | 0 or 1 | Spawn protection in milliseconds after respawn (`0` = off). |
 | `g_specChat` | RatMod | `1` | 0 or 1 | When `1`, spectators can use global chat. |
+| `g_specItemTimers` | Devotion | `1` | 0 or 1 | When `1`, spectators get a persistent HUD list of major items (icons always; countdown only while the pad is empty). |
+| `g_specPlayerStatus` | Devotion | `1` | 0 or 1 | When `1`, spectators receive every living player's health, armor, and origin even outside PVS, for the overhead status box. |
 | `g_specMuted` | RatMod | `0` | 0 or 1 | When `1`, spectators cannot chat. |
 | `g_specShowZoom` | RatMod | `0` | 0 or 1 | When `1`, spectators can use zoom. |
 | `g_spectatorSpeed` | RatMod | `650` | integer >= 0 (typical) | Movement speed for spectators. |
 | `g_speed` | Vanilla | `320` | integer >= 0 (typical) | Maximum player run speed. |
 | `g_spreeDiv` | RatMod | `5` | integer >= 2 | Kills between killing-spree announcements. Values below `2` are ignored and reset to `5`. |
 | `g_sprees` | RatMod | `sprees.dat` | filename | Path to the killing/death spree config file (see `sprees.dat` in the mod assets). |
+| `g_stairSplash` | Devotion | `1` | 0 or 1 | When `1`, splash damage can pass through a stair edges. Makes fighting on staircases more balanced. |
 | `g_startWhenReady` | RatMod | `0` | 0 or 1 | Ready-up mode: `0` off, `1` >50% ready, `2` all ready, `3` >50% ready in team games. |
 | `g_statsboard` | RatMod | `2` | integer >= 0 (typical) | Scoreboard detail level (`0` minimal, higher = more stats). |
 | `g_swingGrapple` | RatMod | `0` | 0 or 1 | When `1`, grapple swings the player on a rope arc. |
@@ -318,7 +322,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_voteMinCapturelimit` | RatMod | `0` | 0 or 1 | Minimum capturelimit players may vote for (`0` = no minimum). |
 | `g_voteMinFraglimit` | RatMod | `0` | 0 or 1 | Minimum fraglimit players may vote for (`0` = no minimum). |
 | `g_voteMinTimelimit` | RatMod | `0` | 0 or 1 | Minimum timelimit in minutes players may vote for. |
-| `g_voteNames` | RatMod | `/map_restart/nextmap/map/g_gametype/clientkick/g_doWarmup/timelimit/fraglimit/capturelimit/shuffle/bots/botskill/votenextmap/deathpit_mercy/bigheads/` | path list string | Slash-separated list of allowed callvote types. |
+| `g_voteNames` | RatMod | `/map_restart/nextmap/map/g_gametype/clientkick/g_doWarmup/timelimit/fraglimit/capturelimit/shuffle/bots/botskill/votenextmap/deathpit_mercy/bigheads/itemtimers/` | path list string | Slash-separated list of allowed callvote types. |
 | `g_voteRepeatLimit` | RatMod | `0` | 0 or 1 | Failed votes per player before cooldown (`0` = off). |
 | `g_votecustomfile` | RatMod | `votecustom.cfg` | filename | Path to custom callvote definitions file. |
 | `g_votemapsfile` | RatMod | `votemaps.cfg` | filename | Path to the map list allowed for map callvotes. |

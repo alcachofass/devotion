@@ -113,6 +113,7 @@ void Team_Dom_SpawnPoints( void );
 gentity_t *Team_GetLocation(gentity_t *ent);
 qboolean Team_GetLocationMsg(gentity_t *ent, char *loc, int loclen);
 void TeamplayInfoMessage( gentity_t *ent );
+void SpectatorStatusMessage( gentity_t *ent );
 void CheckTeamStatus(void);
 
 int Pickup_Team( gentity_t *ent, gentity_t *other );

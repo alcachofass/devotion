@@ -776,6 +776,8 @@ void G_RegisterCvars( void ) {
 
 	G_EnsureVoteName( "deathpit_mercy" );
 	G_EnsureVoteName( "bigheads" );
+	G_EnsureVoteName( "itemtimers" );
+	G_EnsureVoteName( "item_timers" );
 }
 
 qboolean G_IsTeamGametype(void) {
@@ -982,6 +984,10 @@ void G_UpdateCvars( void ) {
 
                                     trap_Cvar_Set("voteflags",va("%i",voteflags));
                                 }
+
+				if ( cv->vmCvar == &g_itemTimers ) {
+					G_RefreshItemTimerBroadcast();
+				}
       
 				if (cv->teamShader) {
 					remapped = qtrue;
@@ -1093,6 +1099,8 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 
 	level.snd_fry = G_SoundIndex("sound/player/fry.wav");	// FIXME standing in lava / slime
 	level.snd_thaw = G_FreezeThawSound();
+
+	G_SoundIndex("sound/world/button_zap.wav");	//mrd - cache the vortex grenade sound to avoid NULL on first attempt
 
 	if ( g_gametype.integer != GT_SINGLE_PLAYER && g_logfile.string[0] ) {
 		if ( g_logfileSync.integer ) {

@@ -26,8 +26,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define MAX_LOADING_PLAYER_ICONS	16
 #define MAX_LOADING_ITEM_ICONS		26
-#define LOAD_FADE_TIME			3000
-#define LEAVE_FADE_TIME			1500
+#define LOAD_FADE_TIME			1000
+#define LEAVE_FADE_TIME			1000
 
 static int			loadingPlayerIconCount;
 static int			loadingItemIconCount;

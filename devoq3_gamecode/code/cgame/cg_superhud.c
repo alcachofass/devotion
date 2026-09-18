@@ -95,11 +95,18 @@ typedef enum {
 	SH_LocalTime,
 	SH_Name_OWN,
 	SH_Name_NME,
+	SH_ItemTimers1_Icons,
+	SH_ItemTimers1_Times,
+	SH_ItemTimers2_Icons,
+	SH_ItemTimers2_Times,
+	SH_ItemTimers3_Icons,
+	SH_ItemTimers3_Times,
+	SH_ItemTimers4_Icons,
+	SH_ItemTimers4_Times,
 	SH_NAMED_MAX,
 
 	/* Stubs / OOS names still accepted by parser */
 	SH_STUB_BEGIN = SH_NAMED_MAX,
-	SH_ItemTimers,
 	SH_KeyIndicator,
 	SH_WeaponSelection,
 	SH_RecordingDemo,
@@ -143,7 +150,8 @@ typedef struct {
 	float		spacing;		/* gap between WeaponList rows */
 	float		margins[4];		/* L T R B; positive = inward */
 	qboolean	hasMargins;
-	int			visFlags;		/* 0 = default; bit0 all, bit1 follow, bit2 free, bit3 team, bit4 warmup */
+	int			visFlags;		/* 0 = default; bit0 all, bit1 follow, bit2 free, bit3 team, bit4 warmup, bit5 alive, bit6 dead */
+	int			itTeam;			/* ItemTimers: 0 all/F, 1 own, 2 enemy */
 	int			fadeDelay;		/* ms before fade starts */
 	int			fadeIn;			/* ms fade-in (parsed; appearance delay) */
 	int			direction;		/* T=0 B=1 L=2 R=3 */
@@ -310,17 +318,17 @@ static const shNameMap_t shNames[] = {
 	{ "LocalTime", SH_LocalTime, qfalse },
 	{ "Name_OWN", SH_Name_OWN, qfalse },
 	{ "Name_NME", SH_Name_NME, qfalse },
+	{ "ItemTimers1_Icons", SH_ItemTimers1_Icons, qfalse },
+	{ "ItemTimers1_Times", SH_ItemTimers1_Times, qfalse },
+	{ "ItemTimers2_Icons", SH_ItemTimers2_Icons, qfalse },
+	{ "ItemTimers2_Times", SH_ItemTimers2_Times, qfalse },
+	{ "ItemTimers3_Icons", SH_ItemTimers3_Icons, qfalse },
+	{ "ItemTimers3_Times", SH_ItemTimers3_Times, qfalse },
+	{ "ItemTimers4_Icons", SH_ItemTimers4_Icons, qfalse },
+	{ "ItemTimers4_Times", SH_ItemTimers4_Times, qfalse },
 	{ "PreDecorate", -1, qfalse },
 	{ "PostDecorate", -2, qfalse },
 	/* stubs */
-	{ "ItemTimers1_Icons", SH_ItemTimers, qtrue },
-	{ "ItemTimers1_Times", SH_ItemTimers, qtrue },
-	{ "ItemTimers2_Icons", SH_ItemTimers, qtrue },
-	{ "ItemTimers2_Times", SH_ItemTimers, qtrue },
-	{ "ItemTimers3_Icons", SH_ItemTimers, qtrue },
-	{ "ItemTimers3_Times", SH_ItemTimers, qtrue },
-	{ "ItemTimers4_Icons", SH_ItemTimers, qtrue },
-	{ "ItemTimers4_Times", SH_ItemTimers, qtrue },
 	{ "KeyDown_Forward", SH_KeyIndicator, qtrue },
 	{ "KeyDown_Back", SH_KeyIndicator, qtrue },
 	{ "KeyDown_Left", SH_KeyIndicator, qtrue },
@@ -825,8 +833,11 @@ static unsigned SH_ApplyProps( shElement_t *e, shToken_t *tok, int start, int en
 					e->visFlags |= 8;
 				} else if ( !Q_stricmp( vf, "warmup" ) ) {
 					e->visFlags |= 16;
-				} else if ( !Q_stricmp( vf, "alive" ) || !Q_stricmp( vf, "dead" ) ||
-						!Q_stricmp( vf, "intermission" ) ||
+				} else if ( !Q_stricmp( vf, "alive" ) ) {
+					e->visFlags |= 32;
+				} else if ( !Q_stricmp( vf, "dead" ) ) {
+					e->visFlags |= 64;
+				} else if ( !Q_stricmp( vf, "intermission" ) ||
 						!Q_stricmp( vf, "enemy" ) ) {
 					/* accepted, not separately gated yet */
 				} else {
@@ -858,10 +869,18 @@ static unsigned SH_ApplyProps( shElement_t *e, shToken_t *tok, int start, int en
 			}
 			mask |= 33554432;
 			i += 1;
+		} else if ( !Q_stricmp( p, "itteam" ) && i + 1 <= end ) {
+			if ( !Q_stricmp( tok[i + 1].value, "O" ) ) {
+				e->itTeam = 1;
+			} else if ( !Q_stricmp( tok[i + 1].value, "N" ) ) {
+				e->itTeam = 2;
+			} else {
+				e->itTeam = 0; /* F / all */
+			}
+			i += 1;
 		} else if ( !Q_stricmp( p, "model" ) || !Q_stricmp( p, "angles" ) ||
 					!Q_stricmp( p, "offset" ) ||
-					!Q_stricmp( p, "imagetc" ) ||
-					!Q_stricmp( p, "itteam" ) ) {
+					!Q_stricmp( p, "imagetc" ) ) {
 			/* skip known optional args loosely */
 			while ( i + 1 <= end && tok[i + 1].type != SH_TOT_WORD &&
 					Q_stricmp( tok[i + 1].value, "rect" ) &&
@@ -889,9 +908,6 @@ static unsigned SH_ApplyProps( shElement_t *e, shToken_t *tok, int start, int en
 				if ( tok[i].type == SH_TOT_WORD ) {
 					break;
 				}
-			}
-			if ( !Q_stricmp( p, "itteam" ) && i + 1 <= end && tok[i + 1].type == SH_TOT_WORD ) {
-				i += 1;
 			}
 			if ( !Q_stricmp( p, "imagetc" ) ) {
 				int nskip = 0;
@@ -1541,7 +1557,7 @@ static void SH_DrawBar( const shElement_t *e, float frac ) {
 
 static qboolean SH_Visible( const shElement_t *e ) {
 	int flags;
-	qboolean follow, spec, freeSpec;
+	qboolean follow, spec, freeSpec, playing, alive;
 
 	if ( !e->inuse || e->hidden || e->isStub ) {
 		return qfalse;
@@ -1557,6 +1573,8 @@ static qboolean SH_Visible( const shElement_t *e ) {
 	spec = ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ||
 			cg.snap->ps.pm_type == PM_SPECTATOR ) ? qtrue : qfalse;
 	freeSpec = ( spec && !follow ) ? qtrue : qfalse;
+	playing = ( !spec && cg.snap->ps.pm_type != PM_INTERMISSION ) ? qtrue : qfalse;
+	alive = ( playing && cg.snap->ps.stats[STAT_HEALTH] > 0 ) ? qtrue : qfalse;
 	if ( ( flags & 2 ) && ( follow || spec ) ) {
 		return qtrue;
 	}
@@ -1567,6 +1585,12 @@ static qboolean SH_Visible( const shElement_t *e ) {
 		return qtrue;
 	}
 	if ( ( flags & 16 ) && CG_IsHudWarmup() ) {
+		return qtrue;
+	}
+	if ( ( flags & 32 ) && alive ) {
+		return qtrue;
+	}
+	if ( ( flags & 64 ) && playing && !alive ) {
 		return qtrue;
 	}
 	return qfalse;
@@ -2585,6 +2609,106 @@ static void SH_DrawRewards( void ) {
 	}
 }
 
+static void SH_DrawItemTimerStack( const shElement_t *e, const cgItemTimer_t *list, int n, qboolean icons ) {
+	shElement_t	slot;
+	float		x, y, w, h, dx, dy, gap;
+	int			i;
+	char		buf[16];
+	int			remain;
+	qhandle_t	icon;
+
+	if ( !e || !SH_Visible( e ) || n <= 0 ) {
+		return;
+	}
+
+	SH_GetRect( e, &x, &y, &w, &h );
+	if ( w <= 0.0f ) {
+		w = icons ? 16.0f : 24.0f;
+	}
+	if ( h <= 0.0f ) {
+		h = icons ? 16.0f : 12.0f;
+	}
+	gap = e->spacing;
+	dx = 0.0f;
+	dy = 0.0f;
+	if ( e->direction == 1 ) {
+		dy = -( h + gap );
+	} else if ( e->direction == 2 ) {
+		dx = -( w + gap );
+	} else if ( e->direction == 3 ) {
+		dx = w + gap;
+	} else {
+		dy = h + gap;
+	}
+
+	for ( i = 0; i < n; i++ ) {
+		slot = *e;
+		slot.xpos = x + dx * (float)i;
+		slot.ypos = y + dy * (float)i;
+		slot.width = w;
+		slot.height = h;
+		slot.alignH = SH_ALIGN_L;
+		slot.alignV = SH_ALIGN_L;
+		if ( icons ) {
+			icon = cg_items[list[i].itemIndex].icon;
+			if ( icon ) {
+				SH_DrawImage( &slot, icon, 0 );
+			}
+		} else if ( list[i].unknown ) {
+			SH_DrawString( &slot, "--", 0 );
+		} else if ( list[i].respawnTime > cg.time ) {
+			remain = ( list[i].respawnTime - cg.time + 999 ) / 1000;
+			if ( remain > 0 ) {
+				Com_sprintf( buf, sizeof( buf ), "%i", remain );
+				SH_DrawString( &slot, buf, 0 );
+			}
+		}
+	}
+}
+
+static void SH_DrawItemTimers( void ) {
+	static const int iconIds[4] = {
+		SH_ItemTimers1_Icons, SH_ItemTimers2_Icons,
+		SH_ItemTimers3_Icons, SH_ItemTimers4_Icons
+	};
+	static const int timeIds[4] = {
+		SH_ItemTimers1_Times, SH_ItemTimers2_Times,
+		SH_ItemTimers3_Times, SH_ItemTimers4_Times
+	};
+	cgItemTimer_t	list[MAX_CG_ITEMTIMERS];
+	int				g;
+	int				n;
+	int				itTeam;
+	int				sideFilter;
+	shElement_t		*icons;
+	shElement_t		*times;
+
+	if ( !CG_HudItemTimersAllowed() ) {
+		return;
+	}
+
+	for ( g = 0; g < 4; g++ ) {
+		icons = &sh.named[iconIds[g]];
+		times = &sh.named[timeIds[g]];
+		if ( !SH_Visible( icons ) && !SH_Visible( times ) ) {
+			continue;
+		}
+		itTeam = 0;
+		if ( icons->inuse ) {
+			itTeam = icons->itTeam;
+		} else if ( times->inuse ) {
+			itTeam = times->itTeam;
+		}
+		sideFilter = CG_ItemTimerFollowSideFilter( itTeam );
+		n = CG_ItemTimersCollect( list, MAX_CG_ITEMTIMERS, sideFilter, 0 );
+		if ( n <= 0 ) {
+			continue;
+		}
+		SH_DrawItemTimerStack( icons, list, n, qtrue );
+		SH_DrawItemTimerStack( times, list, n, qfalse );
+	}
+}
+
 static void SH_DrawGameEvents( void ) {
 	shElement_t *e = &sh.named[SH_GameEvents];
 	const char *lines[8];
@@ -2769,6 +2893,7 @@ void CG_SH_DrawFrame( void ) {
 	SH_DrawTarget();
 	SH_DrawChat();
 	SH_DrawTeamOverlay();
+	SH_DrawItemTimers();
 	SH_DrawGameEvents();
 	SH_DrawRewards();
 	SH_DrawMessages();
@@ -2793,6 +2918,18 @@ qboolean CG_SH_HasConsole( void ) {
 qboolean CG_SH_HasRewards( void ) {
 	return sh.active && ( SH_Visible( &sh.named[SH_RewardIcons] ) ||
 			SH_Visible( &sh.named[SH_RewardNumbers] ) );
+}
+
+qboolean CG_SH_HasItemTimers( void ) {
+	return sh.active && (
+			SH_Visible( &sh.named[SH_ItemTimers1_Icons] ) ||
+			SH_Visible( &sh.named[SH_ItemTimers1_Times] ) ||
+			SH_Visible( &sh.named[SH_ItemTimers2_Icons] ) ||
+			SH_Visible( &sh.named[SH_ItemTimers2_Times] ) ||
+			SH_Visible( &sh.named[SH_ItemTimers3_Icons] ) ||
+			SH_Visible( &sh.named[SH_ItemTimers3_Times] ) ||
+			SH_Visible( &sh.named[SH_ItemTimers4_Icons] ) ||
+			SH_Visible( &sh.named[SH_ItemTimers4_Times] ) );
 }
 
 qboolean CG_SH_HasVote( void ) {

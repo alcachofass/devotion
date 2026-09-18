@@ -1560,6 +1560,31 @@ qboolean BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const play
 	return qfalse;
 }
 
+/*
+================
+BG_ItemHasTimer
+
+Major map items that Quake Live tracks with respawn pies / spectator overlays:
+yellow/red (and green) armor, mega health, and powerups. Shards, small health,
+weapons, ammo, and holdables are excluded.
+================
+*/
+qboolean BG_ItemHasTimer( const gitem_t *item ) {
+	if ( !item ) {
+		return qfalse;
+	}
+	if ( item->giType == IT_ARMOR && item->quantity > 5 ) {
+		return qtrue;
+	}
+	if ( item->giType == IT_HEALTH && item->quantity >= 100 ) {
+		return qtrue;
+	}
+	if ( item->giType == IT_POWERUP ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
 //======================================================================
 
 /*
@@ -1778,7 +1803,8 @@ const char *eventnames[] = {
 	"EV_FOOTSLIDE",
 	"EV_DAMAGEPLUM",
 	"EV_PUSHNOTIFY",
-	"EV_ALTFIRE_WEAPON"		//mrd
+	"EV_ALTFIRE_WEAPON",		//mrd
+	"EV_ITEM_PICKUP_SPEC"
 
 };
 

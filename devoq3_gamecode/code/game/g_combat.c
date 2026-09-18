@@ -2423,56 +2423,366 @@ CanDamage
 
 Returns qtrue if the inflictor can directly damage the target.  Used for
 explosions and melee attacks.
+
+Splash radius damage uses G_CanSplashDamage() when g_stairSplash is set.
+That allows a blocked ray through a stair crux if the explosion is within
+STEPSIZE of a floor-wall edge, a neighboring step is detected, and the
+target is standing on a short tread. Ordinary ledges, landings, thin slabs,
+and vertical wall corners stay on stock CanDamage.
 ============
 */
-//mrd - TODO: is this why rocket splash damage sucks on stairs?
-qboolean CanDamage (gentity_t *targ, vec3_t origin) {
+/* Q3 STEPSIZE: max distance from the explosion to the common edge. */
+#define SPLASH_CORNER_DIST		18.0f
+#define SPLASH_CORNER_DIST_SQ	(SPLASH_CORNER_DIST * SPLASH_CORNER_DIST)
+/* |n1·n2| above this is a slab (opposite faces), not a corner. Axial stairs are 0. */
+#define SPLASH_CORNER_DOT		0.25f
+#define SPLASH_FLOOR(n)			(fabs((n)[2]) > 0.7f)
+#define SPLASH_RISER(n)			(fabs((n)[2]) < 0.3f)
+#define SPLASH_TREAD_INSET		12.0f
+#define SPLASH_TREAD_CLEAR		4.0f
+#define SPLASH_NEIGHBOR_DIST	32.0f
+#define SPLASH_TARGET_TREAD		64.0f
+#define SPLASH_WELL_OUT			6.0f
+#define SPLASH_DROP_DIST		24.0f
+#define SPLASH_STEP_DROP		6.0f
+#define SPLASH_PARALLEL_DOT		0.9f
+#define SPLASH_PLANE_SHIFT		4.0f
+#define SPLASH_PARALLEL_RISER(a,b)	(SPLASH_RISER(b) && fabs(DotProduct((a),(b))) > SPLASH_PARALLEL_DOT)
+#define SPLASH_RISER_OFFSET(nOut,o,p)	(fabs(DotProduct((nOut),(p)) - DotProduct((nOut),(o))) > SPLASH_PLANE_SHIFT)
+
+static void G_DamageMidpoint( gentity_t *targ, vec3_t midpoint ) {
+	// use the midpoint of the bounds instead of the origin, because
+	// bmodels may have their origin at 0,0,0
+	VectorAdd( targ->r.absmin, targ->r.absmax, midpoint );
+	VectorScale( midpoint, 0.5, midpoint );
+}
+
+static qboolean G_DamageTraceClear( const vec3_t origin, const vec3_t dest, int targNum, trace_t *tr ) {
+	trap_Trace( tr, origin, vec3_origin, vec3_origin, dest, ENTITYNUM_NONE, MASK_SOLID );
+	return ( tr->fraction == 1.0 || tr->entityNum == targNum );
+}
+
+static qboolean G_CanDamageXYCorners( vec3_t origin, vec3_t midpoint ) {
 	vec3_t	dest;
 	trace_t	tr;
-	vec3_t	midpoint;
 
-	// use the midpoint of the bounds instead of the origin, because
-	// bmodels may have their origin is 0,0,0
-	VectorAdd (targ->r.absmin, targ->r.absmax, midpoint);
-	VectorScale (midpoint, 0.5, midpoint);
-
-	VectorCopy (midpoint, dest);
-	trap_Trace ( &tr, origin, vec3_origin, vec3_origin, dest, ENTITYNUM_NONE, MASK_SOLID);
-	if (tr.fraction == 1.0 || tr.entityNum == targ->s.number)
-		return qtrue;
-
-	// this should probably check in the plane of projection, 
+	// this should probably check in the plane of projection,
 	// rather than in world coordinate, and also include Z
-	VectorCopy (midpoint, dest);
+	VectorCopy( midpoint, dest );
 	dest[0] += 15.0;
 	dest[1] += 15.0;
-	trap_Trace ( &tr, origin, vec3_origin, vec3_origin, dest, ENTITYNUM_NONE, MASK_SOLID);
-	if (tr.fraction == 1.0)
+	trap_Trace( &tr, origin, vec3_origin, vec3_origin, dest, ENTITYNUM_NONE, MASK_SOLID );
+	if ( tr.fraction == 1.0 )
 		return qtrue;
 
-	VectorCopy (midpoint, dest);
+	VectorCopy( midpoint, dest );
 	dest[0] += 15.0;
 	dest[1] -= 15.0;
-	trap_Trace ( &tr, origin, vec3_origin, vec3_origin, dest, ENTITYNUM_NONE, MASK_SOLID);
-	if (tr.fraction == 1.0)
+	trap_Trace( &tr, origin, vec3_origin, vec3_origin, dest, ENTITYNUM_NONE, MASK_SOLID );
+	if ( tr.fraction == 1.0 )
 		return qtrue;
 
-	VectorCopy (midpoint, dest);
+	VectorCopy( midpoint, dest );
 	dest[0] -= 15.0;
 	dest[1] += 15.0;
-	trap_Trace ( &tr, origin, vec3_origin, vec3_origin, dest, ENTITYNUM_NONE, MASK_SOLID);
-	if (tr.fraction == 1.0)
+	trap_Trace( &tr, origin, vec3_origin, vec3_origin, dest, ENTITYNUM_NONE, MASK_SOLID );
+	if ( tr.fraction == 1.0 )
 		return qtrue;
 
-	VectorCopy (midpoint, dest);
+	VectorCopy( midpoint, dest );
 	dest[0] -= 15.0;
 	dest[1] -= 15.0;
-	trap_Trace ( &tr, origin, vec3_origin, vec3_origin, dest, ENTITYNUM_NONE, MASK_SOLID);
-	if (tr.fraction == 1.0)
+	trap_Trace( &tr, origin, vec3_origin, vec3_origin, dest, ENTITYNUM_NONE, MASK_SOLID );
+	if ( tr.fraction == 1.0 )
 		return qtrue;
-
 
 	return qfalse;
+}
+
+static void G_SplashOrientToward( vec3_t n, const vec3_t planePoint, const vec3_t toward ) {
+	vec3_t	delta;
+
+	VectorSubtract( toward, planePoint, delta );
+	if ( DotProduct( n, delta ) < 0.0f ) {
+		VectorInverse( n );
+	}
+}
+
+static qboolean G_SplashDistToEdgeSq( const vec3_t origin, const vec3_t n1, const vec3_t p1, const vec3_t n2, const vec3_t p2, float *distSq ) {
+	vec3_t	edgeDir, scaled, edgePoint, w, wx;
+	float	d1, d2, edgeLenSq;
+
+	if ( fabs( DotProduct( n1, n2 ) ) > SPLASH_CORNER_DOT ) {
+		return qfalse;
+	}
+
+	CrossProduct( n1, n2, edgeDir );
+	edgeLenSq = DotProduct( edgeDir, edgeDir );
+	if ( edgeLenSq < 0.01f ) {
+		return qfalse;
+	}
+
+	d1 = DotProduct( n1, p1 );
+	d2 = DotProduct( n2, p2 );
+	VectorScale( n2, d1, scaled );
+	VectorMA( scaled, -d2, n1, scaled );
+	CrossProduct( scaled, edgeDir, edgePoint );
+	VectorScale( edgePoint, 1.0f / edgeLenSq, edgePoint );
+
+	VectorSubtract( origin, edgePoint, w );
+	CrossProduct( w, edgeDir, wx );
+	*distSq = DotProduct( wx, wx ) / edgeLenSq;
+	return qtrue;
+}
+
+/*
+ * Floor-wall at the explosion, not the target. nOut points into the well;
+ * nFloor is the local tread (upper tread if the rocket hit a riser).
+ */
+static qboolean G_SplashLocalFloorWall( const vec3_t origin, const trace_t *fwd, vec3_t nOut, vec3_t nFloor, float *floorDist, vec3_t riserPoint, vec3_t floorPoint ) {
+	trace_t	probe;
+	vec3_t	start, end;
+	int		axis, sign;
+
+	if ( SPLASH_RISER( fwd->plane.normal ) ) {
+		VectorCopy( fwd->plane.normal, nOut );
+		G_SplashOrientToward( nOut, fwd->endpos, origin );
+		VectorCopy( fwd->endpos, riserPoint );
+
+		// Onto the step, above the brush, then drop onto that tread.
+		VectorMA( origin, -4.0f, nOut, start );
+		start[2] += SPLASH_CORNER_DIST;
+		VectorCopy( start, end );
+		end[2] -= SPLASH_DROP_DIST + SPLASH_CORNER_DIST;
+		trap_Trace( &probe, start, vec3_origin, vec3_origin, end, ENTITYNUM_NONE, MASK_SOLID );
+		if ( probe.startsolid || probe.allsolid || probe.fraction >= 1.0f ||
+				!SPLASH_FLOOR( probe.plane.normal ) ) {
+			VectorMA( origin, SPLASH_WELL_OUT, nOut, start );
+			start[2] += SPLASH_TREAD_CLEAR;
+			VectorCopy( start, end );
+			end[2] -= SPLASH_DROP_DIST;
+			trap_Trace( &probe, start, vec3_origin, vec3_origin, end, ENTITYNUM_NONE, MASK_SOLID );
+			if ( probe.startsolid || probe.allsolid || probe.fraction >= 1.0f ||
+					!SPLASH_FLOOR( probe.plane.normal ) ) {
+				return qfalse;
+			}
+		}
+
+		VectorCopy( probe.plane.normal, nFloor );
+		if ( nFloor[2] < 0.0f ) {
+			VectorInverse( nFloor );
+		}
+		*floorDist = DotProduct( nFloor, probe.endpos );
+		VectorCopy( probe.endpos, floorPoint );
+		return qtrue;
+	}
+
+	if ( !SPLASH_FLOOR( fwd->plane.normal ) ) {
+		return qfalse;
+	}
+
+	VectorCopy( fwd->plane.normal, nFloor );
+	if ( nFloor[2] < 0.0f ) {
+		VectorInverse( nFloor );
+	}
+	*floorDist = DotProduct( nFloor, fwd->endpos );
+	VectorCopy( fwd->endpos, floorPoint );
+
+	VectorMA( origin, SPLASH_TREAD_CLEAR, nFloor, start );
+	for ( axis = 0; axis < 2; axis++ ) {
+		for ( sign = -1; sign <= 1; sign += 2 ) {
+			VectorCopy( start, end );
+			end[axis] += sign * SPLASH_CORNER_DIST;
+			trap_Trace( &probe, start, vec3_origin, vec3_origin, end, ENTITYNUM_NONE, MASK_SOLID );
+			if ( probe.startsolid || probe.allsolid || probe.fraction >= 1.0f ) {
+				continue;
+			}
+			if ( !SPLASH_RISER( probe.plane.normal ) ) {
+				continue;
+			}
+			if ( fabs( DotProduct( nFloor, probe.plane.normal ) ) > SPLASH_CORNER_DOT ) {
+				continue;
+			}
+			VectorCopy( probe.plane.normal, nOut );
+			G_SplashOrientToward( nOut, probe.endpos, origin );
+			VectorCopy( probe.endpos, riserPoint );
+			return qtrue;
+		}
+	}
+	return qfalse;
+}
+
+/* Neighboring step: next riser up the flight, or a previous tread/drop in the well. */
+static qboolean G_SplashHasStairNeighbor( const vec3_t origin, const vec3_t nOut, const vec3_t nFloor, float floorDist ) {
+	trace_t	tr, along, drop;
+	vec3_t	start, end, probe;
+	float	above, lowerHeight, endHeight;
+
+	VectorCopy( origin, start );
+	above = floorDist + SPLASH_TREAD_CLEAR - DotProduct( nFloor, start );
+	VectorMA( start, above, nFloor, start );
+	VectorMA( start, -SPLASH_TREAD_INSET, nOut, start );
+	VectorMA( start, -SPLASH_NEIGHBOR_DIST, nOut, end );
+
+	trap_Trace( &tr, start, vec3_origin, vec3_origin, end, ENTITYNUM_NONE, MASK_SOLID );
+	if ( !tr.startsolid && !tr.allsolid && tr.fraction < 1.0f &&
+			SPLASH_PARALLEL_RISER( nOut, tr.plane.normal ) &&
+			SPLASH_RISER_OFFSET( nOut, origin, tr.endpos ) ) {
+		return qtrue;
+	}
+
+	VectorMA( origin, SPLASH_WELL_OUT, nOut, start );
+	VectorMA( start, SPLASH_TREAD_CLEAR, nFloor, start );
+	VectorMA( start, -SPLASH_DROP_DIST, nFloor, end );
+
+	trap_Trace( &tr, start, vec3_origin, vec3_origin, end, ENTITYNUM_NONE, MASK_SOLID );
+	if ( tr.startsolid || tr.allsolid || tr.fraction >= 1.0f || !SPLASH_FLOOR( tr.plane.normal ) ) {
+		return qfalse;
+	}
+
+	lowerHeight = DotProduct( nFloor, tr.endpos );
+	VectorMA( tr.endpos, SPLASH_TREAD_CLEAR, nFloor, probe );
+	VectorMA( probe, SPLASH_NEIGHBOR_DIST, nOut, end );
+
+	trap_Trace( &along, probe, vec3_origin, vec3_origin, end, ENTITYNUM_NONE, MASK_SOLID );
+	if ( along.startsolid || along.allsolid ) {
+		return qfalse;
+	}
+	if ( along.fraction < 1.0f && SPLASH_PARALLEL_RISER( nOut, along.plane.normal ) &&
+			SPLASH_RISER_OFFSET( nOut, origin, along.endpos ) ) {
+		return qtrue;
+	}
+
+	if ( along.fraction < 1.0f ) {
+		VectorCopy( along.endpos, probe );
+	} else {
+		VectorCopy( end, probe );
+	}
+	VectorMA( probe, -SPLASH_DROP_DIST, nFloor, end );
+	trap_Trace( &drop, probe, vec3_origin, vec3_origin, end, ENTITYNUM_NONE, MASK_SOLID );
+	if ( drop.startsolid || drop.allsolid || drop.fraction >= 1.0f ) {
+		return qtrue;
+	}
+	endHeight = DotProduct( nFloor, drop.endpos );
+	return ( lowerHeight - endHeight ) > SPLASH_STEP_DROP;
+}
+
+/* Target is on a short tread, not a landing. Mid-steps have a riser
+ * sticking up; the top step does not, so also treat a drop toward the
+ * well (nOut) as on-step. Search uses bbox half-width plus SPLASH_TARGET_TREAD.
+ */
+static qboolean G_SplashTargetOnStep( gentity_t *targ, const vec3_t dest, const vec3_t nOut, const vec3_t nFloor ) {
+	trace_t	down, tr, drop;
+	vec3_t	from, start, end, probe;
+	float	halfWidth, dy, searchDist, startHeight, endHeight;
+	int		dir, sample;
+
+	halfWidth = 0.5f * ( targ->r.absmax[0] - targ->r.absmin[0] );
+	dy = 0.5f * ( targ->r.absmax[1] - targ->r.absmin[1] );
+	if ( dy > halfWidth ) {
+		halfWidth = dy;
+	}
+	if ( halfWidth > 16.0f ) {
+		halfWidth = 16.0f;
+	}
+	searchDist = SPLASH_TARGET_TREAD + halfWidth;
+
+	for ( sample = 0; sample < 2; sample++ ) {
+		VectorCopy( dest, from );
+		if ( sample == 1 ) {
+			VectorMA( from, -halfWidth, nOut, from );
+		}
+		VectorMA( from, -64.0f, nFloor, end );
+		trap_Trace( &down, from, vec3_origin, vec3_origin, end, ENTITYNUM_NONE, MASK_SOLID );
+		if ( down.startsolid || down.allsolid || down.fraction >= 1.0f ||
+				!SPLASH_FLOOR( down.plane.normal ) ) {
+			continue;
+		}
+
+		startHeight = DotProduct( nFloor, down.endpos );
+		VectorMA( down.endpos, SPLASH_TREAD_CLEAR, nFloor, start );
+		for ( dir = 0; dir < 2; dir++ ) {
+			VectorMA( start, ( dir == 0 ) ? searchDist : -searchDist, nOut, end );
+			trap_Trace( &tr, start, vec3_origin, vec3_origin, end, ENTITYNUM_NONE, MASK_SOLID );
+			if ( tr.startsolid || tr.allsolid ) {
+				continue;
+			}
+			if ( tr.fraction < 1.0f && SPLASH_PARALLEL_RISER( nOut, tr.plane.normal ) ) {
+				return qtrue;
+			}
+			/* Top step: no riser above the tread; the well is a drop along +nOut. */
+			if ( dir == 0 && tr.fraction >= 1.0f ) {
+				VectorMA( end, -SPLASH_DROP_DIST, nFloor, probe );
+				trap_Trace( &drop, end, vec3_origin, vec3_origin, probe, ENTITYNUM_NONE, MASK_SOLID );
+				if ( drop.startsolid || drop.allsolid ) {
+					continue;
+				}
+				if ( drop.fraction >= 1.0f ) {
+					return qtrue;
+				}
+				endHeight = DotProduct( nFloor, drop.endpos );
+				if ( startHeight - endHeight > SPLASH_STEP_DROP ) {
+					return qtrue;
+				}
+			}
+		}
+	}
+	return qfalse;
+}
+
+/*
+ * True if the blocked origin->dest ray clips a stair nosing: floor-wall
+ * at the explosion within STEPSIZE of the local nosing, a neighboring step,
+ * and the target is standing on a short tread. The 18u crease test is local
+ * to the impact so a player further up the flight does not move the edge.
+ */
+static qboolean G_SplashPassesCorner( const vec3_t origin, gentity_t *targ, const vec3_t dest, const trace_t *fwd ) {
+	vec3_t	nOut, nFloor, riserPoint, floorPoint;
+	float	distSq, floorDist;
+
+	if ( fwd->allsolid || fwd->startsolid || fwd->fraction >= 1.0f ) {
+		return qfalse;
+	}
+
+	if ( !G_SplashLocalFloorWall( origin, fwd, nOut, nFloor, &floorDist, riserPoint, floorPoint ) ) {
+		return qfalse;
+	}
+
+	if ( !G_SplashDistToEdgeSq( origin, nOut, riserPoint, nFloor, floorPoint, &distSq ) ||
+			distSq > SPLASH_CORNER_DIST_SQ ) {
+		return qfalse;
+	}
+
+	if ( !G_SplashHasStairNeighbor( origin, nOut, nFloor, floorDist ) ) {
+		return qfalse;
+	}
+
+	return G_SplashTargetOnStep( targ, dest, nOut, nFloor );
+}
+
+static qboolean G_CanSplashDamage( gentity_t *targ, vec3_t origin ) {
+	vec3_t	midpoint;
+	trace_t	tr;
+
+	G_DamageMidpoint( targ, midpoint );
+	if ( G_DamageTraceClear( origin, midpoint, targ->s.number, &tr ) ) {
+		return qtrue;
+	}
+	if ( g_stairSplash.integer && G_SplashPassesCorner( origin, targ, midpoint, &tr ) ) {
+		return qtrue;
+	}
+	return G_CanDamageXYCorners( origin, midpoint );
+}
+
+qboolean CanDamage (gentity_t *targ, vec3_t origin) {
+	vec3_t	midpoint;
+	trace_t	tr;
+
+	G_DamageMidpoint( targ, midpoint );
+	if ( G_DamageTraceClear( origin, midpoint, targ->s.number, &tr ) ) {
+		return qtrue;
+	}
+	return G_CanDamageXYCorners( origin, midpoint );
 }
 
 #define RAILJUMP_TIME 800
@@ -2571,7 +2881,7 @@ qboolean G_RadiusDamage ( vec3_t origin, gentity_t *inflictor, gentity_t *attack
 
 		points = damage * ( 1.0 - dist / radius );
 
-		if( CanDamage (ent, origin) || g_damageThroughWalls.integer ) {
+		if( G_CanSplashDamage (ent, origin) || g_damageThroughWalls.integer ) {
 			if( LogAccuracyHit( ent, attacker ) ) {
 				hitClient = qtrue;
 			}

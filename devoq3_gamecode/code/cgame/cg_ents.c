@@ -356,8 +356,14 @@ static void CG_Item( centity_t *cent ) {
 
 	// if set to invisible, skip
 	if ( !es->modelindex || ( es->eFlags & EF_NODRAW ) ) {
+		if ( es->modelindex && ( es->eFlags & EF_NODRAW ) ) {
+			CG_ItemTimersTouchEntity( cent );
+			CG_DrawItemTimerPie( cent );
+		}
 		return;
 	}
+
+	CG_ItemTimersTouchEntity( cent );
 
 	item = &bg_itemlist[ es->modelindex ];
 	if ( (cg_simpleItems.integer && item->giType != IT_TEAM) || item->giType == IT_COIN ) {
@@ -371,6 +377,7 @@ static void CG_Item( centity_t *cent ) {
 		ent.shaderRGBA[2] = 255;
 		// fade out if the item is about to disappear (for dropped items)
 		if (es->time2 > 0 
+				&& !(es->eFlags & EF_NODRAW)
 				&& cg_itemFade.integer == 1
 				&& es->time2 < cg.time + cg_itemFadeTime.value
 				) {
@@ -444,6 +451,7 @@ static void CG_Item( centity_t *cent ) {
 		VectorScale( ent.axis[2], frac, ent.axis[2] );
 		ent.nonNormalizedAxes = qtrue;
 	} else if (es->time2 > 0 
+			&& !(es->eFlags & EF_NODRAW)
 			&& cg_itemFade.integer == 1
 			&& es->time2 < cg.time + cg_itemFadeTime.value) {
 		// if they're about to disappear, slowly scale down
@@ -604,6 +612,38 @@ static void CG_Missile( centity_t *cent ) {
 		trap_R_AddLightToScene(cent->lerpOrigin, weapon->missileDlight, 
 			weapon->missileDlightColor[0], weapon->missileDlightColor[1], weapon->missileDlightColor[2] );
 	}
+	//mrd - 3-phase vortex light effect
+	if ( s1->weapon == WP_GRENADE_LAUNCHER && ( s1->eFlags & EF_VORTEX ) ){
+		int i;
+		float phaseOffset[3] = {0.0f, 2.0f * M_PI / 3.0f, 4.0f * M_PI / 3.0f};
+		float colour[3][3] = {
+			{ 0.6f, 0.2f, 1.0f }, //violet
+			{ 0.2f, 0.4f, 1.0f }, //blue
+			{ 0.8f, 0.2f, 0.8f } //magenta
+		};
+		// orbit radius/speed for the three lights circling the grenade
+		float orbitRadius = 24.0f;
+		float orbitSpeed = 2.0f * M_PI / 1500.0f;	// one revolution per 1.5s
+		// slow precession of the orbit plane itself, for a 3D tumble
+		float tiltSpeed = 2.0f * M_PI / 4000.0f;	// one full tumble per 4s
+		float tiltAngle = cg.time * tiltSpeed;
+
+		for (i = 0; i < 3; i++ ) {
+			float angle = cg.time * orbitSpeed + phaseOffset[i];
+			float pulse = 0.5f + 0.5f * sin( cg.time * ( 2.0f * M_PI / 666.0f ) + phaseOffset[i] );
+			float ringY = orbitRadius * sin( angle );
+			vec3_t lightOrigin;
+
+			VectorCopy( cent->lerpOrigin, lightOrigin );
+			lightOrigin[0] += orbitRadius * cos( angle );
+			// rotate the y component into y/z as the orbit plane tumbles
+			lightOrigin[1] += ringY * cos( tiltAngle );
+			lightOrigin[2] += ringY * sin( tiltAngle );
+
+			trap_R_AddLightToScene( lightOrigin, 100 + 250 * pulse, 
+				colour[i][0], colour[i][1], colour[i][2]);
+		}
+	}
 
 	// add missile sound
 	if ( weapon->missileSound ) {
@@ -680,6 +720,10 @@ static void CG_Missile( centity_t *cent ) {
 		}
 		else
 #endif
+		//mrd - for stationary vortex grenades
+		if ( s1->weapon == WP_GRENADE_LAUNCHER ) {
+			AnglesToAxis( cent->lerpAngles, ent.axis );
+		}
 		{
 			RotateAroundDirection( ent.axis, s1->time );
 		}
@@ -1381,5 +1425,6 @@ void CG_AddPacketEntities( void ) {
 	}
 
 	CG_SaveHitPredictPoses();
+	CG_ItemTimersDemoFrame();
 }
 

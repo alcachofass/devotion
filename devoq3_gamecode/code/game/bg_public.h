@@ -42,14 +42,15 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define DEFAULT_SHOTGUN_SPREAD	700
 #define DEFAULT_SHOTGUN_COUNT	11
 #define SHOTGUN_ALT_FIRE_PELLETS 22	//mrd
-#define SHOTGUN_ALT_FIRE_SPREAD	3600	//mrd
+#define SHOTGUN_ALT_FIRE_SPREAD	2000	//mrd
 #define NEW_SHOTGUN_COUNT	12
-#define MAX_SHOTGUN_COUNT	NEW_SHOTGUN_COUNT
+#define MAX_SHOTGUN_COUNT	SHOTGUN_ALT_FIRE_PELLETS	//mrd
 
 //mrd
 #define	MACHINEGUN_ALT_BURST_SHOTS	4
 #define MACHINEGUN_ALT_BURST_INTERVAL 40
 #define MACHINEGUN_ALT_COOLDOWN	840
+#define VORTEX_RELOAD	4000
 
 #define	ITEM_RADIUS			15		// item sizes are needed for client side pickup detection
 
@@ -102,6 +103,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #ifdef WITH_MULTITOURNAMENT
 #define	CS_MTRNFLAGS				28		// game status flags for multitournament
 #endif
+
+#define CS_ITEMTIMERS			29		// map major-item timer roster for HUD / demos
 
 #define	CS_MODELS				32
 #define	CS_SOUNDS				(CS_MODELS+MAX_MODELS)
@@ -223,17 +226,10 @@ typedef enum {
 
 typedef enum {
 	MOVEMENT_VQ3 = 0,
-	// Defrag differs from CPMA in that slick has great acceleration. This also
-	// results in some fast acceleration after teleporting and getting hit with
-	// a weapon.
 	MOVEMENT_CPM_DEFRAG,
-	// RATMODE
 	MOVEMENT_RM,
 	MOVEMENT_CPM_CPMA,
-	// Quake Live (VQL): VQ3 accel/air, with 22-unit air-capable step-up,
-	// jump 275, scale chain-jump, autohop, and a light forward bunny assist.
 	MOVEMENT_QL,
-
 	MOVEMENT_NUM_MOVEMENTS,
 } movement_t;
 
@@ -313,7 +309,8 @@ typedef enum {
 	STAT_OVERBOUNCE,					// Overbounce flag (only 1 bit, this could be integrated into another bitflag field if more STAT_ fields are required)
 	STAT_FROZENSTATE,				// used to store frozen/thawing state if g_freeze = 1
 	STAT_SLIDETIMEOUT,				// holds slide time left after releasing crouch
-	STAT_MOVEMENT_KEYS				// used to store key presses.
+	STAT_MOVEMENT_KEYS,				// used to store key presses.
+	STAT_VORTEX_RELOAD				// mrd - independent vortex grenade reload timer
 } statIndex_t;
 
 
@@ -367,7 +364,7 @@ typedef enum {
 #define	EF_NODRAW			0x00000080		// may have an event, but no model (unspawned items)
 #define	EF_FIRING			0x00000100		// for lightning gun
 // #define	EF_KAMIKAZE			0x00000200
- #define	EF_ALT_FIRE		0x00000200		// mrd - for alt-fire enable
+ #define	EF_VORTEX		0x00000200		// mrd - for alt-fire vortex grenade lighting
 #define	EF_MOVER_STOP		0x00000400		// will push otherwise
 #define EF_AWARD_CAP		0x00000800		// draw the capture sprite
 #define	EF_TALK				0x00001000		// draw a talk balloon
@@ -670,6 +667,8 @@ typedef enum {
 	EV_DAMAGEPLUM,
 	EV_PUSHNOTIFY,
 	EV_ALTFIRE_WEAPON,	//mrd
+	EV_ITEM_PICKUP_SPEC,	// spectator item-timer notification
+	EV_VORTEX_GRENADE_STICK,	//mrd - altFire vortex grenade stuck on a wall
 } entity_event_t;
 
 
@@ -798,6 +797,7 @@ typedef enum {
 // Time between location updates
 //#define TEAM_LOCATION_UPDATE_TIME		1000
 #define TEAM_LOCATION_UPDATE_TIME		500
+#define SPEC_STATUS_UPDATE_TIME			500
 
 // How many players on the overlay
 #define TEAM_MAXOVERLAY		32
@@ -901,6 +901,7 @@ gitem_t	*BG_FindItemForHoldable( holdable_t pw );
 #define	ITEM_INDEX(x) ((x)-bg_itemlist)
 
 qboolean	BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const playerState_t *ps );
+qboolean	BG_ItemHasTimer( const gitem_t *item );
 
 
 // g_dmflags->integer flags

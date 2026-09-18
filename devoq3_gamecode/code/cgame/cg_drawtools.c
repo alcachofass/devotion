@@ -25,6 +25,41 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 /*
 ================
+CG_WorldToScreen
+
+Project a world point onto the virtual 640x480 HUD.
+================
+*/
+qboolean CG_WorldToScreen( const vec3_t point, float *x, float *y ) {
+	vec3_t trans;
+	float xc, yc;
+	float px, py;
+	float z;
+	float ax, ay;
+
+	VectorSubtract( point, cg.refdef.vieworg, trans );
+	z = DotProduct( trans, cg.refdef.viewaxis[0] );
+	if ( z <= 0.001f ) {
+		return qfalse;
+	}
+
+	ax = cg.refdef.fov_x * ( M_PI / 360.0f );
+	ay = cg.refdef.fov_y * ( M_PI / 360.0f );
+	px = sin( ax ) / cos( ax );
+	py = sin( ay ) / cos( ay );
+	if ( px < 0.001f || py < 0.001f ) {
+		return qfalse;
+	}
+
+	xc = 640.0f * 0.5f;
+	yc = 480.0f * 0.5f;
+	*x = xc - xc * ( DotProduct( trans, cg.refdef.viewaxis[1] ) / ( z * px ) );
+	*y = yc - yc * ( DotProduct( trans, cg.refdef.viewaxis[2] ) / ( z * py ) );
+	return qtrue;
+}
+
+/*
+================
 CG_AdjustFrom640
 
 Adjusted for resolution and screen aspect ratio

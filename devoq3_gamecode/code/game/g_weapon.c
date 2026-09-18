@@ -546,7 +546,7 @@ void ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, gentity_t *ent, qb
 //unlagged - backward reconciliation #2
 
 	// generate the "random" spread pattern
-	if (g_newShotgun.integer) {
+	if (g_newShotgun.integer && !altFire) {
 		for ( i = 0 ; i < NEW_SHOTGUN_COUNT ; i++ ) {
 			int randomness = 100;
 			// creates a pentagon inside a hexagon, with one pellet in the center
@@ -582,8 +582,8 @@ void ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, gentity_t *ent, qb
 			float angle;
 			float radius;
 
-			angle = Q_crandom( &seed ) * 2.0f * M_PI;
-			radius = sqrt( Q_crandom ( &seed ) ) * SHOTGUN_ALT_FIRE_SPREAD * 16;
+			angle = Q_random( &seed ) * 2.0f * M_PI;
+			radius = sqrt( Q_random ( &seed ) ) * SHOTGUN_ALT_FIRE_SPREAD * 16;
 
 			r = cos ( angle ) * radius;
 			u = sin ( angle ) * radius;

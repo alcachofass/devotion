@@ -42,6 +42,7 @@ cd windows\build\cgame
 %cc%  ../../../code/cgame/cg_demo_msg_stub.c
 %cc%  ../../../code/cgame/cg_visualsounds.c
 %cc%  ../../../code/cgame/cg_superhud.c
+%cc%  ../../../code/cgame/cg_itemtimers.c
 %cc%  ../../../code/cgame/cg_unlagged.c
 %cc%  ../../../code/cgame/cg_view.c
 %cc%  ../../../code/cgame/cg_weapons.c

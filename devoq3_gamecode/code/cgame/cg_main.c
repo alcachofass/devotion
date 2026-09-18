@@ -1361,6 +1361,7 @@ static void CG_RegisterGraphics( void ) {
 
 	cgs.media.tracerShader = trap_R_RegisterShader( "gfx/misc/tracer" );
 	cgs.media.selectShader = trap_R_RegisterShader( "gfx/2d/select" );
+	cgs.media.itemTimerShader = trap_R_RegisterShader( "gfx/misc/itemtimer" );
 
 	for (i = 0; i < NUM_CROSSHAIRS; i++ ) {
 		cgs.media.crosshairShader[i] = trap_R_RegisterShader( va("gfx/2d/crosshairs/crosshair%d", (i+1)) );
@@ -2642,6 +2643,7 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	cgs.media.charsetPropB		= trap_R_RegisterShaderNoMip( "menu/art/font2_prop.tga" );
 
 	CG_RegisterCvars();
+	CG_ItemTimersInit();
 
 	CG_RatInitDefaults();
 
@@ -2691,6 +2693,8 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	CG_LoadingString( "graphics" );
 
 	CG_RegisterGraphics();
+
+	CG_ItemTimersBuildRoster();
 
 	CG_LoadingString( "clients" );
 
