@@ -168,6 +168,19 @@ playerBrightOutlineOp10
 	}
 }
 
+demoOccludedOutline
+{
+	nopicmip
+	cull disable
+	deformVertexes wave 100 sin 0.8 0 0 0
+	{
+		map $whiteimage
+		rgbGen const ( 1 1 1 )
+		blendFunc blend
+		alphaGen const 0.88
+	}
+}
+
 playerBrightShell
 {
 	cull disable

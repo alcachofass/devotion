@@ -3163,6 +3163,45 @@ byte CG_GetBrightOutlineAlpha(void) {
 	return 0xff;
 }
 
+/*
+===============
+CG_DemoPlayerFullyHiddenFromView
+
+Returns qtrue when solid world geometry blocks every sample point on the
+player from the current view. Used for demo occluded-player silhouettes;
+stock renderers cannot do per-pixel hidden-part outlines from cgame alone.
+===============
+*/
+static qboolean CG_DemoPlayerFullyHiddenFromView( const vec3_t origin ) {
+	trace_t		trace;
+	vec3_t		start, end;
+	int			i;
+	int			clientNum;
+	static const vec3_t sampleOffsets[] = {
+		{ 0.0f, 0.0f, 12.0f },
+		{ 0.0f, 0.0f, 36.0f },
+		{ 0.0f, 0.0f, 62.0f },
+		{ 0.0f, 0.0f, 24.0f }
+	};
+
+	if ( !cg.snap ) {
+		return qfalse;
+	}
+
+	clientNum = cg.snap->ps.clientNum;
+	VectorCopy( cg.refdef.vieworg, start );
+
+	for ( i = 0; i < 4; i++ ) {
+		VectorAdd( origin, sampleOffsets[i], end );
+		CG_Trace( &trace, start, NULL, NULL, end, clientNum, CONTENTS_SOLID );
+		if ( trace.fraction >= 1.0f ) {
+			return qfalse;
+		}
+	}
+
+	return qtrue;
+}
+
 
 /*
 ===============
@@ -3390,7 +3429,37 @@ void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int te
 			}
 		}
 
+		if ( cg.demoPlayback && !isMissile && cg_demoOccludedOutline.integer
+				&& cgs.media.occludedOutline
+				&& !( ent->renderfx & RF_THIRD_PERSON )
+				&& CG_DemoPlayerFullyHiddenFromView( ent->origin ) ) {
+			qhandle_t	oldShader;
+			byte		oldRGBA[4];
+			int			oldRenderfx;
+
+			oldShader = ent->customShader;
+			oldRenderfx = ent->renderfx;
+			oldRGBA[0] = ent->shaderRGBA[0];
+			oldRGBA[1] = ent->shaderRGBA[1];
+			oldRGBA[2] = ent->shaderRGBA[2];
+			oldRGBA[3] = ent->shaderRGBA[3];
+			ent->customShader = cgs.media.occludedOutline;
+			ent->shaderRGBA[0] = 255;
+			ent->shaderRGBA[1] = 255;
+			ent->shaderRGBA[2] = 255;
+			ent->shaderRGBA[3] = 255;
+			ent->renderfx |= RF_DEPTHHACK;
+			trap_R_AddRefEntityToScene( ent );
+			ent->customShader = oldShader;
+			ent->renderfx = oldRenderfx;
+			ent->shaderRGBA[0] = oldRGBA[0];
+			ent->shaderRGBA[1] = oldRGBA[1];
+			ent->shaderRGBA[2] = oldRGBA[2];
+			ent->shaderRGBA[3] = oldRGBA[3];
+		}
+
 	}
+
 }
 
 

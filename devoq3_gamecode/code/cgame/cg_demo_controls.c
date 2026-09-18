@@ -61,6 +61,7 @@ typedef enum {
 	DEMOCTRL_TIMERS,
 	DEMOCTRL_HUD,
 	DEMOCTRL_HITBOX,
+	DEMOCTRL_OCCLUDED,
 	DEMOCTRL_SHOT,
 	DEMOCTRL_LOCK,
 	DEMOCTRL_NUM_BTNS
@@ -242,6 +243,8 @@ static const char *DemoCtrl_ButtonLabel( int btn ) {
 		return "Toggle HUD";
 	case DEMOCTRL_HITBOX:
 		return "Hitbox";
+	case DEMOCTRL_OCCLUDED:
+		return "Occluded";
 	case DEMOCTRL_SHOT:
 		return "Screenshot";
 	default:
@@ -304,6 +307,8 @@ static qboolean DemoCtrl_ButtonActive( int btn ) {
 		return cg_draw2D.integer ? qtrue : qfalse;
 	case DEMOCTRL_HITBOX:
 		return cg_drawBBox.integer ? qtrue : qfalse;
+	case DEMOCTRL_OCCLUDED:
+		return cg_demoOccludedOutline.integer ? qtrue : qfalse;
 	default:
 		return qfalse;
 	}
@@ -585,6 +590,9 @@ static void DemoCtrl_Activate( int btn ) {
 		break;
 	case DEMOCTRL_HITBOX:
 		trap_Cvar_Set( "cg_drawBBox", cg_drawBBox.integer ? "0" : "1" );
+		break;
+	case DEMOCTRL_OCCLUDED:
+		trap_Cvar_Set( "cg_demoOccludedOutline", cg_demoOccludedOutline.integer ? "0" : "1" );
 		break;
 	case DEMOCTRL_HUD:
 		if ( cg_draw2D.integer || cg_drawGun.integer ) {

@@ -458,6 +458,7 @@ static const cvarDesc_t cgameCvarDescriptions[] = {
 	{ "cg_delagProjectileTrail", "When `1`, draws predicted projectile trails immediately instead of waiting for the server." },
 	{ "cg_demoDelag", "When `1`, applies lag-compensation timing while watching demos so hits match what the shooter saw." },
 	{ "cg_demoItemTimers", "When `1`, shows the item-timer HUD overlay while watching demos, even if you were playing (not spectating) in the recording." },
+	{ "cg_demoOccludedOutline", "When `1` during demo playback, draws a white player silhouette through walls when that player is fully hidden from the demo camera. Partial cover (some body parts visible) is not outlined." },
 	{ "cg_specPlayerStatus", "When `1`, spectators see a QL-style name / health-pips / armor-bar box above each player, including through walls." },
 	{ "cg_differentCrosshairs", "When `1`, uses a separate crosshair shape and size per weapon (`cg_ch1`-`cg_ch13`)." },
 	{ "cg_draw2D", "When `0`, hides the entire 2D HUD (crosshair, status bar, and so on)." },

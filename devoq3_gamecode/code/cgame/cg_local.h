@@ -1271,6 +1271,7 @@ typedef struct {
         qhandle_t       brightOutlineOpaque;
         qhandle_t       brightOutlineSmall;
         qhandle_t       brightOutlineSmallBlend;
+	qhandle_t	occludedOutline;
 
 	// weapon effect models
 	qhandle_t	bulletFlashModel;

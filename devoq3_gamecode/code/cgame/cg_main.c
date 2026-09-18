@@ -1435,6 +1435,7 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.brightOutlineSmall = trap_R_RegisterShader( "playerBrightOutline05");
 	cgs.media.brightOutlineSmallBlend = trap_R_RegisterShader( "playerBrightOutline05Blend");
 	cgs.media.brightOutlineOpaque = trap_R_RegisterShader( "playerBrightOutlineOp10");
+	cgs.media.occludedOutline = trap_R_RegisterShader( "demoOccludedOutline");
 
 //For Double Domination:
 #ifdef WITH_DOUBLED_GAMETYPE
