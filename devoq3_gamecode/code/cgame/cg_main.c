@@ -1435,6 +1435,9 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.brightOutlineSmall = trap_R_RegisterShader( "playerBrightOutline05");
 	cgs.media.brightOutlineSmallBlend = trap_R_RegisterShader( "playerBrightOutline05Blend");
 	cgs.media.brightOutlineOpaque = trap_R_RegisterShader( "playerBrightOutlineOp10");
+	cgs.media.occludedOutline = trap_R_RegisterShader( "demoOccludedOutline");
+	cgs.media.occludedOutlineRed = trap_R_RegisterShader( "demoOccludedOutlineRed");
+	cgs.media.occludedOutlineBlue = trap_R_RegisterShader( "demoOccludedOutlineBlue");
 
 //For Double Domination:
 #ifdef WITH_DOUBLED_GAMETYPE
@@ -2695,6 +2698,7 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	CG_RegisterGraphics();
 
 	CG_ItemTimersBuildRoster();
+	CG_FreeCamParseMap();
 
 	CG_LoadingString( "clients" );
 

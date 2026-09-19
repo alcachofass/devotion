@@ -168,6 +168,48 @@ playerBrightOutlineOp10
 	}
 }
 
+demoOccludedOutline
+{
+	nopicmip
+	nomipmaps
+	cull disable
+	deformVertexes wave 100 sin 0.8 0 0 0
+	{
+		map gfx/misc/occludedOutline.tga
+		blendFunc blend
+		rgbGen identity
+		alphaGen entity
+	}
+}
+
+demoOccludedOutlineRed
+{
+	nopicmip
+	nomipmaps
+	cull disable
+	deformVertexes wave 100 sin 0.8 0 0 0
+	{
+		map gfx/misc/occludedOutlineRed.tga
+		blendFunc blend
+		rgbGen identity
+		alphaGen entity
+	}
+}
+
+demoOccludedOutlineBlue
+{
+	nopicmip
+	nomipmaps
+	cull disable
+	deformVertexes wave 100 sin 0.8 0 0 0
+	{
+		map gfx/misc/occludedOutlineBlue.tga
+		blendFunc blend
+		rgbGen identity
+		alphaGen entity
+	}
+}
+
 playerBrightShell
 {
 	cull disable

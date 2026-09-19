@@ -205,14 +205,14 @@ void	trap_S_ClearLoopingSounds( qboolean killall ) {
 }
 
 void	trap_S_AddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx ) {
-	if ( CG_DemoControls_IsSeeking() ) {
+	if ( CG_DemoControls_IsSeeking() || CG_DemoControls_IsPaused() ) {
 		return;
 	}
 	syscall( CG_S_ADDLOOPINGSOUND, entityNum, origin, velocity, sfx );
 }
 
 void	trap_S_AddRealLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx ) {
-	if ( CG_DemoControls_IsSeeking() ) {
+	if ( CG_DemoControls_IsSeeking() || CG_DemoControls_IsPaused() ) {
 		return;
 	}
 	syscall( CG_S_ADDREALLOOPINGSOUND, entityNum, origin, velocity, sfx );

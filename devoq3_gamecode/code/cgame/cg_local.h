@@ -1271,6 +1271,9 @@ typedef struct {
         qhandle_t       brightOutlineOpaque;
         qhandle_t       brightOutlineSmall;
         qhandle_t       brightOutlineSmallBlend;
+	qhandle_t	occludedOutline;
+	qhandle_t	occludedOutlineRed;
+	qhandle_t	occludedOutlineBlue;
 
 	// weapon effect models
 	qhandle_t	bulletFlashModel;
@@ -1834,6 +1837,7 @@ void CG_DemoControls_Frame( void );
 void CG_DemoControls_Shutdown( void );
 void CG_DemoControls_Draw( void );
 qboolean CG_DemoControls_IsSeeking( void );
+qboolean CG_DemoControls_IsPaused( void );
 void CG_DemoControls_PrepareSeekDraw( void );
 qboolean CG_DemoControls_SeekWantsKeyframe( void );
 qboolean CG_DemoControls_SeekKeyframeHold( void );
@@ -1841,6 +1845,8 @@ void CG_DemoControls_SeekCaptureTime( int t );
 int CG_DemoControls_SeekHoldTime( void );
 qboolean CG_DemoControls_MouseEvent( int dx, int dy );
 qboolean CG_DemoControls_KeyEvent( int key, qboolean down );
+qboolean CG_DemoControls_FreeCamActive( void );
+void CG_DemoControls_FreeCamView( vec3_t origin, vec3_t angles );
 void CG_DemoEvents_Frame( void );
 void CG_DemoEvents_Shutdown( void );
 int CG_DemoEvents_FirstServerTime( void );
@@ -1932,6 +1938,7 @@ void CG_DrawItemTimerPie( const centity_t *cent );
 qboolean CG_HudItemTimersAllowed( void );
 void CG_DrawSpecItemTimers( void );
 void CG_DrawSpecPlayerStatus( void );
+void CG_DemoPlayerStatusReset( int clientNum );
 int CG_ItemTimersCollect( cgItemTimer_t *out, int max, int sideFilter, int bitMask );
 int CG_ItemTimerFollowSideFilter( int itTeam );
 
@@ -2067,6 +2074,8 @@ void CG_ResetPlayerEntity( centity_t *cent );
 void CG_DemoDelagResetPlayerAnims( centity_t *cent, int legsAnim, int torsoAnim );
 void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int team, qboolean isMissile,
 	       	clientInfo_t *ci, int orderIndicator, qboolean useBlendBrightshell );
+void CG_AddDemoOccludedOutline( refEntity_t *ent, entityState_t *state, int team );
+void CG_DemoOccludedFadeLost( void );
 void CG_NewClientInfo( int clientNum );
 sfxHandle_t	CG_CustomSound( int clientNum, const char *soundName );
 void CG_LoadForcedSounds(void);
@@ -2095,6 +2104,9 @@ void CG_Trace( trace_t *result, const vec3_t start, const vec3_t mins, const vec
 void CG_PredictPlayerState( void );
 void CG_LoadDeferredPlayers( void );
 qboolean CG_MissileTouchedPortal(const vec3_t start, const vec3_t end);
+void CG_FreeCamParseMap( void );
+qboolean CG_FreeCamTouchTeleporter( vec3_t origin, vec3_t angles );
+void CG_FreeCamAddAmbientMovers( void );
 void CG_EncodePlayerBBox( pmove_t *pm, entityState_t *ent);
 
 

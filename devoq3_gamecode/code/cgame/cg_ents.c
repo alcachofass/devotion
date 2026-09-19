@@ -543,6 +543,22 @@ static void CG_Item( centity_t *cent ) {
 
 //============================================================================
 
+static int CG_MissileOutlineTeam( centity_t *cent ) {
+	int	owner;
+
+	if ( !CG_IsTeamGametype() ) {
+		return TEAM_FREE;
+	}
+	if ( cent->currentState.generic1 == TEAM_RED || cent->currentState.generic1 == TEAM_BLUE ) {
+		return cent->currentState.generic1;
+	}
+	owner = CG_MissileOwner( cent );
+	if ( owner >= 0 && owner < MAX_CLIENTS ) {
+		return cgs.clientinfo[owner].team;
+	}
+	return TEAM_FREE;
+}
+
 /*
 ===============
 CG_Missile
@@ -671,6 +687,7 @@ static void CG_Missile( centity_t *cent ) {
 		ent.rotation = 0;
 		ent.customShader = cgs.media.plasmaBallShader;
 		trap_R_AddRefEntityToScene( &ent );
+		CG_AddDemoOccludedOutline( &ent, s1, CG_MissileOutlineTeam( cent ) );
 		return;
 	}
 
@@ -731,7 +748,7 @@ static void CG_Missile( centity_t *cent ) {
 
 	// add to refresh list, possibly with quad glow
 	if ( ent.hModel ) {
-		CG_AddRefEntityWithPowerups( &ent, s1, TEAM_FREE, qtrue, NULL, 0, qfalse );
+		CG_AddRefEntityWithPowerups( &ent, s1, CG_MissileOutlineTeam( cent ), qtrue, NULL, 0, qfalse );
 	}
 }
 
@@ -1426,5 +1443,6 @@ void CG_AddPacketEntities( void ) {
 
 	CG_SaveHitPredictPoses();
 	CG_ItemTimersDemoFrame();
+	CG_DemoOccludedFadeLost();
 }
 

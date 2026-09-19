@@ -198,6 +198,7 @@ Client-side variables registered by the **cgame** module (`cg_*`, plus related n
 | `cg_specItemTimersY` | Devotion | `200` | float | Overlay Y in 480-tall HUD coordinates. |
 | `cg_demoItemTimers` | Devotion | `1` | 0 or 1 | When `1`, shows the item-timer overlay while watching demos (replay sidebar Timers toggle). Old recordings reconstruct countdowns from pickups; unknown pads show `--`. |
 | `cg_specPlayerStatus` | Devotion | `1` | 0 or 1 | When `1`, spectators see a QL-style name / 4 health pips / armor bar above each player, including through walls. |
+| `cg_demoPlayerStatus` | Devotion | `1` | 0 or 1 | When `1` during demo playback, draws the same overhead status boxes for players in PVS (replay sidebar Status). Out-of-PVS boxes only appear if the recording has spectator status data. |
 | `cg_lagometer` | Vanilla | `1` | 0 or 1 | When `1`, shows the lagometer graph (ping, packet loss, and snapshot rate). |
 | `cg_latentCmds` | RatMod | `0` | 0 or 1 | Simulated delay on outgoing commands for network testing. Currently unused. |
 | `cg_latentSnaps` | RatMod | `0` | 0 or 1 | Simulated delay on incoming snapshots for network testing. Currently unused. |

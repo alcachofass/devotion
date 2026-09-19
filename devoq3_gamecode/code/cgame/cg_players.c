@@ -3163,6 +3163,392 @@ byte CG_GetBrightOutlineAlpha(void) {
 	return 0xff;
 }
 
+#define DEMO_OCCLUDED_FADE_MSEC		1200
+#define DEMO_OCCLUDED_VIS_FADE_MSEC	280
+#define DEMO_OCCLUDED_ALPHA			0.88f
+#define DEMO_OCCLUDED_MAX_PARTS		8
+#define DEMO_OCCLUDED_GHOSTS		48
+
+/*
+===============
+CG_DemoPlayerFullyHiddenFromView
+
+Returns qtrue when solid world geometry blocks the sample points around
+this body part (or gun) from the current replay camera.
+===============
+*/
+static qboolean CG_DemoPlayerFullyHiddenFromView( const vec3_t origin, qboolean compact ) {
+	trace_t		trace;
+	vec3_t		start, end;
+	int			i;
+	int			n;
+	int			passEnt;
+	static const vec3_t playerOffsets[] = {
+		{ 0.0f, 0.0f, 12.0f },
+		{ 0.0f, 0.0f, 36.0f },
+		{ 0.0f, 0.0f, 62.0f },
+		{ 0.0f, 0.0f, 24.0f }
+	};
+	static const vec3_t compactOffsets[] = {
+		{ 0.0f, 0.0f, 0.0f },
+		{ 0.0f, 0.0f, 4.0f }
+	};
+
+	if ( !cg.snap ) {
+		return qfalse;
+	}
+
+	passEnt = cg.snap->ps.clientNum;
+	VectorCopy( cg.refdef.vieworg, start );
+
+	n = compact ? 2 : 4;
+	for ( i = 0; i < n; i++ ) {
+		if ( compact ) {
+			VectorAdd( origin, compactOffsets[i], end );
+		} else {
+			VectorAdd( origin, playerOffsets[i], end );
+		}
+		CG_Trace( &trace, start, NULL, NULL, end, passEnt, CONTENTS_SOLID );
+		if ( trace.fraction >= 1.0f ) {
+			return qfalse;
+		}
+	}
+
+	return qtrue;
+}
+
+/*
+===============
+CG_DemoOccludedNextPart
+
+Stable per-frame slot so legs/torso/head/gun fade independently.
+===============
+*/
+static int CG_DemoOccludedNextPart( int entNum ) {
+	static int	seq[MAX_GENTITIES];
+	static int	seqFrame[MAX_GENTITIES];
+	int			part;
+
+	if ( seqFrame[entNum] != cg.clientFrame ) {
+		seqFrame[entNum] = cg.clientFrame;
+		seq[entNum] = 0;
+	}
+	part = seq[entNum];
+	if ( part < DEMO_OCCLUDED_MAX_PARTS - 1 ) {
+		seq[entNum]++;
+	}
+	return part;
+}
+
+static float	demoOccVis[MAX_GENTITIES][DEMO_OCCLUDED_MAX_PARTS];
+static int	demoOccLastClient[MAX_GENTITIES];
+static int	demoOccLastFrame[MAX_GENTITIES][DEMO_OCCLUDED_MAX_PARTS];
+static int	demoOccLastMs[MAX_GENTITIES][DEMO_OCCLUDED_MAX_PARTS];
+static int	demoOccDeathTime[MAX_GENTITIES];
+static qboolean	demoOccWasDead[MAX_GENTITIES];
+
+typedef struct {
+	qboolean	used;
+	int			entNum;
+	int			lastDrawFrame;
+	int			lastMs;
+	int			nparts;
+	float		vis[DEMO_OCCLUDED_MAX_PARTS];
+	refEntity_t	ent[DEMO_OCCLUDED_MAX_PARTS];
+} demoOccGhost_t;
+
+static demoOccGhost_t	demoOccGhosts[DEMO_OCCLUDED_GHOSTS];
+
+static int CG_DemoOccludedFadeDt( int *lastMs ) {
+	int	now;
+	int	dt;
+
+	now = trap_Milliseconds();
+	dt = cg.frametime;
+	if ( dt <= 0 ) {
+		if ( *lastMs ) {
+			dt = now - *lastMs;
+		} else {
+			dt = 0;
+		}
+	}
+	*lastMs = now;
+	if ( dt < 0 ) {
+		dt = 0;
+	} else if ( dt > 50 ) {
+		dt = 50;
+	}
+	return dt;
+}
+
+static void CG_DemoOccludedStepVis( float *alpha, float target, int dt ) {
+	float	step;
+
+	step = (float)dt / (float)DEMO_OCCLUDED_VIS_FADE_MSEC;
+	if ( step > 1.0f ) {
+		step = 1.0f;
+	}
+	if ( *alpha < target ) {
+		*alpha += step;
+		if ( *alpha > target ) {
+			*alpha = target;
+		}
+	} else if ( *alpha > target ) {
+		*alpha -= step;
+		if ( *alpha < target ) {
+			*alpha = target;
+		}
+	}
+}
+
+static void CG_DemoOccludedDropGhost( int entNum ) {
+	int	i;
+
+	for ( i = 0; i < DEMO_OCCLUDED_GHOSTS; i++ ) {
+		if ( demoOccGhosts[i].used && demoOccGhosts[i].entNum == entNum ) {
+			demoOccGhosts[i].used = qfalse;
+		}
+	}
+}
+
+static void CG_DemoOccludedResetFade( int entNum ) {
+	int	i;
+
+	if ( entNum < 0 || entNum >= MAX_GENTITIES ) {
+		return;
+	}
+	for ( i = 0; i < DEMO_OCCLUDED_MAX_PARTS; i++ ) {
+		demoOccVis[entNum][i] = 0.0f;
+		demoOccLastMs[entNum][i] = 0;
+		demoOccLastFrame[entNum][i] = -1;
+	}
+	demoOccDeathTime[entNum] = 0;
+	demoOccWasDead[entNum] = qfalse;
+	CG_DemoOccludedDropGhost( entNum );
+}
+
+static void CG_DemoOccludedStoreGhost( int entNum, int part, const refEntity_t *ent, float vis ) {
+	int				i;
+	int				slot;
+	demoOccGhost_t	*ghost;
+
+	if ( entNum < 0 || entNum >= ENTITYNUM_MAX_NORMAL || vis <= 0.0f || !ent ) {
+		return;
+	}
+	if ( part < 0 || part >= DEMO_OCCLUDED_MAX_PARTS ) {
+		return;
+	}
+
+	slot = -1;
+	for ( i = 0; i < DEMO_OCCLUDED_GHOSTS; i++ ) {
+		if ( demoOccGhosts[i].used && demoOccGhosts[i].entNum == entNum ) {
+			slot = i;
+			break;
+		}
+		if ( slot < 0 && !demoOccGhosts[i].used ) {
+			slot = i;
+		}
+	}
+	if ( slot < 0 ) {
+		return;
+	}
+
+	ghost = &demoOccGhosts[slot];
+	if ( !ghost->used || ghost->entNum != entNum || ghost->lastDrawFrame != cg.clientFrame ) {
+		memset( ghost, 0, sizeof( *ghost ) );
+		ghost->used = qtrue;
+		ghost->entNum = entNum;
+		ghost->lastDrawFrame = cg.clientFrame;
+	}
+	if ( ghost->nparts < DEMO_OCCLUDED_MAX_PARTS ) {
+		ghost->ent[ghost->nparts] = *ent;
+		ghost->vis[ghost->nparts] = vis;
+		ghost->nparts++;
+	}
+}
+
+/*
+===============
+CG_DemoOccludedFadeLost
+
+Keeps fading the last occluded pose after a player leaves PVS.
+===============
+*/
+void CG_DemoOccludedFadeLost( void ) {
+	int				i;
+	int				p;
+	int				dt;
+	byte			alpha;
+	qboolean		any;
+	refEntity_t		re;
+	demoOccGhost_t	*ghost;
+
+	if ( !cg.demoPlayback || !cg_demoOccludedOutline.integer || !cgs.media.occludedOutline ) {
+		for ( i = 0; i < DEMO_OCCLUDED_GHOSTS; i++ ) {
+			demoOccGhosts[i].used = qfalse;
+		}
+		return;
+	}
+
+	for ( i = 0; i < DEMO_OCCLUDED_GHOSTS; i++ ) {
+		ghost = &demoOccGhosts[i];
+		if ( !ghost->used ) {
+			continue;
+		}
+		if ( ghost->lastDrawFrame == cg.clientFrame ) {
+			continue;
+		}
+
+		dt = CG_DemoOccludedFadeDt( &ghost->lastMs );
+		any = qfalse;
+		for ( p = 0; p < ghost->nparts; p++ ) {
+			CG_DemoOccludedStepVis( &ghost->vis[p], 0.0f, dt );
+			if ( ghost->vis[p] <= 0.0f ) {
+				continue;
+			}
+			any = qtrue;
+			alpha = (byte)( 255.0f * DEMO_OCCLUDED_ALPHA * ghost->vis[p] );
+			if ( !alpha ) {
+				continue;
+			}
+			re = ghost->ent[p];
+			re.shaderRGBA[3] = alpha;
+			re.renderfx |= RF_DEPTHHACK;
+			trap_R_AddRefEntityToScene( &re );
+		}
+		if ( !any ) {
+			ghost->used = qfalse;
+		}
+	}
+}
+
+/*
+===============
+CG_DemoOccludedVisAlpha
+
+Smooths each body part's hidden test. Uses wall-clock time when the demo
+is paused so free cam still fades in/out.
+===============
+*/
+static float CG_DemoOccludedVisAlpha( int entNum, int clientNum, int part, const vec3_t origin, qboolean compact ) {
+	float		target;
+	int			dt;
+
+	if ( part < 0 || part >= DEMO_OCCLUDED_MAX_PARTS ) {
+		part = 0;
+	}
+
+	target = CG_DemoPlayerFullyHiddenFromView( origin, compact ) ? 1.0f : 0.0f;
+
+	if ( demoOccLastClient[entNum] != clientNum ) {
+		CG_DemoOccludedResetFade( entNum );
+		demoOccLastClient[entNum] = clientNum;
+	}
+
+	if ( demoOccLastFrame[entNum][part] != cg.clientFrame ) {
+		demoOccLastFrame[entNum][part] = cg.clientFrame;
+		dt = CG_DemoOccludedFadeDt( &demoOccLastMs[entNum][part] );
+		CG_DemoOccludedStepVis( &demoOccVis[entNum][part], target, dt );
+	}
+
+	return demoOccVis[entNum][part];
+}
+
+/*
+===============
+CG_AddDemoOccludedOutline
+
+DEPTHHACK silhouette for fully hidden players during demo playback.
+===============
+*/
+void CG_AddDemoOccludedOutline( refEntity_t *ent, entityState_t *state, int team ) {
+	qhandle_t	oldShader;
+	byte		oldRGBA[4];
+	int			oldRenderfx;
+	int			entNum;
+	int			clientNum;
+	int			part;
+	float		vis;
+	float		deathFade;
+	byte		alpha;
+
+	if ( !cg.demoPlayback || !cg_demoOccludedOutline.integer
+			|| !cgs.media.occludedOutline || !state
+			|| ( ent->renderfx & RF_THIRD_PERSON )
+			|| ( state->powerups & ( 1 << PW_INVIS ) ) ) {
+		return;
+	}
+
+	entNum = state->number;
+	if ( entNum < 0 || entNum >= ENTITYNUM_MAX_NORMAL ) {
+		return;
+	}
+
+	clientNum = state->clientNum;
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		clientNum = entNum;
+	}
+
+	if ( ( state->eFlags & EF_DEAD ) && !CG_IsFrozenPlayerState( state ) ) {
+		demoOccWasDead[entNum] = qtrue;
+		if ( !demoOccDeathTime[entNum] || demoOccDeathTime[entNum] > cg.time ) {
+			demoOccDeathTime[entNum] = cg.time;
+		}
+		if ( cg.time - demoOccDeathTime[entNum] >= DEMO_OCCLUDED_FADE_MSEC ) {
+			return;
+		}
+		deathFade = 1.0f - (float)( cg.time - demoOccDeathTime[entNum] ) / (float)DEMO_OCCLUDED_FADE_MSEC;
+	} else {
+		if ( demoOccWasDead[entNum] ) {
+			CG_DemoOccludedResetFade( entNum );
+		}
+		demoOccDeathTime[entNum] = 0;
+		deathFade = 1.0f;
+	}
+
+	part = CG_DemoOccludedNextPart( entNum );
+	vis = CG_DemoOccludedVisAlpha( entNum, clientNum, part, ent->origin,
+			( state->eType == ET_MISSILE ) ? qtrue : qfalse );
+	if ( vis <= 0.0f ) {
+		return;
+	}
+
+	alpha = (byte)( 255.0f * DEMO_OCCLUDED_ALPHA * vis * deathFade );
+	if ( !alpha ) {
+		return;
+	}
+
+	oldShader = ent->customShader;
+	oldRenderfx = ent->renderfx;
+	oldRGBA[0] = ent->shaderRGBA[0];
+	oldRGBA[1] = ent->shaderRGBA[1];
+	oldRGBA[2] = ent->shaderRGBA[2];
+	oldRGBA[3] = ent->shaderRGBA[3];
+
+	ent->customShader = cgs.media.occludedOutline;
+	if ( CG_IsTeamGametype() && team == TEAM_RED && cgs.media.occludedOutlineRed ) {
+		ent->customShader = cgs.media.occludedOutlineRed;
+	} else if ( CG_IsTeamGametype() && team == TEAM_BLUE && cgs.media.occludedOutlineBlue ) {
+		ent->customShader = cgs.media.occludedOutlineBlue;
+	}
+	ent->shaderRGBA[0] = 255;
+	ent->shaderRGBA[1] = 255;
+	ent->shaderRGBA[2] = 255;
+	ent->shaderRGBA[3] = alpha;
+	ent->renderfx |= RF_DEPTHHACK;
+	trap_R_AddRefEntityToScene( ent );
+	if ( state->eType != ET_MISSILE ) {
+		CG_DemoOccludedStoreGhost( entNum, part, ent, vis * deathFade );
+	}
+
+	ent->customShader = oldShader;
+	ent->renderfx = oldRenderfx;
+	ent->shaderRGBA[0] = oldRGBA[0];
+	ent->shaderRGBA[1] = oldRGBA[1];
+	ent->shaderRGBA[2] = oldRGBA[2];
+	ent->shaderRGBA[3] = oldRGBA[3];
+}
+
 
 /*
 ===============
@@ -3390,7 +3776,10 @@ void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int te
 			}
 		}
 
+		CG_AddDemoOccludedOutline( ent, state, team );
+
 	}
+
 }
 
 
@@ -4549,6 +4938,11 @@ A player just came into view or teleported, so reset all animation info
 */
 void CG_ResetPlayerEntity( centity_t *cent ) {
 	qboolean delayAnims;
+
+	CG_DemoOccludedResetFade( cent->currentState.number );
+	if ( cent->currentState.number < MAX_CLIENTS ) {
+		CG_DemoPlayerStatusReset( cent->currentState.number );
+	}
 
 	cent->demoDelagVisualCached = qfalse;
 	cent->errorTime = -99999;		// guarantee no error decay added
