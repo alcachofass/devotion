@@ -320,6 +320,7 @@ CG_CVAR( cg_specItemTimersSize , "cg_specItemTimersSize", "0.24", CVAR_ARCHIVE )
 CG_CVAR( cg_demoItemTimers ,     "cg_demoItemTimers", "1", CVAR_ARCHIVE )
 CG_CVAR( cg_demoOccludedOutline, "cg_demoOccludedOutline", "0", CVAR_ARCHIVE )
 CG_CVAR( cg_specPlayerStatus ,   "cg_specPlayerStatus", "1", CVAR_ARCHIVE )
+CG_CVAR( cg_demoPlayerStatus ,   "cg_demoPlayerStatus", "1", CVAR_ARCHIVE )
 
 CG_CVAR( cg_pingLocationTime,          "cg_pingLocationTime", "1000", CVAR_ARCHIVE )
 CG_CVAR( cg_pingLocationTime2,         "cg_pingLocationTime2", "3500", CVAR_ARCHIVE )

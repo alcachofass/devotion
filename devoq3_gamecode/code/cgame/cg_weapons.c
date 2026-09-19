@@ -1981,6 +1981,9 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	gun.backlerp = parent->backlerp;
 
 	CG_AddWeaponWithPowerups( &gun, cent->currentState.powerups );
+	if ( !ps ) {
+		CG_AddDemoOccludedOutline( &gun, &cent->currentState, team );
+	}
 
 	// add the spinning barrel
 	if ( weapon->barrelModel ) {
@@ -1998,6 +2001,9 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 		CG_PositionRotatedEntityOnTag( &barrel, &gun, weapon->weaponModel, "tag_barrel" );
 
 		CG_AddWeaponWithPowerups( &barrel, cent->currentState.powerups );
+		if ( !ps ) {
+			CG_AddDemoOccludedOutline( &barrel, &cent->currentState, team );
+		}
 	}
 
 	// make sure we aren't looking at cg.predictedPlayerEntity for LG

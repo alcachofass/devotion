@@ -575,6 +575,13 @@ Also called by playerstate transition
 */
 void CG_PainEvent( centity_t *cent, int health ) {
 	char	*snd;
+	int		clientNum;
+
+	clientNum = cent->currentState.number;
+	if ( cg.demoPlayback && clientNum >= 0 && clientNum < MAX_CLIENTS
+			&& !cgs.clientinfo[clientNum].specInfoValid ) {
+		cgs.clientinfo[clientNum].health = health;
+	}
 
 	// don't do more than two pain sounds a second
 	if ( cg.time - cent->pe.painTime < 500 ) {

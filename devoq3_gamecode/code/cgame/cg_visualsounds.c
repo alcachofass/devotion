@@ -1163,6 +1163,9 @@ void CG_DrawVisualSounds( void ) {
 	if ( !cg_visualSounds.integer || !cg.snap ) {
 		return;
 	}
+	if ( CG_DemoControls_FreeCamActive() ) {
+		return;
+	}
 
 	cx = SCREEN_WIDTH * 0.5f + cg_crosshairX.value;
 	cy = SCREEN_HEIGHT * 0.5f + cg_crosshairY.value;

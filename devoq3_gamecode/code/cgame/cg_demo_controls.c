@@ -32,8 +32,15 @@ Chrome can hide after idle; hit-testing stays active so clicks still land.
 #define DEMOCTRL_SEEK_KEYFRAME_MS	200
 #define DEMOCTRL_SEEK_KEYFRAME_COPIES	4
 #define DEMOCTRL_SIDE_MARGIN		8
-#define DEMOCTRL_SIDE_Y			140
-#define DEMOCTRL_SIDE_BTN_W		84
+#define DEMOCTRL_SIDE_Y			72
+#define DEMOCTRL_SIDE_BTN_W		76
+#define DEMOCTRL_SIDE_BTN_H		18
+#define DEMOCTRL_SIDE_BTN_GAP		5
+#define DEMOCTRL_SIDE_HDR_H		12
+#define DEMOCTRL_SIDE_GROUP_GAP		10
+#define DEMOCTRL_SIDE_CAM_COUNT		4
+#define DEMOCTRL_SIDE_CHAR_W		5
+#define DEMOCTRL_SIDE_CHAR_H		8
 #define DEMOCTRL_LOCK_W			24
 #define DEMOCTRL_LOCK_H			24
 #define DEMOCTRL_SHOT_HIDE_FRAMES	8
@@ -57,12 +64,15 @@ typedef enum {
 	DEMOCTRL_CAM_1ST,
 	DEMOCTRL_CAM_3RD,
 	DEMOCTRL_FREECAM,
+	DEMOCTRL_SHOT,
 	DEMOCTRL_ITEMS,
 	DEMOCTRL_TIMERS,
 	DEMOCTRL_HUD,
+	DEMOCTRL_VSOUNDS,
 	DEMOCTRL_HITBOX,
 	DEMOCTRL_OCCLUDED,
-	DEMOCTRL_SHOT,
+	DEMOCTRL_STATUS,
+	DEMOCTRL_DELAG,
 	DEMOCTRL_LOCK,
 	DEMOCTRL_NUM_BTNS
 } demoCtrlButton_t;
@@ -188,6 +198,10 @@ static qboolean DemoCtrl_IsTopButton( int btn ) {
 }
 
 static qboolean DemoCtrl_IsSideButton( int btn ) {
+	return btn >= DEMOCTRL_CAM_1ST && btn <= DEMOCTRL_DELAG;
+}
+
+static qboolean DemoCtrl_IsCamSideButton( int btn ) {
 	return btn >= DEMOCTRL_CAM_1ST && btn <= DEMOCTRL_SHOT;
 }
 
@@ -236,15 +250,21 @@ static const char *DemoCtrl_ButtonLabel( int btn ) {
 	case DEMOCTRL_FREECAM:
 		return "Free Cam";
 	case DEMOCTRL_ITEMS:
-		return "Simple Items";
+		return "Items";
 	case DEMOCTRL_TIMERS:
 		return "Timers";
 	case DEMOCTRL_HUD:
-		return "Toggle HUD";
+		return "HUD";
+	case DEMOCTRL_VSOUNDS:
+		return "VSound";
 	case DEMOCTRL_HITBOX:
 		return "Hitbox";
 	case DEMOCTRL_OCCLUDED:
-		return "Occluded";
+		return "Silhouette";
+	case DEMOCTRL_STATUS:
+		return "Status";
+	case DEMOCTRL_DELAG:
+		return "Delag";
 	case DEMOCTRL_SHOT:
 		return "Screenshot";
 	default:
@@ -305,10 +325,16 @@ static qboolean DemoCtrl_ButtonActive( int btn ) {
 		return cg_demoItemTimers.integer ? qtrue : qfalse;
 	case DEMOCTRL_HUD:
 		return cg_draw2D.integer ? qtrue : qfalse;
+	case DEMOCTRL_VSOUNDS:
+		return cg_visualSounds.integer ? qtrue : qfalse;
 	case DEMOCTRL_HITBOX:
 		return cg_drawBBox.integer ? qtrue : qfalse;
 	case DEMOCTRL_OCCLUDED:
 		return cg_demoOccludedOutline.integer ? qtrue : qfalse;
+	case DEMOCTRL_STATUS:
+		return cg_demoPlayerStatus.integer ? qtrue : qfalse;
+	case DEMOCTRL_DELAG:
+		return cg_demoDelag.integer ? qtrue : qfalse;
 	default:
 		return qfalse;
 	}
@@ -390,11 +416,22 @@ static void DemoCtrl_ButtonRect( int btn, int *x, int *y, int *w, int *h ) {
 		*h = DEMOCTRL_LOCK_H;
 		*x = DEMOCTRL_SIDE_MARGIN;
 		*y = DEMOCTRL_BAR_Y;
-	} else if ( DemoCtrl_IsSideButton( btn ) ) {
+	} else if ( DemoCtrl_IsCamSideButton( btn ) ) {
 		index = btn - DEMOCTRL_CAM_1ST;
 		*w = DEMOCTRL_SIDE_BTN_W;
+		*h = DEMOCTRL_SIDE_BTN_H;
 		*x = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_SIDE_BTN_W;
-		*y = DEMOCTRL_SIDE_Y + index * ( DEMOCTRL_BTN_H + DEMOCTRL_BTN_GAP );
+		*y = DEMOCTRL_SIDE_Y + DEMOCTRL_SIDE_HDR_H
+				+ index * ( DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP );
+	} else if ( DemoCtrl_IsSideButton( btn ) ) {
+		index = btn - DEMOCTRL_ITEMS;
+		*w = DEMOCTRL_SIDE_BTN_W;
+		*h = DEMOCTRL_SIDE_BTN_H;
+		*x = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_SIDE_BTN_W;
+		*y = DEMOCTRL_SIDE_Y + DEMOCTRL_SIDE_HDR_H
+				+ DEMOCTRL_SIDE_CAM_COUNT * ( DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP )
+				- DEMOCTRL_SIDE_BTN_GAP + DEMOCTRL_SIDE_GROUP_GAP + DEMOCTRL_SIDE_HDR_H
+				+ index * ( DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP );
 	} else if ( DemoCtrl_IsTopButton( btn ) ) {
 		index = btn - DEMOCTRL_RESTART;
 		barX = DemoCtrl_BarX( 3 );
@@ -413,6 +450,127 @@ static void DemoCtrl_ButtonRect( int btn, int *x, int *y, int *w, int *h ) {
 		*x = xPos;
 		*y = DEMOCTRL_BAR_Y;
 	}
+}
+
+static const char *DemoCtrl_ButtonTip( int btn ) {
+	switch ( btn ) {
+	case DEMOCTRL_REW3:
+		return "Set ^10.1x ^7speed";
+	case DEMOCTRL_REW2:
+		return "Set ^30.25x ^7speed";
+	case DEMOCTRL_REW1:
+		return "Set ^20.5x ^7speed";
+	case DEMOCTRL_TOGGLE:
+		return "^2Play^7/^1pause ^7the replay";
+	case DEMOCTRL_RATE1X:
+		return "Set 1x ^7speed";
+	case DEMOCTRL_FF1:
+		return "Set ^22x ^7speed";
+	case DEMOCTRL_FF2:
+		return "Set ^34x ^7speed";
+	case DEMOCTRL_FF3:
+		return "Set ^18x ^7speed";
+	case DEMOCTRL_RESTART:
+		return "Restart the replay";
+	case DEMOCTRL_MENU:
+		return "^2Open ^7in-game menu";
+	case DEMOCTRL_EXIT:
+		return "^1Exit ^7to main menu";
+	case DEMOCTRL_CAM_1ST:
+		return "Follow in first person";
+	case DEMOCTRL_CAM_3RD:
+		return "Follow in third person";
+	case DEMOCTRL_FREECAM:
+		return "Fly a free camera";
+	case DEMOCTRL_SHOT:
+		return "Save a screenshot";
+	case DEMOCTRL_ITEMS:
+		return "Toggle between simple or 3D items";
+	case DEMOCTRL_TIMERS:
+		return "Toggle HUD item timers ^2ON^7/^1OFF";
+	case DEMOCTRL_HUD:
+		return "Toggle game HUD ^2ON^7/^1OFF";
+	case DEMOCTRL_VSOUNDS:
+		return "Toggle visual sounds ^2ON^7/^1OFF";
+	case DEMOCTRL_HITBOX:
+		return "^2Show^7/^1hide ^7player hitboxes";
+	case DEMOCTRL_OCCLUDED:
+		return "^2Show^7/^1hide ^7silhouettes of hidden players";
+	case DEMOCTRL_STATUS:
+		return "^2Show^7/^1hide ^7overhead player status boxes";
+	case DEMOCTRL_DELAG:
+		return "^2Enable^7/^1Disable ^7replay de-lag reconstruction";
+	case DEMOCTRL_LOCK:
+		return "^1Lock^7/^2unlock ^7the replay overlay";
+	default:
+		return "";
+	}
+}
+
+static void DemoCtrl_DrawHoverTip( int btn ) {
+	const char	*tip;
+	int			btnX, btnY, btnW, btnH;
+	int			cw, ch, pad;
+	int			tipW, tipH;
+	int			x, y;
+	int			len;
+	vec4_t		bg;
+	vec4_t		border;
+	vec4_t		textColor;
+
+	tip = DemoCtrl_ButtonTip( btn );
+	if ( !tip || !tip[0] ) {
+		return;
+	}
+
+	DemoCtrl_ButtonRect( btn, &btnX, &btnY, &btnW, &btnH );
+	cw = 6;
+	ch = 10;
+	pad = 6;
+	len = CG_DrawStrlen( tip );
+	tipW = len * cw + pad * 2;
+	tipH = ch + pad * 2;
+
+	if ( DemoCtrl_IsSideButton( btn ) ) {
+		x = btnX - 8 - tipW;
+		y = btnY + ( btnH - tipH ) / 2;
+	} else if ( btn == DEMOCTRL_LOCK ) {
+		x = btnX + btnW + 8;
+		y = btnY + ( btnH - tipH ) / 2;
+	} else {
+		x = btnX + ( btnW - tipW ) / 2;
+		y = btnY + btnH + 6;
+	}
+
+	if ( x < 4 ) {
+		x = 4;
+	}
+	if ( x + tipW > SCREEN_WIDTH - 4 ) {
+		x = SCREEN_WIDTH - 4 - tipW;
+	}
+	if ( y < 4 ) {
+		y = 4;
+	}
+	if ( y + tipH > SCREEN_HEIGHT - 4 ) {
+		y = SCREEN_HEIGHT - 4 - tipH;
+	}
+
+	bg[0] = 0.04f;
+	bg[1] = 0.04f;
+	bg[2] = 0.05f;
+	bg[3] = 0.92f;
+	border[0] = 1.0f;
+	border[1] = 1.0f;
+	border[2] = 1.0f;
+	border[3] = 0.40f;
+	textColor[0] = 1.0f;
+	textColor[1] = 1.0f;
+	textColor[2] = 1.0f;
+	textColor[3] = 1.0f;
+
+	CG_FillRect( x, y, tipW, tipH, bg );
+	CG_DrawRect( x, y, tipW, tipH, 1, border );
+	CG_DrawStringExt( x + pad, y + pad, tip, textColor, qfalse, qtrue, cw, ch, 0 );
 }
 
 static int DemoCtrl_HitTest( int mx, int my ) {
@@ -593,6 +751,15 @@ static void DemoCtrl_Activate( int btn ) {
 		break;
 	case DEMOCTRL_OCCLUDED:
 		trap_Cvar_Set( "cg_demoOccludedOutline", cg_demoOccludedOutline.integer ? "0" : "1" );
+		break;
+	case DEMOCTRL_STATUS:
+		trap_Cvar_Set( "cg_demoPlayerStatus", cg_demoPlayerStatus.integer ? "0" : "1" );
+		break;
+	case DEMOCTRL_DELAG:
+		trap_Cvar_Set( "cg_demoDelag", cg_demoDelag.integer ? "0" : "1" );
+		break;
+	case DEMOCTRL_VSOUNDS:
+		trap_Cvar_Set( "cg_visualSounds", cg_visualSounds.integer ? "0" : "1" );
 		break;
 	case DEMOCTRL_HUD:
 		if ( cg_draw2D.integer || cg_drawGun.integer ) {
@@ -1888,11 +2055,45 @@ void CG_DemoControls_Draw( void ) {
 		int sideH;
 
 		sideW = DEMOCTRL_SIDE_BTN_W + 16;
-		sideH = ( DEMOCTRL_SHOT - DEMOCTRL_CAM_1ST + 1 ) * DEMOCTRL_BTN_H
-			+ ( DEMOCTRL_SHOT - DEMOCTRL_CAM_1ST ) * DEMOCTRL_BTN_GAP + 12;
 		sideX = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_SIDE_BTN_W - 8;
-		sideY = DEMOCTRL_SIDE_Y - 6;
+
+		DemoCtrl_ButtonRect( DEMOCTRL_CAM_1ST, &x, &y, &w, &h );
+		sideY = y - DEMOCTRL_SIDE_HDR_H - 4;
+		DemoCtrl_ButtonRect( DEMOCTRL_SHOT, &x, &y, &w, &h );
+		sideH = ( y + h + 6 ) - sideY;
 		CG_FillRect( sideX, sideY, sideW, sideH, panel );
+		{
+			const char *hdr = "Camera";
+			int hdrLen = CG_DrawStrlen( hdr );
+			vec4_t hdrColor;
+
+			hdrColor[0] = 0.85f;
+			hdrColor[1] = 0.85f;
+			hdrColor[2] = 0.90f;
+			hdrColor[3] = 0.95f;
+			CG_DrawStringExt( sideX + ( sideW - hdrLen * DEMOCTRL_SIDE_CHAR_W ) / 2,
+					sideY + 3, hdr, hdrColor, qtrue, qtrue,
+					DEMOCTRL_SIDE_CHAR_W, DEMOCTRL_SIDE_CHAR_H, 0 );
+		}
+
+		DemoCtrl_ButtonRect( DEMOCTRL_ITEMS, &x, &y, &w, &h );
+		sideY = y - DEMOCTRL_SIDE_HDR_H - 4;
+		DemoCtrl_ButtonRect( DEMOCTRL_DELAG, &x, &y, &w, &h );
+		sideH = ( y + h + 6 ) - sideY;
+		CG_FillRect( sideX, sideY, sideW, sideH, panel );
+		{
+			const char *hdr = "Display";
+			int hdrLen = CG_DrawStrlen( hdr );
+			vec4_t hdrColor;
+
+			hdrColor[0] = 0.85f;
+			hdrColor[1] = 0.85f;
+			hdrColor[2] = 0.90f;
+			hdrColor[3] = 0.95f;
+			CG_DrawStringExt( sideX + ( sideW - hdrLen * DEMOCTRL_SIDE_CHAR_W ) / 2,
+					sideY + 3, hdr, hdrColor, qtrue, qtrue,
+					DEMOCTRL_SIDE_CHAR_W, DEMOCTRL_SIDE_CHAR_H, 0 );
+		}
 
 		DemoCtrl_ButtonRect( DEMOCTRL_LOCK, &x, &y, &w, &h );
 		CG_FillRect( x - 8, y - 6, w + 16, h + 12, panel );
@@ -2017,9 +2218,17 @@ void CG_DemoControls_Draw( void ) {
 
 		cw = 6;
 		ch = 10;
+		if ( DemoCtrl_IsSideButton( i ) ) {
+			cw = DEMOCTRL_SIDE_CHAR_W;
+			ch = DEMOCTRL_SIDE_CHAR_H;
+		}
 		len = CG_DrawStrlen( DemoCtrl_ButtonLabel( i ) );
 		CG_DrawStringExt( x + ( w - len * cw ) / 2, y + ( h - ch ) / 2,
 				DemoCtrl_ButtonLabel( i ), textColor, qtrue, qtrue, cw, ch, 0 );
+	}
+
+	if ( dc_hoverBtn >= 0 ) {
+		DemoCtrl_DrawHoverTip( dc_hoverBtn );
 	}
 
 	if ( dc_speedLabel[0] ) {
