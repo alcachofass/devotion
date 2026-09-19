@@ -73,6 +73,9 @@ static int			dcamPairNFramed;
 static qboolean		dcamPairHeld;
 static qboolean		dcamResting;
 static int			dcamRestCam = -1;
+static int			dcamItemGhostGen;
+static int			dcamItemGhostLastCur = -2;
+static int			dcamItemGhostLastCutMs;
 
 static float DemoCam_AngleBetween( const vec3_t a, const vec3_t b );
 static int DemoCam_NearestIndex( void );
@@ -86,6 +89,24 @@ static void DemoCam_FilePath( char *out, int outSize ) {
 		return;
 	}
 	Com_sprintf( out, outSize, "cams/%s.cfg", map );
+}
+
+static void DemoCam_BumpItemGhostGen( void ) {
+	dcamItemGhostGen++;
+	if ( !dcamItemGhostGen ) {
+		dcamItemGhostGen = 1;
+	}
+}
+
+static void DemoCam_UpdateItemGhostGen( void ) {
+	if ( dcamCur != dcamItemGhostLastCur ) {
+		dcamItemGhostLastCur = dcamCur;
+		DemoCam_BumpItemGhostGen();
+	}
+	if ( dcamCutStartMs && dcamCutStartMs != dcamItemGhostLastCutMs ) {
+		dcamItemGhostLastCutMs = dcamCutStartMs;
+		DemoCam_BumpItemGhostGen();
+	}
 }
 
 static void DemoCam_ResetDirector( void ) {
@@ -108,6 +129,9 @@ static void DemoCam_ResetDirector( void ) {
 	dcamPairHeld = qfalse;
 	dcamResting = qfalse;
 	dcamRestCam = -1;
+	dcamItemGhostLastCur = -2;
+	dcamItemGhostLastCutMs = 0;
+	DemoCam_BumpItemGhostGen();
 }
 
 static int DemoCam_FadeDt( int *lastMs ) {
@@ -1113,21 +1137,15 @@ void CG_DemoCams_View( vec3_t origin, vec3_t angles ) {
 			dcamRestCam = dcamCur;
 			VectorCopy( dcams[dcamCur].angles, dcamViewAng );
 		} else if ( haveTarget ) {
+			DemoCam_LookAngles( dcamViewOrg, lookAt, wantAng );
 			useRest = DemoCam_UpdateRest( dcamCur, lookAt );
-			if ( useRest ) {
-				VectorCopy( dcams[dcamCur].angles, wantAng );
-			} else {
-				DemoCam_LookAngles( dcamViewOrg, lookAt, wantAng );
-			}
 			if ( inCut || !dcamViewValid ) {
 				VectorCopy( wantAng, dcamViewAng );
-			} else {
+			} else if ( !useRest ) {
 				dtLook = DemoCam_FadeDt( &dcamLookMs );
 				DemoCam_DampAngle( dcamViewAng, wantAng, dtLook );
 			}
-		} else {
-			dcamResting = qtrue;
-			dcamRestCam = dcamCur;
+		} else if ( !dcamViewValid ) {
 			VectorCopy( dcams[dcamCur].angles, dcamViewAng );
 		}
 	}
@@ -1139,7 +1157,7 @@ void CG_DemoCams_View( vec3_t origin, vec3_t angles ) {
 	}
 	if ( inCut && now - dcamCutStartMs < DEMOCAM_CUT_FADE_MSEC ) {
 		/* keep previous fov while holding the outgoing shot */
-	} else if ( !dcamViewValid ) {
+	} else if ( !dcamViewValid || inCut ) {
 		dcamFov = wantFov;
 	} else {
 		dtFov = DemoCam_FadeDt( &dcamFovMs );
@@ -1149,6 +1167,12 @@ void CG_DemoCams_View( vec3_t origin, vec3_t angles ) {
 	dcamViewValid = qtrue;
 	VectorCopy( dcamViewOrg, origin );
 	VectorCopy( dcamViewAng, angles );
+
+	DemoCam_UpdateItemGhostGen();
+}
+
+int CG_DemoCams_ItemGhostGen( void ) {
+	return dcamItemGhostGen;
 }
 
 float CG_DemoCams_FovX( void ) {

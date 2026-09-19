@@ -174,6 +174,7 @@ static void DemoCtrl_FreeCamMove( void );
 static void DemoCtrl_FreeCamHudOff( void );
 static void DemoCtrl_FreeCamHudRestore( void );
 static void DemoCtrl_SyncCamHud( void );
+static void DemoCtrl_ApplyDynamicCamCvar( void );
 static void DemoCtrl_RefreshAttackKeys( void );
 static qboolean DemoCtrl_KeyIsAttack( int key );
 static qboolean DemoCtrl_KeyIsMoveBind( int key );
@@ -854,6 +855,7 @@ static void DemoCtrl_Activate( int btn ) {
 		DemoCtrl_DisableFreeCam();
 		DemoCtrl_DisableRigCam();
 		DemoCtrl_SyncCamHud();
+		trap_Cvar_Set( "cg_demoDynamicCam", "0" );
 		trap_Cvar_Set( "cg_thirdPerson", "0" );
 		break;
 	case DEMOCTRL_CAM_3RD:
@@ -863,6 +865,7 @@ static void DemoCtrl_Activate( int btn ) {
 		DemoCtrl_DisableFreeCam();
 		DemoCtrl_DisableRigCam();
 		DemoCtrl_SyncCamHud();
+		trap_Cvar_Set( "cg_demoDynamicCam", "0" );
 		trap_Cvar_Set( "cg_thirdPerson", "1" );
 		if ( cg_thirdPersonRange.value < 1.0f ) {
 			trap_Cvar_Set( "cg_thirdPersonRange", "100" );
@@ -873,6 +876,7 @@ static void DemoCtrl_Activate( int btn ) {
 			break;
 		}
 		DemoCtrl_DisableRigCam();
+		trap_Cvar_Set( "cg_demoDynamicCam", "0" );
 		DemoCtrl_EnterFreeCamLook();
 		break;
 	case DEMOCTRL_CAM_RIGS:
@@ -882,6 +886,7 @@ static void DemoCtrl_Activate( int btn ) {
 		DemoCtrl_DisableFreeCam();
 		dc_rigView = qtrue;
 		DemoCtrl_SyncCamHud();
+		trap_Cvar_Set( "cg_demoDynamicCam", "1" );
 		if ( CG_DemoCams_Count() <= 0 ) {
 			CG_Printf( "No cameras for this map yet. Use Add Cam on the left, then Save.\n" );
 		}
@@ -1170,8 +1175,35 @@ static void DemoCtrl_FreeCamHudRestore( void ) {
 	dc_freeHudDrawGun = 0;
 }
 
+static qboolean DemoCtrl_SnapIntermission( void ) {
+	if ( !cg.snap ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.pm_type == PM_INTERMISSION
+			|| cg.snap->ps.pm_type == PM_SPINTERMISSION ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+static void DemoCtrl_ApplyDynamicCamCvar( void ) {
+	if ( cg_demoDynamicCam.integer ) {
+		if ( dc_rigView ) {
+			return;
+		}
+		DemoCtrl_DisableFreeCam();
+		dc_rigView = qtrue;
+		DemoCtrl_SyncCamHud();
+		return;
+	}
+	if ( dc_rigView ) {
+		DemoCtrl_DisableRigCam();
+		DemoCtrl_SyncCamHud();
+	}
+}
+
 static void DemoCtrl_SyncCamHud( void ) {
-	if ( dc_freeView || dc_rigView ) {
+	if ( ( dc_freeView || dc_rigView ) && !DemoCtrl_SnapIntermission() ) {
 		DemoCtrl_FreeCamHudOff();
 	} else {
 		DemoCtrl_FreeCamHudRestore();
@@ -1381,7 +1413,7 @@ qboolean CG_DemoControls_FreeCamActive( void ) {
 }
 
 qboolean CG_DemoControls_RigCamActive( void ) {
-	return ( cg.demoPlayback && dc_rigView ) ? qtrue : qfalse;
+	return ( cg.demoPlayback && dc_rigView && !DemoCtrl_SnapIntermission() ) ? qtrue : qfalse;
 }
 
 void CG_DemoControls_FreeCamView( vec3_t origin, vec3_t angles ) {
@@ -1965,6 +1997,8 @@ void CG_DemoControls_Frame( void ) {
 	}
 
 	DemoCtrl_ViewSaveIfNeeded();
+	DemoCtrl_ApplyDynamicCamCvar();
+	DemoCtrl_SyncCamHud();
 	CG_DemoEvents_Frame();
 	DemoCtrl_UpdateTiming();
 	DemoCtrl_SeekFrame();
