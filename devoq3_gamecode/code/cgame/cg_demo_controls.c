@@ -38,7 +38,7 @@ Chrome can hide after idle; hit-testing stays active so clicks still land.
 #define DEMOCTRL_SIDE_BTN_GAP		5
 #define DEMOCTRL_SIDE_HDR_H		12
 #define DEMOCTRL_SIDE_GROUP_GAP		10
-#define DEMOCTRL_SIDE_CAM_COUNT		4
+#define DEMOCTRL_SIDE_CAM_COUNT		5
 #define DEMOCTRL_SIDE_CHAR_W		5
 #define DEMOCTRL_SIDE_CHAR_H		8
 #define DEMOCTRL_LOCK_W			24
@@ -64,6 +64,7 @@ typedef enum {
 	DEMOCTRL_CAM_1ST,
 	DEMOCTRL_CAM_3RD,
 	DEMOCTRL_FREECAM,
+	DEMOCTRL_CAM_RIGS,
 	DEMOCTRL_SHOT,
 	DEMOCTRL_ITEMS,
 	DEMOCTRL_TIMERS,
@@ -73,6 +74,11 @@ typedef enum {
 	DEMOCTRL_OCCLUDED,
 	DEMOCTRL_STATUS,
 	DEMOCTRL_DELAG,
+	DEMOCTRL_CAMADD,
+	DEMOCTRL_CAMSHOW,
+	DEMOCTRL_CAMDEL,
+	DEMOCTRL_CAMLOAD,
+	DEMOCTRL_CAMSAVE,
 	DEMOCTRL_LOCK,
 	DEMOCTRL_NUM_BTNS
 } demoCtrlButton_t;
@@ -128,6 +134,7 @@ static int		dc_savedDrawGun;
 static qboolean	dc_hudSaved;
 
 static qboolean	dc_freeView;
+static qboolean	dc_rigView;
 static qboolean	dc_freeLook;
 static vec3_t	dc_freeOrigin;
 static vec3_t	dc_freeAngles;
@@ -155,6 +162,7 @@ static void DemoCtrl_FreeCamReset( void );
 static void DemoCtrl_EnterFreeCamLook( void );
 static void DemoCtrl_LeaveFreeCamLook( void );
 static void DemoCtrl_DisableFreeCam( void );
+static void DemoCtrl_DisableRigCam( void );
 static void DemoCtrl_FreeCamMove( void );
 static void DemoCtrl_FreeCamHudOff( void );
 static void DemoCtrl_FreeCamHudRestore( void );
@@ -195,6 +203,10 @@ static int DemoCtrl_StepIndexForTimescale( float ts ) {
 
 static qboolean DemoCtrl_IsTopButton( int btn ) {
 	return btn >= DEMOCTRL_RESTART && btn <= DEMOCTRL_EXIT;
+}
+
+static qboolean DemoCtrl_IsLeftButton( int btn ) {
+	return btn >= DEMOCTRL_CAMADD && btn <= DEMOCTRL_CAMSAVE;
 }
 
 static qboolean DemoCtrl_IsSideButton( int btn ) {
@@ -249,6 +261,8 @@ static const char *DemoCtrl_ButtonLabel( int btn ) {
 		return "3rd Person";
 	case DEMOCTRL_FREECAM:
 		return "Free Cam";
+	case DEMOCTRL_CAM_RIGS:
+		return "Fixed Cameras";
 	case DEMOCTRL_ITEMS:
 		return "Items";
 	case DEMOCTRL_TIMERS:
@@ -265,6 +279,16 @@ static const char *DemoCtrl_ButtonLabel( int btn ) {
 		return "Status";
 	case DEMOCTRL_DELAG:
 		return "Delag";
+	case DEMOCTRL_CAMADD:
+		return "Add Camera";
+	case DEMOCTRL_CAMSHOW:
+		return "Show/Hide";
+	case DEMOCTRL_CAMDEL:
+		return "Remove Camera";
+	case DEMOCTRL_CAMLOAD:
+		return "Load Cam File";
+	case DEMOCTRL_CAMSAVE:
+		return "Save Cam File";
 	case DEMOCTRL_SHOT:
 		return "Screenshot";
 	default:
@@ -314,11 +338,13 @@ static qboolean DemoCtrl_ButtonActive( int btn ) {
 	case DEMOCTRL_LOCK:
 		return dc_locked;
 	case DEMOCTRL_CAM_1ST:
-		return ( !dc_freeView && !cg_thirdPerson.integer ) ? qtrue : qfalse;
+		return ( !dc_freeView && !dc_rigView && !cg_thirdPerson.integer ) ? qtrue : qfalse;
 	case DEMOCTRL_CAM_3RD:
-		return ( !dc_freeView && cg_thirdPerson.integer ) ? qtrue : qfalse;
+		return ( !dc_freeView && !dc_rigView && cg_thirdPerson.integer ) ? qtrue : qfalse;
 	case DEMOCTRL_FREECAM:
 		return dc_freeView;
+	case DEMOCTRL_CAM_RIGS:
+		return dc_rigView;
 	case DEMOCTRL_ITEMS:
 		return cg_simpleItems.integer ? qtrue : qfalse;
 	case DEMOCTRL_TIMERS:
@@ -335,6 +361,8 @@ static qboolean DemoCtrl_ButtonActive( int btn ) {
 		return cg_demoPlayerStatus.integer ? qtrue : qfalse;
 	case DEMOCTRL_DELAG:
 		return cg_demoDelag.integer ? qtrue : qfalse;
+	case DEMOCTRL_CAMSHOW:
+		return CG_DemoCams_Show();
 	default:
 		return qfalse;
 	}
@@ -416,6 +444,13 @@ static void DemoCtrl_ButtonRect( int btn, int *x, int *y, int *w, int *h ) {
 		*h = DEMOCTRL_LOCK_H;
 		*x = DEMOCTRL_SIDE_MARGIN;
 		*y = DEMOCTRL_BAR_Y;
+	} else if ( DemoCtrl_IsLeftButton( btn ) ) {
+		index = btn - DEMOCTRL_CAMADD;
+		*w = DEMOCTRL_SIDE_BTN_W;
+		*h = DEMOCTRL_SIDE_BTN_H;
+		*x = DEMOCTRL_SIDE_MARGIN;
+		*y = DEMOCTRL_SIDE_Y + DEMOCTRL_SIDE_HDR_H
+				+ index * ( DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP );
 	} else if ( DemoCtrl_IsCamSideButton( btn ) ) {
 		index = btn - DEMOCTRL_CAM_1ST;
 		*w = DEMOCTRL_SIDE_BTN_W;
@@ -482,6 +517,8 @@ static const char *DemoCtrl_ButtonTip( int btn ) {
 		return "Follow in third person";
 	case DEMOCTRL_FREECAM:
 		return "Fly a free camera";
+	case DEMOCTRL_CAM_RIGS:
+		return "Follow from placed map cameras";
 	case DEMOCTRL_SHOT:
 		return "Save a screenshot";
 	case DEMOCTRL_ITEMS:
@@ -500,6 +537,16 @@ static const char *DemoCtrl_ButtonTip( int btn ) {
 		return "^2Show^7/^1hide ^7overhead player status boxes";
 	case DEMOCTRL_DELAG:
 		return "^2Enable^7/^1Disable ^7replay de-lag reconstruction";
+	case DEMOCTRL_CAMADD:
+		return "^3Place ^7a camera here";
+	case DEMOCTRL_CAMSHOW:
+		return "^2Show^7/^1hide ^7camera placement markers";
+	case DEMOCTRL_CAMDEL:
+		return "^1Remove ^7the nearest camera";
+	case DEMOCTRL_CAMLOAD:
+		return "^1Reload ^7cameras from disk";
+	case DEMOCTRL_CAMSAVE:
+		return "^3Save ^7cameras to disk";
 	case DEMOCTRL_LOCK:
 		return "^1Lock^7/^2unlock ^7the replay overlay";
 	default:
@@ -531,7 +578,10 @@ static void DemoCtrl_DrawHoverTip( int btn ) {
 	tipW = len * cw + pad * 2;
 	tipH = ch + pad * 2;
 
-	if ( DemoCtrl_IsSideButton( btn ) ) {
+	if ( DemoCtrl_IsLeftButton( btn ) ) {
+		x = btnX + btnW + 8;
+		y = btnY + ( btnH - tipH ) / 2;
+	} else if ( DemoCtrl_IsSideButton( btn ) ) {
 		x = btnX - 8 - tipW;
 		y = btnY + ( btnH - tipH ) / 2;
 	} else if ( btn == DEMOCTRL_LOCK ) {
@@ -718,17 +768,19 @@ static void DemoCtrl_Activate( int btn ) {
 		CG_BeginLeaveFade();
 		break;
 	case DEMOCTRL_CAM_1ST:
-		if ( !dc_freeView && !cg_thirdPerson.integer ) {
+		if ( !dc_freeView && !dc_rigView && !cg_thirdPerson.integer ) {
 			break;
 		}
 		DemoCtrl_DisableFreeCam();
+		DemoCtrl_DisableRigCam();
 		trap_Cvar_Set( "cg_thirdPerson", "0" );
 		break;
 	case DEMOCTRL_CAM_3RD:
-		if ( !dc_freeView && cg_thirdPerson.integer ) {
+		if ( !dc_freeView && !dc_rigView && cg_thirdPerson.integer ) {
 			break;
 		}
 		DemoCtrl_DisableFreeCam();
+		DemoCtrl_DisableRigCam();
 		trap_Cvar_Set( "cg_thirdPerson", "1" );
 		if ( cg_thirdPersonRange.value < 1.0f ) {
 			trap_Cvar_Set( "cg_thirdPersonRange", "100" );
@@ -738,7 +790,33 @@ static void DemoCtrl_Activate( int btn ) {
 		if ( dc_freeView ) {
 			break;
 		}
+		DemoCtrl_DisableRigCam();
 		DemoCtrl_EnterFreeCamLook();
+		break;
+	case DEMOCTRL_CAM_RIGS:
+		if ( dc_rigView ) {
+			break;
+		}
+		DemoCtrl_DisableFreeCam();
+		dc_rigView = qtrue;
+		if ( CG_DemoCams_Count() <= 0 ) {
+			CG_Printf( "No cameras for this map yet. Use Add Cam on the left, then Save.\n" );
+		}
+		break;
+	case DEMOCTRL_CAMADD:
+		CG_DemoCams_AddCurrent();
+		break;
+	case DEMOCTRL_CAMSHOW:
+		CG_DemoCams_ToggleShow();
+		break;
+	case DEMOCTRL_CAMDEL:
+		CG_DemoCams_RemoveNearest();
+		break;
+	case DEMOCTRL_CAMLOAD:
+		CG_DemoCams_Load();
+		break;
+	case DEMOCTRL_CAMSAVE:
+		CG_DemoCams_Save();
 		break;
 	case DEMOCTRL_ITEMS:
 		trap_Cvar_Set( "cg_simpleItems", cg_simpleItems.integer ? "0" : "1" );
@@ -838,6 +916,7 @@ static void DemoCtrl_EnsureInit( void ) {
 	dc_cursorX = SCREEN_WIDTH / 2;
 	dc_cursorY = DEMOCTRL_BAR_Y + DEMOCTRL_BTN_H / 2;
 	dc_speedLabel[0] = '\0';
+	CG_DemoCams_LoadIfNeeded();
 }
 
 static void DemoCtrl_Wake( void ) {
@@ -1004,6 +1083,7 @@ static void DemoCtrl_FreeCamHudRestore( void ) {
 
 static void DemoCtrl_FreeCamReset( void ) {
 	DemoCtrl_DisableFreeCam();
+	DemoCtrl_DisableRigCam();
 	dc_freeIgnoreAttackKey = -1;
 	dc_moveBits = 0;
 	dc_numAttackKeys = 0;
@@ -1077,6 +1157,10 @@ static void DemoCtrl_LeaveFreeCamLook( void ) {
 	cgs.cursorX = dc_cursorX;
 	cgs.cursorY = dc_cursorY;
 	DemoCtrl_Wake();
+}
+
+static void DemoCtrl_DisableRigCam( void ) {
+	dc_rigView = qfalse;
 }
 
 static void DemoCtrl_DisableFreeCam( void ) {
@@ -1197,6 +1281,10 @@ static void DemoCtrl_FreeCamMove( void ) {
 
 qboolean CG_DemoControls_FreeCamActive( void ) {
 	return ( cg.demoPlayback && dc_freeView ) ? qtrue : qfalse;
+}
+
+qboolean CG_DemoControls_RigCamActive( void ) {
+	return ( cg.demoPlayback && dc_rigView ) ? qtrue : qfalse;
 }
 
 void CG_DemoControls_FreeCamView( vec3_t origin, vec3_t angles ) {
@@ -1992,6 +2080,7 @@ void CG_DemoControls_Draw( void ) {
 	if ( !cg.demoPlayback ) {
 		return;
 	}
+	CG_DemoCams_LoadIfNeeded();
 	if ( trap_Key_GetCatcher() & ( KEYCATCH_UI | KEYCATCH_CONSOLE ) ) {
 		return;
 	}
@@ -2055,6 +2144,31 @@ void CG_DemoControls_Draw( void ) {
 		int sideH;
 
 		sideW = DEMOCTRL_SIDE_BTN_W + 16;
+		DemoCtrl_ButtonRect( DEMOCTRL_CAMADD, &x, &y, &w, &h );
+		sideY = y - DEMOCTRL_SIDE_HDR_H - 4;
+		DemoCtrl_ButtonRect( DEMOCTRL_CAMSAVE, &x, &y, &w, &h );
+		sideH = ( y + h + 6 ) - sideY;
+		sideX = DEMOCTRL_SIDE_MARGIN - 8;
+		if ( sideX < 0 ) {
+			sideX = 0;
+		}
+		CG_FillRect( sideX, sideY, sideW, sideH, panel );
+		{
+			char hdr[24];
+			int hdrLen;
+			vec4_t hdrColor;
+
+			Com_sprintf( hdr, sizeof( hdr ), "Cams (%d)", CG_DemoCams_Count() );
+			hdrLen = CG_DrawStrlen( hdr );
+			hdrColor[0] = 0.85f;
+			hdrColor[1] = 0.85f;
+			hdrColor[2] = 0.90f;
+			hdrColor[3] = 0.95f;
+			CG_DrawStringExt( sideX + ( sideW - hdrLen * DEMOCTRL_SIDE_CHAR_W ) / 2,
+					sideY + 3, hdr, hdrColor, qtrue, qtrue,
+					DEMOCTRL_SIDE_CHAR_W, DEMOCTRL_SIDE_CHAR_H, 0 );
+		}
+
 		sideX = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_SIDE_BTN_W - 8;
 
 		DemoCtrl_ButtonRect( DEMOCTRL_CAM_1ST, &x, &y, &w, &h );
@@ -2218,7 +2332,7 @@ void CG_DemoControls_Draw( void ) {
 
 		cw = 6;
 		ch = 10;
-		if ( DemoCtrl_IsSideButton( i ) ) {
+		if ( DemoCtrl_IsSideButton( i ) || DemoCtrl_IsLeftButton( i ) ) {
 			cw = DEMOCTRL_SIDE_CHAR_W;
 			ch = DEMOCTRL_SIDE_CHAR_H;
 		}
