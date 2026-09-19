@@ -81,6 +81,8 @@ typedef enum {
 	DEMOCTRL_CAMSHOW,
 	DEMOCTRL_CAMFIX,
 	DEMOCTRL_CAMDYN,
+	DEMOCTRL_CAMRAILADD,
+	DEMOCTRL_CAMRAILNEW,
 	DEMOCTRL_CAMLOAD,
 	DEMOCTRL_CAMSAVE,
 	DEMOCTRL_LOCK,
@@ -298,6 +300,10 @@ static const char *DemoCtrl_ButtonLabel( int btn ) {
 		return "Fixed";
 	case DEMOCTRL_CAMDYN:
 		return "Dyn";
+	case DEMOCTRL_CAMRAILADD:
+		return "Rail Pt";
+	case DEMOCTRL_CAMRAILNEW:
+		return "New Rail";
 	case DEMOCTRL_CAMLOAD:
 		return "Load Cam File";
 	case DEMOCTRL_CAMSAVE:
@@ -461,19 +467,23 @@ static void DemoCtrl_ButtonRect( int btn, int *x, int *y, int *w, int *h ) {
 		*h = DEMOCTRL_LOCK_H;
 		*x = DEMOCTRL_SIDE_MARGIN;
 		*y = DEMOCTRL_BAR_Y;
-	} else if ( btn == DEMOCTRL_CAMFIX || btn == DEMOCTRL_CAMDYN ) {
+	} else if ( btn == DEMOCTRL_CAMFIX || btn == DEMOCTRL_CAMDYN
+			|| btn == DEMOCTRL_CAMRAILADD || btn == DEMOCTRL_CAMRAILNEW ) {
 		*h = DEMOCTRL_SIDE_BTN_H;
 		*w = ( DEMOCTRL_SIDE_BTN_W - 4 ) / 2;
 		*x = DEMOCTRL_SIDE_MARGIN;
-		if ( btn == DEMOCTRL_CAMDYN ) {
+		if ( btn == DEMOCTRL_CAMDYN || btn == DEMOCTRL_CAMRAILNEW ) {
 			*x += *w + 4;
 		}
 		*y = DEMOCTRL_SIDE_Y + DEMOCTRL_SIDE_HDR_H
 				+ 3 * ( DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP );
+		if ( btn == DEMOCTRL_CAMRAILADD || btn == DEMOCTRL_CAMRAILNEW ) {
+			*y += DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP;
+		}
 	} else if ( DemoCtrl_IsLeftButton( btn ) ) {
 		index = btn - DEMOCTRL_CAMADD;
 		if ( btn >= DEMOCTRL_CAMLOAD ) {
-			index -= 1;
+			index -= 2;
 		}
 		*w = DEMOCTRL_SIDE_BTN_W;
 		*h = DEMOCTRL_SIDE_BTN_H;
@@ -547,7 +557,7 @@ static const char *DemoCtrl_ButtonTip( int btn ) {
 	case DEMOCTRL_FREECAM:
 		return "Fly a free camera";
 	case DEMOCTRL_CAM_RIGS:
-		return "Cut between placed fixed and dynamic cameras";
+		return "Cut between placed cameras and rails";
 	case DEMOCTRL_SHOT:
 		return "Save a screenshot";
 	case DEMOCTRL_ITEMS:
@@ -569,17 +579,21 @@ static const char *DemoCtrl_ButtonTip( int btn ) {
 	case DEMOCTRL_CAMADD:
 		return "^3Place ^7a camera here";
 	case DEMOCTRL_CAMSHOW:
-		return "^2Show^7/^1hide ^7camera placement markers";
+		return "^2Show^7/^1hide ^7camera and rail markers";
 	case DEMOCTRL_CAMDEL:
-		return "^1Remove ^7the nearest camera";
+		return "^1Remove ^7the nearest camera or rail point";
 	case DEMOCTRL_CAMFIX:
 		return "Set nearest camera to ^3fixed ^7(no pan or zoom)";
 	case DEMOCTRL_CAMDYN:
 		return "Set nearest camera to ^2dynamic ^7(track the action)";
+	case DEMOCTRL_CAMRAILADD:
+		return "^3Add ^7a rail point at this free-cam pose";
+	case DEMOCTRL_CAMRAILNEW:
+		return "Start a ^3new rail ^7on the next Add Rail Pt";
 	case DEMOCTRL_CAMLOAD:
-		return "^1Reload ^7cameras from disk";
+		return "^1Reload ^7cameras and rails from disk";
 	case DEMOCTRL_CAMSAVE:
-		return "^3Save ^7cameras to disk";
+		return "^3Save ^7cameras and rails to disk";
 	case DEMOCTRL_LOCK:
 		return "^1Lock^7/^2unlock ^7the replay overlay";
 	default:
@@ -887,12 +901,18 @@ static void DemoCtrl_Activate( int btn ) {
 		dc_rigView = qtrue;
 		DemoCtrl_SyncCamHud();
 		trap_Cvar_Set( "cg_demoDynamicCam", "1" );
-		if ( CG_DemoCams_Count() <= 0 ) {
-			CG_Printf( "No cameras for this map yet. Use Add Cam on the left, then Save.\n" );
+		if ( CG_DemoCams_Count() <= 0 && CG_DemoCams_RailCount() <= 0 ) {
+			CG_Printf( "No cameras or rails for this map yet. Use Add Camera / Rail Pt on the left, then Save.\n" );
 		}
 		break;
 	case DEMOCTRL_CAMADD:
 		CG_DemoCams_AddCurrent();
+		break;
+	case DEMOCTRL_CAMRAILADD:
+		CG_DemoCams_AddRailPoint();
+		break;
+	case DEMOCTRL_CAMRAILNEW:
+		CG_DemoCams_NewRail();
 		break;
 	case DEMOCTRL_CAMSHOW:
 		CG_DemoCams_ToggleShow();
@@ -2290,7 +2310,7 @@ void CG_DemoControls_Draw( void ) {
 			int hdrLen;
 			vec4_t hdrColor;
 
-			Com_sprintf( hdr, sizeof( hdr ), "Cams (%d)", CG_DemoCams_Count() );
+			Com_sprintf( hdr, sizeof( hdr ), "C:%d  R:%d", CG_DemoCams_Count(), CG_DemoCams_RailCount() );
 			hdrLen = CG_DrawStrlen( hdr );
 			hdrColor[0] = 0.85f;
 			hdrColor[1] = 0.85f;

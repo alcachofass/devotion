@@ -1,6 +1,6 @@
 /*
 ===========================================================================
-Replay cameras: per-map fixed and dynamic poses, director, and markers.
+Replay cameras: per-map poses, rails, director, and markers.
 ===========================================================================
 */
 
@@ -9,7 +9,16 @@ Replay cameras: per-map fixed and dynamic poses, director, and markers.
 void CG_DemoCams_Load( void );
 
 #define DEMOCAM_MAX			64
-#define DEMOCAM_FILE_MAX		16384
+#define DEMOCAM_FILE_MAX		24576
+#define DEMORAIL_MAX			16
+#define DEMORAIL_PTS			24
+#define DEMORAIL_MAX_SPEED		1400.0f
+#define DEMORAIL_SPRING			55.0f
+#define DEMORAIL_DAMP			9.0f
+#define DEMORAIL_FOLLOW			150.0f
+#define DEMORAIL_ALIGN			0.32f
+#define DEMORAIL_SCORE_NEAR		280.0f
+#define DEMORAIL_LEAVE_RATIO		1.12f
 #define DEMOCAM_STICK_MSEC		1100
 #define DEMOCAM_SWITCH_RATIO	1.38f
 #define DEMOCAM_CUT_FADE_MSEC	90
@@ -41,15 +50,29 @@ typedef struct {
 	qboolean	dynamic;
 } demoCam_t;
 
+typedef struct {
+	int			n;
+	vec3_t		pts[DEMORAIL_PTS];
+} demoRail_t;
+
 static demoCam_t	dcams[DEMOCAM_MAX];
 static int			dcamCount;
+static demoRail_t	drails[DEMORAIL_MAX];
+static int			drailCount;
+static int			drailEdit;
+static qboolean		drailStartNew;
 static char			dcamLoadedMap[MAX_QPATH];
 static qboolean		dcamShow = qfalse;
 
 static int			dcamCur = -1;
+static qboolean		dcamOnRail;
 static int			dcamStickMs;
 static int			dcamCutStartMs;
 static int			dcamPending = -1;
+static qboolean		dcamPendingRail;
+static float		dcamRailT;
+static float		dcamRailVel;
+static int			dcamRailMs;
 static vec3_t		dcamHoldOrg;
 static vec3_t		dcamHoldAng;
 static vec3_t		dcamViewOrg;
@@ -98,9 +121,19 @@ static void DemoCam_BumpItemGhostGen( void ) {
 	}
 }
 
+static int DemoCam_GhostId( void ) {
+	if ( dcamOnRail ) {
+		return dcamCur + 1000;
+	}
+	return dcamCur;
+}
+
 static void DemoCam_UpdateItemGhostGen( void ) {
-	if ( dcamCur != dcamItemGhostLastCur ) {
-		dcamItemGhostLastCur = dcamCur;
+	int	id;
+
+	id = DemoCam_GhostId();
+	if ( id != dcamItemGhostLastCur ) {
+		dcamItemGhostLastCur = id;
 		DemoCam_BumpItemGhostGen();
 	}
 	if ( dcamCutStartMs && dcamCutStartMs != dcamItemGhostLastCutMs ) {
@@ -111,9 +144,14 @@ static void DemoCam_UpdateItemGhostGen( void ) {
 
 static void DemoCam_ResetDirector( void ) {
 	dcamCur = -1;
+	dcamOnRail = qfalse;
 	dcamStickMs = 0;
 	dcamCutStartMs = 0;
 	dcamPending = -1;
+	dcamPendingRail = qfalse;
+	dcamRailT = 0.0f;
+	dcamRailVel = 0.0f;
+	dcamRailMs = 0;
 	dcamViewValid = qfalse;
 	dcamLookMs = 0;
 	dcamFovMs = 0;
@@ -202,6 +240,21 @@ static qboolean DemoCam_PlayerViewAngles( int clientNum, vec3_t angles ) {
 		return qfalse;
 	}
 	VectorCopy( cg_entities[clientNum].lerpAngles, angles );
+	return qtrue;
+}
+
+static qboolean DemoCam_PlayerVelocity( int clientNum, vec3_t vel ) {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	if ( cg.snap && clientNum == cg.snap->ps.clientNum ) {
+		VectorCopy( cg.predictedPlayerState.velocity, vel );
+		return qtrue;
+	}
+	if ( !cg_entities[clientNum].currentValid || cg_entities[clientNum].currentState.eType != ET_PLAYER ) {
+		return qfalse;
+	}
+	VectorCopy( cg_entities[clientNum].currentState.pos.trDelta, vel );
 	return qtrue;
 }
 
@@ -295,6 +348,232 @@ static float DemoCam_LosFrac( const vec3_t from, const vec3_t to ) {
 		return 0.15f;
 	}
 	return tr.fraction;
+}
+
+static qboolean DemoCam_RailUsable( int idx ) {
+	if ( idx < 0 || idx >= drailCount ) {
+		return qfalse;
+	}
+	return ( drails[idx].n > 0 ) ? qtrue : qfalse;
+}
+
+static int DemoCam_RailCountUsable( void ) {
+	int	i;
+	int	n;
+
+	n = 0;
+	for ( i = 0; i < drailCount; i++ ) {
+		if ( DemoCam_RailUsable( i ) ) {
+			n++;
+		}
+	}
+	return n;
+}
+
+static void DemoCam_ClosestOnSeg( const vec3_t a, const vec3_t b, const vec3_t p, vec3_t out, float *frac ) {
+	vec3_t	ab;
+	vec3_t	ap;
+	float	len2;
+	float	t;
+
+	VectorSubtract( b, a, ab );
+	VectorSubtract( p, a, ap );
+	len2 = DotProduct( ab, ab );
+	if ( len2 < 1.0f ) {
+		VectorCopy( a, out );
+		*frac = 0.0f;
+		return;
+	}
+	t = DotProduct( ap, ab ) / len2;
+	if ( t < 0.0f ) {
+		t = 0.0f;
+	} else if ( t > 1.0f ) {
+		t = 1.0f;
+	}
+	*frac = t;
+	VectorMA( a, t, ab, out );
+}
+
+static float DemoCam_RailLength( const demoRail_t *r ) {
+	int		i;
+	float	len;
+
+	len = 0.0f;
+	for ( i = 1; i < r->n; i++ ) {
+		len += Distance( r->pts[i - 1], r->pts[i] );
+	}
+	return len;
+}
+
+static void DemoCam_RailAt( const demoRail_t *r, float dist, vec3_t out ) {
+	vec3_t	dir;
+	int		i;
+	float	seg;
+	float	acc;
+	float	frac;
+
+	if ( !r || r->n <= 0 ) {
+		VectorClear( out );
+		return;
+	}
+	if ( r->n == 1 || dist <= 0.0f ) {
+		VectorCopy( r->pts[0], out );
+		return;
+	}
+	acc = 0.0f;
+	for ( i = 1; i < r->n; i++ ) {
+		seg = Distance( r->pts[i - 1], r->pts[i] );
+		if ( acc + seg >= dist || i == r->n - 1 ) {
+			if ( seg < 1.0f ) {
+				VectorCopy( r->pts[i], out );
+				return;
+			}
+			frac = ( dist - acc ) / seg;
+			if ( frac < 0.0f ) {
+				frac = 0.0f;
+			} else if ( frac > 1.0f ) {
+				frac = 1.0f;
+			}
+			VectorSubtract( r->pts[i], r->pts[i - 1], dir );
+			VectorMA( r->pts[i - 1], frac, dir, out );
+			return;
+		}
+		acc += seg;
+	}
+	VectorCopy( r->pts[r->n - 1], out );
+}
+
+static qboolean DemoCam_RailClosest( const demoRail_t *r, const vec3_t p, float *bestT, vec3_t bestOrg, float *bestDist ) {
+	vec3_t	q;
+	float	acc;
+	float	seg;
+	float	frac;
+	float	d;
+	float	best;
+	int		i;
+
+	if ( !r || r->n <= 0 ) {
+		return qfalse;
+	}
+	VectorCopy( r->pts[0], bestOrg );
+	*bestT = 0.0f;
+	best = Distance( r->pts[0], p );
+	if ( r->n == 1 ) {
+		*bestDist = best;
+		return qtrue;
+	}
+	acc = 0.0f;
+	for ( i = 1; i < r->n; i++ ) {
+		seg = Distance( r->pts[i - 1], r->pts[i] );
+		DemoCam_ClosestOnSeg( r->pts[i - 1], r->pts[i], p, q, &frac );
+		d = Distance( q, p );
+		if ( d < best ) {
+			best = d;
+			*bestT = acc + frac * seg;
+			VectorCopy( q, bestOrg );
+		}
+		acc += seg;
+	}
+	*bestDist = best;
+	return qtrue;
+}
+
+static void DemoCam_RailTangent( const demoRail_t *r, float dist, vec3_t out ) {
+	int		i;
+	float	seg;
+	float	acc;
+	float	len;
+
+	VectorSet( out, 1.0f, 0.0f, 0.0f );
+	if ( !r || r->n <= 1 ) {
+		return;
+	}
+	acc = 0.0f;
+	for ( i = 1; i < r->n; i++ ) {
+		seg = Distance( r->pts[i - 1], r->pts[i] );
+		if ( acc + seg >= dist || i == r->n - 1 ) {
+			if ( seg < 1.0f ) {
+				continue;
+			}
+			VectorSubtract( r->pts[i], r->pts[i - 1], out );
+			VectorNormalize( out );
+			return;
+		}
+		acc += seg;
+	}
+	len = DemoCam_RailLength( r );
+	if ( len < 1.0f ) {
+		return;
+	}
+	VectorSubtract( r->pts[r->n - 1], r->pts[0], out );
+	VectorNormalize( out );
+}
+
+static float DemoCam_RailChase( int idx, const vec3_t recOrg, const vec3_t recVel,
+		vec3_t bestOrg, float *bestT ) {
+	demoRail_t	*r;
+	vec3_t		closest;
+	vec3_t		tangent;
+	vec3_t		move;
+	float		dist;
+	float		t;
+	float		len;
+	float		speed;
+	float		align;
+	float		follow;
+
+	if ( !DemoCam_RailUsable( idx ) ) {
+		return -1.0f;
+	}
+	r = &drails[idx];
+	if ( !DemoCam_RailClosest( r, recOrg, &t, closest, &dist ) ) {
+		return -1.0f;
+	}
+	len = DemoCam_RailLength( r );
+	DemoCam_RailTangent( r, t, tangent );
+	follow = 0.0f;
+	VectorCopy( recVel, move );
+	if ( fabs( tangent[2] ) < 0.55f ) {
+		move[2] = 0.0f;
+		tangent[2] = 0.0f;
+		if ( VectorNormalize( tangent ) < 0.1f ) {
+			DemoCam_RailTangent( r, t, tangent );
+		}
+	}
+	speed = VectorNormalize( move );
+	if ( speed > 80.0f ) {
+		align = DotProduct( move, tangent );
+		if ( align > DEMORAIL_ALIGN ) {
+			follow = DEMORAIL_FOLLOW;
+		} else if ( align < -DEMORAIL_ALIGN ) {
+			follow = -DEMORAIL_FOLLOW;
+		}
+	}
+	t -= follow;
+	if ( t < 0.0f ) {
+		t = 0.0f;
+	} else if ( t > len ) {
+		t = len;
+	}
+	*bestT = t;
+	DemoCam_RailAt( r, t, bestOrg );
+	return dist;
+}
+
+static float DemoCam_RailScore( int idx, const vec3_t recOrg ) {
+	vec3_t	org;
+	float	t;
+	float	dist;
+	float	los;
+
+	if ( !DemoCam_RailUsable( idx ) ) {
+		return -1.0f;
+	}
+	if ( !DemoCam_RailClosest( &drails[idx], recOrg, &t, org, &dist ) ) {
+		return -1.0f;
+	}
+	los = DemoCam_LosFrac( org, recOrg );
+	return los * DEMORAIL_SCORE_NEAR / ( DEMORAIL_SCORE_NEAR + dist );
 }
 
 static int DemoCam_FindPlayer( int clientNum, int ids[MAX_CLIENTS], int n ) {
@@ -608,6 +887,57 @@ static int DemoCam_Pick( const vec3_t lookAt, vec3_t framed[MAX_CLIENTS], int nf
 	return best;
 }
 
+static qboolean DemoCam_PickShot( const vec3_t lookAt, vec3_t framed[MAX_CLIENTS], int nframed,
+		const vec3_t chaseOrg, const vec3_t recVel,
+		int *idx, qboolean *rail, float *railT, vec3_t railOrg ) {
+	vec3_t	org;
+	float	t;
+	float	s;
+	float	stillScore;
+	float	railScore;
+	int		bestStill;
+	int		bestRail;
+	int		i;
+
+	bestStill = DemoCam_Pick( lookAt, framed, nframed );
+	stillScore = -1.0f;
+	if ( bestStill >= 0 ) {
+		stillScore = DemoCam_Score( bestStill, lookAt, framed, nframed );
+	}
+
+	bestRail = -1;
+	railScore = -1.0f;
+	VectorClear( org );
+	t = 0.0f;
+	for ( i = 0; i < drailCount; i++ ) {
+		s = DemoCam_RailScore( i, chaseOrg );
+		if ( s > railScore ) {
+			railScore = s;
+			bestRail = i;
+			DemoCam_RailChase( i, chaseOrg, recVel, org, &t );
+			*railT = t;
+			VectorCopy( org, railOrg );
+		}
+	}
+
+	if ( bestRail >= 0 && railScore > stillScore * 1.04f ) {
+		*idx = bestRail;
+		*rail = qtrue;
+		return qtrue;
+	}
+	if ( bestStill >= 0 ) {
+		*idx = bestStill;
+		*rail = qfalse;
+		return qtrue;
+	}
+	if ( bestRail >= 0 ) {
+		*idx = bestRail;
+		*rail = qtrue;
+		return qtrue;
+	}
+	return qfalse;
+}
+
 static float DemoCam_AngleBetween( const vec3_t a, const vec3_t b ) {
 	vec3_t	c;
 	float	d;
@@ -712,6 +1042,37 @@ static void DemoCam_DampVec( vec3_t cur, const vec3_t want, int dt, int msec ) {
 	}
 }
 
+static void DemoCam_SlideRailT( float want, int dt, float len ) {
+	float	dts;
+	float	error;
+	float	accel;
+
+	if ( dt <= 0 ) {
+		return;
+	}
+	dts = (float)dt / 1000.0f;
+	error = want - dcamRailT;
+	accel = DEMORAIL_SPRING * error - DEMORAIL_DAMP * dcamRailVel;
+	dcamRailVel += accel * dts;
+	if ( dcamRailVel > DEMORAIL_MAX_SPEED ) {
+		dcamRailVel = DEMORAIL_MAX_SPEED;
+	} else if ( dcamRailVel < -DEMORAIL_MAX_SPEED ) {
+		dcamRailVel = -DEMORAIL_MAX_SPEED;
+	}
+	dcamRailT += dcamRailVel * dts;
+	if ( dcamRailT < 0.0f ) {
+		dcamRailT = 0.0f;
+		if ( dcamRailVel < 0.0f ) {
+			dcamRailVel = 0.0f;
+		}
+	} else if ( dcamRailT > len ) {
+		dcamRailT = len;
+		if ( dcamRailVel > 0.0f ) {
+			dcamRailVel = 0.0f;
+		}
+	}
+}
+
 static void DemoCam_LookAngles( const vec3_t from, const vec3_t subject, vec3_t angles ) {
 	vec3_t	dir;
 
@@ -789,6 +1150,10 @@ int CG_DemoCams_Count( void ) {
 	return dcamCount;
 }
 
+int CG_DemoCams_RailCount( void ) {
+	return drailCount;
+}
+
 qboolean CG_DemoCams_Show( void ) {
 	return dcamShow;
 }
@@ -857,6 +1222,49 @@ qboolean CG_DemoCams_NearestIsDynamic( void ) {
 	return dcams[best].dynamic;
 }
 
+void CG_DemoCams_AddRailPoint( void ) {
+	demoRail_t	*r;
+
+	if ( cg.refdef.width <= 0 ) {
+		CG_Printf( "No camera pose to store yet.\n" );
+		return;
+	}
+	if ( drailStartNew || drailCount <= 0 || drailEdit < 0 || drailEdit >= drailCount ) {
+		if ( drailCount >= DEMORAIL_MAX ) {
+			CG_Printf( "Rail list full (%d).\n", DEMORAIL_MAX );
+			return;
+		}
+		drailEdit = drailCount;
+		drails[drailEdit].n = 0;
+		drailCount++;
+		drailStartNew = qfalse;
+	}
+	r = &drails[drailEdit];
+	if ( r->n >= DEMORAIL_PTS ) {
+		CG_Printf( "This rail is full (%d points).\n", DEMORAIL_PTS );
+		return;
+	}
+	VectorCopy( cg.refdef.vieworg, r->pts[r->n] );
+	r->n++;
+	dcamShow = qtrue;
+	CG_Printf( "Rail %d point %d at (%.0f %.0f %.0f)\n",
+			drailEdit + 1, r->n,
+			r->pts[r->n - 1][0], r->pts[r->n - 1][1], r->pts[r->n - 1][2] );
+}
+
+void CG_DemoCams_NewRail( void ) {
+	if ( drailCount <= 0 || ( drailEdit >= 0 && drailEdit < drailCount && drails[drailEdit].n <= 0 ) ) {
+		CG_Printf( "Already on a new rail. Add Rail Pt to place the first point.\n" );
+		return;
+	}
+	if ( drailCount >= DEMORAIL_MAX ) {
+		CG_Printf( "Rail list full (%d).\n", DEMORAIL_MAX );
+		return;
+	}
+	drailStartNew = qtrue;
+	CG_Printf( "Next Add Rail Pt starts rail %d.\n", drailCount + 1 );
+}
+
 void CG_DemoCams_SetNearestDynamic( qboolean dynamic ) {
 	int	best;
 
@@ -871,22 +1279,82 @@ void CG_DemoCams_SetNearestDynamic( qboolean dynamic ) {
 }
 
 void CG_DemoCams_RemoveNearest( void ) {
+	vec3_t	from;
 	int		i;
-	int		best;
+	int		j;
+	int		bestCam;
+	int		bestRail;
+	int		bestPt;
+	float	bestCamDist;
+	float	bestRailDist;
+	float	d;
 
-	best = DemoCam_NearestIndex();
-	if ( best < 0 ) {
-		CG_Printf( "No cameras to remove.\n" );
+	if ( cg.refdef.width > 0 ) {
+		VectorCopy( cg.refdef.vieworg, from );
+	} else {
+		VectorCopy( cg.predictedPlayerState.origin, from );
+	}
+
+	bestCam = DemoCam_NearestIndex();
+	bestCamDist = 999999.0f;
+	if ( bestCam >= 0 ) {
+		bestCamDist = Distance( from, dcams[bestCam].origin );
+	}
+
+	bestRail = -1;
+	bestPt = -1;
+	bestRailDist = 999999.0f;
+	for ( i = 0; i < drailCount; i++ ) {
+		for ( j = 0; j < drails[i].n; j++ ) {
+			d = Distance( from, drails[i].pts[j] );
+			if ( d < bestRailDist ) {
+				bestRailDist = d;
+				bestRail = i;
+				bestPt = j;
+			}
+		}
+	}
+
+	if ( bestCam < 0 && bestRail < 0 ) {
+		CG_Printf( "No cameras or rails to remove.\n" );
 		return;
 	}
-	CG_Printf( "Removed camera %d\n", best + 1 );
-	for ( i = best; i < dcamCount - 1; i++ ) {
+
+	if ( bestRail >= 0 && ( bestCam < 0 || bestRailDist <= bestCamDist ) ) {
+		CG_Printf( "Removed rail %d point %d\n", bestRail + 1, bestPt + 1 );
+		for ( j = bestPt; j < drails[bestRail].n - 1; j++ ) {
+			VectorCopy( drails[bestRail].pts[j + 1], drails[bestRail].pts[j] );
+		}
+		drails[bestRail].n--;
+		if ( drails[bestRail].n <= 0 ) {
+			for ( i = bestRail; i < drailCount - 1; i++ ) {
+				drails[i] = drails[i + 1];
+			}
+			drailCount--;
+			if ( drailEdit == bestRail ) {
+				drailEdit = drailCount - 1;
+			} else if ( drailEdit > bestRail ) {
+				drailEdit--;
+			}
+			if ( dcamOnRail && dcamCur == bestRail ) {
+				DemoCam_ResetDirector();
+			} else if ( dcamOnRail && dcamCur > bestRail ) {
+				dcamCur--;
+			}
+		} else if ( dcamOnRail && dcamCur == bestRail ) {
+			dcamRailT = 0.0f;
+		}
+		return;
+	}
+
+	CG_Printf( "Removed camera %d\n", bestCam + 1 );
+	for ( i = bestCam; i < dcamCount - 1; i++ ) {
 		dcams[i] = dcams[i + 1];
 	}
 	dcamCount--;
-	if ( dcamCur == best ) {
+	if ( !dcamOnRail && dcamCur == bestCam ) {
 		DemoCam_ResetDirector();
-	} else if ( dcamCur > best ) {
+	} else if ( !dcamOnRail && dcamCur > bestCam ) {
 		dcamCur--;
 	}
 }
@@ -899,11 +1367,15 @@ void CG_DemoCams_Load( void ) {
 	char			*p;
 	const char		*token;
 	demoCam_t		cam;
+	demoRail_t		rail;
 	qboolean		haveOrigin;
 	qboolean		haveAngles;
 
 	DemoCam_FilePath( path, sizeof( path ) );
 	dcamCount = 0;
+	drailCount = 0;
+	drailEdit = -1;
+	drailStartNew = qfalse;
 	DemoCam_ResetDirector();
 	Q_strncpyz( dcamLoadedMap, cgs.mapbasename, sizeof( dcamLoadedMap ) );
 	if ( !path[0] ) {
@@ -931,6 +1403,40 @@ void CG_DemoCams_Load( void ) {
 		token = COM_Parse( &p );
 		if ( !token[0] ) {
 			break;
+		}
+		if ( !Q_stricmp( token, "rail" ) ) {
+			token = COM_Parse( &p );
+			if ( token[0] != '{' ) {
+				continue;
+			}
+			memset( &rail, 0, sizeof( rail ) );
+			while ( 1 ) {
+				token = COM_Parse( &p );
+				if ( !token[0] || token[0] == '}' ) {
+					break;
+				}
+				if ( Q_stricmp( token, "point" ) ) {
+					continue;
+				}
+				if ( rail.n >= DEMORAIL_PTS ) {
+					COM_Parse( &p );
+					COM_Parse( &p );
+					COM_Parse( &p );
+					continue;
+				}
+				token = COM_Parse( &p );
+				rail.pts[rail.n][0] = atof( token );
+				token = COM_Parse( &p );
+				rail.pts[rail.n][1] = atof( token );
+				token = COM_Parse( &p );
+				rail.pts[rail.n][2] = atof( token );
+				rail.n++;
+			}
+			if ( rail.n > 0 && drailCount < DEMORAIL_MAX ) {
+				drails[drailCount] = rail;
+				drailCount++;
+			}
+			continue;
 		}
 		if ( Q_stricmp( token, "camera" ) ) {
 			continue;
@@ -981,7 +1487,10 @@ void CG_DemoCams_Load( void ) {
 			dcamCount++;
 		}
 	}
-	CG_Printf( "Loaded %d cameras from %s\n", dcamCount, path );
+	if ( drailCount > 0 ) {
+		drailEdit = drailCount - 1;
+	}
+	CG_Printf( "Loaded %d cameras and %d rails from %s\n", dcamCount, drailCount, path );
 }
 
 void CG_DemoCams_Save( void ) {
@@ -989,6 +1498,7 @@ void CG_DemoCams_Save( void ) {
 	char			line[256];
 	fileHandle_t	f;
 	int				i;
+	int				j;
 
 	DemoCam_FilePath( path, sizeof( path ) );
 	if ( !path[0] ) {
@@ -1010,29 +1520,54 @@ void CG_DemoCams_Save( void ) {
 				dcams[i].dynamic ? "dynamic" : "fixed" );
 		trap_FS_Write( line, (int)strlen( line ), f );
 	}
+	for ( i = 0; i < drailCount; i++ ) {
+		if ( drails[i].n <= 0 ) {
+			continue;
+		}
+		Com_sprintf( line, sizeof( line ), "rail {\n" );
+		trap_FS_Write( line, (int)strlen( line ), f );
+		for ( j = 0; j < drails[i].n; j++ ) {
+			Com_sprintf( line, sizeof( line ), "  point %.2f %.2f %.2f\n",
+					drails[i].pts[j][0], drails[i].pts[j][1], drails[i].pts[j][2] );
+			trap_FS_Write( line, (int)strlen( line ), f );
+		}
+		Com_sprintf( line, sizeof( line ), "}\n" );
+		trap_FS_Write( line, (int)strlen( line ), f );
+	}
 	trap_FS_FCloseFile( f );
 	Q_strncpyz( dcamLoadedMap, cgs.mapbasename, sizeof( dcamLoadedMap ) );
-	CG_Printf( "Saved %d cameras to %s\n", dcamCount, path );
+	CG_Printf( "Saved %d cameras and %d rails to %s\n", dcamCount, drailCount, path );
 }
 
 void CG_DemoCams_View( vec3_t origin, vec3_t angles ) {
 	vec3_t		lookAt;
 	vec3_t		framed[MAX_CLIENTS];
 	vec3_t		wantAng;
+	vec3_t		railOrg;
+	vec3_t		recOrg;
+	vec3_t		recVel;
+	vec3_t		chaseOrg;
+	vec3_t		railLook;
 	int			nframed;
 	int			best;
 	int			now;
 	int			cutElapsed;
 	int			dtLook;
 	int			dtFov;
+	int			dtRail;
+	int			rec;
 	float		wantFov;
+	float		wantRailT;
 	float		curScore;
 	float		bestScore;
 	float		ratio;
 	qboolean	haveTarget;
+	qboolean	haveRec;
 	qboolean	inCut;
 	qboolean	useNewCam;
 	qboolean	useRest;
+	qboolean	haveShot;
+	qboolean	bestIsRail;
 
 	CG_DemoCams_LoadIfNeeded();
 
@@ -1049,15 +1584,36 @@ void CG_DemoCams_View( vec3_t origin, vec3_t angles ) {
 	} else {
 		dcamSmoothLookValid = qfalse;
 	}
+
+	haveRec = qfalse;
+	VectorClear( recVel );
+	VectorClear( recOrg );
+	rec = -1;
+	if ( cg.snap ) {
+		rec = cg.snap->ps.clientNum;
+	}
+	if ( rec >= 0 && DemoCam_PlayerAliveOrigin( rec, recOrg ) ) {
+		haveRec = qtrue;
+		if ( !DemoCam_PlayerVelocity( rec, recVel ) ) {
+			VectorClear( recVel );
+		}
+	}
+	if ( haveRec ) {
+		VectorCopy( recOrg, chaseOrg );
+	} else {
+		VectorCopy( lookAt, chaseOrg );
+	}
+
 	now = trap_Milliseconds();
 	inCut = ( dcamCutStartMs && now - dcamCutStartMs < DEMOCAM_CUT_FADE_MSEC * 2 ) ? qtrue : qfalse;
 	if ( dcamCutStartMs && now - dcamCutStartMs >= DEMOCAM_CUT_FADE_MSEC * 2 ) {
 		dcamCutStartMs = 0;
 		dcamPending = -1;
+		dcamPendingRail = qfalse;
 		inCut = qfalse;
 	}
 
-	if ( dcamCount <= 0 ) {
+	if ( dcamCount <= 0 && DemoCam_RailCountUsable() <= 0 ) {
 		if ( dcamViewValid ) {
 			VectorCopy( dcamViewOrg, origin );
 			VectorCopy( dcamViewAng, angles );
@@ -1077,32 +1633,65 @@ void CG_DemoCams_View( vec3_t origin, vec3_t angles ) {
 		return;
 	}
 
-	best = DemoCam_Pick( lookAt, framed, nframed );
-	if ( best < 0 ) {
+	haveShot = DemoCam_PickShot( lookAt, framed, nframed, chaseOrg, recVel,
+			&best, &bestIsRail, &wantRailT, railOrg );
+	if ( !haveShot ) {
 		best = 0;
+		bestIsRail = qfalse;
 	}
 
-	if ( dcamCur < 0 || dcamCur >= dcamCount ) {
+	if ( dcamOnRail ) {
+		if ( !DemoCam_RailUsable( dcamCur ) ) {
+			dcamCur = -1;
+		}
+	} else if ( dcamCur < 0 || dcamCur >= dcamCount ) {
+		dcamCur = -1;
+	}
+
+	if ( dcamCur < 0 ) {
 		dcamCur = best;
+		dcamOnRail = bestIsRail;
 		dcamStickMs = now + DEMOCAM_STICK_MSEC;
 		dcamCutStartMs = 0;
 		dcamPending = -1;
-	} else if ( !inCut && best != dcamCur && now >= dcamStickMs ) {
-		curScore = DemoCam_Score( dcamCur, lookAt, framed, nframed );
-		bestScore = DemoCam_Score( best, lookAt, framed, nframed );
+		dcamPendingRail = qfalse;
+		if ( dcamOnRail ) {
+			dcamRailT = wantRailT;
+			dcamRailVel = 0.0f;
+		}
+	} else if ( !inCut && haveShot && ( bestIsRail != dcamOnRail || best != dcamCur )
+			&& now >= dcamStickMs ) {
+		if ( dcamOnRail ) {
+			curScore = DemoCam_RailScore( dcamCur, chaseOrg );
+		} else {
+			curScore = DemoCam_Score( dcamCur, lookAt, framed, nframed );
+		}
+		if ( bestIsRail ) {
+			bestScore = DemoCam_RailScore( best, chaseOrg );
+			DemoCam_RailChase( best, chaseOrg, recVel, railOrg, &wantRailT );
+		} else {
+			bestScore = DemoCam_Score( best, lookAt, framed, nframed );
+		}
 		ratio = DEMOCAM_SWITCH_RATIO;
-		if ( !dcams[dcamCur].dynamic && DemoCam_ViewOffAng( dcamCur, lookAt ) < DEMOCAM_FIXED_CONE ) {
+		if ( dcamOnRail || bestIsRail ) {
+			ratio = DEMORAIL_LEAVE_RATIO;
+		} else if ( !dcams[dcamCur].dynamic
+				&& DemoCam_ViewOffAng( dcamCur, lookAt ) < DEMOCAM_FIXED_CONE ) {
 			ratio = DEMOCAM_FIXED_KEEP;
 		}
 		if ( bestScore > curScore * ratio ) {
 			if ( dcamViewValid ) {
 				VectorCopy( dcamViewOrg, dcamHoldOrg );
 				VectorCopy( dcamViewAng, dcamHoldAng );
+			} else if ( dcamOnRail ) {
+				DemoCam_RailAt( &drails[dcamCur], dcamRailT, dcamHoldOrg );
+				VectorCopy( dcamViewAng, dcamHoldAng );
 			} else {
 				VectorCopy( dcams[dcamCur].origin, dcamHoldOrg );
 				VectorCopy( dcams[dcamCur].angles, dcamHoldAng );
 			}
 			dcamPending = best;
+			dcamPendingRail = bestIsRail;
 			dcamCutStartMs = now;
 			if ( !dcamCutStartMs ) {
 				dcamCutStartMs = 1;
@@ -1121,36 +1710,82 @@ void CG_DemoCams_View( vec3_t origin, vec3_t angles ) {
 			VectorCopy( dcamHoldOrg, dcamViewOrg );
 			VectorCopy( dcamHoldAng, dcamViewAng );
 		} else {
-			if ( dcamPending >= 0 && dcamPending < dcamCount ) {
-				dcamCur = dcamPending;
+			if ( dcamPending >= 0 ) {
+				if ( dcamPendingRail ) {
+					if ( DemoCam_RailUsable( dcamPending ) ) {
+						dcamCur = dcamPending;
+						dcamOnRail = qtrue;
+						DemoCam_RailChase( dcamCur, chaseOrg, recVel, railOrg, &wantRailT );
+						dcamRailT = wantRailT;
+						dcamRailVel = 0.0f;
+					}
+				} else if ( dcamPending < dcamCount ) {
+					dcamCur = dcamPending;
+					dcamOnRail = qfalse;
+					dcamRailVel = 0.0f;
+				}
 				dcamPending = -1;
+				dcamPendingRail = qfalse;
 				dcamLookMs = 0;
+				dcamRailMs = 0;
 			}
 		}
 	}
 
 	if ( useNewCam ) {
-		VectorCopy( dcams[dcamCur].origin, dcamViewOrg );
-		if ( !dcams[dcamCur].dynamic ) {
-			useRest = qtrue;
-			dcamResting = qtrue;
-			dcamRestCam = dcamCur;
-			VectorCopy( dcams[dcamCur].angles, dcamViewAng );
-		} else if ( haveTarget ) {
-			DemoCam_LookAngles( dcamViewOrg, lookAt, wantAng );
-			useRest = DemoCam_UpdateRest( dcamCur, lookAt );
-			if ( inCut || !dcamViewValid ) {
-				VectorCopy( wantAng, dcamViewAng );
-			} else if ( !useRest ) {
-				dtLook = DemoCam_FadeDt( &dcamLookMs );
-				DemoCam_DampAngle( dcamViewAng, wantAng, dtLook );
+		if ( dcamOnRail && DemoCam_RailUsable( dcamCur ) ) {
+			if ( haveRec || haveTarget ) {
+				DemoCam_RailChase( dcamCur, chaseOrg, recVel, railOrg, &wantRailT );
+			} else {
+				wantRailT = dcamRailT;
 			}
-		} else if ( !dcamViewValid ) {
-			VectorCopy( dcams[dcamCur].angles, dcamViewAng );
+			if ( inCut || !dcamViewValid ) {
+				dcamRailT = wantRailT;
+				dcamRailVel = 0.0f;
+			} else {
+				dtRail = DemoCam_FadeDt( &dcamRailMs );
+				DemoCam_SlideRailT( wantRailT, dtRail, DemoCam_RailLength( &drails[dcamCur] ) );
+			}
+			DemoCam_RailAt( &drails[dcamCur], dcamRailT, dcamViewOrg );
+			if ( haveRec || haveTarget ) {
+				if ( haveRec ) {
+					VectorCopy( recOrg, railLook );
+				} else {
+					VectorCopy( lookAt, railLook );
+				}
+				DemoCam_LookAngles( dcamViewOrg, railLook, wantAng );
+				if ( inCut || !dcamViewValid ) {
+					VectorCopy( wantAng, dcamViewAng );
+				} else {
+					dtLook = DemoCam_FadeDt( &dcamLookMs );
+					DemoCam_DampAngle( dcamViewAng, wantAng, dtLook );
+				}
+			}
+		} else if ( dcamCur >= 0 && dcamCur < dcamCount ) {
+			VectorCopy( dcams[dcamCur].origin, dcamViewOrg );
+			if ( !dcams[dcamCur].dynamic ) {
+				useRest = qtrue;
+				dcamResting = qtrue;
+				dcamRestCam = dcamCur;
+				VectorCopy( dcams[dcamCur].angles, dcamViewAng );
+			} else if ( haveTarget ) {
+				DemoCam_LookAngles( dcamViewOrg, lookAt, wantAng );
+				useRest = DemoCam_UpdateRest( dcamCur, lookAt );
+				if ( inCut || !dcamViewValid ) {
+					VectorCopy( wantAng, dcamViewAng );
+				} else if ( !useRest ) {
+					dtLook = DemoCam_FadeDt( &dcamLookMs );
+					DemoCam_DampAngle( dcamViewAng, wantAng, dtLook );
+				}
+			} else if ( !dcamViewValid ) {
+				VectorCopy( dcams[dcamCur].angles, dcamViewAng );
+			}
 		}
 	}
 
-	if ( haveTarget && !useRest ) {
+	if ( dcamOnRail && haveRec ) {
+		wantFov = DemoCam_WantFov( dcamViewOrg, dcamViewAng, recOrg, framed, nframed );
+	} else if ( haveTarget && !useRest ) {
 		wantFov = DemoCam_WantFov( dcamViewOrg, dcamViewAng, lookAt, framed, nframed );
 	} else {
 		wantFov = DEMOCAM_REST_FOV;
@@ -1194,6 +1829,7 @@ void CG_DemoCams_DrawCutFade( void ) {
 	if ( !CG_DemoControls_RigCamActive() ) {
 		dcamCutStartMs = 0;
 		dcamPending = -1;
+		dcamPendingRail = qfalse;
 		return;
 	}
 	if ( !dcamCutStartMs ) {
@@ -1208,6 +1844,7 @@ void CG_DemoCams_DrawCutFade( void ) {
 	if ( elapsed >= DEMOCAM_CUT_FADE_MSEC * 2 ) {
 		dcamCutStartMs = 0;
 		dcamPending = -1;
+		dcamPendingRail = qfalse;
 		return;
 	}
 
@@ -1250,13 +1887,22 @@ static void DemoCam_AddSprite( qhandle_t shader, const vec3_t origin, float radi
 
 void CG_DemoCams_AddMarkers( void ) {
 	int			i;
+	int			j;
 	int			k;
+	int			steps;
 	vec3_t		fwd;
 	vec3_t		p;
+	vec3_t		dir;
 	qhandle_t	icon;
 	float		radius;
+	float		seg;
+	float		t;
+	byte		a;
 
-	if ( !cg.demoPlayback || !dcamShow || dcamCount <= 0 ) {
+	if ( !cg.demoPlayback || !dcamShow ) {
+		return;
+	}
+	if ( dcamCount <= 0 && drailCount <= 0 ) {
 		return;
 	}
 
@@ -1268,12 +1914,39 @@ void CG_DemoCams_AddMarkers( void ) {
 		} else {
 			icon = cgs.media.demoCamFixedShader;
 		}
-		radius = ( i == dcamCur ) ? 18.0f : 14.0f;
+		radius = ( !dcamOnRail && i == dcamCur ) ? 18.0f : 14.0f;
 		DemoCam_AddSprite( icon, dcams[i].origin, radius, 255 );
 		AngleVectors( dcams[i].angles, fwd, NULL, NULL );
 		for ( k = 1; k <= 4; k++ ) {
 			VectorMA( dcams[i].origin, (float)k * 12.0f, fwd, p );
 			DemoCam_AddSprite( cgs.media.plasmaBallShader, p, 4.0f, (byte)( 180 - k * 20 ) );
+		}
+	}
+
+	for ( i = 0; i < drailCount; i++ ) {
+		a = ( dcamOnRail && i == dcamCur ) ? 255 : 180;
+		for ( j = 0; j < drails[i].n; j++ ) {
+			DemoCam_AddSprite( cgs.media.plasmaBallShader, drails[i].pts[j],
+					( dcamOnRail && i == dcamCur ) ? 10.0f : 7.0f, a );
+			if ( j + 1 >= drails[i].n ) {
+				continue;
+			}
+			VectorSubtract( drails[i].pts[j + 1], drails[i].pts[j], dir );
+			seg = VectorLength( dir );
+			if ( seg < 8.0f ) {
+				continue;
+			}
+			steps = (int)( seg / 20.0f );
+			if ( steps < 2 ) {
+				steps = 2;
+			} else if ( steps > 24 ) {
+				steps = 24;
+			}
+			for ( k = 1; k < steps; k++ ) {
+				t = (float)k / (float)steps;
+				VectorMA( drails[i].pts[j], t, dir, p );
+				DemoCam_AddSprite( cgs.media.plasmaBallShader, p, 3.5f, (byte)( a - 40 ) );
+			}
 		}
 	}
 }
