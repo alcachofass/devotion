@@ -499,3 +499,29 @@ gfx/2d/bigcharsHiRes
                 rgbgen vertex
         }
 }
+
+gfx/2d/cam_fixed
+{
+	nopicmip
+	nomipmaps
+	cull disable
+	{
+		clampmap gfx/2d/cam_fixed.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen identity
+		alphaGen vertex
+	}
+}
+
+gfx/2d/cam_dynamic
+{
+	nopicmip
+	nomipmaps
+	cull disable
+	{
+		clampmap gfx/2d/cam_dynamic.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen identity
+		alphaGen vertex
+	}
+}

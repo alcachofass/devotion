@@ -1538,6 +1538,8 @@ typedef struct {
 	qhandle_t sizeCursor;
 	qhandle_t demoLockShader;
 	qhandle_t demoUnlockShader;
+	qhandle_t demoCamFixedShader;
+	qhandle_t demoCamDynamicShader;
 
 	sfxHandle_t	regenSound;
 	sfxHandle_t	protectSound;
@@ -1857,7 +1859,11 @@ void CG_DemoCams_RemoveNearest( void );
 void CG_DemoCams_ToggleShow( void );
 qboolean CG_DemoCams_Show( void );
 int CG_DemoCams_Count( void );
+qboolean CG_DemoCams_NearestIsDynamic( void );
+void CG_DemoCams_SetNearestDynamic( qboolean dynamic );
 void CG_DemoCams_View( vec3_t origin, vec3_t angles );
+float CG_DemoCams_FovX( void );
+void CG_DemoCams_DrawCutFade( void );
 void CG_DemoCams_AddMarkers( void );
 void CG_DemoEvents_Frame( void );
 void CG_DemoEvents_Shutdown( void );

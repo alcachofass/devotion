@@ -77,8 +77,10 @@ typedef enum {
 	DEMOCTRL_STATUS,
 	DEMOCTRL_DELAG,
 	DEMOCTRL_CAMADD,
-	DEMOCTRL_CAMSHOW,
 	DEMOCTRL_CAMDEL,
+	DEMOCTRL_CAMSHOW,
+	DEMOCTRL_CAMFIX,
+	DEMOCTRL_CAMDYN,
 	DEMOCTRL_CAMLOAD,
 	DEMOCTRL_CAMSAVE,
 	DEMOCTRL_LOCK,
@@ -171,6 +173,7 @@ static void DemoCtrl_DisableRigCam( void );
 static void DemoCtrl_FreeCamMove( void );
 static void DemoCtrl_FreeCamHudOff( void );
 static void DemoCtrl_FreeCamHudRestore( void );
+static void DemoCtrl_SyncCamHud( void );
 static void DemoCtrl_RefreshAttackKeys( void );
 static qboolean DemoCtrl_KeyIsAttack( int key );
 static qboolean DemoCtrl_KeyIsMoveBind( int key );
@@ -267,7 +270,7 @@ static const char *DemoCtrl_ButtonLabel( int btn ) {
 	case DEMOCTRL_FREECAM:
 		return "Free Cam";
 	case DEMOCTRL_CAM_RIGS:
-		return "Fixed Cameras";
+		return "Dynamic";
 	case DEMOCTRL_ITEMS:
 		return "Items";
 	case DEMOCTRL_TIMERS:
@@ -290,6 +293,10 @@ static const char *DemoCtrl_ButtonLabel( int btn ) {
 		return "Show/Hide";
 	case DEMOCTRL_CAMDEL:
 		return "Remove Camera";
+	case DEMOCTRL_CAMFIX:
+		return "Fixed";
+	case DEMOCTRL_CAMDYN:
+		return "Dyn";
 	case DEMOCTRL_CAMLOAD:
 		return "Load Cam File";
 	case DEMOCTRL_CAMSAVE:
@@ -368,6 +375,10 @@ static qboolean DemoCtrl_ButtonActive( int btn ) {
 		return cg_demoDelag.integer ? qtrue : qfalse;
 	case DEMOCTRL_CAMSHOW:
 		return CG_DemoCams_Show();
+	case DEMOCTRL_CAMFIX:
+		return ( CG_DemoCams_Count() > 0 && !CG_DemoCams_NearestIsDynamic() ) ? qtrue : qfalse;
+	case DEMOCTRL_CAMDYN:
+		return ( CG_DemoCams_Count() > 0 && CG_DemoCams_NearestIsDynamic() ) ? qtrue : qfalse;
 	default:
 		return qfalse;
 	}
@@ -449,8 +460,20 @@ static void DemoCtrl_ButtonRect( int btn, int *x, int *y, int *w, int *h ) {
 		*h = DEMOCTRL_LOCK_H;
 		*x = DEMOCTRL_SIDE_MARGIN;
 		*y = DEMOCTRL_BAR_Y;
+	} else if ( btn == DEMOCTRL_CAMFIX || btn == DEMOCTRL_CAMDYN ) {
+		*h = DEMOCTRL_SIDE_BTN_H;
+		*w = ( DEMOCTRL_SIDE_BTN_W - 4 ) / 2;
+		*x = DEMOCTRL_SIDE_MARGIN;
+		if ( btn == DEMOCTRL_CAMDYN ) {
+			*x += *w + 4;
+		}
+		*y = DEMOCTRL_SIDE_Y + DEMOCTRL_SIDE_HDR_H
+				+ 3 * ( DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP );
 	} else if ( DemoCtrl_IsLeftButton( btn ) ) {
 		index = btn - DEMOCTRL_CAMADD;
+		if ( btn >= DEMOCTRL_CAMLOAD ) {
+			index -= 1;
+		}
 		*w = DEMOCTRL_SIDE_BTN_W;
 		*h = DEMOCTRL_SIDE_BTN_H;
 		*x = DEMOCTRL_SIDE_MARGIN;
@@ -523,7 +546,7 @@ static const char *DemoCtrl_ButtonTip( int btn ) {
 	case DEMOCTRL_FREECAM:
 		return "Fly a free camera";
 	case DEMOCTRL_CAM_RIGS:
-		return "Follow from placed map cameras";
+		return "Cut between placed fixed and dynamic cameras";
 	case DEMOCTRL_SHOT:
 		return "Save a screenshot";
 	case DEMOCTRL_ITEMS:
@@ -548,6 +571,10 @@ static const char *DemoCtrl_ButtonTip( int btn ) {
 		return "^2Show^7/^1hide ^7camera placement markers";
 	case DEMOCTRL_CAMDEL:
 		return "^1Remove ^7the nearest camera";
+	case DEMOCTRL_CAMFIX:
+		return "Set nearest camera to ^3fixed ^7(no pan or zoom)";
+	case DEMOCTRL_CAMDYN:
+		return "Set nearest camera to ^2dynamic ^7(track the action)";
 	case DEMOCTRL_CAMLOAD:
 		return "^1Reload ^7cameras from disk";
 	case DEMOCTRL_CAMSAVE:
@@ -826,6 +853,7 @@ static void DemoCtrl_Activate( int btn ) {
 		}
 		DemoCtrl_DisableFreeCam();
 		DemoCtrl_DisableRigCam();
+		DemoCtrl_SyncCamHud();
 		trap_Cvar_Set( "cg_thirdPerson", "0" );
 		break;
 	case DEMOCTRL_CAM_3RD:
@@ -834,6 +862,7 @@ static void DemoCtrl_Activate( int btn ) {
 		}
 		DemoCtrl_DisableFreeCam();
 		DemoCtrl_DisableRigCam();
+		DemoCtrl_SyncCamHud();
 		trap_Cvar_Set( "cg_thirdPerson", "1" );
 		if ( cg_thirdPersonRange.value < 1.0f ) {
 			trap_Cvar_Set( "cg_thirdPersonRange", "100" );
@@ -852,6 +881,7 @@ static void DemoCtrl_Activate( int btn ) {
 		}
 		DemoCtrl_DisableFreeCam();
 		dc_rigView = qtrue;
+		DemoCtrl_SyncCamHud();
 		if ( CG_DemoCams_Count() <= 0 ) {
 			CG_Printf( "No cameras for this map yet. Use Add Cam on the left, then Save.\n" );
 		}
@@ -864,6 +894,12 @@ static void DemoCtrl_Activate( int btn ) {
 		break;
 	case DEMOCTRL_CAMDEL:
 		CG_DemoCams_RemoveNearest();
+		break;
+	case DEMOCTRL_CAMFIX:
+		CG_DemoCams_SetNearestDynamic( qfalse );
+		break;
+	case DEMOCTRL_CAMDYN:
+		CG_DemoCams_SetNearestDynamic( qtrue );
 		break;
 	case DEMOCTRL_CAMLOAD:
 		CG_DemoCams_Load();
@@ -1134,9 +1170,18 @@ static void DemoCtrl_FreeCamHudRestore( void ) {
 	dc_freeHudDrawGun = 0;
 }
 
+static void DemoCtrl_SyncCamHud( void ) {
+	if ( dc_freeView || dc_rigView ) {
+		DemoCtrl_FreeCamHudOff();
+	} else {
+		DemoCtrl_FreeCamHudRestore();
+	}
+}
+
 static void DemoCtrl_FreeCamReset( void ) {
 	DemoCtrl_DisableFreeCam();
 	DemoCtrl_DisableRigCam();
+	DemoCtrl_SyncCamHud();
 	dc_freeIgnoreAttackKey = -1;
 	dc_moveBits = 0;
 	dc_numAttackKeys = 0;
@@ -1183,7 +1228,7 @@ static void DemoCtrl_EnterFreeCamLook( void ) {
 		}
 
 		dc_freeView = qtrue;
-		DemoCtrl_FreeCamHudOff();
+		DemoCtrl_SyncCamHud();
 		if ( !dc_freeHintShown ) {
 			CG_Printf( "Free cam: movement keys fly, fire weapon shows overlay, click the view to look, 1st or 3rd exits.\n" );
 			dc_freeHintShown = qtrue;
@@ -1218,7 +1263,6 @@ static void DemoCtrl_DisableRigCam( void ) {
 
 static void DemoCtrl_DisableFreeCam( void ) {
 	DemoCtrl_LeaveFreeCamLook();
-	DemoCtrl_FreeCamHudRestore();
 	dc_freeView = qfalse;
 	dc_freeLastMs = 0;
 }

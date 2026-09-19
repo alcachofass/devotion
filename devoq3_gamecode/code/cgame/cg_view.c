@@ -559,7 +559,7 @@ static int CG_CalcFovImpl( float fov, float zoomFov ) {
                                 zoomFov = MAX_BASICLOCK_FOV;
                 }
 
-		if ( !CG_DemoControls_FreeCamActive() ) {
+		if ( !CG_DemoControls_FreeCamActive() && !CG_DemoControls_RigCamActive() ) {
 			if ( cg.zoomed ) {
 				f = ( cg.time - cg.zoomTime ) / (float)ZOOM_TIME*cg_zoomAnimScale.value;
 				if ( f > 1.0 || cg_zoomAnim.integer == 0) {
@@ -620,6 +620,11 @@ float CG_HorPlusFovX(float fov_y) {
 static int CG_CalcFov( void ) {
 	float fov = cg_fov.value;
 	float zoomFov = cg_zoomFovTmp.value > 0 ? cg_zoomFovTmp.value : cg_zoomFov.value;
+
+	if ( CG_DemoControls_RigCamActive() ) {
+		fov = CG_DemoCams_FovX();
+		return CG_CalcFovImpl( fov, fov );
+	}
 
 	if (cg_horplus.integer) {
 		// when using HOR+ FOV, cg_fov / cg_zoomFov refer to the
@@ -1169,6 +1174,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	// actually issue the rendering calls
 	CG_DrawActive( stereoView );
+	CG_DemoCams_DrawCutFade();
 	CG_DrawLeaveFade( stereoView );
 
 	if ( cg_stats.integer ) {
