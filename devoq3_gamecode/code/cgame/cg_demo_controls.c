@@ -48,6 +48,8 @@ Chrome can hide after idle; hit-testing stays active so clicks still land.
 #define DEMOCTRL_FREECAM_SPEED_FAST	800.0f
 #define DEMOCTRL_FREECAM_PULLBACK	56.0f
 #define DEMOCTRL_FREECAM_MAX_DT		0.05f
+#define DEMOCTRL_PAUSE_CRAWL		0.01f
+#define DEMOCTRL_PAUSE_CRAWL_STR	"0.01"
 
 typedef enum {
 	DEMOCTRL_REW3 = 0,
@@ -148,6 +150,9 @@ static int		dc_numAttackKeys;
 static int		dc_freeHudDraw2D;
 static int		dc_freeHudDrawGun;
 static qboolean	dc_freeHudHeld;
+static qboolean	dc_pauseZeroProbed;
+static qboolean	dc_pauseZeroOk;
+static int		dc_pauseWatchTime;
 
 static void DemoCtrl_Wake( void );
 static void DemoCtrl_ReleaseCatcher( void );
@@ -636,6 +641,52 @@ static int DemoCtrl_HitTest( int mx, int my ) {
 	return -1;
 }
 
+static void DemoCtrl_ProbePauseZero( void ) {
+	char	value[MAX_CVAR_VALUE_STRING];
+
+	if ( dc_pauseZeroProbed ) {
+		return;
+	}
+	dc_pauseZeroProbed = qtrue;
+
+	/* ioquake3 stores timescale 0 but still plays at 1x. Quake3e publishes
+	 * //trap_GetValue; treat that as "0 really pauses". */
+	value[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "//trap_GetValue", value, sizeof( value ) );
+	dc_pauseZeroOk = value[0] ? qtrue : qfalse;
+}
+
+static void DemoCtrl_WatchPauseZero( void ) {
+	if ( !dc_pauseZeroOk || dc_seeking ) {
+		dc_pauseWatchTime = 0;
+		return;
+	}
+	if ( !DemoCtrl_TimescaleNear( cg_timescale.value, 0.0f ) ) {
+		dc_pauseWatchTime = 0;
+		return;
+	}
+	if ( dc_pauseWatchTime && cg.time > dc_pauseWatchTime ) {
+		dc_pauseZeroOk = qfalse;
+		trap_Cvar_Set( "timescale", DEMOCTRL_PAUSE_CRAWL_STR );
+		dc_pauseWatchTime = 0;
+		return;
+	}
+	dc_pauseWatchTime = cg.time;
+}
+
+static const char *DemoCtrl_PauseCvarValue( void ) {
+	DemoCtrl_ProbePauseZero();
+	return dc_pauseZeroOk ? "0" : DEMOCTRL_PAUSE_CRAWL_STR;
+}
+
+static void DemoCtrl_SetTimescale( float ts ) {
+	if ( ts <= 0.05f ) {
+		trap_Cvar_Set( "timescale", DemoCtrl_PauseCvarValue() );
+		return;
+	}
+	trap_Cvar_Set( "timescale", va( "%f", ts ) );
+}
+
 static void DemoCtrl_ApplyStep( int step ) {
 	if ( step < 0 ) {
 		step = 0;
@@ -645,8 +696,10 @@ static void DemoCtrl_ApplyStep( int step ) {
 	}
 	if ( demoTimescaleSteps[step].timescale > 0.05f ) {
 		dc_playResumeTs = demoTimescaleSteps[step].timescale;
+		trap_Cvar_Set( "timescale", demoTimescaleSteps[step].cvarValue );
+	} else {
+		DemoCtrl_SetTimescale( 0.0f );
 	}
-	trap_Cvar_Set( "timescale", demoTimescaleSteps[step].cvarValue );
 	DemoCtrl_UpdateSpeedLabel( demoTimescaleSteps[step].timescale );
 }
 
@@ -690,7 +743,7 @@ static void DemoCtrl_SetPlaySpeedStep( int step ) {
 		DemoCtrl_UpdateSpeedLabel( dc_playResumeTs );
 		return;
 	}
-	if ( DemoCtrl_IsPaused() ) {
+	if ( DemoCtrl_IsPaused() && dc_pauseZeroOk ) {
 		DemoCtrl_UpdateSpeedLabel( dc_playResumeTs );
 		return;
 	}
@@ -1633,7 +1686,7 @@ static void DemoCtrl_SeekFinish( qboolean applyResume ) {
 	DemoCtrl_SeekUnmute();
 	DemoCtrl_SeekClearCvars();
 	if ( applyResume ) {
-		trap_Cvar_Set( "timescale", va( "%f", dc_seekResumeTs ) );
+		DemoCtrl_SetTimescale( dc_seekResumeTs );
 		DemoCtrl_UpdateSpeedLabel( dc_seekResumeTs );
 	}
 }
@@ -1871,6 +1924,7 @@ void CG_DemoControls_Frame( void ) {
 	CG_DemoEvents_Frame();
 	DemoCtrl_UpdateTiming();
 	DemoCtrl_SeekFrame();
+	DemoCtrl_WatchPauseZero();
 
 	catcher = trap_Key_GetCatcher();
 	if ( catcher & ( KEYCATCH_UI | KEYCATCH_CONSOLE | KEYCATCH_MESSAGE ) ) {
