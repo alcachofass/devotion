@@ -559,7 +559,7 @@ static int CG_CalcFovImpl( float fov, float zoomFov ) {
                                 zoomFov = MAX_BASICLOCK_FOV;
                 }
 
-		if ( !CG_DemoControls_FreeCamActive() ) {
+		if ( !CG_DemoControls_FreeCamActive() && !CG_DemoControls_RigCamActive() ) {
 			if ( cg.zoomed ) {
 				f = ( cg.time - cg.zoomTime ) / (float)ZOOM_TIME*cg_zoomAnimScale.value;
 				if ( f > 1.0 || cg_zoomAnim.integer == 0) {
@@ -620,6 +620,11 @@ float CG_HorPlusFovX(float fov_y) {
 static int CG_CalcFov( void ) {
 	float fov = cg_fov.value;
 	float zoomFov = cg_zoomFovTmp.value > 0 ? cg_zoomFovTmp.value : cg_zoomFov.value;
+
+	if ( CG_DemoControls_RigCamActive() && !CG_DemoCams_UsingPlayerView() ) {
+		fov = CG_DemoCams_FovX();
+		return CG_CalcFovImpl( fov, fov );
+	}
 
 	if (cg_horplus.integer) {
 		// when using HOR+ FOV, cg_fov / cg_zoomFov refer to the
@@ -736,6 +741,15 @@ static int CG_CalcViewValues( void ) {
 		return CG_CalcFov();
 	}
 
+	if ( CG_DemoControls_RigCamActive() && !CG_DemoCams_UsingPlayerView() ) {
+		CG_DemoCams_View( cg.refdef.vieworg, cg.refdefViewAngles );
+		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
+		if ( cg.hyperspace ) {
+			cg.refdef.rdflags |= RDF_NOWORLDMODEL | RDF_HYPERSPACE;
+		}
+		return CG_CalcFov();
+	}
+
 	// intermission view
 	if ( ps->pm_type == PM_INTERMISSION ) {
 		VectorCopy( ps->origin, cg.refdef.vieworg );
@@ -790,7 +804,15 @@ static int CG_CalcViewValues( void ) {
 	}
 
 	// field of view
-	return CG_CalcFov();
+	{
+		int	inwater;
+
+		inwater = CG_CalcFov();
+		if ( CG_DemoControls_RigCamActive() ) {
+			CG_DemoCams_CapturePlayerView( cg.refdef.vieworg, cg.refdefViewAngles );
+		}
+		return inwater;
+	}
 }
 
 
@@ -992,6 +1014,7 @@ Generates and draws a game scene and status information at the given time.
 void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demoPlayback ) {
 	int		inwater;
 	qboolean	freeCam;
+	qboolean	rigCam;
 
 	cg.time = serverTime;
 	cg.demoPlayback = demoPlayback;
@@ -1069,14 +1092,28 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	CG_BigHeadUpdateScores();
 
 	freeCam = CG_DemoControls_FreeCamActive();
-
-	// decide on third person view
-	cg.renderingThirdPerson = cg_thirdPerson.integer || (cg.snap->ps.stats[STAT_HEALTH] <= 0);
-	if ( freeCam ) {
-		cg.renderingThirdPerson = qtrue;
+	rigCam = CG_DemoControls_RigCamActive();
+	if ( rigCam ) {
+		CG_DemoCams_DirectorFrame();
 	}
 
-	if ( !freeCam ) {
+	// decide on third person view
+	if ( CG_DemoControls_IsSeeking() ) {
+		cg.renderingThirdPerson = qfalse;
+	} else {
+		cg.renderingThirdPerson = cg_thirdPerson.integer || (cg.snap->ps.stats[STAT_HEALTH] <= 0);
+		if ( freeCam ) {
+			cg.renderingThirdPerson = qtrue;
+		} else if ( rigCam ) {
+			if ( CG_DemoCams_UsingPlayerView() ) {
+				cg.renderingThirdPerson = CG_DemoCams_PlayerThird();
+			} else {
+				cg.renderingThirdPerson = qtrue;
+			}
+		}
+	}
+
+	if ( !freeCam && !rigCam ) {
 		CG_SpecZooming();
 	}
 
@@ -1092,7 +1129,8 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	if ( !cg.hyperspace ) {
 		CG_AddPacketEntities();			// adter calcViewValues, so predicted player state is correct
 		CG_FreeCamAddAmbientMovers();
-		if ( !freeCam ) {
+		CG_DemoCams_AddMarkers();
+		if ( !freeCam && !rigCam ) {
 			CG_DrawBotAimFollowFirstPerson();
 		}
 		CG_AddPredictedMissiles();
@@ -1119,7 +1157,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 	cg.refdef.time = cg.time;
 	memcpy( cg.refdef.areamask, cg.snap->areamask, sizeof( cg.refdef.areamask ) );
-	if ( freeCam ) {
+	if ( freeCam || ( rigCam && !CG_DemoCams_UsingPlayerView() ) ) {
 		memset( cg.refdef.areamask, 0, sizeof( cg.refdef.areamask ) );
 	}
 
@@ -1127,7 +1165,8 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	CG_PowerupTimerSounds();
 
 	// update audio positions
-	trap_S_Respatialize( freeCam ? ENTITYNUM_NONE : cg.snap->ps.clientNum,
+	trap_S_Respatialize( ( freeCam || ( rigCam && !CG_DemoCams_UsingPlayerView() ) )
+			? ENTITYNUM_NONE : cg.snap->ps.clientNum,
 			cg.refdef.vieworg, cg.refdef.viewaxis, inwater );
 
 	// make sure the lagometerSample and frame timing isn't done twice when in stereo
@@ -1157,6 +1196,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	// actually issue the rendering calls
 	CG_DrawActive( stereoView );
+	CG_DemoCams_DrawCutFade();
 	CG_DrawLeaveFade( stereoView );
 
 	if ( cg_stats.integer ) {

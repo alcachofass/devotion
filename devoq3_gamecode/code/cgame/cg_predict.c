@@ -556,7 +556,7 @@ void CG_FreeCamAddAmbientMovers( void ) {
 	float			r, g, b, intensity;
 	qboolean		inSnap;
 
-	if ( !CG_DemoControls_FreeCamActive() ) {
+	if ( !CG_DemoControls_FreeCamActive() && !CG_DemoControls_RigCamActive() ) {
 		return;
 	}
 	if ( !fc_mapParsed ) {
