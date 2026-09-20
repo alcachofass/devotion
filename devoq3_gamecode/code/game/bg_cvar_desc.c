@@ -461,7 +461,7 @@ static const cvarDesc_t cgameCvarDescriptions[] = {
 	{ "cg_demoOccludedOutline", "When `1` during demo playback, draws a grey silhouette through walls for fully hidden players (and their gun) and projectiles. Team color in team games. Fades in/out at cover edges and after death." },
 	{ "cg_specPlayerStatus", "When `1`, spectators see a QL-style name / health-pips / armor-bar box above each player, including through walls." },
 	{ "cg_demoPlayerStatus", "When `1` during demo playback, draws the spectator-style name / health-pips / armor-bar box above players in PVS, including through walls. Replay sidebar Status toggle." },
-	{ "cg_demoDynamicCam", "When `1` during demo playback, uses placed Dynamic/Fixed map cameras (same as the overlay Dynamic camera mode). Use with `video-pipe` so a capture can start in that mode without the overlay." },
+	{ "cg_demoDynamicCam", "When `1` at demo start, enters Dynamic camera mode once then sets itself back to `0`. Use with `video-pipe` so a capture can start in that mode without the overlay." },
 	{ "cg_differentCrosshairs", "When `1`, uses a separate crosshair shape and size per weapon (`cg_ch1`-`cg_ch13`)." },
 	{ "cg_draw2D", "When `0`, hides the entire 2D HUD (crosshair, status bar, and so on)." },
 	{ "cg_draw3dIcons", "When `1`, draws 3D HUD icons instead of flat 2D ones." },

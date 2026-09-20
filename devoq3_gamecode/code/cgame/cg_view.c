@@ -621,7 +621,7 @@ static int CG_CalcFov( void ) {
 	float fov = cg_fov.value;
 	float zoomFov = cg_zoomFovTmp.value > 0 ? cg_zoomFovTmp.value : cg_zoomFov.value;
 
-	if ( CG_DemoControls_RigCamActive() ) {
+	if ( CG_DemoControls_RigCamActive() && !CG_DemoCams_UsingPlayerView() ) {
 		fov = CG_DemoCams_FovX();
 		return CG_CalcFovImpl( fov, fov );
 	}
@@ -741,7 +741,7 @@ static int CG_CalcViewValues( void ) {
 		return CG_CalcFov();
 	}
 
-	if ( CG_DemoControls_RigCamActive() ) {
+	if ( CG_DemoControls_RigCamActive() && !CG_DemoCams_UsingPlayerView() ) {
 		CG_DemoCams_View( cg.refdef.vieworg, cg.refdefViewAngles );
 		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
 		if ( cg.hyperspace ) {
@@ -804,7 +804,15 @@ static int CG_CalcViewValues( void ) {
 	}
 
 	// field of view
-	return CG_CalcFov();
+	{
+		int	inwater;
+
+		inwater = CG_CalcFov();
+		if ( CG_DemoControls_RigCamActive() ) {
+			CG_DemoCams_CapturePlayerView( cg.refdef.vieworg, cg.refdefViewAngles );
+		}
+		return inwater;
+	}
 }
 
 
@@ -1085,11 +1093,24 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	freeCam = CG_DemoControls_FreeCamActive();
 	rigCam = CG_DemoControls_RigCamActive();
+	if ( rigCam ) {
+		CG_DemoCams_DirectorFrame();
+	}
 
 	// decide on third person view
-	cg.renderingThirdPerson = cg_thirdPerson.integer || (cg.snap->ps.stats[STAT_HEALTH] <= 0);
-	if ( freeCam || rigCam ) {
-		cg.renderingThirdPerson = qtrue;
+	if ( CG_DemoControls_IsSeeking() ) {
+		cg.renderingThirdPerson = qfalse;
+	} else {
+		cg.renderingThirdPerson = cg_thirdPerson.integer || (cg.snap->ps.stats[STAT_HEALTH] <= 0);
+		if ( freeCam ) {
+			cg.renderingThirdPerson = qtrue;
+		} else if ( rigCam ) {
+			if ( CG_DemoCams_UsingPlayerView() ) {
+				cg.renderingThirdPerson = CG_DemoCams_PlayerThird();
+			} else {
+				cg.renderingThirdPerson = qtrue;
+			}
+		}
 	}
 
 	if ( !freeCam && !rigCam ) {
@@ -1136,7 +1157,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 	cg.refdef.time = cg.time;
 	memcpy( cg.refdef.areamask, cg.snap->areamask, sizeof( cg.refdef.areamask ) );
-	if ( freeCam || rigCam ) {
+	if ( freeCam || ( rigCam && !CG_DemoCams_UsingPlayerView() ) ) {
 		memset( cg.refdef.areamask, 0, sizeof( cg.refdef.areamask ) );
 	}
 
@@ -1144,7 +1165,8 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	CG_PowerupTimerSounds();
 
 	// update audio positions
-	trap_S_Respatialize( ( freeCam || rigCam ) ? ENTITYNUM_NONE : cg.snap->ps.clientNum,
+	trap_S_Respatialize( ( freeCam || ( rigCam && !CG_DemoCams_UsingPlayerView() ) )
+			? ENTITYNUM_NONE : cg.snap->ps.clientNum,
 			cg.refdef.vieworg, cg.refdef.viewaxis, inwater );
 
 	// make sure the lagometerSample and frame timing isn't done twice when in stereo

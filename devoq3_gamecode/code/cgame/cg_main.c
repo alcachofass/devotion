@@ -1852,6 +1852,8 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.demoUnlockShader = trap_R_RegisterShaderNoMip( "menu/art/unlock" );
 	cgs.media.demoCamFixedShader = trap_R_RegisterShaderNoMip( "gfx/2d/cam_fixed" );
 	cgs.media.demoCamDynamicShader = trap_R_RegisterShaderNoMip( "gfx/2d/cam_dynamic" );
+	cgs.media.demoCamRailShader = trap_R_RegisterShaderNoMip( "gfx/2d/camrail" );
+	cgs.media.demoCamRailActiveShader = trap_R_RegisterShaderNoMip( "gfx/2d/camrailactive" );
 	CG_ClearParticles ();
 /*
 	for (i=1; i<MAX_PARTICLES_AREAS; i++)

@@ -7121,10 +7121,10 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 	}
 
 	if ( cg_draw2D.integer == 0 ) {
-		CG_DemoControls_Draw();
 		if ( cg.demoPlayback ) {
 			CG_DrawSpecPlayerStatus();
 		}
+		CG_DemoControls_Draw();
 		return;
 	}
 

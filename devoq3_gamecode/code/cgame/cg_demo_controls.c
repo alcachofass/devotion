@@ -34,13 +34,17 @@ Chrome can hide after idle; hit-testing stays active so clicks still land.
 #define DEMOCTRL_SIDE_MARGIN		8
 #define DEMOCTRL_SIDE_Y			72
 #define DEMOCTRL_SIDE_BTN_W		76
+#define DEMOCTRL_LEFT_BTN_W		114
 #define DEMOCTRL_SIDE_BTN_H		18
 #define DEMOCTRL_SIDE_BTN_GAP		5
 #define DEMOCTRL_SIDE_HDR_H		12
+#define DEMOCTRL_SIDE_SUB_H		10
 #define DEMOCTRL_SIDE_GROUP_GAP		10
 #define DEMOCTRL_SIDE_CAM_COUNT		5
 #define DEMOCTRL_SIDE_CHAR_W		5
 #define DEMOCTRL_SIDE_CHAR_H		8
+#define DEMOCTRL_TAB_W			18
+#define DEMOCTRL_DRAWER_MSEC		180
 #define DEMOCTRL_LOCK_W			24
 #define DEMOCTRL_LOCK_H			24
 #define DEMOCTRL_SHOT_HIDE_FRAMES	8
@@ -78,11 +82,12 @@ typedef enum {
 	DEMOCTRL_DELAG,
 	DEMOCTRL_CAMADD,
 	DEMOCTRL_CAMDEL,
-	DEMOCTRL_CAMSHOW,
 	DEMOCTRL_CAMFIX,
 	DEMOCTRL_CAMDYN,
+	DEMOCTRL_CAMJOIN,
 	DEMOCTRL_CAMRAILADD,
 	DEMOCTRL_CAMRAILNEW,
+	DEMOCTRL_CAMRAILSEL,
 	DEMOCTRL_CAMLOAD,
 	DEMOCTRL_CAMSAVE,
 	DEMOCTRL_LOCK,
@@ -107,9 +112,24 @@ static const demoTimescaleStep_t demoTimescaleSteps[] = {
 };
 #define DEMOCTRL_NUM_STEPS (int)( sizeof( demoTimescaleSteps ) / sizeof( demoTimescaleSteps[0] ) )
 
+typedef enum {
+	DEMOCTRL_DRAWER_LEFT = 0,
+	DEMOCTRL_DRAWER_RIGHT_CAM,
+	DEMOCTRL_DRAWER_RIGHT_DISP,
+	DEMOCTRL_NUM_DRAWERS
+} demoCtrlDrawer_t;
+
 static qboolean	dc_inited;
+static qboolean	dc_demoSession;
+static qboolean	dc_dynamicCamCvarSeen;
 static qboolean	dc_visible;
 static qboolean	dc_locked;
+static qboolean	dc_drawerOpen[DEMOCTRL_NUM_DRAWERS];
+static float	dc_drawerFrac[DEMOCTRL_NUM_DRAWERS];
+static float	dc_drawerFrom[DEMOCTRL_NUM_DRAWERS];
+static float	dc_drawerTo[DEMOCTRL_NUM_DRAWERS];
+static int		dc_drawerAnimMs[DEMOCTRL_NUM_DRAWERS];
+static int		dc_hoverDrawer = -1;
 static qboolean	dc_catcherHeld;
 static int		dc_cursorX;
 static int		dc_cursorY;
@@ -134,6 +154,11 @@ static int		dc_seekKeyframesLeft;
 static int		dc_seekHoldTime;
 static qboolean	dc_seekModeKey;
 static qboolean	dc_seekModeHold;
+static qboolean	dc_seekCamSaved;
+static int		dc_seekCamMode;
+static int		dc_seekThirdPerson;
+static vec3_t	dc_seekFreeOrigin;
+static vec3_t	dc_seekFreeAngles;
 static int		dc_shotHideFrames;
 static int		dc_savedDraw2D;
 static int		dc_savedDrawGun;
@@ -169,6 +194,7 @@ static void DemoCtrl_ViewSaveIfNeeded( void );
 static qboolean DemoCtrl_IsPaused( void );
 static void DemoCtrl_FreeCamReset( void );
 static void DemoCtrl_EnterFreeCamLook( void );
+static void DemoCtrl_EnableFreeCamView( void );
 static void DemoCtrl_LeaveFreeCamLook( void );
 static void DemoCtrl_DisableFreeCam( void );
 static void DemoCtrl_DisableRigCam( void );
@@ -177,6 +203,8 @@ static void DemoCtrl_FreeCamHudOff( void );
 static void DemoCtrl_FreeCamHudRestore( void );
 static void DemoCtrl_SyncCamHud( void );
 static void DemoCtrl_ApplyDynamicCamCvar( void );
+static void DemoCtrl_SeekSaveCam( void );
+static void DemoCtrl_SeekRestoreCam( void );
 static void DemoCtrl_RefreshAttackKeys( void );
 static qboolean DemoCtrl_KeyIsAttack( int key );
 static qboolean DemoCtrl_KeyIsMoveBind( int key );
@@ -226,6 +254,10 @@ static qboolean DemoCtrl_IsSideButton( int btn ) {
 
 static qboolean DemoCtrl_IsCamSideButton( int btn ) {
 	return btn >= DEMOCTRL_CAM_1ST && btn <= DEMOCTRL_SHOT;
+}
+
+static qboolean DemoCtrl_IsDisplayButton( int btn ) {
+	return btn >= DEMOCTRL_ITEMS && btn <= DEMOCTRL_DELAG;
 }
 
 static qboolean DemoCtrl_IsPaused( void ) {
@@ -291,23 +323,25 @@ static const char *DemoCtrl_ButtonLabel( int btn ) {
 	case DEMOCTRL_DELAG:
 		return "Delag";
 	case DEMOCTRL_CAMADD:
-		return "Add Camera";
-	case DEMOCTRL_CAMSHOW:
-		return "Show/Hide";
+		return "Add Cam";
 	case DEMOCTRL_CAMDEL:
-		return "Remove Camera";
+		return "Remove Cam";
 	case DEMOCTRL_CAMFIX:
 		return "Fixed";
 	case DEMOCTRL_CAMDYN:
 		return "Dyn";
+	case DEMOCTRL_CAMJOIN:
+		return "Rail";
 	case DEMOCTRL_CAMRAILADD:
-		return "Rail Pt";
+		return "+ Node";
 	case DEMOCTRL_CAMRAILNEW:
-		return "New Rail";
+		return "New";
+	case DEMOCTRL_CAMRAILSEL:
+		return "Active";
 	case DEMOCTRL_CAMLOAD:
-		return "Load Cam File";
+		return "Load";
 	case DEMOCTRL_CAMSAVE:
-		return "Save Cam File";
+		return "Save";
 	case DEMOCTRL_SHOT:
 		return "Screenshot";
 	default:
@@ -357,13 +391,19 @@ static qboolean DemoCtrl_ButtonActive( int btn ) {
 	case DEMOCTRL_LOCK:
 		return dc_locked;
 	case DEMOCTRL_CAM_1ST:
+		if ( dc_seeking ) {
+			return qtrue;
+		}
 		return ( !dc_freeView && !dc_rigView && !cg_thirdPerson.integer ) ? qtrue : qfalse;
 	case DEMOCTRL_CAM_3RD:
+		if ( dc_seeking ) {
+			return qfalse;
+		}
 		return ( !dc_freeView && !dc_rigView && cg_thirdPerson.integer ) ? qtrue : qfalse;
 	case DEMOCTRL_FREECAM:
-		return dc_freeView;
+		return ( !dc_seeking && dc_freeView ) ? qtrue : qfalse;
 	case DEMOCTRL_CAM_RIGS:
-		return dc_rigView;
+		return ( !dc_seeking && dc_rigView ) ? qtrue : qfalse;
 	case DEMOCTRL_ITEMS:
 		return cg_simpleItems.integer ? qtrue : qfalse;
 	case DEMOCTRL_TIMERS:
@@ -380,12 +420,6 @@ static qboolean DemoCtrl_ButtonActive( int btn ) {
 		return cg_demoPlayerStatus.integer ? qtrue : qfalse;
 	case DEMOCTRL_DELAG:
 		return cg_demoDelag.integer ? qtrue : qfalse;
-	case DEMOCTRL_CAMSHOW:
-		return CG_DemoCams_Show();
-	case DEMOCTRL_CAMFIX:
-		return ( CG_DemoCams_Count() > 0 && !CG_DemoCams_NearestIsDynamic() ) ? qtrue : qfalse;
-	case DEMOCTRL_CAMDYN:
-		return ( CG_DemoCams_Count() > 0 && CG_DemoCams_NearestIsDynamic() ) ? qtrue : qfalse;
 	default:
 		return qfalse;
 	}
@@ -456,7 +490,26 @@ static qboolean DemoCtrl_HitTestTrack( int mx, int my ) {
 	return qtrue;
 }
 
-static void DemoCtrl_ButtonRect( int btn, int *x, int *y, int *w, int *h ) {
+static int DemoCtrl_LeftCamRowY( int row ) {
+	int	y;
+
+	y = DEMOCTRL_SIDE_Y + DEMOCTRL_SIDE_HDR_H;
+	if ( row <= 0 ) {
+		return y;
+	}
+	y += DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP + DEMOCTRL_SIDE_SUB_H;
+	if ( row == 1 ) {
+		return y;
+	}
+	y += DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP + DEMOCTRL_SIDE_SUB_H;
+	if ( row == 2 ) {
+		return y;
+	}
+	y += DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP + DEMOCTRL_SIDE_SUB_H;
+	return y;
+}
+
+static void DemoCtrl_ButtonRectBase( int btn, int *x, int *y, int *w, int *h ) {
 	int index;
 	int barX;
 
@@ -467,29 +520,42 @@ static void DemoCtrl_ButtonRect( int btn, int *x, int *y, int *w, int *h ) {
 		*h = DEMOCTRL_LOCK_H;
 		*x = DEMOCTRL_SIDE_MARGIN;
 		*y = DEMOCTRL_BAR_Y;
-	} else if ( btn == DEMOCTRL_CAMFIX || btn == DEMOCTRL_CAMDYN
-			|| btn == DEMOCTRL_CAMRAILADD || btn == DEMOCTRL_CAMRAILNEW ) {
+	} else if ( btn == DEMOCTRL_CAMADD || btn == DEMOCTRL_CAMDEL ) {
 		*h = DEMOCTRL_SIDE_BTN_H;
-		*w = ( DEMOCTRL_SIDE_BTN_W - 4 ) / 2;
+		*w = ( DEMOCTRL_LEFT_BTN_W - 4 ) / 2;
 		*x = DEMOCTRL_SIDE_MARGIN;
-		if ( btn == DEMOCTRL_CAMDYN || btn == DEMOCTRL_CAMRAILNEW ) {
+		if ( btn == DEMOCTRL_CAMDEL ) {
 			*x += *w + 4;
 		}
-		*y = DEMOCTRL_SIDE_Y + DEMOCTRL_SIDE_HDR_H
-				+ 3 * ( DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP );
-		if ( btn == DEMOCTRL_CAMRAILADD || btn == DEMOCTRL_CAMRAILNEW ) {
-			*y += DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP;
-		}
-	} else if ( DemoCtrl_IsLeftButton( btn ) ) {
-		index = btn - DEMOCTRL_CAMADD;
-		if ( btn >= DEMOCTRL_CAMLOAD ) {
-			index -= 2;
-		}
-		*w = DEMOCTRL_SIDE_BTN_W;
+		*y = DemoCtrl_LeftCamRowY( 0 );
+	} else if ( btn == DEMOCTRL_CAMFIX || btn == DEMOCTRL_CAMDYN || btn == DEMOCTRL_CAMJOIN ) {
 		*h = DEMOCTRL_SIDE_BTN_H;
+		*w = ( DEMOCTRL_LEFT_BTN_W - 6 ) / 3;
 		*x = DEMOCTRL_SIDE_MARGIN;
-		*y = DEMOCTRL_SIDE_Y + DEMOCTRL_SIDE_HDR_H
-				+ index * ( DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP );
+		if ( btn == DEMOCTRL_CAMDYN ) {
+			*x += *w + 3;
+		} else if ( btn == DEMOCTRL_CAMJOIN ) {
+			*x += 2 * ( *w + 3 );
+		}
+		*y = DemoCtrl_LeftCamRowY( 1 );
+	} else if ( btn == DEMOCTRL_CAMRAILADD || btn == DEMOCTRL_CAMRAILNEW || btn == DEMOCTRL_CAMRAILSEL ) {
+		*h = DEMOCTRL_SIDE_BTN_H;
+		*w = ( DEMOCTRL_LEFT_BTN_W - 6 ) / 3;
+		*x = DEMOCTRL_SIDE_MARGIN;
+		if ( btn == DEMOCTRL_CAMRAILNEW ) {
+			*x += *w + 3;
+		} else if ( btn == DEMOCTRL_CAMRAILSEL ) {
+			*x += 2 * ( *w + 3 );
+		}
+		*y = DemoCtrl_LeftCamRowY( 2 );
+	} else if ( btn == DEMOCTRL_CAMLOAD || btn == DEMOCTRL_CAMSAVE ) {
+		*h = DEMOCTRL_SIDE_BTN_H;
+		*w = ( DEMOCTRL_LEFT_BTN_W - 4 ) / 2;
+		*x = DEMOCTRL_SIDE_MARGIN;
+		if ( btn == DEMOCTRL_CAMSAVE ) {
+			*x += *w + 4;
+		}
+		*y = DemoCtrl_LeftCamRowY( 3 );
 	} else if ( DemoCtrl_IsCamSideButton( btn ) ) {
 		index = btn - DEMOCTRL_CAM_1ST;
 		*w = DEMOCTRL_SIDE_BTN_W;
@@ -526,6 +592,290 @@ static void DemoCtrl_ButtonRect( int btn, int *x, int *y, int *w, int *h ) {
 	}
 }
 
+static void DemoCtrl_DrawersReset( void ) {
+	int	i;
+
+	for ( i = 0; i < DEMOCTRL_NUM_DRAWERS; i++ ) {
+		dc_drawerOpen[i] = qfalse;
+		dc_drawerFrac[i] = 0.0f;
+		dc_drawerFrom[i] = 0.0f;
+		dc_drawerTo[i] = 0.0f;
+		dc_drawerAnimMs[i] = 0;
+	}
+	dc_hoverDrawer = -1;
+	CG_DemoCams_SetShow( qfalse );
+}
+
+static void DemoCtrl_UpdateDrawers( void ) {
+	int		i;
+	int		now;
+	int		elapsed;
+	float	t;
+
+	now = trap_Milliseconds();
+	for ( i = 0; i < DEMOCTRL_NUM_DRAWERS; i++ ) {
+		if ( !dc_drawerAnimMs[i] ) {
+			dc_drawerFrac[i] = dc_drawerTo[i];
+			continue;
+		}
+		elapsed = now - dc_drawerAnimMs[i];
+		if ( elapsed >= DEMOCTRL_DRAWER_MSEC ) {
+			dc_drawerFrac[i] = dc_drawerTo[i];
+			dc_drawerAnimMs[i] = 0;
+			continue;
+		}
+		if ( elapsed < 0 ) {
+			elapsed = 0;
+		}
+		t = (float)elapsed / (float)DEMOCTRL_DRAWER_MSEC;
+		dc_drawerFrac[i] = dc_drawerFrom[i] + ( dc_drawerTo[i] - dc_drawerFrom[i] ) * t;
+	}
+}
+
+static void DemoCtrl_ToggleDrawer( int drawer ) {
+	qboolean	opening;
+
+	if ( drawer < 0 || drawer >= DEMOCTRL_NUM_DRAWERS ) {
+		return;
+	}
+	DemoCtrl_UpdateDrawers();
+	opening = dc_drawerOpen[drawer] ? qfalse : qtrue;
+	dc_drawerOpen[drawer] = opening;
+	dc_drawerFrom[drawer] = dc_drawerFrac[drawer];
+	dc_drawerTo[drawer] = opening ? 1.0f : 0.0f;
+	dc_drawerAnimMs[drawer] = trap_Milliseconds();
+	if ( !dc_drawerAnimMs[drawer] ) {
+		dc_drawerAnimMs[drawer] = 1;
+	}
+	if ( drawer == DEMOCTRL_DRAWER_LEFT ) {
+		CG_DemoCams_SetShow( opening );
+		if ( opening ) {
+			DemoCtrl_EnableFreeCamView();
+		}
+	}
+}
+
+static int DemoCtrl_ButtonDrawer( int btn ) {
+	if ( DemoCtrl_IsLeftButton( btn ) ) {
+		return DEMOCTRL_DRAWER_LEFT;
+	}
+	if ( DemoCtrl_IsCamSideButton( btn ) ) {
+		return DEMOCTRL_DRAWER_RIGHT_CAM;
+	}
+	if ( DemoCtrl_IsDisplayButton( btn ) ) {
+		return DEMOCTRL_DRAWER_RIGHT_DISP;
+	}
+	return -1;
+}
+
+static const char *DemoCtrl_DrawerLabel( int drawer ) {
+	switch ( drawer ) {
+	case DEMOCTRL_DRAWER_LEFT:
+		return "EDIT CAMS";
+	case DEMOCTRL_DRAWER_RIGHT_CAM:
+		return "VIEWS";
+	case DEMOCTRL_DRAWER_RIGHT_DISP:
+		return "DISPLAY";
+	default:
+		return "";
+	}
+}
+
+static qboolean DemoCtrl_DrawerIsLeft( int drawer ) {
+	return ( drawer == DEMOCTRL_DRAWER_LEFT ) ? qtrue : qfalse;
+}
+
+static void DemoCtrl_DrawerLayout( int drawer, int *bodyX, int *bodyY, int *bodyW, int *bodyH,
+		int *tabX, int *tabY, int *tabW, int *tabH ) {
+	int		x, y, w, h;
+	int		x2, y2, w2, h2;
+	int		openX;
+	float	frac;
+
+	*tabW = DEMOCTRL_TAB_W;
+	frac = dc_drawerFrac[drawer];
+
+	if ( drawer == DEMOCTRL_DRAWER_LEFT ) {
+		*bodyW = DEMOCTRL_LEFT_BTN_W + 16;
+		DemoCtrl_ButtonRectBase( DEMOCTRL_CAMADD, &x, &y, &w, &h );
+		*bodyY = y - DEMOCTRL_SIDE_HDR_H - 4;
+		DemoCtrl_ButtonRectBase( DEMOCTRL_CAMSAVE, &x2, &y2, &w2, &h2 );
+		*bodyH = ( y2 + h2 + 6 ) - *bodyY;
+		*tabX = 0;
+		*tabY = *bodyY;
+		*tabH = *bodyH;
+		openX = *tabW;
+		*bodyX = openX + (int)( ( frac - 1.0f ) * (float)*bodyW );
+	} else {
+		*bodyW = DEMOCTRL_SIDE_BTN_W + 16;
+		if ( drawer == DEMOCTRL_DRAWER_RIGHT_CAM ) {
+			DemoCtrl_ButtonRectBase( DEMOCTRL_CAM_1ST, &x, &y, &w, &h );
+			DemoCtrl_ButtonRectBase( DEMOCTRL_SHOT, &x2, &y2, &w2, &h2 );
+		} else {
+			DemoCtrl_ButtonRectBase( DEMOCTRL_ITEMS, &x, &y, &w, &h );
+			DemoCtrl_ButtonRectBase( DEMOCTRL_DELAG, &x2, &y2, &w2, &h2 );
+		}
+		*bodyY = y - DEMOCTRL_SIDE_HDR_H - 4;
+		*bodyH = ( y2 + h2 + 6 ) - *bodyY;
+		*tabX = SCREEN_WIDTH - DEMOCTRL_TAB_W;
+		*tabY = *bodyY;
+		*tabH = *bodyH;
+		openX = *tabX - *bodyW;
+		*bodyX = openX + (int)( ( 1.0f - frac ) * (float)*bodyW );
+	}
+}
+
+static void DemoCtrl_ButtonRect( int btn, int *x, int *y, int *w, int *h ) {
+	int		drawer;
+	int		bodyX, bodyY, bodyW, bodyH;
+	int		tabX, tabY, tabW, tabH;
+	int		baseBodyX;
+
+	DemoCtrl_ButtonRectBase( btn, x, y, w, h );
+	drawer = DemoCtrl_ButtonDrawer( btn );
+	if ( drawer < 0 ) {
+		return;
+	}
+	DemoCtrl_UpdateDrawers();
+	DemoCtrl_DrawerLayout( drawer, &bodyX, &bodyY, &bodyW, &bodyH,
+			&tabX, &tabY, &tabW, &tabH );
+	if ( DemoCtrl_DrawerIsLeft( drawer ) ) {
+		baseBodyX = DEMOCTRL_SIDE_MARGIN - 8;
+		if ( baseBodyX < 0 ) {
+			baseBodyX = 0;
+		}
+	} else {
+		baseBodyX = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_SIDE_BTN_W - 8;
+	}
+	*x += bodyX - baseBodyX;
+}
+
+static int DemoCtrl_DrawerHitTest( int mx, int my ) {
+	int	i;
+	int	bodyX, bodyY, bodyW, bodyH;
+	int	tabX, tabY, tabW, tabH;
+	int	hdrY;
+	int	hdrH;
+
+	DemoCtrl_UpdateDrawers();
+	for ( i = 0; i < DEMOCTRL_NUM_DRAWERS; i++ ) {
+		DemoCtrl_DrawerLayout( i, &bodyX, &bodyY, &bodyW, &bodyH,
+				&tabX, &tabY, &tabW, &tabH );
+		if ( mx >= tabX && mx < tabX + tabW && my >= tabY && my < tabY + tabH ) {
+			return i;
+		}
+		if ( dc_drawerFrac[i] > 0.5f ) {
+			hdrY = bodyY;
+			hdrH = DEMOCTRL_SIDE_HDR_H + 4;
+			if ( mx >= bodyX && mx < bodyX + bodyW && my >= hdrY && my < hdrY + hdrH ) {
+				return i;
+			}
+		}
+	}
+	return -1;
+}
+
+static void DemoCtrl_DrawVerticalText( int cx, int y, int h, const char *s, const float *color ) {
+	int		i;
+	int		n;
+	int		textH;
+	int		startY;
+	char	ch[2];
+
+	if ( !s || !s[0] ) {
+		return;
+	}
+	n = CG_DrawStrlen( s );
+	textH = n * DEMOCTRL_SIDE_CHAR_H;
+	startY = y + ( h - textH ) / 2;
+	if ( startY < y ) {
+		startY = y;
+	}
+	ch[1] = '\0';
+	for ( i = 0; i < n; i++ ) {
+		ch[0] = s[i];
+		CG_DrawStringExt( cx - DEMOCTRL_SIDE_CHAR_W / 2, startY + i * DEMOCTRL_SIDE_CHAR_H,
+				ch, color, qtrue, qtrue, DEMOCTRL_SIDE_CHAR_W, DEMOCTRL_SIDE_CHAR_H, 1 );
+	}
+}
+
+static void DemoCtrl_DrawLeftSubheads( void ) {
+	static const int	below[3] = { DEMOCTRL_CAMFIX, DEMOCTRL_CAMRAILADD, DEMOCTRL_CAMLOAD };
+	static const char	*labels[3] = { "Type", "Rail Cams", "Config File" };
+	int		i;
+	int		x, y, w, h;
+	vec4_t	color;
+
+	color[0] = 0.72f;
+	color[1] = 0.74f;
+	color[2] = 0.80f;
+	color[3] = 0.95f;
+	for ( i = 0; i < 3; i++ ) {
+		DemoCtrl_ButtonRect( below[i], &x, &y, &w, &h );
+		CG_DrawStringExt( x, y - DEMOCTRL_SIDE_SUB_H + 1, labels[i], color, qtrue, qtrue,
+				DEMOCTRL_SIDE_CHAR_W, DEMOCTRL_SIDE_CHAR_H, 0 );
+	}
+}
+
+static void DemoCtrl_DrawDrawerChrome( int drawer, const float *panel, const float *hover,
+		const float *textColor, const float *border ) {
+	int			bodyX, bodyY, bodyW, bodyH;
+	int			tabX, tabY, tabW, tabH;
+	int			innerY;
+	int			innerH;
+	const char	*label;
+	const char	*chev;
+	const float	*tabFill;
+	vec4_t		hdrColor;
+
+	DemoCtrl_DrawerLayout( drawer, &bodyX, &bodyY, &bodyW, &bodyH,
+			&tabX, &tabY, &tabW, &tabH );
+	label = DemoCtrl_DrawerLabel( drawer );
+	if ( DemoCtrl_DrawerIsLeft( drawer ) ) {
+		chev = ( dc_drawerFrac[drawer] > 0.5f ) ? "<" : ">";
+	} else {
+		chev = ( dc_drawerFrac[drawer] > 0.5f ) ? ">" : "<";
+	}
+
+	if ( dc_drawerFrac[drawer] > 0.02f ) {
+		CG_FillRect( bodyX, bodyY, bodyW, bodyH, panel );
+	}
+
+	tabFill = ( dc_hoverDrawer == drawer ) ? hover : panel;
+	CG_FillRect( tabX, tabY, tabW, tabH, tabFill );
+	CG_DrawRect( tabX, tabY, tabW, tabH, 1, border );
+
+	hdrColor[0] = 0.85f;
+	hdrColor[1] = 0.85f;
+	hdrColor[2] = 0.90f;
+	hdrColor[3] = 0.95f;
+	CG_DrawStringExt( tabX + ( tabW - DEMOCTRL_SIDE_CHAR_W ) / 2, tabY + 4,
+			chev, textColor, qtrue, qtrue, DEMOCTRL_SIDE_CHAR_W, DEMOCTRL_SIDE_CHAR_H, 1 );
+	CG_DrawStringExt( tabX + ( tabW - DEMOCTRL_SIDE_CHAR_W ) / 2,
+			tabY + tabH - 4 - DEMOCTRL_SIDE_CHAR_H,
+			chev, textColor, qtrue, qtrue, DEMOCTRL_SIDE_CHAR_W, DEMOCTRL_SIDE_CHAR_H, 1 );
+	innerY = tabY + DEMOCTRL_SIDE_CHAR_H + 8;
+	innerH = tabH - 2 * ( DEMOCTRL_SIDE_CHAR_H + 8 );
+	if ( innerH > DEMOCTRL_SIDE_CHAR_H ) {
+		DemoCtrl_DrawVerticalText( tabX + tabW / 2, innerY, innerH, label, hdrColor );
+	}
+
+	if ( dc_drawerFrac[drawer] > 0.45f ) {
+		int		hdrLen;
+		char	hdr[32];
+		int		hx;
+
+		Com_sprintf( hdr, sizeof( hdr ), "%s  %s  %s", chev, label, chev );
+		hdrLen = CG_DrawStrlen( hdr );
+		hx = bodyX + ( bodyW - hdrLen * DEMOCTRL_SIDE_CHAR_W ) / 2;
+		CG_DrawStringExt( hx, bodyY + 3, hdr, hdrColor, qtrue, qtrue,
+				DEMOCTRL_SIDE_CHAR_W, DEMOCTRL_SIDE_CHAR_H, 0 );
+		if ( drawer == DEMOCTRL_DRAWER_LEFT ) {
+			DemoCtrl_DrawLeftSubheads();
+		}
+	}
+}
+
 static const char *DemoCtrl_ButtonTip( int btn ) {
 	switch ( btn ) {
 	case DEMOCTRL_REW3:
@@ -557,7 +907,7 @@ static const char *DemoCtrl_ButtonTip( int btn ) {
 	case DEMOCTRL_FREECAM:
 		return "Fly a free camera";
 	case DEMOCTRL_CAM_RIGS:
-		return "Cut between placed cameras and rails";
+		return "Track player via dynamic cameras";
 	case DEMOCTRL_SHOT:
 		return "Save a screenshot";
 	case DEMOCTRL_ITEMS:
@@ -578,18 +928,20 @@ static const char *DemoCtrl_ButtonTip( int btn ) {
 		return "^2Enable^7/^1Disable ^7replay de-lag reconstruction";
 	case DEMOCTRL_CAMADD:
 		return "^3Place ^7a camera here";
-	case DEMOCTRL_CAMSHOW:
-		return "^2Show^7/^1hide ^7camera and rail markers";
 	case DEMOCTRL_CAMDEL:
 		return "^1Remove ^7the nearest camera or rail point";
 	case DEMOCTRL_CAMFIX:
 		return "Set nearest camera to ^3fixed ^7(no pan or zoom)";
 	case DEMOCTRL_CAMDYN:
 		return "Set nearest camera to ^2dynamic ^7(track the action)";
+	case DEMOCTRL_CAMJOIN:
+		return "Insert nearest camera onto the nearest rail";
 	case DEMOCTRL_CAMRAILADD:
-		return "^3Add ^7a rail point at this free-cam pose";
+		return "^3Add ^7a rail node at this free-cam pose";
 	case DEMOCTRL_CAMRAILNEW:
-		return "Start a ^3new rail ^7on the next Add Rail Pt";
+		return "Start a ^3new rail ^7on the next + Node";
+	case DEMOCTRL_CAMRAILSEL:
+		return "Make the nearest rail ^3active ^7for editing";
 	case DEMOCTRL_CAMLOAD:
 		return "^1Reload ^7cameras and rails from disk";
 	case DEMOCTRL_CAMSAVE:
@@ -673,8 +1025,14 @@ static void DemoCtrl_DrawHoverTip( int btn ) {
 static int DemoCtrl_HitTest( int mx, int my ) {
 	int i;
 	int x, y, w, h;
+	int drawer;
 
+	DemoCtrl_UpdateDrawers();
 	for ( i = 0; i < DEMOCTRL_NUM_BTNS; i++ ) {
+		drawer = DemoCtrl_ButtonDrawer( i );
+		if ( drawer >= 0 && dc_drawerFrac[drawer] < 0.35f ) {
+			continue;
+		}
 		DemoCtrl_ButtonRect( i, &x, &y, &w, &h );
 		if ( mx >= x && mx < x + w && my >= y && my < y + h ) {
 			return i;
@@ -897,13 +1255,13 @@ static void DemoCtrl_Activate( int btn ) {
 		if ( dc_rigView ) {
 			break;
 		}
+		if ( !CG_DemoCams_HasAny() ) {
+			CG_Printf( "No dynamic cameras defined for this map\n" );
+			break;
+		}
 		DemoCtrl_DisableFreeCam();
 		dc_rigView = qtrue;
 		DemoCtrl_SyncCamHud();
-		trap_Cvar_Set( "cg_demoDynamicCam", "1" );
-		if ( CG_DemoCams_Count() <= 0 && CG_DemoCams_RailCount() <= 0 ) {
-			CG_Printf( "No cameras or rails for this map yet. Use Add Camera / Rail Pt on the left, then Save.\n" );
-		}
 		break;
 	case DEMOCTRL_CAMADD:
 		CG_DemoCams_AddCurrent();
@@ -914,8 +1272,8 @@ static void DemoCtrl_Activate( int btn ) {
 	case DEMOCTRL_CAMRAILNEW:
 		CG_DemoCams_NewRail();
 		break;
-	case DEMOCTRL_CAMSHOW:
-		CG_DemoCams_ToggleShow();
+	case DEMOCTRL_CAMRAILSEL:
+		CG_DemoCams_SelectNearestRail();
 		break;
 	case DEMOCTRL_CAMDEL:
 		CG_DemoCams_RemoveNearest();
@@ -925,6 +1283,9 @@ static void DemoCtrl_Activate( int btn ) {
 		break;
 	case DEMOCTRL_CAMDYN:
 		CG_DemoCams_SetNearestDynamic( qtrue );
+		break;
+	case DEMOCTRL_CAMJOIN:
+		CG_DemoCams_JoinNearestToRail();
 		break;
 	case DEMOCTRL_CAMLOAD:
 		CG_DemoCams_Load();
@@ -1207,23 +1568,28 @@ static qboolean DemoCtrl_SnapIntermission( void ) {
 }
 
 static void DemoCtrl_ApplyDynamicCamCvar( void ) {
-	if ( cg_demoDynamicCam.integer ) {
-		if ( dc_rigView ) {
-			return;
-		}
-		DemoCtrl_DisableFreeCam();
-		dc_rigView = qtrue;
-		DemoCtrl_SyncCamHud();
+	if ( !cg_demoDynamicCam.integer ) {
 		return;
 	}
-	if ( dc_rigView ) {
-		DemoCtrl_DisableRigCam();
+	trap_Cvar_Set( "cg_demoDynamicCam", "0" );
+	if ( dc_dynamicCamCvarSeen ) {
+		return;
+	}
+	dc_dynamicCamCvarSeen = qtrue;
+	if ( !CG_DemoCams_HasAny() ) {
+		CG_Printf( "No dynamic cameras defined for this map\n" );
+		return;
+	}
+	if ( !dc_rigView ) {
+		DemoCtrl_DisableFreeCam();
+		dc_rigView = qtrue;
 		DemoCtrl_SyncCamHud();
 	}
 }
 
 static void DemoCtrl_SyncCamHud( void ) {
-	if ( ( dc_freeView || dc_rigView ) && !DemoCtrl_SnapIntermission() ) {
+	if ( ( CG_DemoControls_FreeCamActive() || CG_DemoControls_RigCamActive() )
+			&& !DemoCtrl_SnapIntermission() ) {
 		DemoCtrl_FreeCamHudOff();
 	} else {
 		DemoCtrl_FreeCamHudRestore();
@@ -1241,51 +1607,59 @@ static void DemoCtrl_FreeCamReset( void ) {
 	VectorClear( dc_freeAngles );
 }
 
-static void DemoCtrl_EnterFreeCamLook( void ) {
+static void DemoCtrl_EnableFreeCamView( void ) {
 	vec3_t		mins, maxs, dest, forward;
 	trace_t		tr;
 	int			skip;
 	float		dist;
 
-	if ( !dc_freeView ) {
-		VectorSet( mins, -12, -12, -12 );
-		VectorSet( maxs, 12, 12, 12 );
-		skip = ENTITYNUM_NONE;
-		if ( cg.snap ) {
-			skip = cg.snap->ps.clientNum;
-		}
-
-		if ( cg.refdef.width > 0 ) {
-			VectorCopy( cg.refdef.vieworg, dc_freeOrigin );
-			VectorCopy( cg.refdefViewAngles, dc_freeAngles );
-		} else if ( cg.snap ) {
-			VectorCopy( cg.predictedPlayerState.origin, dc_freeOrigin );
-			dc_freeOrigin[2] += cg.predictedPlayerState.viewheight;
-			VectorCopy( cg.predictedPlayerState.viewangles, dc_freeAngles );
-		}
-
-		dc_freeAngles[ROLL] = 0.0f;
-
-		dist = 0.0f;
-		if ( cg.snap ) {
-			dist = Distance( dc_freeOrigin, cg.predictedPlayerState.origin );
-		}
-		if ( dist < 40.0f ) {
-			AngleVectors( dc_freeAngles, forward, NULL, NULL );
-			VectorMA( dc_freeOrigin, -DEMOCTRL_FREECAM_PULLBACK, forward, dest );
-			CG_Trace( &tr, dc_freeOrigin, mins, maxs, dest, skip, MASK_DEADSOLID );
-			if ( !tr.startsolid ) {
-				VectorCopy( tr.endpos, dc_freeOrigin );
-			}
-		}
-
-		dc_freeView = qtrue;
+	DemoCtrl_DisableRigCam();
+	if ( dc_freeView ) {
 		DemoCtrl_SyncCamHud();
-		if ( !dc_freeHintShown ) {
-			CG_Printf( "Free cam: movement keys fly, fire weapon shows overlay, click the view to look, 1st or 3rd exits.\n" );
-			dc_freeHintShown = qtrue;
+		return;
+	}
+
+	VectorSet( mins, -12, -12, -12 );
+	VectorSet( maxs, 12, 12, 12 );
+	skip = ENTITYNUM_NONE;
+	if ( cg.snap ) {
+		skip = cg.snap->ps.clientNum;
+	}
+
+	if ( cg.refdef.width > 0 ) {
+		VectorCopy( cg.refdef.vieworg, dc_freeOrigin );
+		VectorCopy( cg.refdefViewAngles, dc_freeAngles );
+	} else if ( cg.snap ) {
+		VectorCopy( cg.predictedPlayerState.origin, dc_freeOrigin );
+		dc_freeOrigin[2] += cg.predictedPlayerState.viewheight;
+		VectorCopy( cg.predictedPlayerState.viewangles, dc_freeAngles );
+	}
+
+	dc_freeAngles[ROLL] = 0.0f;
+
+	dist = 0.0f;
+	if ( cg.snap ) {
+		dist = Distance( dc_freeOrigin, cg.predictedPlayerState.origin );
+	}
+	if ( dist < 40.0f ) {
+		AngleVectors( dc_freeAngles, forward, NULL, NULL );
+		VectorMA( dc_freeOrigin, -DEMOCTRL_FREECAM_PULLBACK, forward, dest );
+		CG_Trace( &tr, dc_freeOrigin, mins, maxs, dest, skip, MASK_DEADSOLID );
+		if ( !tr.startsolid ) {
+			VectorCopy( tr.endpos, dc_freeOrigin );
 		}
 	}
+
+	dc_freeView = qtrue;
+	DemoCtrl_SyncCamHud();
+	if ( !dc_freeHintShown ) {
+		CG_Printf( "Free cam: movement keys fly, fire weapon shows overlay, click the view to look, 1st or 3rd exits.\n" );
+		dc_freeHintShown = qtrue;
+	}
+}
+
+static void DemoCtrl_EnterFreeCamLook( void ) {
+	DemoCtrl_EnableFreeCamView();
 	dc_freeLook = qtrue;
 	dc_freeLastMs = trap_Milliseconds();
 	dc_moveBits = 0;
@@ -1429,11 +1803,11 @@ static void DemoCtrl_FreeCamMove( void ) {
 }
 
 qboolean CG_DemoControls_FreeCamActive( void ) {
-	return ( cg.demoPlayback && dc_freeView ) ? qtrue : qfalse;
+	return ( cg.demoPlayback && dc_freeView && !dc_seeking ) ? qtrue : qfalse;
 }
 
 qboolean CG_DemoControls_RigCamActive( void ) {
-	return ( cg.demoPlayback && dc_rigView && !DemoCtrl_SnapIntermission() ) ? qtrue : qfalse;
+	return ( cg.demoPlayback && dc_rigView && !dc_seeking && !DemoCtrl_SnapIntermission() ) ? qtrue : qfalse;
 }
 
 void CG_DemoControls_FreeCamView( vec3_t origin, vec3_t angles ) {
@@ -1721,6 +2095,51 @@ static void DemoCtrl_SeekWriteCvars( void ) {
 	trap_Cvar_Set( "cg_demoSeekActive", "1" );
 	trap_Cvar_Set( "cg_demoSeekTargetMs", va( "%d", dc_seekTargetMs ) );
 	trap_Cvar_Set( "cg_demoSeekResume", va( "%f", dc_seekResumeTs ) );
+	trap_Cvar_Set( "cg_demoSeekCam", va( "%d", dc_seekCamMode ) );
+	trap_Cvar_Set( "cg_demoSeekThird", va( "%d", dc_seekThirdPerson ) );
+	trap_Cvar_Set( "cg_demoSeekFree", va( "%.2f %.2f %.2f %.2f %.2f %.2f",
+			dc_seekFreeOrigin[0], dc_seekFreeOrigin[1], dc_seekFreeOrigin[2],
+			dc_seekFreeAngles[0], dc_seekFreeAngles[1], dc_seekFreeAngles[2] ) );
+}
+
+static void DemoCtrl_SeekSaveCam( void ) {
+	if ( dc_seekCamSaved ) {
+		return;
+	}
+	if ( dc_freeView ) {
+		dc_seekCamMode = 2;
+	} else if ( dc_rigView ) {
+		dc_seekCamMode = 3;
+	} else if ( cg_thirdPerson.integer ) {
+		dc_seekCamMode = 1;
+	} else {
+		dc_seekCamMode = 0;
+	}
+	dc_seekThirdPerson = cg_thirdPerson.integer;
+	VectorCopy( dc_freeOrigin, dc_seekFreeOrigin );
+	VectorCopy( dc_freeAngles, dc_seekFreeAngles );
+	dc_seekCamSaved = qtrue;
+}
+
+static void DemoCtrl_SeekRestoreCam( void ) {
+	if ( !dc_seekCamSaved ) {
+		return;
+	}
+	trap_Cvar_Set( "cg_thirdPerson", dc_seekThirdPerson ? "1" : "0" );
+	if ( dc_seekCamMode == 2 ) {
+		VectorCopy( dc_seekFreeOrigin, dc_freeOrigin );
+		VectorCopy( dc_seekFreeAngles, dc_freeAngles );
+		dc_freeView = qtrue;
+		dc_rigView = qfalse;
+	} else if ( dc_seekCamMode == 3 ) {
+		DemoCtrl_DisableFreeCam();
+		dc_rigView = qtrue;
+	} else {
+		DemoCtrl_DisableFreeCam();
+		DemoCtrl_DisableRigCam();
+	}
+	DemoCtrl_SyncCamHud();
+	dc_seekCamSaved = qfalse;
 }
 
 static void DemoCtrl_SeekClearCvars( void ) {
@@ -1779,6 +2198,7 @@ static void DemoCtrl_SeekFinish( qboolean applyResume ) {
 	dc_seekHoldTime = 0;
 	dc_seekModeKey = qfalse;
 	dc_seekModeHold = qfalse;
+	DemoCtrl_SeekRestoreCam();
 	DemoCtrl_SeekUnmute();
 	DemoCtrl_SeekClearCvars();
 	if ( applyResume ) {
@@ -1829,6 +2249,32 @@ static void DemoCtrl_SeekResumeFromCvars( void ) {
 	} else {
 		dc_seekMuted = qfalse;
 	}
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "cg_demoSeekCam", buf, sizeof( buf ) );
+	dc_seekCamMode = atoi( buf );
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "cg_demoSeekThird", buf, sizeof( buf ) );
+	dc_seekThirdPerson = atoi( buf );
+	{
+		char	*p;
+		const char	*token;
+		int		i;
+		char	freeBuf[128];
+
+		freeBuf[0] = '\0';
+		trap_Cvar_VariableStringBuffer( "cg_demoSeekFree", freeBuf, sizeof( freeBuf ) );
+		p = freeBuf;
+		for ( i = 0; i < 3; i++ ) {
+			token = COM_Parse( &p );
+			dc_seekFreeOrigin[i] = atof( token );
+		}
+		for ( i = 0; i < 3; i++ ) {
+			token = COM_Parse( &p );
+			dc_seekFreeAngles[i] = atof( token );
+		}
+	}
+	dc_seekCamSaved = qtrue;
+	trap_Cvar_Set( "cg_thirdPerson", "0" );
 	dc_seeking = qtrue;
 	dc_seekRestartPending = qfalse;
 	dc_seekAppliedTs = 0.0f;
@@ -1865,6 +2311,8 @@ static void DemoCtrl_SeekBegin( int targetMs ) {
 
 	if ( !dc_seeking ) {
 		dc_seekResumeTs = cg_timescale.value;
+		DemoCtrl_SeekSaveCam();
+		trap_Cvar_Set( "cg_thirdPerson", "0" );
 	}
 	dc_seekTargetMs = targetMs;
 	dc_seeking = qtrue;
@@ -1994,6 +2442,12 @@ void CG_DemoControls_Shutdown( void ) {
 	dc_seeking = qfalse;
 	dc_seekRestartPending = qfalse;
 	dc_shotHideFrames = 0;
+	dc_demoSession = qfalse;
+	dc_dynamicCamCvarSeen = qfalse;
+	if ( dc_seekCamSaved ) {
+		DemoCtrl_SeekRestoreCam();
+	}
+	DemoCtrl_DrawersReset();
 	DemoCtrl_FreeCamReset();
 	DemoCtrl_ReleaseCatcher();
 	CG_DemoEvents_Shutdown();
@@ -2010,10 +2464,24 @@ void CG_DemoControls_Frame( void ) {
 		dc_speedLabel[0] = '\0';
 		dc_timingReady = qfalse;
 		dc_shotHideFrames = 0;
+		if ( dc_demoSession ) {
+			dc_demoSession = qfalse;
+			dc_dynamicCamCvarSeen = qfalse;
+			DemoCtrl_DrawersReset();
+		}
+		if ( dc_seekCamSaved ) {
+			dc_seeking = qfalse;
+			DemoCtrl_SeekRestoreCam();
+		}
 		DemoCtrl_FreeCamReset();
 		DemoCtrl_ReleaseCatcher();
 		CG_DemoEvents_Shutdown();
 		return;
+	}
+	if ( !dc_demoSession ) {
+		dc_demoSession = qtrue;
+		dc_dynamicCamCvarSeen = qfalse;
+		DemoCtrl_DrawersReset();
 	}
 
 	DemoCtrl_ViewSaveIfNeeded();
@@ -2113,6 +2581,10 @@ qboolean CG_DemoControls_MouseEvent( int dx, int dy ) {
 
 		DemoCtrl_Wake();
 		dc_hoverBtn = DemoCtrl_HitTest( dc_cursorX, dc_cursorY );
+		dc_hoverDrawer = -1;
+		if ( dc_hoverBtn < 0 ) {
+			dc_hoverDrawer = DemoCtrl_DrawerHitTest( dc_cursorX, dc_cursorY );
+		}
 	}
 
 	cgs.cursorX = dc_cursorX;
@@ -2181,6 +2653,17 @@ qboolean CG_DemoControls_KeyEvent( int key, qboolean down ) {
 			}
 			return qtrue;
 		}
+		{
+			int drawer;
+
+			drawer = DemoCtrl_DrawerHitTest( dc_cursorX, dc_cursorY );
+			if ( drawer >= 0 ) {
+				if ( down ) {
+					DemoCtrl_ToggleDrawer( drawer );
+				}
+				return qtrue;
+			}
+		}
 		if ( down && DemoCtrl_HitTestTrack( dc_cursorX, dc_cursorY ) ) {
 			int x, y, w, h;
 			int mx;
@@ -2220,6 +2703,7 @@ void CG_DemoControls_Draw( void ) {
 	int panelX, panelW;
 	int len;
 	int cw, ch;
+	int drawer;
 	vec4_t panel;
 	vec4_t btnIdle;
 	vec4_t btnHover;
@@ -2240,7 +2724,7 @@ void CG_DemoControls_Draw( void ) {
 		const char *hint;
 		int hintLen;
 
-		hint = "Fire: overlay   click view: look   1st/3rd: follow player";
+		hint = "Fire: Overlay   Click View: Look   1ST/3RD: follow player";
 		cw = 6;
 		ch = 10;
 		hintLen = CG_DrawStrlen( hint );
@@ -2252,7 +2736,12 @@ void CG_DemoControls_Draw( void ) {
 		return;
 	}
 
+	DemoCtrl_UpdateDrawers();
 	dc_hoverBtn = DemoCtrl_HitTest( dc_cursorX, dc_cursorY );
+	dc_hoverDrawer = -1;
+	if ( dc_hoverBtn < 0 ) {
+		dc_hoverDrawer = DemoCtrl_DrawerHitTest( dc_cursorX, dc_cursorY );
+	}
 
 	panel[0] = 0.02f;
 	panel[1] = 0.02f;
@@ -2290,75 +2779,8 @@ void CG_DemoControls_Draw( void ) {
 			panel );
 
 	{
-		int sideX;
-		int sideY;
-		int sideW;
-		int sideH;
-
-		sideW = DEMOCTRL_SIDE_BTN_W + 16;
-		DemoCtrl_ButtonRect( DEMOCTRL_CAMADD, &x, &y, &w, &h );
-		sideY = y - DEMOCTRL_SIDE_HDR_H - 4;
-		DemoCtrl_ButtonRect( DEMOCTRL_CAMSAVE, &x, &y, &w, &h );
-		sideH = ( y + h + 6 ) - sideY;
-		sideX = DEMOCTRL_SIDE_MARGIN - 8;
-		if ( sideX < 0 ) {
-			sideX = 0;
-		}
-		CG_FillRect( sideX, sideY, sideW, sideH, panel );
-		{
-			char hdr[24];
-			int hdrLen;
-			vec4_t hdrColor;
-
-			Com_sprintf( hdr, sizeof( hdr ), "C:%d  R:%d", CG_DemoCams_Count(), CG_DemoCams_RailCount() );
-			hdrLen = CG_DrawStrlen( hdr );
-			hdrColor[0] = 0.85f;
-			hdrColor[1] = 0.85f;
-			hdrColor[2] = 0.90f;
-			hdrColor[3] = 0.95f;
-			CG_DrawStringExt( sideX + ( sideW - hdrLen * DEMOCTRL_SIDE_CHAR_W ) / 2,
-					sideY + 3, hdr, hdrColor, qtrue, qtrue,
-					DEMOCTRL_SIDE_CHAR_W, DEMOCTRL_SIDE_CHAR_H, 0 );
-		}
-
-		sideX = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_SIDE_BTN_W - 8;
-
-		DemoCtrl_ButtonRect( DEMOCTRL_CAM_1ST, &x, &y, &w, &h );
-		sideY = y - DEMOCTRL_SIDE_HDR_H - 4;
-		DemoCtrl_ButtonRect( DEMOCTRL_SHOT, &x, &y, &w, &h );
-		sideH = ( y + h + 6 ) - sideY;
-		CG_FillRect( sideX, sideY, sideW, sideH, panel );
-		{
-			const char *hdr = "Camera";
-			int hdrLen = CG_DrawStrlen( hdr );
-			vec4_t hdrColor;
-
-			hdrColor[0] = 0.85f;
-			hdrColor[1] = 0.85f;
-			hdrColor[2] = 0.90f;
-			hdrColor[3] = 0.95f;
-			CG_DrawStringExt( sideX + ( sideW - hdrLen * DEMOCTRL_SIDE_CHAR_W ) / 2,
-					sideY + 3, hdr, hdrColor, qtrue, qtrue,
-					DEMOCTRL_SIDE_CHAR_W, DEMOCTRL_SIDE_CHAR_H, 0 );
-		}
-
-		DemoCtrl_ButtonRect( DEMOCTRL_ITEMS, &x, &y, &w, &h );
-		sideY = y - DEMOCTRL_SIDE_HDR_H - 4;
-		DemoCtrl_ButtonRect( DEMOCTRL_DELAG, &x, &y, &w, &h );
-		sideH = ( y + h + 6 ) - sideY;
-		CG_FillRect( sideX, sideY, sideW, sideH, panel );
-		{
-			const char *hdr = "Display";
-			int hdrLen = CG_DrawStrlen( hdr );
-			vec4_t hdrColor;
-
-			hdrColor[0] = 0.85f;
-			hdrColor[1] = 0.85f;
-			hdrColor[2] = 0.90f;
-			hdrColor[3] = 0.95f;
-			CG_DrawStringExt( sideX + ( sideW - hdrLen * DEMOCTRL_SIDE_CHAR_W ) / 2,
-					sideY + 3, hdr, hdrColor, qtrue, qtrue,
-					DEMOCTRL_SIDE_CHAR_W, DEMOCTRL_SIDE_CHAR_H, 0 );
+		for ( drawer = 0; drawer < DEMOCTRL_NUM_DRAWERS; drawer++ ) {
+			DemoCtrl_DrawDrawerChrome( drawer, panel, btnHover, textColor, border );
 		}
 
 		DemoCtrl_ButtonRect( DEMOCTRL_LOCK, &x, &y, &w, &h );
@@ -2451,7 +2873,14 @@ void CG_DemoControls_Draw( void ) {
 	}
 
 	for ( i = 0; i < DEMOCTRL_NUM_BTNS; i++ ) {
+		drawer = DemoCtrl_ButtonDrawer( i );
+		if ( drawer >= 0 && dc_drawerFrac[drawer] < 0.05f ) {
+			continue;
+		}
 		DemoCtrl_ButtonRect( i, &x, &y, &w, &h );
+		if ( x + w < 0 || x > SCREEN_WIDTH ) {
+			continue;
+		}
 		isActive = qfalse;
 		if ( DemoCtrl_ButtonActive( i ) ) {
 			isActive = qtrue;
