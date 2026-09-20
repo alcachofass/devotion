@@ -18,6 +18,7 @@ Replay cameras: per-map poses, rails, director, and markers.
 #define DEMORAIL_SCORE_NEAR		280.0f
 #define DEMORAIL_LEAVE_RATIO		1.12f
 #define DEMOCAM_STICK_MSEC		1100
+#define DEMOCAM_LOS_GRACE_MSEC		280
 #define DEMOCAM_SWITCH_RATIO	1.38f
 #define DEMOCAM_CUT_FADE_MSEC	90
 #define DEMOCAM_ACTION_DIST		880.0f
@@ -78,11 +79,13 @@ static int			drailEdit;
 static qboolean		drailStartNew;
 static char			dcamLoadedMap[MAX_QPATH];
 static qboolean		dcamShow = qfalse;
+static qboolean		dcamDirty = qfalse;
 
 static int			dcamCur = -1;
 static int			dcamKind = DEMOCAM_KIND_STILL;
 static qboolean		dcamHasShot;
 static int			dcamStickMs;
+static int			dcamLosLostMs;
 static int			dcamCutStartMs;
 static int			dcamPending = -1;
 static int			dcamPendingKind;
@@ -123,6 +126,8 @@ static float DemoCam_AngleBetween( const vec3_t a, const vec3_t b );
 static int DemoCam_NearestIndex( void );
 static qboolean DemoCam_RailInsert( demoRail_t *r, int at, const vec3_t p );
 static int DemoCam_RailInsertAt( const demoRail_t *r, const vec3_t p );
+static qboolean DemoCam_ReadFile( const char *path, qboolean quiet );
+static qboolean DemoCam_WriteFile( const char *path, qboolean quiet );
 
 static void DemoCam_FilePath( char *out, int outSize ) {
 	const char	*map;
@@ -133,6 +138,39 @@ static void DemoCam_FilePath( char *out, int outSize ) {
 		return;
 	}
 	Com_sprintf( out, outSize, "cams/%s.cfg", map );
+}
+
+static void DemoCam_SessionPath( char *out, int outSize ) {
+	const char	*map;
+
+	map = cgs.mapbasename;
+	if ( !map[0] ) {
+		out[0] = '\0';
+		return;
+	}
+	Com_sprintf( out, outSize, "cams/%s.session.cfg", map );
+}
+
+static qboolean DemoCam_StashRequested( void ) {
+	char	flag[16];
+	char	map[MAX_QPATH];
+
+	flag[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "cg_demoCamStash", flag, sizeof( flag ) );
+	if ( atoi( flag ) == 0 ) {
+		return qfalse;
+	}
+	map[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "cg_demoCamStashMap", map, sizeof( map ) );
+	if ( !map[0] || Q_stricmp( map, cgs.mapbasename ) ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+static void DemoCam_ClearStashCvars( void ) {
+	trap_Cvar_Set( "cg_demoCamStash", "0" );
+	trap_Cvar_Set( "cg_demoCamStashMap", "" );
 }
 
 static void DemoCam_BumpItemGhostGen( void ) {
@@ -169,6 +207,7 @@ static void DemoCam_ResetDirector( void ) {
 	dcamKind = DEMOCAM_KIND_STILL;
 	dcamHasShot = qfalse;
 	dcamStickMs = 0;
+	dcamLosLostMs = 0;
 	dcamCutStartMs = 0;
 	dcamPending = -1;
 	dcamPendingKind = DEMOCAM_KIND_STILL;
@@ -495,14 +534,14 @@ static float DemoCam_PathSeen( const vec3_t from, const vec3_t recOrg, const vec
 	if ( nowClear ) {
 		return nowFrac;
 	}
-	if ( trap_R_inPVS( from, recOrg ) ) {
-		return DEMOCAM_HOLD_PVS + 0.25f * nowFrac;
+	if ( futureClear && bestApproach >= DEMOCAM_ENTER_DIST ) {
+		return 0.18f;
 	}
-	if ( futureClear && bestApproach >= 0.0f ) {
-		return 0.20f;
+	if ( trap_R_inPVS( from, recOrg ) ) {
+		return DEMOCAM_HOLD_PVS * 0.35f;
 	}
 	if ( futurePvs ) {
-		return DEMOCAM_HOLD_PVS * 0.5f;
+		return DEMOCAM_HOLD_PVS * 0.2f;
 	}
 	return 0.0f;
 }
@@ -1368,6 +1407,8 @@ static qboolean DemoCam_UpdateRest( int idx, const vec3_t lookAt ) {
 }
 
 void CG_DemoCams_LoadIfNeeded( void ) {
+	char	path[MAX_QPATH];
+
 	if ( !cg.demoPlayback ) {
 		return;
 	}
@@ -1377,7 +1418,16 @@ void CG_DemoCams_LoadIfNeeded( void ) {
 	if ( !Q_stricmp( dcamLoadedMap, cgs.mapbasename ) ) {
 		return;
 	}
-	CG_DemoCams_Load();
+	if ( DemoCam_StashRequested() ) {
+		DemoCam_SessionPath( path, sizeof( path ) );
+		if ( DemoCam_ReadFile( path, qtrue ) ) {
+			dcamDirty = qtrue;
+			return;
+		}
+	}
+	DemoCam_FilePath( path, sizeof( path ) );
+	DemoCam_ReadFile( path, qfalse );
+	dcamDirty = qfalse;
 }
 
 qboolean CG_DemoCams_HasAny( void ) {
@@ -1404,6 +1454,8 @@ void CG_DemoCams_AddCurrent( void ) {
 	dcams[dcamCount].dynamic = qtrue;
 	dcamCount++;
 	dcamShow = qtrue;
+	dcamDirty = qtrue;
+	CG_DemoCams_Stash();
 	CG_Printf( "Added dynamic camera %d at (%.0f %.0f %.0f)\n",
 			dcamCount,
 			dcams[dcamCount - 1].origin[0],
@@ -1485,6 +1537,8 @@ void CG_DemoCams_AddRailPoint( void ) {
 		return;
 	}
 	dcamShow = qtrue;
+	dcamDirty = qtrue;
+	CG_DemoCams_Stash();
 	CG_Printf( "Rail %d point %d at (%.0f %.0f %.0f)\n",
 			drailEdit + 1, at + 1,
 			r->pts[at][0], r->pts[at][1], r->pts[at][2] );
@@ -1503,6 +1557,79 @@ void CG_DemoCams_NewRail( void ) {
 	CG_Printf( "Next + Node starts rail %d.\n", drailCount + 1 );
 }
 
+void CG_DemoCams_SplitRail( void ) {
+	vec3_t		from;
+	vec3_t		q;
+	float		frac;
+	float		t;
+	float		d;
+	float		bestDist;
+	int			bestRail;
+	int			bestSeg;
+	int			i;
+	int			s;
+	int			j;
+	demoRail_t	*src;
+	demoRail_t	*dst;
+
+	if ( cg.refdef.width > 0 ) {
+		VectorCopy( cg.refdef.vieworg, from );
+	} else {
+		VectorCopy( cg.predictedPlayerState.origin, from );
+	}
+
+	bestRail = -1;
+	bestSeg = 0;
+	bestDist = 999999.0f;
+	for ( i = 0; i < drailCount; i++ ) {
+		src = &drails[i];
+		if ( src->n < 2 ) {
+			continue;
+		}
+		for ( s = 1; s < src->n; s++ ) {
+			t = DemoCam_SegT( src->pts[s - 1], src->pts[s], from );
+			if ( t <= 0.0f || t >= 1.0f ) {
+				continue;
+			}
+			DemoCam_ClosestOnSeg( src->pts[s - 1], src->pts[s], from, q, &frac );
+			d = Distance( from, q );
+			if ( d <= DEMOCAM_EDIT_RANGE && d < bestDist ) {
+				bestDist = d;
+				bestRail = i;
+				bestSeg = s;
+			}
+		}
+	}
+
+	if ( bestRail < 0 ) {
+		CG_Printf( "Stand between two rail points (within 128) to split.\n" );
+		return;
+	}
+	if ( drailCount >= DEMORAIL_MAX ) {
+		CG_Printf( "Rail list full (%d).\n", DEMORAIL_MAX );
+		return;
+	}
+
+	src = &drails[bestRail];
+	dst = &drails[drailCount];
+	dst->n = src->n - bestSeg;
+	for ( j = 0; j < dst->n; j++ ) {
+		VectorCopy( src->pts[bestSeg + j], dst->pts[j] );
+	}
+	src->n = bestSeg;
+	drailCount++;
+	drailEdit = bestRail;
+	drailStartNew = qfalse;
+	dcamShow = qtrue;
+	if ( dcamKind == DEMOCAM_KIND_RAIL && dcamCur == bestRail ) {
+		DemoCam_ResetDirector();
+	}
+	dcamDirty = qtrue;
+	CG_DemoCams_Stash();
+	CG_Printf( "Split rail %d into rails %d (%d pts) and %d (%d pts)\n",
+			bestRail + 1, bestRail + 1, src->n, drailCount, dst->n );
+}
+
 void CG_DemoCams_SetNearestDynamic( qboolean dynamic ) {
 	int	best;
 
@@ -1513,6 +1640,8 @@ void CG_DemoCams_SetNearestDynamic( qboolean dynamic ) {
 	}
 	dcams[best].dynamic = dynamic;
 	dcamShow = qtrue;
+	dcamDirty = qtrue;
+	CG_DemoCams_Stash();
 	CG_Printf( "Camera %d is now %s\n", best + 1, dynamic ? "dynamic" : "fixed" );
 }
 
@@ -1646,6 +1775,8 @@ void CG_DemoCams_JoinNearestToRail( void ) {
 	CG_Printf( "Camera %d joined rail %d as point %d\n",
 			bestCam + 1, bestRail + 1, bestAt + 1 );
 	DemoCam_RemoveCamAt( bestCam );
+	dcamDirty = qtrue;
+	CG_DemoCams_Stash();
 }
 
 static int DemoCam_NearestRailInRange( float maxDist ) {
@@ -1773,15 +1904,18 @@ void CG_DemoCams_RemoveNearest( void ) {
 		} else if ( dcamKind == DEMOCAM_KIND_RAIL && dcamCur == bestRail ) {
 			dcamRailT = 0.0f;
 		}
+		dcamDirty = qtrue;
+		CG_DemoCams_Stash();
 		return;
 	}
 
 	CG_Printf( "Removed camera %d\n", bestCam + 1 );
 	DemoCam_RemoveCamAt( bestCam );
+	dcamDirty = qtrue;
+	CG_DemoCams_Stash();
 }
 
-void CG_DemoCams_Load( void ) {
-	char			path[MAX_QPATH];
+static qboolean DemoCam_ReadFile( const char *path, qboolean quiet ) {
 	char			buf[DEMOCAM_FILE_MAX];
 	fileHandle_t	f;
 	int				len;
@@ -1792,15 +1926,14 @@ void CG_DemoCams_Load( void ) {
 	qboolean		haveOrigin;
 	qboolean		haveAngles;
 
-	DemoCam_FilePath( path, sizeof( path ) );
 	dcamCount = 0;
 	drailCount = 0;
 	drailEdit = -1;
 	drailStartNew = qfalse;
 	DemoCam_ResetDirector();
 	Q_strncpyz( dcamLoadedMap, cgs.mapbasename, sizeof( dcamLoadedMap ) );
-	if ( !path[0] ) {
-		return;
+	if ( !path || !path[0] ) {
+		return qfalse;
 	}
 
 	len = trap_FS_FOpenFile( path, &f, FS_READ );
@@ -1808,12 +1941,14 @@ void CG_DemoCams_Load( void ) {
 		if ( f ) {
 			trap_FS_FCloseFile( f );
 		}
-		return;
+		return qfalse;
 	}
 	if ( len >= DEMOCAM_FILE_MAX ) {
 		trap_FS_FCloseFile( f );
-		CG_Printf( "Camera file too large: %s\n", path );
-		return;
+		if ( !quiet ) {
+			CG_Printf( "Camera file too large: %s\n", path );
+		}
+		return qfalse;
 	}
 	trap_FS_Read( buf, len, f );
 	trap_FS_FCloseFile( f );
@@ -1911,25 +2046,30 @@ void CG_DemoCams_Load( void ) {
 	if ( drailCount > 0 ) {
 		drailEdit = drailCount - 1;
 	}
-	CG_Printf( "Loaded %d cameras and %d rails from %s\n", dcamCount, drailCount, path );
+	if ( !quiet ) {
+		CG_Printf( "Loaded %d cameras and %d rails from %s\n", dcamCount, drailCount, path );
+	}
+	return qtrue;
 }
 
-void CG_DemoCams_Save( void ) {
-	char			path[MAX_QPATH];
+static qboolean DemoCam_WriteFile( const char *path, qboolean quiet ) {
 	char			line[256];
 	fileHandle_t	f;
 	int				i;
 	int				j;
 
-	DemoCam_FilePath( path, sizeof( path ) );
-	if ( !path[0] ) {
-		CG_Printf( "No map name; cannot save cameras.\n" );
-		return;
+	if ( !path || !path[0] ) {
+		if ( !quiet ) {
+			CG_Printf( "No map name; cannot save cameras.\n" );
+		}
+		return qfalse;
 	}
 	trap_FS_FOpenFile( path, &f, FS_WRITE );
 	if ( !f ) {
-		CG_Printf( "Failed to write %s\n", path );
-		return;
+		if ( !quiet ) {
+			CG_Printf( "Failed to write %s\n", path );
+		}
+		return qfalse;
 	}
 	Com_sprintf( line, sizeof( line ), "// devotion replay cameras for %s\n", cgs.mapbasename );
 	trap_FS_Write( line, (int)strlen( line ), f );
@@ -1957,7 +2097,54 @@ void CG_DemoCams_Save( void ) {
 	}
 	trap_FS_FCloseFile( f );
 	Q_strncpyz( dcamLoadedMap, cgs.mapbasename, sizeof( dcamLoadedMap ) );
-	CG_Printf( "Saved %d cameras and %d rails to %s\n", dcamCount, drailCount, path );
+	if ( !quiet ) {
+		CG_Printf( "Saved %d cameras and %d rails to %s\n", dcamCount, drailCount, path );
+	}
+	return qtrue;
+}
+
+void CG_DemoCams_Load( void ) {
+	char	path[MAX_QPATH];
+
+	DemoCam_FilePath( path, sizeof( path ) );
+	DemoCam_ReadFile( path, qfalse );
+	dcamDirty = qfalse;
+	DemoCam_ClearStashCvars();
+}
+
+void CG_DemoCams_Save( void ) {
+	char	path[MAX_QPATH];
+
+	DemoCam_FilePath( path, sizeof( path ) );
+	if ( !DemoCam_WriteFile( path, qfalse ) ) {
+		return;
+	}
+	dcamDirty = qfalse;
+	DemoCam_ClearStashCvars();
+}
+
+void CG_DemoCams_Stash( void ) {
+	char	path[MAX_QPATH];
+
+	if ( !cgs.mapbasename[0] ) {
+		return;
+	}
+	DemoCam_SessionPath( path, sizeof( path ) );
+	if ( !DemoCam_WriteFile( path, qtrue ) ) {
+		return;
+	}
+	trap_Cvar_Set( "cg_demoCamStash", "1" );
+	trap_Cvar_Set( "cg_demoCamStashMap", cgs.mapbasename );
+}
+
+void CG_DemoCams_ClearStash( void ) {
+	dcamDirty = qfalse;
+	DemoCam_ClearStashCvars();
+}
+
+qboolean CG_DemoCams_IsDirty( void ) {
+	CG_DemoCams_LoadIfNeeded();
+	return dcamDirty;
 }
 
 static void DemoCam_ApplyShot( int idx, int kind, float wantRailT, const vec3_t chaseOrg,
@@ -1965,12 +2152,38 @@ static void DemoCam_ApplyShot( int idx, int kind, float wantRailT, const vec3_t 
 	dcamKind = kind;
 	dcamCur = idx;
 	dcamHasShot = qtrue;
+	dcamLosLostMs = 0;
 	dcamRailVel = 0.0f;
 	if ( kind == DEMOCAM_KIND_RAIL ) {
 		dcamRailT = wantRailT;
 		DemoCam_RailChase( dcamCur, chaseOrg, recVel, railOrg, &wantRailT );
 		dcamRailT = wantRailT;
 	}
+}
+
+static qboolean DemoCam_HoldClearLos( const vec3_t recOrg, const vec3_t lookAt, qboolean haveRec ) {
+	vec3_t	from;
+	vec3_t	to;
+
+	if ( !dcamHasShot || DemoCam_IsPlayerKind( dcamKind ) ) {
+		return qtrue;
+	}
+	if ( haveRec ) {
+		VectorCopy( recOrg, to );
+	} else {
+		VectorCopy( lookAt, to );
+	}
+	if ( dcamKind == DEMOCAM_KIND_RAIL ) {
+		if ( !DemoCam_RailUsable( dcamCur ) ) {
+			return qfalse;
+		}
+		DemoCam_RailAt( &drails[dcamCur], dcamRailT, from );
+	} else if ( dcamKind == DEMOCAM_KIND_STILL && dcamCur >= 0 && dcamCur < dcamCount ) {
+		VectorCopy( dcams[dcamCur].origin, from );
+	} else {
+		return qfalse;
+	}
+	return ( DemoCam_TraceFrac( from, to ) >= DEMOCAM_LOS_CLEAR ) ? qtrue : qfalse;
 }
 
 static float DemoCam_HoldScore( const vec3_t lookAt, vec3_t framed[MAX_CLIENTS], int nframed,
@@ -2049,6 +2262,7 @@ void CG_DemoCams_DirectorFrame( void ) {
 	qboolean	haveShot;
 	qboolean	takeShot;
 	qboolean	playerSwap;
+	qboolean	holdLos;
 
 	if ( !cg.demoPlayback ) {
 		return;
@@ -2129,6 +2343,15 @@ void CG_DemoCams_DirectorFrame( void ) {
 		takeShot = qfalse;
 		playerSwap = qfalse;
 		holdScore = DemoCam_HoldScore( lookAt, framed, nframed, chaseOrg, recVel, haveRec );
+		holdLos = DemoCam_HoldClearLos( chaseOrg, lookAt, haveRec );
+		if ( holdLos ) {
+			dcamLosLostMs = 0;
+		} else if ( !dcamLosLostMs ) {
+			dcamLosLostMs = now;
+			if ( !dcamLosLostMs ) {
+				dcamLosLostMs = 1;
+			}
+		}
 		if ( DemoCam_IsPlayerKind( dcamKind ) ) {
 			if ( !DemoCam_IsPlayerKind( bestKind ) ) {
 				if ( now >= dcamStickMs ) {
@@ -2137,6 +2360,11 @@ void CG_DemoCams_DirectorFrame( void ) {
 			} else if ( now >= dcamStickMs ) {
 				playerSwap = qtrue;
 			}
+		} else if ( !holdLos && !DemoCam_IsPlayerKind( bestKind ) ) {
+			takeShot = qtrue;
+		} else if ( !holdLos && DemoCam_IsPlayerKind( bestKind )
+				&& now - dcamLosLostMs >= DEMOCAM_LOS_GRACE_MSEC ) {
+			takeShot = qtrue;
 		} else if ( holdScore <= 0.0f ) {
 			takeShot = qtrue;
 		} else if ( !DemoCam_IsPlayerKind( bestKind ) && now >= dcamStickMs ) {

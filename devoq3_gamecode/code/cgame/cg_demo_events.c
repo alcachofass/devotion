@@ -1866,7 +1866,8 @@ void CG_DemoEvents_DrawTrack( int trackX, int trackY, int trackW, int trackH,
 	}
 }
 
-qboolean CG_DemoEvents_DrawMarkers( int trackX, int trackY, int trackW, int trackH, int firstServerTime, int durationMs, int cursorX, int cursorY ) {
+static qboolean DemoEv_DrawMarkersEx( int trackX, int trackY, int trackW, int trackH,
+		int firstServerTime, int durationMs, int cursorX, int cursorY, qboolean metaOnly ) {
 	int		i;
 	int		mx;
 	int		my;
@@ -1876,6 +1877,7 @@ qboolean CG_DemoEvents_DrawMarkers( int trackX, int trackY, int trackW, int trac
 	int		bestDist;
 	int		hoverY0;
 	int		hoverY1;
+	byte	kind;
 	vec4_t	color;
 
 	if ( durationMs <= 0 || trackW <= 0 ) {
@@ -1895,11 +1897,17 @@ qboolean CG_DemoEvents_DrawMarkers( int trackX, int trackY, int trackW, int trac
 	bestDist = 9999;
 
 	for ( i = 0; i < ev_count; i++ ) {
-		if ( ev_events[i].kind == DEMOEV_ROUND_START || ev_events[i].kind == DEMOEV_ROUND_END ) {
+		kind = ev_events[i].kind;
+		if ( metaOnly ) {
+			if ( kind != DEMOEV_MATCH_START && kind != DEMOEV_MATCH_END
+					&& kind != DEMOEV_ROUND_START && kind != DEMOEV_ROUND_END ) {
+				continue;
+			}
+		} else if ( kind == DEMOEV_ROUND_START || kind == DEMOEV_ROUND_END ) {
 			continue;
 		}
 		mx = DemoEv_MarkerX( trackX, trackW, firstServerTime, durationMs, ev_events[i].serverTime );
-		DemoEv_KindColor( ev_events[i].kind, color );
+		DemoEv_KindColor( kind, color );
 		CG_FillRect( mx, my, DEMOEV_MARKER_W, mh, color );
 
 		if ( cursorY >= hoverY0 && cursorY < hoverY1 ) {
@@ -1920,4 +1928,14 @@ qboolean CG_DemoEvents_DrawMarkers( int trackX, int trackY, int trackW, int trac
 		return qtrue;
 	}
 	return qfalse;
+}
+
+qboolean CG_DemoEvents_DrawMarkers( int trackX, int trackY, int trackW, int trackH, int firstServerTime, int durationMs, int cursorX, int cursorY ) {
+	return DemoEv_DrawMarkersEx( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
+			cursorX, cursorY, qfalse );
+}
+
+qboolean CG_DemoEvents_DrawMetaMarkers( int trackX, int trackY, int trackW, int trackH, int firstServerTime, int durationMs, int cursorX, int cursorY ) {
+	return DemoEv_DrawMarkersEx( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
+			cursorX, cursorY, qtrue );
 }
