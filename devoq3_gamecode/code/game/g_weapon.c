@@ -676,10 +676,8 @@ void weapon_grenadelauncher_fire (gentity_t *ent, qboolean altFire) {
 	}
 
 	// extra vertical velocity
-	if (!altFire) {
-		forward[2] += 0.2f;
-		VectorNormalize( forward );
-	}
+	forward[2] += 0.2f;
+	VectorNormalize( forward );
 
 	m = fire_grenade (ent, muzzle, forward);
 	m->damage *= s_quadFactor;

@@ -1712,7 +1712,11 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			case WP_PLASMAGUN:
 				VectorScale(forward, PLASMA_VELOCITY, pm->pos.trDelta);
 				SnapVector(pm->pos.trDelta);
-				pm->pos.trType = TR_LINEAR;
+				if (cent->altFire) {
+					pm->pos.trType = TR_GRAVITY;
+				} else {
+					pm->pos.trType = TR_LINEAR;
+				}
 				bolt->reType = RT_SPRITE;
 				bolt->radius = PLASMABALL_RADIUS;
 				bolt->rotation = 0;

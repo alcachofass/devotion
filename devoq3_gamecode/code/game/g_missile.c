@@ -1300,7 +1300,7 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 	if (bolt->altFire) {
 		bolt->damage = 35;
 		bolt->splashDamage = 35;
-		bolt->splashRadius = 350;
+		bolt->splashRadius = 800;
 	} else {
 		bolt->damage = 100;
 		bolt->splashDamage = 100;
@@ -1314,19 +1314,13 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 	//}
 	bolt->target_ent = NULL;
 
-	if (bolt->altFire)
-		bolt->s.pos.trType = TR_LINEAR;
-	else
-		bolt->s.pos.trType = TR_GRAVITY;
+	bolt->s.pos.trType = TR_GRAVITY;
 
 	bolt->s.pos.trTime = level.time;
 	//bolt->s.pos.trTime = level.time;
 	G_SetMissileLaunchTime(self, bolt);
 	VectorCopy( start, bolt->s.pos.trBase );
-	if (bolt->altFire)
-		VectorScale( dir, (GRENADE_VELOCITY*3), bolt->s.pos.trDelta );
-	else
-		VectorScale( dir, GRENADE_VELOCITY, bolt->s.pos.trDelta );
+	VectorScale( dir, GRENADE_VELOCITY, bolt->s.pos.trDelta );
 
 	SnapVector( bolt->s.pos.trDelta );			// save net bandwidth
 
