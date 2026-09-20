@@ -2280,6 +2280,16 @@ static void PM_Weapon( void ) {
 	//mrd TEST - this line might need to be higher up in this block
 	altFire = (pm->cmd.buttons & BUTTON_ALT_ATTACK) && pm->altFireEnabled;
 
+	//mrd - if special vortex grenade reload timer still running
+	//then reject additional vortex grenade shots
+	//and give them a regular shot
+	if ( pm->ps->weapon == WP_GRENADE_LAUNCHER 
+		&& altFire
+		&& ( pm->cmd.serverTime < pm->vortexReloadTime ) ) {
+			altFire = qfalse;
+		}
+
+
 	//mrd - track MG alt fire burst shots as a single "shot", even though it shoots 4
 
 	burstContinuing =
@@ -2302,10 +2312,6 @@ static void PM_Weapon( void ) {
 
 	burstShot = pm->altFireBurstShots;
 
-	//mrd - vortex grenades have a special reload time
-	if ( pm->ps->weapon == WP_GRENADE_LAUNCHER && altFire && pm->ps->stats[STAT_VORTEX_RELOAD] > 0 ) {
-		return;
-	}
 
 	//mrd - MG alt fire only consumes ammo on first firing event
 	if (altFire 
@@ -2337,11 +2343,6 @@ static void PM_Weapon( void ) {
 	// make weapon function
 	if ( pm->ps->weaponTime > 0 ) {
 		pm->ps->weaponTime -= pml.msec;
-	}
-
-	//mrd - track vortex grenade reload separately
-	if ( pm->ps->stats[STAT_VORTEX_RELOAD] > 0 ) {
-		pm->ps->stats[STAT_VORTEX_RELOAD] -= pml.msec;
 	}
 
 	// check for weapon change
@@ -2437,9 +2438,6 @@ static void PM_Weapon( void ) {
 	//if (pm->cmd.buttons & BUTTON_ALT_ATTACK) {
 	if (altFire) {
 		PM_AddEvent( EV_ALTFIRE_WEAPON );
-		if (pm->ps->weapon == WP_GRENADE_LAUNCHER){
-			pm->ps->stats[STAT_VORTEX_RELOAD] = VORTEX_RELOAD;
-		}
 	} else {
 		PM_AddEvent( EV_FIRE_WEAPON );
 	}
@@ -2465,6 +2463,7 @@ static void PM_Weapon( void ) {
 	case WP_GRENADE_LAUNCHER:
 		if (altFire){
 			addTime = 1000;
+			pm->vortexReloadTime = pm->cmd.serverTime + VORTEX_RELOAD;
 		} else {
 			addTime = 800;
 		}
