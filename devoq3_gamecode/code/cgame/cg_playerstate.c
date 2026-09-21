@@ -278,6 +278,9 @@ void CG_CheckChangedPredictableEvents( playerState_t *ps ) {
 }
 
 void CG_PushReward(sfxHandle_t sfx, qhandle_t shader, int rewardCount) {
+	if ( CG_DemoControls_PovRedirectHits() ) {
+		return;
+	}
 	if (cg_drawRewards.integer == 2) {
 		if (cg.rewardStack < (MAX_REWARDSTACK-1)) {
 			cg.rewardStack++;
@@ -379,6 +382,14 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 	int			health, armor;
 #endif
 	sfxHandle_t sfx;
+
+	if ( CG_DemoControls_PovRedirectHits() ) {
+		if ( ops->stats[STAT_HEALTH] > 0 && ps->stats[STAT_HEALTH] <= 0 ) {
+			CG_DemoControls_PovNoteFrag( ps->persistant[PERS_ATTACKER],
+					ps->clientNum, NULL );
+		}
+		return;
+	}
 
 	// don't play the sounds if the player just changed teams
 	if ( ps->persistant[PERS_TEAM] != ops->persistant[PERS_TEAM] ) {

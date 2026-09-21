@@ -457,7 +457,9 @@ void CG_InvulnerabilityImpact( vec3_t org, vec3_t angles ) {
 		static vec3_t lastPos;
 
 		// only visualize for the client that scored
-		if (client != cg.predictedPlayerState.clientNum || cg_scorePlum.integer == 0) {
+		if (client != ( ( CG_DemoControls_PovRedirectHits() )
+					? CG_DemoControls_PovClient() : cg.predictedPlayerState.clientNum )
+				|| cg_scorePlum.integer == 0) {
 			return;
 		}
 
@@ -497,7 +499,9 @@ void CG_InvulnerabilityImpact( vec3_t org, vec3_t angles ) {
 		static vec3_t lastPos;
 
 		// only visualize for the client that scored
-		if (client != cg.predictedPlayerState.clientNum || cg_scorePlum.integer == 0) {
+		if (client != ( ( CG_DemoControls_PovRedirectHits() )
+					? CG_DemoControls_PovClient() : cg.predictedPlayerState.clientNum )
+				|| cg_scorePlum.integer == 0) {
 			return;
 		}
 

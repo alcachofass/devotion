@@ -40,7 +40,7 @@ Chrome can hide after idle; hit-testing stays active so clicks still land.
 #define DEMOCTRL_SIDE_HDR_H		12
 #define DEMOCTRL_SIDE_SUB_H		10
 #define DEMOCTRL_SIDE_GROUP_GAP		10
-#define DEMOCTRL_SIDE_CAM_COUNT		5
+#define DEMOCTRL_SIDE_CAM_COUNT		6
 #define DEMOCTRL_SIDE_CHAR_W		5
 #define DEMOCTRL_SIDE_CHAR_H		8
 #define DEMOCTRL_TAB_W			18
@@ -81,6 +81,7 @@ typedef enum {
 	DEMOCTRL_CAM_3RD,
 	DEMOCTRL_FREECAM,
 	DEMOCTRL_CAM_RIGS,
+	DEMOCTRL_CAM_POV,
 	DEMOCTRL_SHOT,
 	DEMOCTRL_ITEMS,
 	DEMOCTRL_TIMERS,
@@ -172,6 +173,7 @@ static qboolean	dc_seekModeKey;
 static qboolean	dc_seekModeHold;
 static qboolean	dc_seekCamSaved;
 static int		dc_seekCamMode;
+static int		dc_seekPovClient;
 static int		dc_seekThirdPerson;
 static vec3_t	dc_seekFreeOrigin;
 static vec3_t	dc_seekFreeAngles;
@@ -194,6 +196,24 @@ static int		dc_clipModalHover;
 
 static qboolean	dc_freeView;
 static qboolean	dc_rigView;
+static qboolean	dc_povView;
+static int		dc_povClient = -1;
+static qboolean	dc_povEyes;
+static qboolean	dc_povHaveLast;
+static vec3_t	dc_povLastOrigin;
+static vec3_t	dc_povLastAngles;
+static char		dc_povBtnLabel[MAX_NAME_LENGTH];
+static int		dc_povAttackTime;
+static int		dc_povAttackWeapon;
+static int		dc_povHitSnap[MAX_CLIENTS];
+static qboolean	dc_povMenuOpen;
+static float	dc_povMenuFrac;
+static float	dc_povMenuFrom;
+static float	dc_povMenuTo;
+static int		dc_povMenuAnimMs;
+static int		dc_povMenuHover = -1;
+static int		dc_povMenuList[MAX_CLIENTS];
+static int		dc_povMenuCount;
 static qboolean	dc_freeLook;
 static vec3_t	dc_freeOrigin;
 static vec3_t	dc_freeAngles;
@@ -249,6 +269,12 @@ static void DemoCtrl_EnableFreeCamView( void );
 static void DemoCtrl_LeaveFreeCamLook( void );
 static void DemoCtrl_DisableFreeCam( void );
 static void DemoCtrl_DisableRigCam( void );
+static void DemoCtrl_DisablePov( void );
+static void DemoCtrl_PovMenuClose( void );
+static int DemoCtrl_PovMenuHitTest( int mx, int my );
+static qboolean DemoCtrl_PovMenuContains( int mx, int my );
+static void DemoCtrl_DrawPovMenu( vec4_t btnIdle, vec4_t btnHover, vec4_t btnActive, vec4_t border, vec4_t textColor );
+static void DemoCtrl_PovButtonClick( void );
 static void DemoCtrl_FreeCamMove( void );
 static void DemoCtrl_FreeCamHudOff( void );
 static void DemoCtrl_FreeCamHudRestore( void );
@@ -361,6 +387,11 @@ static const char *DemoCtrl_ButtonLabel( int btn ) {
 		return "Free Cam";
 	case DEMOCTRL_CAM_RIGS:
 		return "Dynamic";
+	case DEMOCTRL_CAM_POV:
+		if ( dc_povView && dc_povBtnLabel[0] ) {
+			return dc_povBtnLabel;
+		}
+		return "Others";
 	case DEMOCTRL_ITEMS:
 		return "Items";
 	case DEMOCTRL_TIMERS:
@@ -461,16 +492,18 @@ static qboolean DemoCtrl_ButtonActive( int btn ) {
 		if ( dc_seeking ) {
 			return qtrue;
 		}
-		return ( !dc_freeView && !dc_rigView && !cg_thirdPerson.integer ) ? qtrue : qfalse;
+		return ( !dc_freeView && !dc_rigView && !dc_povView && !cg_thirdPerson.integer ) ? qtrue : qfalse;
 	case DEMOCTRL_CAM_3RD:
 		if ( dc_seeking ) {
 			return qfalse;
 		}
-		return ( !dc_freeView && !dc_rigView && cg_thirdPerson.integer ) ? qtrue : qfalse;
+		return ( !dc_freeView && !dc_rigView && !dc_povView && cg_thirdPerson.integer ) ? qtrue : qfalse;
 	case DEMOCTRL_FREECAM:
 		return ( !dc_seeking && dc_freeView ) ? qtrue : qfalse;
 	case DEMOCTRL_CAM_RIGS:
 		return ( !dc_seeking && dc_rigView ) ? qtrue : qfalse;
+	case DEMOCTRL_CAM_POV:
+		return ( !dc_seeking && dc_povView ) ? qtrue : qfalse;
 	case DEMOCTRL_ITEMS:
 		return cg_simpleItems.integer ? qtrue : qfalse;
 	case DEMOCTRL_TIMERS:
@@ -740,7 +773,46 @@ static void DemoCtrl_DrawersReset( void ) {
 		dc_drawerAnimMs[i] = 0;
 	}
 	dc_hoverDrawer = -1;
+	dc_povMenuOpen = qfalse;
+	dc_povMenuFrac = 0.0f;
+	dc_povMenuFrom = 0.0f;
+	dc_povMenuTo = 0.0f;
+	dc_povMenuAnimMs = 0;
+	dc_povMenuHover = -1;
+	dc_povMenuCount = 0;
 	CG_DemoCams_SetShow( qfalse );
+}
+
+static void DemoCtrl_PovMenuTick( void ) {
+	int		now;
+	int		elapsed;
+	float	t;
+
+	if ( dc_drawerFrac[DEMOCTRL_DRAWER_RIGHT_CAM] < 0.35f && ( dc_povMenuOpen || dc_povMenuFrac > 0.0f ) ) {
+		dc_povMenuOpen = qfalse;
+		dc_povMenuTo = 0.0f;
+		dc_povMenuFrom = dc_povMenuFrac;
+		dc_povMenuAnimMs = 0;
+		dc_povMenuFrac = 0.0f;
+		dc_povMenuHover = -1;
+	}
+
+	now = trap_Milliseconds();
+	if ( !dc_povMenuAnimMs ) {
+		dc_povMenuFrac = dc_povMenuTo;
+		return;
+	}
+	elapsed = now - dc_povMenuAnimMs;
+	if ( elapsed >= DEMOCTRL_DRAWER_MSEC ) {
+		dc_povMenuFrac = dc_povMenuTo;
+		dc_povMenuAnimMs = 0;
+		return;
+	}
+	if ( elapsed < 0 ) {
+		elapsed = 0;
+	}
+	t = (float)elapsed / (float)DEMOCTRL_DRAWER_MSEC;
+	dc_povMenuFrac = dc_povMenuFrom + ( dc_povMenuTo - dc_povMenuFrom ) * t;
 }
 
 static void DemoCtrl_UpdateDrawers( void ) {
@@ -767,6 +839,7 @@ static void DemoCtrl_UpdateDrawers( void ) {
 		t = (float)elapsed / (float)DEMOCTRL_DRAWER_MSEC;
 		dc_drawerFrac[i] = dc_drawerFrom[i] + ( dc_drawerTo[i] - dc_drawerFrom[i] ) * t;
 	}
+	DemoCtrl_PovMenuTick();
 }
 
 static void DemoCtrl_ToggleDrawer( int drawer ) {
@@ -789,6 +862,9 @@ static void DemoCtrl_ToggleDrawer( int drawer ) {
 		if ( opening ) {
 			DemoCtrl_EnableFreeCamView();
 		}
+	}
+	if ( drawer == DEMOCTRL_DRAWER_RIGHT_CAM && !opening ) {
+		DemoCtrl_PovMenuClose();
 	}
 }
 
@@ -1084,6 +1160,8 @@ static const char *DemoCtrl_ButtonTip( int btn ) {
 		return "Fly a free camera";
 	case DEMOCTRL_CAM_RIGS:
 		return "Track player via dynamic cameras";
+	case DEMOCTRL_CAM_POV:
+		return "Choose another player's view";
 	case DEMOCTRL_SHOT:
 		return "Save a screenshot";
 	case DEMOCTRL_ITEMS:
@@ -1217,6 +1295,9 @@ static int DemoCtrl_HitTest( int mx, int my ) {
 	int drawer;
 
 	DemoCtrl_UpdateDrawers();
+	if ( DemoCtrl_PovMenuContains( mx, my ) ) {
+		return -1;
+	}
 	for ( i = 0; i < DEMOCTRL_NUM_BTNS; i++ ) {
 		drawer = DemoCtrl_ButtonDrawer( i );
 		if ( drawer >= 0 && dc_drawerFrac[drawer] < 0.35f ) {
@@ -1411,9 +1492,10 @@ static void DemoCtrl_Activate( int btn ) {
 		DemoCtrl_ExitReplay();
 		break;
 	case DEMOCTRL_CAM_1ST:
-		if ( !dc_freeView && !dc_rigView && !cg_thirdPerson.integer ) {
+		if ( !dc_freeView && !dc_rigView && !dc_povView && !cg_thirdPerson.integer ) {
 			break;
 		}
+		DemoCtrl_DisablePov();
 		DemoCtrl_DisableFreeCam();
 		DemoCtrl_DisableRigCam();
 		DemoCtrl_SyncCamHud();
@@ -1421,9 +1503,10 @@ static void DemoCtrl_Activate( int btn ) {
 		trap_Cvar_Set( "cg_thirdPerson", "0" );
 		break;
 	case DEMOCTRL_CAM_3RD:
-		if ( !dc_freeView && !dc_rigView && cg_thirdPerson.integer ) {
+		if ( !dc_freeView && !dc_rigView && !dc_povView && cg_thirdPerson.integer ) {
 			break;
 		}
+		DemoCtrl_DisablePov();
 		DemoCtrl_DisableFreeCam();
 		DemoCtrl_DisableRigCam();
 		DemoCtrl_SyncCamHud();
@@ -1437,6 +1520,7 @@ static void DemoCtrl_Activate( int btn ) {
 		if ( dc_freeView ) {
 			break;
 		}
+		DemoCtrl_DisablePov();
 		DemoCtrl_DisableRigCam();
 		trap_Cvar_Set( "cg_demoDynamicCam", "0" );
 		DemoCtrl_EnterFreeCamLook();
@@ -1449,9 +1533,13 @@ static void DemoCtrl_Activate( int btn ) {
 			CG_Printf( "No dynamic cameras defined for this map\n" );
 			break;
 		}
+		DemoCtrl_DisablePov();
 		DemoCtrl_DisableFreeCam();
 		dc_rigView = qtrue;
 		DemoCtrl_SyncCamHud();
+		break;
+	case DEMOCTRL_CAM_POV:
+		DemoCtrl_PovButtonClick();
 		break;
 	case DEMOCTRL_CAMADD:
 		CG_DemoCams_AddCurrent();
@@ -1791,6 +1879,7 @@ static void DemoCtrl_ApplyDynamicCamCvar( void ) {
 		return;
 	}
 	if ( !dc_rigView ) {
+		DemoCtrl_DisablePov();
 		DemoCtrl_DisableFreeCam();
 		dc_rigView = qtrue;
 		DemoCtrl_SyncCamHud();
@@ -1807,6 +1896,7 @@ static void DemoCtrl_SyncCamHud( void ) {
 }
 
 static void DemoCtrl_FreeCamReset( void ) {
+	DemoCtrl_DisablePov();
 	DemoCtrl_DisableFreeCam();
 	DemoCtrl_DisableRigCam();
 	DemoCtrl_SyncCamHud();
@@ -1823,6 +1913,7 @@ static void DemoCtrl_EnableFreeCamView( void ) {
 	int			skip;
 	float		dist;
 
+	DemoCtrl_DisablePov();
 	DemoCtrl_DisableRigCam();
 	if ( dc_freeView ) {
 		DemoCtrl_SyncCamHud();
@@ -1895,6 +1986,434 @@ static void DemoCtrl_LeaveFreeCamLook( void ) {
 
 static void DemoCtrl_DisableRigCam( void ) {
 	dc_rigView = qfalse;
+}
+
+static void DemoCtrl_DisablePov( void ) {
+	dc_povView = qfalse;
+	dc_povEyes = qfalse;
+	dc_povClient = -1;
+	dc_povBtnLabel[0] = '\0';
+	DemoCtrl_PovMenuClose();
+	CG_DemoHistory_SetPovClient( -1 );
+}
+
+static qboolean DemoCtrl_PovClientConnected( int clientNum ) {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	if ( !cgs.clientinfo[clientNum].infoValid ) {
+		return qfalse;
+	}
+	if ( !CG_ConfigString( CS_PLAYERS + clientNum )[0] ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+static qboolean DemoCtrl_PovClientInVis( int clientNum ) {
+	centity_t	*cent;
+
+	if ( !cg.snap || clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	/* First-person cam already covers the recording player. */
+	if ( clientNum == cg.snap->ps.clientNum ) {
+		return qfalse;
+	}
+	if ( !DemoCtrl_PovClientConnected( clientNum ) ) {
+		return qfalse;
+	}
+	cent = &cg_entities[clientNum];
+	if ( !cent->currentValid ) {
+		return qfalse;
+	}
+	if ( cent->currentState.eType != ET_PLAYER ) {
+		return qfalse;
+	}
+	if ( ( cent->currentState.eFlags & EF_DEAD ) && !CG_IsFrozenPlayerState( &cent->currentState ) ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+static int DemoCtrl_PovViewHeight( const entityState_t *es ) {
+	int	anim;
+
+	if ( !es ) {
+		return DEFAULT_VIEWHEIGHT;
+	}
+	if ( es->eFlags & EF_DEAD ) {
+		return DEAD_VIEWHEIGHT;
+	}
+	anim = es->legsAnim & ~ANIM_TOGGLEBIT;
+	if ( anim == LEGS_WALKCR || anim == LEGS_IDLECR ) {
+		return CROUCH_VIEWHEIGHT;
+	}
+	return DEFAULT_VIEWHEIGHT;
+}
+
+static void DemoCtrl_PovSample( int clientNum, vec3_t origin, vec3_t angles ) {
+	centity_t	*cent;
+	vec3_t		cur, nxt;
+	float		f;
+	int			vh;
+
+	if ( cg.snap && clientNum == cg.snap->ps.clientNum ) {
+		VectorCopy( cg.predictedPlayerState.origin, origin );
+		origin[2] += cg.predictedPlayerState.viewheight;
+		VectorCopy( cg.predictedPlayerState.viewangles, angles );
+		return;
+	}
+
+	cent = &cg_entities[clientNum];
+	f = cg.frameInterpolation;
+	if ( f < 0.0f ) {
+		f = 0.0f;
+	} else if ( f > 1.0f ) {
+		f = 1.0f;
+	}
+	if ( cent->interpolate && cg.nextSnap && cg.snap &&
+			cg.nextSnap->serverTime > cg.snap->serverTime ) {
+		BG_EvaluateTrajectory( &cent->currentState.pos, cg.snap->serverTime, cur );
+		BG_EvaluateTrajectory( &cent->nextState.pos, cg.nextSnap->serverTime, nxt );
+		origin[0] = cur[0] + f * ( nxt[0] - cur[0] );
+		origin[1] = cur[1] + f * ( nxt[1] - cur[1] );
+		origin[2] = cur[2] + f * ( nxt[2] - cur[2] );
+		BG_EvaluateTrajectory( &cent->currentState.apos, cg.snap->serverTime, cur );
+		BG_EvaluateTrajectory( &cent->nextState.apos, cg.nextSnap->serverTime, nxt );
+		angles[0] = LerpAngle( cur[0], nxt[0], f );
+		angles[1] = LerpAngle( cur[1], nxt[1], f );
+		angles[2] = LerpAngle( cur[2], nxt[2], f );
+		vh = DemoCtrl_PovViewHeight( ( f < 1.0f ) ? &cent->currentState : &cent->nextState );
+	} else {
+		VectorCopy( cent->currentState.pos.trBase, origin );
+		VectorCopy( cent->currentState.apos.trBase, angles );
+		vh = DemoCtrl_PovViewHeight( &cent->currentState );
+	}
+	origin[2] += vh;
+}
+
+static void DemoCtrl_PovCopyName( char *dst, int dstSize, int clientNum, int maxVis ) {
+	const char	*name;
+	int			i;
+	int			j;
+	int			vis;
+	int			fullVis;
+
+	if ( !dst || dstSize < 2 ) {
+		return;
+	}
+	dst[0] = '\0';
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+	name = "";
+	if ( cgs.clientinfo[clientNum].infoValid && cgs.clientinfo[clientNum].name[0] ) {
+		name = cgs.clientinfo[clientNum].name;
+	}
+	if ( !name[0] ) {
+		name = CG_DemoEvents_ClientName( clientNum );
+	}
+	if ( !name[0] ) {
+		Com_sprintf( dst, dstSize, "#%d", clientNum );
+		return;
+	}
+	fullVis = CG_DrawStrlen( name );
+	i = 0;
+	j = 0;
+	vis = 0;
+	while ( name[i] && j < dstSize - 2 ) {
+		if ( Q_IsColorString( name + i ) ) {
+			if ( j + 2 >= dstSize - 1 ) {
+				break;
+			}
+			dst[j++] = name[i++];
+			dst[j++] = name[i++];
+			continue;
+		}
+		if ( vis >= maxVis ) {
+			break;
+		}
+		dst[j++] = name[i++];
+		vis++;
+	}
+	if ( fullVis > maxVis && j < dstSize - 1 ) {
+		dst[j++] = '*';
+	}
+	dst[j] = '\0';
+}
+
+static void DemoCtrl_PovUpdateLabel( void ) {
+	char	name[MAX_NAME_LENGTH];
+
+	dc_povBtnLabel[0] = '\0';
+	if ( !dc_povView || dc_povClient < 0 || dc_povClient >= MAX_CLIENTS ) {
+		return;
+	}
+	DemoCtrl_PovCopyName( name, sizeof( name ), dc_povClient, 8 );
+	Com_sprintf( dc_povBtnLabel, sizeof( dc_povBtnLabel ), "POV: %s", name );
+}
+
+static int DemoCtrl_PovNextVis( int from ) {
+	int	i;
+	int	n;
+	int	start;
+
+	start = from;
+	if ( start < -1 ) {
+		start = -1;
+	}
+	for ( i = 1; i <= MAX_CLIENTS; i++ ) {
+		n = ( start + i ) % MAX_CLIENTS;
+		if ( DemoCtrl_PovClientInVis( n ) ) {
+			return n;
+		}
+	}
+	return -1;
+}
+
+static void DemoCtrl_PovEnter( int clientNum ) {
+	DemoCtrl_DisableFreeCam();
+	DemoCtrl_DisableRigCam();
+	dc_povView = qtrue;
+	dc_povClient = clientNum;
+	dc_povEyes = qtrue;
+	dc_povHaveLast = qfalse;
+	trap_Cvar_Set( "cg_demoDynamicCam", "0" );
+	trap_Cvar_Set( "cg_thirdPerson", "0" );
+	DemoCtrl_PovUpdateLabel();
+	DemoCtrl_SyncCamHud();
+}
+
+static void DemoCtrl_PovAbandon( void ) {
+	int	next;
+
+	next = DemoCtrl_PovNextVis( dc_povClient );
+	if ( next >= 0 ) {
+		DemoCtrl_PovEnter( next );
+		return;
+	}
+	DemoCtrl_DisablePov();
+	if ( CG_DemoCams_HasAny() ) {
+		DemoCtrl_DisableFreeCam();
+		dc_rigView = qtrue;
+	}
+	DemoCtrl_SyncCamHud();
+}
+
+static qboolean DemoCtrl_PovSelectable( int clientNum ) {
+	if ( !cg.snap || clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	if ( clientNum == cg.snap->ps.clientNum ) {
+		return qfalse;
+	}
+	if ( !DemoCtrl_PovClientConnected( clientNum ) ) {
+		return qfalse;
+	}
+	if ( cgs.clientinfo[clientNum].team == TEAM_SPECTATOR ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+static int DemoCtrl_PovCollect( int *out, int max ) {
+	int	i;
+	int	n;
+
+	n = 0;
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		if ( !DemoCtrl_PovSelectable( i ) ) {
+			continue;
+		}
+		if ( out && n < max ) {
+			out[n] = i;
+		}
+		n++;
+	}
+	return n;
+}
+
+static void DemoCtrl_PovMenuClose( void ) {
+	if ( !dc_povMenuOpen && dc_povMenuFrac <= 0.0f && !dc_povMenuAnimMs ) {
+		return;
+	}
+	dc_povMenuOpen = qfalse;
+	dc_povMenuFrom = dc_povMenuFrac;
+	dc_povMenuTo = 0.0f;
+	dc_povMenuAnimMs = trap_Milliseconds();
+	if ( !dc_povMenuAnimMs ) {
+		dc_povMenuAnimMs = 1;
+	}
+	dc_povMenuHover = -1;
+}
+
+static void DemoCtrl_PovMenuOpen( void ) {
+	dc_povMenuCount = DemoCtrl_PovCollect( dc_povMenuList, MAX_CLIENTS );
+	if ( dc_povMenuCount <= 1 ) {
+		DemoCtrl_PovMenuClose();
+		return;
+	}
+	dc_povMenuOpen = qtrue;
+	dc_povMenuFrom = dc_povMenuFrac;
+	dc_povMenuTo = 1.0f;
+	dc_povMenuAnimMs = trap_Milliseconds();
+	if ( !dc_povMenuAnimMs ) {
+		dc_povMenuAnimMs = 1;
+	}
+}
+
+static void DemoCtrl_PovMenuGeom( int *x, int *y, int *w, int *bodyH ) {
+	int	bx, by, bw, bh;
+	int	rowsH;
+
+	DemoCtrl_ButtonRect( DEMOCTRL_CAM_POV, &bx, &by, &bw, &bh );
+	*x = bx;
+	*y = by + bh + 2;
+	*w = bw;
+	rowsH = dc_povMenuCount * ( DEMOCTRL_SIDE_BTN_H + 1 ) + 1;
+	if ( *y + rowsH > SCREEN_HEIGHT - 4 ) {
+		rowsH = SCREEN_HEIGHT - 4 - *y;
+		if ( rowsH < 0 ) {
+			rowsH = 0;
+		}
+	}
+	*bodyH = rowsH;
+}
+
+static int DemoCtrl_PovMenuClipH( int bodyH ) {
+	int	clipH;
+
+	if ( dc_povMenuFrac <= 0.0f || bodyH <= 0 || dc_povMenuCount <= 0 ) {
+		return 0;
+	}
+	clipH = (int)( dc_povMenuFrac * (float)bodyH );
+	if ( clipH < 1 ) {
+		clipH = 1;
+	}
+	if ( clipH > bodyH ) {
+		clipH = bodyH;
+	}
+	return clipH;
+}
+
+static qboolean DemoCtrl_PovMenuContains( int mx, int my ) {
+	int	x, y, w, bodyH, clipH;
+
+	if ( dc_povMenuFrac <= 0.02f || dc_povMenuCount <= 0 ) {
+		return qfalse;
+	}
+	if ( dc_drawerFrac[DEMOCTRL_DRAWER_RIGHT_CAM] < 0.35f ) {
+		return qfalse;
+	}
+	DemoCtrl_PovMenuGeom( &x, &y, &w, &bodyH );
+	clipH = DemoCtrl_PovMenuClipH( bodyH );
+	if ( clipH <= 0 ) {
+		return qfalse;
+	}
+	if ( mx >= x && mx < x + w && my >= y && my < y + clipH ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+static int DemoCtrl_PovMenuHitTest( int mx, int my ) {
+	int	x, y, w, bodyH, clipH;
+	int	i;
+	int	rowY;
+	int	rowH;
+
+	if ( !DemoCtrl_PovMenuContains( mx, my ) ) {
+		return -1;
+	}
+	DemoCtrl_PovMenuGeom( &x, &y, &w, &bodyH );
+	clipH = DemoCtrl_PovMenuClipH( bodyH );
+	rowH = DEMOCTRL_SIDE_BTN_H + 1;
+	for ( i = 0; i < dc_povMenuCount; i++ ) {
+		rowY = y + 1 + i * rowH;
+		if ( rowY + DEMOCTRL_SIDE_BTN_H > y + clipH ) {
+			break;
+		}
+		if ( mx >= x && mx < x + w && my >= rowY && my < rowY + DEMOCTRL_SIDE_BTN_H ) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static void DemoCtrl_DrawPovMenu( vec4_t btnIdle, vec4_t btnHover, vec4_t btnActive, vec4_t border, vec4_t textColor ) {
+	int		x, y, w, bodyH, clipH;
+	int		i;
+	int		rowY;
+	int		rowH;
+	int		len;
+	char	name[MAX_NAME_LENGTH];
+	float	*fill;
+	vec4_t	panel;
+
+	if ( dc_povMenuFrac <= 0.02f || dc_povMenuCount <= 0 ) {
+		return;
+	}
+	if ( dc_drawerFrac[DEMOCTRL_DRAWER_RIGHT_CAM] < 0.05f ) {
+		return;
+	}
+
+	DemoCtrl_PovMenuGeom( &x, &y, &w, &bodyH );
+	clipH = DemoCtrl_PovMenuClipH( bodyH );
+	if ( clipH <= 0 ) {
+		return;
+	}
+
+	panel[0] = 0.04f;
+	panel[1] = 0.04f;
+	panel[2] = 0.05f;
+	panel[3] = 0.94f;
+	CG_FillRect( x, y, w, clipH, panel );
+	CG_DrawRect( x, y, w, clipH, 1, border );
+
+	rowH = DEMOCTRL_SIDE_BTN_H + 1;
+	for ( i = 0; i < dc_povMenuCount; i++ ) {
+		rowY = y + 1 + i * rowH;
+		if ( rowY + DEMOCTRL_SIDE_BTN_H > y + clipH ) {
+			break;
+		}
+		if ( dc_povView && dc_povMenuList[i] == dc_povClient ) {
+			fill = btnActive;
+		} else if ( i == dc_povMenuHover ) {
+			fill = btnHover;
+		} else {
+			fill = btnIdle;
+		}
+		CG_FillRect( x + 1, rowY, w - 2, DEMOCTRL_SIDE_BTN_H, fill );
+		DemoCtrl_PovCopyName( name, sizeof( name ), dc_povMenuList[i], 13 );
+		len = CG_DrawStrlen( name );
+		CG_DrawStringExt( x + ( w - len * DEMOCTRL_SIDE_CHAR_W ) / 2,
+				rowY + ( DEMOCTRL_SIDE_BTN_H - DEMOCTRL_SIDE_CHAR_H ) / 2,
+				name, textColor, qfalse, qtrue,
+				DEMOCTRL_SIDE_CHAR_W, DEMOCTRL_SIDE_CHAR_H, 0 );
+	}
+}
+
+static void DemoCtrl_PovButtonClick( void ) {
+	int	list[MAX_CLIENTS];
+	int	n;
+
+	n = DemoCtrl_PovCollect( list, MAX_CLIENTS );
+	if ( n <= 0 ) {
+		CG_Printf( "No other players to view\n" );
+		DemoCtrl_PovMenuClose();
+		return;
+	}
+	if ( n == 1 ) {
+		DemoCtrl_PovMenuClose();
+		DemoCtrl_PovEnter( list[0] );
+		return;
+	}
+	if ( dc_povMenuOpen ) {
+		DemoCtrl_PovMenuClose();
+		return;
+	}
+	DemoCtrl_PovMenuOpen();
 }
 
 static void DemoCtrl_DisableFreeCam( void ) {
@@ -2017,7 +2536,398 @@ qboolean CG_DemoControls_FreeCamActive( void ) {
 }
 
 qboolean CG_DemoControls_RigCamActive( void ) {
-	return ( cg.demoPlayback && dc_rigView && !dc_seeking && !DemoCtrl_SnapIntermission() ) ? qtrue : qfalse;
+	if ( !cg.demoPlayback || dc_seeking || dc_povView || DemoCtrl_SnapIntermission() ) {
+		return qfalse;
+	}
+	return dc_rigView;
+}
+
+qboolean CG_DemoControls_PovActive( void ) {
+	return ( cg.demoPlayback && dc_povView && !dc_seeking ) ? qtrue : qfalse;
+}
+
+qboolean CG_DemoControls_PovEyesActive( void ) {
+	return ( CG_DemoControls_PovActive() && dc_povEyes ) ? qtrue : qfalse;
+}
+
+qboolean CG_DemoControls_PovParkedActive( void ) {
+	return ( CG_DemoControls_PovActive() && !dc_povEyes ) ? qtrue : qfalse;
+}
+
+qboolean CG_DemoControls_WorldPersistActive( void ) {
+	return ( CG_DemoControls_FreeCamActive()
+			|| CG_DemoControls_RigCamActive()
+			|| CG_DemoControls_PovActive() ) ? qtrue : qfalse;
+}
+
+qboolean CG_DemoControls_IsFirstPersonClient( int clientNum ) {
+	if ( !cg.snap || clientNum < 0 ) {
+		return qfalse;
+	}
+	if ( CG_DemoControls_PovEyesActive() ) {
+		return ( clientNum == dc_povClient ) ? qtrue : qfalse;
+	}
+	if ( cg.renderingThirdPerson ) {
+		return qfalse;
+	}
+	return ( clientNum == cg.snap->ps.clientNum ) ? qtrue : qfalse;
+}
+
+int CG_DemoControls_PovClient( void ) {
+	return dc_povClient;
+}
+
+qboolean CG_DemoControls_PovRedirectHits( void ) {
+	if ( !CG_DemoControls_PovEyesActive() || !cg.snap ) {
+		return qfalse;
+	}
+	return ( dc_povClient != cg.snap->ps.clientNum ) ? qtrue : qfalse;
+}
+
+static int DemoCtrl_PovResolveWeapon( int weapon ) {
+	int	live;
+
+	if ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) {
+		return weapon;
+	}
+	if ( dc_povClient >= 0 && dc_povClient < MAX_CLIENTS ) {
+		live = cg_entities[dc_povClient].currentState.weapon;
+		if ( live > WP_NONE && live < WP_NUM_WEAPONS ) {
+			return live;
+		}
+	}
+	if ( dc_povAttackWeapon > WP_NONE && dc_povAttackWeapon < WP_NUM_WEAPONS ) {
+		return dc_povAttackWeapon;
+	}
+	return WP_NONE;
+}
+
+static qboolean DemoCtrl_PovTickWeapon( int weapon ) {
+	return ( weapon == WP_LIGHTNING || weapon == WP_PLASMAGUN
+			|| weapon == WP_MACHINEGUN ) ? qtrue : qfalse;
+}
+
+void CG_DemoControls_PovNoteAttack( int clientNum, int weapon ) {
+	if ( !CG_DemoControls_PovRedirectHits() ) {
+		return;
+	}
+	if ( clientNum != dc_povClient ) {
+		return;
+	}
+	dc_povAttackTime = cg.time;
+	weapon = DemoCtrl_PovResolveWeapon( weapon );
+	if ( weapon > WP_NONE ) {
+		dc_povAttackWeapon = weapon;
+	}
+}
+
+static int DemoCtrl_PovDefaultDamage( int weapon ) {
+	switch ( weapon ) {
+	case WP_GAUNTLET:
+		return 50;
+	case WP_MACHINEGUN:
+		return 7;
+	case WP_SHOTGUN:
+		return ( cgs.ratFlags & RAT_NEWSHOTGUN ) ? 9 : 10;
+	case WP_GRENADE_LAUNCHER:
+	case WP_ROCKET_LAUNCHER:
+	case WP_BFG:
+		return 100;
+	case WP_LIGHTNING:
+		return 8;
+	case WP_RAILGUN:
+		return 100;
+	case WP_PLASMAGUN:
+		return 20;
+	default:
+		return 25;
+	}
+}
+
+void CG_DemoControls_PovNoteHit( int attacker, int victim, int damage, const vec3_t origin, int weapon ) {
+	vec3_t	org;
+	int		snapTime;
+	int		ta, tb;
+
+	if ( !CG_DemoControls_PovRedirectHits() ) {
+		return;
+	}
+	if ( attacker != dc_povClient ) {
+		return;
+	}
+	if ( victim < 0 || victim >= MAX_CLIENTS || victim == attacker ) {
+		return;
+	}
+	weapon = DemoCtrl_PovResolveWeapon( weapon );
+	snapTime = ( cg.snap ) ? cg.snap->serverTime : cg.time;
+	/* Tick weapons send several events in one snapshot; do not fold them. */
+	if ( !DemoCtrl_PovTickWeapon( weapon ) ) {
+		if ( dc_povHitSnap[victim] == snapTime ) {
+			return;
+		}
+		dc_povHitSnap[victim] = snapTime;
+	}
+
+	if ( damage < 1 ) {
+		damage = DemoCtrl_PovDefaultDamage( weapon );
+	}
+
+	if ( CG_IsTeamGametype() && attacker >= 0 && attacker < MAX_CLIENTS
+			&& victim >= 0 && victim < MAX_CLIENTS ) {
+		ta = cgs.clientinfo[attacker].team;
+		tb = cgs.clientinfo[victim].team;
+		if ( ta > TEAM_FREE && ta == tb ) {
+			trap_S_StartLocalSound( cgs.media.hitTeamSound, CHAN_LOCAL_SOUND );
+			return;
+		}
+	}
+
+	CG_StartHitSound( damage );
+	if ( origin ) {
+		VectorCopy( origin, org );
+	} else {
+		VectorCopy( cg_entities[victim].lerpOrigin, org );
+		org[2] += 48.0f;
+	}
+	CG_DamagePlum( dc_povClient, org, damage );
+}
+
+static qboolean DemoCtrl_PovSplashParams( int weapon, float *radius, int *splashDamage ) {
+	switch ( weapon ) {
+	case WP_GRENADE_LAUNCHER:
+		*radius = 150.0f;
+		*splashDamage = 100;
+		return qtrue;
+	case WP_ROCKET_LAUNCHER:
+		*radius = 120.0f;
+		*splashDamage = 100;
+		return qtrue;
+	case WP_PLASMAGUN:
+		*radius = 20.0f;
+		*splashDamage = 15;
+		return qtrue;
+	case WP_BFG:
+		*radius = 120.0f;
+		*splashDamage = 100;
+		return qtrue;
+	default:
+		return qfalse;
+	}
+}
+
+void CG_DemoControls_PovNoteSplash( int attacker, int weapon, const vec3_t origin ) {
+	int		i;
+	int		rec;
+	int		splashDamage;
+	int		damage;
+	float	radius;
+	float	dist;
+	vec3_t	org;
+	centity_t	*cent;
+
+	if ( !origin || !CG_DemoControls_PovRedirectHits() ) {
+		return;
+	}
+	if ( attacker != dc_povClient ) {
+		return;
+	}
+	weapon = DemoCtrl_PovResolveWeapon( weapon );
+	if ( !DemoCtrl_PovSplashParams( weapon, &radius, &splashDamage ) ) {
+		return;
+	}
+	/* Player bbox so splash that clips a body still counts. */
+	radius += 32.0f;
+	CG_DemoControls_PovNoteAttack( attacker, weapon );
+
+	rec = cg.snap->ps.clientNum;
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		if ( i == attacker ) {
+			continue;
+		}
+		if ( i == rec ) {
+			if ( cg.snap->ps.stats[STAT_HEALTH] <= 0 ) {
+				continue;
+			}
+			VectorCopy( cg.predictedPlayerState.origin, org );
+		} else {
+			cent = &cg_entities[i];
+			if ( !cent->currentValid || cent->currentState.eType != ET_PLAYER ) {
+				continue;
+			}
+			if ( ( cent->currentState.eFlags & EF_DEAD )
+					&& !CG_IsFrozenPlayerState( &cent->currentState ) ) {
+				continue;
+			}
+			VectorCopy( cent->lerpOrigin, org );
+		}
+		dist = Distance( origin, org );
+		if ( dist >= radius ) {
+			continue;
+		}
+		damage = (int)( (float)splashDamage * ( 1.0f - dist / radius ) );
+		if ( damage < 1 ) {
+			damage = 1;
+		}
+		CG_DemoControls_PovNoteHit( attacker, i, damage, org, weapon );
+	}
+}
+
+void CG_DemoControls_PovNoteVictimPain( int victim, int damage, const vec3_t origin ) {
+	int	window;
+	int	weapon;
+
+	if ( !CG_DemoControls_PovRedirectHits() ) {
+		return;
+	}
+	if ( victim == dc_povClient ) {
+		return;
+	}
+	/* Recorder fall damage / incoming hits are not this POV's shots. */
+	if ( cg.snap && victim == cg.snap->ps.clientNum ) {
+		return;
+	}
+	weapon = DemoCtrl_PovResolveWeapon( dc_povAttackWeapon );
+	/* LG / plasma / MG hits come from weapon events; pain would merge them. */
+	if ( DemoCtrl_PovTickWeapon( weapon ) ) {
+		return;
+	}
+	window = 400;
+	if ( weapon == WP_ROCKET_LAUNCHER || weapon == WP_BFG
+			|| weapon == WP_GRENADE_LAUNCHER ) {
+		window = 1200;
+	} else if ( weapon == WP_PLASMAGUN ) {
+		window = 800;
+	}
+	if ( cg.time - dc_povAttackTime > window ) {
+		return;
+	}
+	CG_DemoControls_PovNoteHit( dc_povClient, victim, damage, origin, weapon );
+}
+
+void CG_DemoControls_PovNoteFrag( int attacker, int victim, const vec3_t origin ) {
+	vec3_t	org;
+
+	if ( !CG_DemoControls_PovRedirectHits() ) {
+		return;
+	}
+	if ( attacker != dc_povClient || victim < 0 || victim >= MAX_CLIENTS ) {
+		return;
+	}
+	if ( origin ) {
+		VectorCopy( origin, org );
+	} else if ( cg.snap && victim == cg.snap->ps.clientNum ) {
+		VectorCopy( cg.predictedPlayerState.origin, org );
+		org[2] += 48.0f;
+	} else {
+		VectorCopy( cg_entities[victim].lerpOrigin, org );
+		org[2] += 48.0f;
+	}
+	/* Instant / splash kills often have no EV_PAIN on the recorder. */
+	CG_DemoControls_PovNoteHit( attacker, victim, 0, org, dc_povAttackWeapon );
+	CG_ScorePlum( dc_povClient, org, 1 );
+}
+
+void CG_DemoControls_PovView( vec3_t origin, vec3_t angles ) {
+	VectorCopy( dc_povLastOrigin, origin );
+	VectorCopy( dc_povLastAngles, angles );
+}
+
+void CG_DemoControls_PovFrame( void ) {
+	int	rec;
+
+	if ( !CG_DemoControls_PovActive() ) {
+		dc_povEyes = qfalse;
+		CG_DemoHistory_SetPovClient( -1 );
+		return;
+	}
+
+	if ( cg.snap && cg.nextSnap && cg.nextSnap->serverTime > cg.snap->serverTime ) {
+		cg.frameInterpolation = (float)( cg.time - cg.snap->serverTime )
+			/ (float)( cg.nextSnap->serverTime - cg.snap->serverTime );
+	} else {
+		cg.frameInterpolation = 0.0f;
+	}
+
+	rec = ( cg.snap ) ? cg.snap->ps.clientNum : -1;
+	if ( dc_povClient == rec || !DemoCtrl_PovClientConnected( dc_povClient ) ) {
+		DemoCtrl_PovAbandon();
+		if ( !CG_DemoControls_PovActive() ) {
+			return;
+		}
+	}
+	if ( DemoCtrl_PovClientInVis( dc_povClient ) ) {
+		dc_povEyes = qtrue;
+		DemoCtrl_PovSample( dc_povClient, dc_povLastOrigin, dc_povLastAngles );
+		dc_povHaveLast = qtrue;
+		if ( dc_povClient != rec ) {
+			CG_DemoHistory_SetPovClient( dc_povClient );
+			if ( cg_entities[dc_povClient].currentValid &&
+					( cg_entities[dc_povClient].currentState.eFlags & EF_FIRING ) ) {
+				CG_DemoControls_PovNoteAttack( dc_povClient,
+					cg_entities[dc_povClient].currentState.weapon );
+			}
+		} else {
+			CG_DemoHistory_SetPovClient( -1 );
+		}
+	} else {
+		dc_povEyes = qfalse;
+		CG_DemoHistory_SetPovClient( -1 );
+		if ( !dc_povHaveLast ) {
+			if ( cg.snap ) {
+				VectorCopy( cg.predictedPlayerState.origin, dc_povLastOrigin );
+				dc_povLastOrigin[2] += cg.predictedPlayerState.viewheight;
+				VectorCopy( cg.predictedPlayerState.viewangles, dc_povLastAngles );
+			}
+			dc_povHaveLast = qtrue;
+		}
+	}
+	DemoCtrl_PovUpdateLabel();
+}
+
+void CG_DemoControls_PovAddViewWeapon( void ) {
+	playerState_t	ps;
+	centity_t		*cent;
+	int				client;
+	int				team;
+
+	if ( !CG_DemoControls_PovEyesActive() ) {
+		return;
+	}
+	client = dc_povClient;
+	if ( cg.snap && client == cg.snap->ps.clientNum ) {
+		CG_AddViewWeapon( &cg.predictedPlayerState );
+		return;
+	}
+	if ( client < 0 || client >= MAX_CLIENTS ) {
+		return;
+	}
+	cent = &cg_entities[client];
+	ps = cg.predictedPlayerState;
+	ps.clientNum = client;
+	VectorCopy( dc_povLastOrigin, ps.origin );
+	if ( cent->currentValid ) {
+		ps.origin[2] -= DemoCtrl_PovViewHeight( &cent->currentState );
+		VectorCopy( cent->currentState.pos.trDelta, ps.velocity );
+		ps.weapon = cent->currentState.weapon;
+		ps.eFlags = cent->currentState.eFlags;
+		ps.legsAnim = cent->currentState.legsAnim;
+		ps.torsoAnim = cent->currentState.torsoAnim;
+		ps.viewheight = DemoCtrl_PovViewHeight( &cent->currentState );
+		if ( cent->currentState.eFlags & EF_DEAD ) {
+			ps.pm_type = PM_DEAD;
+			ps.stats[STAT_HEALTH] = 0;
+		} else {
+			ps.pm_type = PM_NORMAL;
+			ps.stats[STAT_HEALTH] = 100;
+		}
+	}
+	VectorCopy( dc_povLastAngles, ps.viewangles );
+	team = cgs.clientinfo[client].team;
+	if ( team == TEAM_SPECTATOR ) {
+		team = TEAM_FREE;
+	}
+	ps.persistant[PERS_TEAM] = team;
+	CG_AddViewWeapon( &ps );
 }
 
 void CG_DemoControls_FreeCamView( vec3_t origin, vec3_t angles ) {
@@ -2306,6 +3216,7 @@ static void DemoCtrl_SeekWriteCvars( void ) {
 	trap_Cvar_Set( "cg_demoSeekTargetMs", va( "%d", dc_seekTargetMs ) );
 	trap_Cvar_Set( "cg_demoSeekResume", va( "%f", dc_seekResumeTs ) );
 	trap_Cvar_Set( "cg_demoSeekCam", va( "%d", dc_seekCamMode ) );
+	trap_Cvar_Set( "cg_demoSeekPov", va( "%d", dc_seekPovClient ) );
 	trap_Cvar_Set( "cg_demoSeekThird", va( "%d", dc_seekThirdPerson ) );
 	trap_Cvar_Set( "cg_demoSeekFree", va( "%.2f %.2f %.2f %.2f %.2f %.2f",
 			dc_seekFreeOrigin[0], dc_seekFreeOrigin[1], dc_seekFreeOrigin[2],
@@ -2316,14 +3227,21 @@ static void DemoCtrl_SeekSaveCam( void ) {
 	if ( dc_seekCamSaved ) {
 		return;
 	}
-	if ( dc_freeView ) {
+	if ( dc_povView ) {
+		dc_seekCamMode = 4;
+		dc_seekPovClient = dc_povClient;
+	} else if ( dc_freeView ) {
 		dc_seekCamMode = 2;
+		dc_seekPovClient = -1;
 	} else if ( dc_rigView ) {
 		dc_seekCamMode = 3;
+		dc_seekPovClient = -1;
 	} else if ( cg_thirdPerson.integer ) {
 		dc_seekCamMode = 1;
+		dc_seekPovClient = -1;
 	} else {
 		dc_seekCamMode = 0;
+		dc_seekPovClient = -1;
 	}
 	dc_seekThirdPerson = cg_thirdPerson.integer;
 	VectorCopy( dc_freeOrigin, dc_seekFreeOrigin );
@@ -2341,10 +3259,21 @@ static void DemoCtrl_SeekRestoreCam( void ) {
 		VectorCopy( dc_seekFreeAngles, dc_freeAngles );
 		dc_freeView = qtrue;
 		dc_rigView = qfalse;
+		DemoCtrl_DisablePov();
 	} else if ( dc_seekCamMode == 3 ) {
+		DemoCtrl_DisablePov();
 		DemoCtrl_DisableFreeCam();
 		dc_rigView = qtrue;
+	} else if ( dc_seekCamMode == 4 ) {
+		DemoCtrl_DisableFreeCam();
+		DemoCtrl_DisableRigCam();
+		dc_povView = qtrue;
+		dc_povClient = dc_seekPovClient;
+		dc_povEyes = qfalse;
+		dc_povHaveLast = qfalse;
+		DemoCtrl_PovUpdateLabel();
 	} else {
+		DemoCtrl_DisablePov();
 		DemoCtrl_DisableFreeCam();
 		DemoCtrl_DisableRigCam();
 	}
@@ -2465,6 +3394,9 @@ static void DemoCtrl_SeekResumeFromCvars( void ) {
 	buf[0] = '\0';
 	trap_Cvar_VariableStringBuffer( "cg_demoSeekCam", buf, sizeof( buf ) );
 	dc_seekCamMode = atoi( buf );
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "cg_demoSeekPov", buf, sizeof( buf ) );
+	dc_seekPovClient = atoi( buf );
 	buf[0] = '\0';
 	trap_Cvar_VariableStringBuffer( "cg_demoSeekThird", buf, sizeof( buf ) );
 	dc_seekThirdPerson = atoi( buf );
@@ -3432,6 +4364,7 @@ qboolean CG_DemoControls_MouseEvent( int dx, int dy ) {
 		}
 
 		DemoCtrl_Wake();
+		dc_povMenuHover = DemoCtrl_PovMenuHitTest( dc_cursorX, dc_cursorY );
 		dc_hoverBtn = DemoCtrl_HitTest( dc_cursorX, dc_cursorY );
 		dc_hoverDrawer = -1;
 		if ( dc_hoverBtn < 0 ) {
@@ -3544,6 +4477,27 @@ qboolean CG_DemoControls_KeyEvent( int key, qboolean down ) {
 		if ( down ) {
 			DemoCtrl_Wake();
 		}
+		{
+			int	row;
+
+			row = DemoCtrl_PovMenuHitTest( dc_cursorX, dc_cursorY );
+			if ( row >= 0 ) {
+				if ( down && row < dc_povMenuCount ) {
+					DemoCtrl_PovEnter( dc_povMenuList[row] );
+					DemoCtrl_PovMenuClose();
+				}
+				return qtrue;
+			}
+			if ( DemoCtrl_PovMenuContains( dc_cursorX, dc_cursorY ) ) {
+				return qtrue;
+			}
+			if ( down && dc_povMenuOpen ) {
+				btn = DemoCtrl_HitTest( dc_cursorX, dc_cursorY );
+				if ( btn != DEMOCTRL_CAM_POV ) {
+					DemoCtrl_PovMenuClose();
+				}
+			}
+		}
 		btn = DemoCtrl_HitTest( dc_cursorX, dc_cursorY );
 		if ( btn >= 0 ) {
 			if ( down ) {
@@ -3633,6 +4587,7 @@ void CG_DemoControls_Draw( void ) {
 	}
 
 	DemoCtrl_UpdateDrawers();
+	dc_povMenuHover = DemoCtrl_PovMenuHitTest( dc_cursorX, dc_cursorY );
 	dc_hoverBtn = DemoCtrl_HitTest( dc_cursorX, dc_cursorY );
 	dc_hoverDrawer = -1;
 	if ( dc_hoverBtn < 0 ) {
@@ -3928,8 +4883,12 @@ void CG_DemoControls_Draw( void ) {
 		}
 		len = CG_DrawStrlen( DemoCtrl_ButtonLabel( i ) );
 		CG_DrawStringExt( x + ( w - len * cw ) / 2, y + ( h - ch ) / 2,
-				DemoCtrl_ButtonLabel( i ), textColor, qtrue, qtrue, cw, ch, 0 );
+				DemoCtrl_ButtonLabel( i ), textColor,
+				( i == DEMOCTRL_CAM_POV && dc_povView ) ? qfalse : qtrue,
+				qtrue, cw, ch, 0 );
 	}
+
+	DemoCtrl_DrawPovMenu( btnIdle, btnHover, btnActive, border, textColor );
 
 	if ( dc_hoverBtn >= 0 && !DemoCtrl_PromptActive() ) {
 		DemoCtrl_DrawHoverTip( dc_hoverBtn );

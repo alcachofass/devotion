@@ -66,6 +66,7 @@ void CG_DemoCachePingsFromScores( const score_t *rows, int count ) {
 			continue;
 		}
 		cg.demoClientPing[c] = p;
+		CG_DemoEvents_NotePing( c, p );
 	}
 }
 

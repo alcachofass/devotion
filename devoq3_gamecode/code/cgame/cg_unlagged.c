@@ -288,6 +288,9 @@ static qboolean CG_ShouldPredictHitSound( int weapon ) {
 	if ( !cg.snap ) {
 		return qfalse;
 	}
+	if ( CG_DemoControls_PovRedirectHits() ) {
+		return qfalse;
+	}
 	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
 		return qfalse;
 	}
@@ -578,6 +581,9 @@ static qboolean CG_ShouldPredictProjectileHitSound( int weapon ) {
 		return qfalse;
 	}
 	if ( !cg.snap ) {
+		return qfalse;
+	}
+	if ( CG_DemoControls_PovRedirectHits() ) {
 		return qfalse;
 	}
 	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
@@ -1944,8 +1950,7 @@ void CG_AddBoundingBox( centity_t *cent ) {
 	}
 
 	// don't draw it if it's us in first-person
-	if ( cent->currentState.number == cg.predictedPlayerState.clientNum &&
-			!cg.renderingThirdPerson ) {
+	if ( CG_DemoControls_IsFirstPersonClient( cent->currentState.number ) ) {
 		return;
 	}
 

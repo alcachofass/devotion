@@ -18,6 +18,7 @@ static int cg_demoHistoryCount;
 static int cg_demoHistoryLastServerTime;
 static qboolean cg_demoHistoryPrevPlayback;
 static int cg_demoDelagPingSmoothed = -1;
+static int cg_demoDelagPovClient = -1;
 
 typedef struct {
 	centity_t *cent;
@@ -61,6 +62,7 @@ static qboolean cg_demoDelagPlayerGone[MAX_CLIENTS];
 
 static int demoDelagPingRawAlongInterpolation( void );
 static qboolean demoDelagResolvePingMs( int *outPing );
+static int demoDelagSkipClient( void );
 static void demoDelagFlushDelayedTeleports( void );
 static void demoDelagNoteWitnessedTele( int clientNum, int snapServerTime );
 static void demoDelagPruneWitnessedTeles( void );
@@ -82,6 +84,7 @@ void CG_DemoHistory_Clear( void ) {
 	cg_demoDelayedTeleCount = 0;
 	cg_demoWitnessedTeleCount = 0;
 	cg_demoDelagPingSmoothed = -1;
+	cg_demoDelagPovClient = -1;
 	Com_Memset( cg_demoDelagPlayerGone, 0, sizeof( cg_demoDelagPlayerGone ) );
 	for ( i = 0; i < MAX_GENTITIES; i++ ) {
 		cg_entities[i].demoDelagVisualCached = qfalse;
@@ -89,6 +92,10 @@ void CG_DemoHistory_Clear( void ) {
 		cg_entities[i].demoDelagLastVisualEFlagsValid = qfalse;
 		cg_entities[i].demoDelagMissileNotYet = qfalse;
 	}
+	cg.predictedPlayerEntity.demoDelagVisualCached = qfalse;
+	cg.predictedPlayerEntity.demoDelagDrawStateValid = qfalse;
+	cg.predictedPlayerEntity.demoDelagLastVisualEFlagsValid = qfalse;
+	cg.predictedPlayerEntity.demoDelagMissileNotYet = qfalse;
 	Com_Memset( cg_demoHistoryBuf, 0, sizeof( cg_demoHistoryBuf ) );
 }
 
@@ -178,6 +185,24 @@ qboolean CG_DemoHistory_DemoDelagActive( void ) {
 	return cg.demoPlayback && cg_demoDelag.integer && cgs.delagHitscan && CG_DemoHistory_GetCount() > 0;
 }
 
+void CG_DemoHistory_SetPovClient( int clientNum ) {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		cg_demoDelagPovClient = -1;
+		return;
+	}
+	cg_demoDelagPovClient = clientNum;
+}
+
+static int demoDelagSkipClient( void ) {
+	if ( cg_demoDelagPovClient >= 0 && cg_demoDelagPovClient < MAX_CLIENTS ) {
+		return cg_demoDelagPovClient;
+	}
+	if ( cg.snap ) {
+		return cg.predictedPlayerState.clientNum;
+	}
+	return -1;
+}
+
 qboolean CG_DemoHistory_DelayPlayerTeleportEvent( int clientNum, int event, const vec3_t origin ) {
 	demoDelayedTele_t *slot;
 	int ping;
@@ -185,7 +210,7 @@ qboolean CG_DemoHistory_DelayPlayerTeleportEvent( int clientNum, int event, cons
 	if ( !CG_DemoHistory_DemoDelagActive() || !cg.snap || !origin ) {
 		return qfalse;
 	}
-	if ( clientNum == cg.predictedPlayerState.clientNum || !demoDelagResolvePingMs( &ping ) ) {
+	if ( clientNum == demoDelagSkipClient() || !demoDelagResolvePingMs( &ping ) ) {
 		return qfalse;
 	}
 
@@ -210,6 +235,41 @@ qboolean CG_DemoHistory_DelayPlayerTeleportEvent( int clientNum, int event, cons
 	return qtrue;
 }
 
+static void demoDelagEsFromPlayerState( const playerState_t *ps, entityState_t *s ) {
+	int i;
+
+	memset( s, 0, sizeof( *s ) );
+	s->eType = ET_PLAYER;
+	s->number = ps->clientNum;
+	s->clientNum = ps->clientNum;
+	s->pos.trType = TR_INTERPOLATE;
+	VectorCopy( ps->origin, s->pos.trBase );
+	VectorCopy( ps->velocity, s->pos.trDelta );
+	s->apos.trType = TR_INTERPOLATE;
+	VectorCopy( ps->viewangles, s->apos.trBase );
+	s->angles2[YAW] = ps->movementDir;
+	s->legsAnim = ps->legsAnim;
+	s->torsoAnim = ps->torsoAnim;
+	s->eFlags = ps->eFlags;
+	if ( ps->stats[STAT_HEALTH] <= 0 ) {
+		s->eFlags |= EF_DEAD;
+	} else {
+		s->eFlags &= ~EF_DEAD;
+	}
+	s->weapon = ps->weapon;
+	s->groundEntityNum = ps->groundEntityNum;
+	s->powerups = 0;
+	for ( i = 0; i < MAX_POWERUPS; i++ ) {
+		if ( ps->powerups[i] ) {
+			s->powerups |= 1 << i;
+		}
+	}
+	s->loopSound = ps->loopSound;
+	s->generic1 = ps->generic1;
+	/* Default player bbox: x=15, zd=24, zu=32. */
+	s->solid = 15 | ( 24 << 8 ) | ( 64 << 16 );
+}
+
 static qboolean findEntityInSnapshot( const snapshot_t *snap, int entityNum, entityState_t *out ) {
 	int i;
 
@@ -221,6 +281,11 @@ static qboolean findEntityInSnapshot( const snapshot_t *snap, int entityNum, ent
 			*out = snap->entities[i];
 			return qtrue;
 		}
+	}
+	/* The recording player lives in snap->ps, not the entity list. */
+	if ( entityNum == snap->ps.clientNum ) {
+		demoDelagEsFromPlayerState( &snap->ps, out );
+		return qtrue;
 	}
 	return qfalse;
 }
@@ -336,6 +401,20 @@ static int demoDelagPingRawAlongInterpolation( void ) {
 static qboolean demoDelagResolvePingMs( int *outPing ) {
 	int raw;
 	int p;
+	int rec;
+
+	rec = ( cg.snap ) ? cg.predictedPlayerState.clientNum : -1;
+	if ( cg_demoDelagPovClient >= 0 && cg_demoDelagPovClient != rec ) {
+		p = CG_DemoEvents_ClientPing( cg_demoDelagPovClient );
+		if ( p < 1 || p >= 900 ) {
+			return qfalse;
+		}
+		if ( p > 400 ) {
+			p = 400;
+		}
+		*outPing = p;
+		return qtrue;
+	}
 
 	if ( cg_demoDelagPingSmoothed >= 1 && cg_demoDelagPingSmoothed < 900 ) {
 		p = cg_demoDelagPingSmoothed;
@@ -580,8 +659,11 @@ static qboolean demoDelagPoseFromActiveSnapWindow( const centity_t *cent, int tH
 	vec3_t curp, nxtp, cura, nxta;
 	float f;
 	int delta;
+	entityState_t esCur, esNxt;
+	const entityState_t *cur;
+	const entityState_t *nxt;
 
-	if ( !cg.snap || !cg.nextSnap ) {
+	if ( !cent || !cg.snap || !cg.nextSnap ) {
 		return qfalse;
 	}
 	if ( tHist < cg.snap->serverTime || tHist > cg.nextSnap->serverTime ) {
@@ -592,29 +674,42 @@ static qboolean demoDelagPoseFromActiveSnapWindow( const centity_t *cent, int tH
 		return qfalse;
 	}
 	f = (float)( tHist - cg.snap->serverTime ) / (float)delta;
-	if ( demoDelagEFlagsTeleported( cent->currentState.eFlags, cent->nextState.eFlags ) ) {
+	/*
+	 * predictedPlayerEntity.currentState is the live predicted pose, not
+	 * the snap-time playerstate. Always sample the recorder from snap->ps.
+	 */
+	if ( cent->currentState.number == cg.snap->ps.clientNum ) {
+		demoDelagEsFromPlayerState( &cg.snap->ps, &esCur );
+		demoDelagEsFromPlayerState( &cg.nextSnap->ps, &esNxt );
+		cur = &esCur;
+		nxt = &esNxt;
+	} else {
+		cur = &cent->currentState;
+		nxt = &cent->nextState;
+	}
+	if ( demoDelagEFlagsTeleported( cur->eFlags, nxt->eFlags ) ) {
 		if ( f < 1.0f ) {
-			demoDelagEvalEsPose( &cent->currentState, cg.snap->serverTime, outOrigin, outAngles, NULL, outEFlags, outEs );
+			demoDelagEvalEsPose( cur, cg.snap->serverTime, outOrigin, outAngles, NULL, outEFlags, outEs );
 		} else {
-			demoDelagEvalEsPose( &cent->nextState, cg.nextSnap->serverTime, outOrigin, outAngles, NULL, outEFlags, outEs );
+			demoDelagEvalEsPose( nxt, cg.nextSnap->serverTime, outOrigin, outAngles, NULL, outEFlags, outEs );
 		}
 		return qtrue;
 	}
-	BG_EvaluateTrajectory( &cent->currentState.pos, cg.snap->serverTime, curp );
-	BG_EvaluateTrajectory( &cent->nextState.pos, cg.nextSnap->serverTime, nxtp );
+	BG_EvaluateTrajectory( &cur->pos, cg.snap->serverTime, curp );
+	BG_EvaluateTrajectory( &nxt->pos, cg.nextSnap->serverTime, nxtp );
 	outOrigin[0] = curp[0] + f * ( nxtp[0] - curp[0] );
 	outOrigin[1] = curp[1] + f * ( nxtp[1] - curp[1] );
 	outOrigin[2] = curp[2] + f * ( nxtp[2] - curp[2] );
-	BG_EvaluateTrajectory( &cent->currentState.apos, cg.snap->serverTime, cura );
-	BG_EvaluateTrajectory( &cent->nextState.apos, cg.nextSnap->serverTime, nxta );
+	BG_EvaluateTrajectory( &cur->apos, cg.snap->serverTime, cura );
+	BG_EvaluateTrajectory( &nxt->apos, cg.nextSnap->serverTime, nxta );
 	outAngles[0] = LerpAngle( cura[0], nxta[0], f );
 	outAngles[1] = LerpAngle( cura[1], nxta[1], f );
 	outAngles[2] = LerpAngle( cura[2], nxta[2], f );
 	if ( outEFlags ) {
-		*outEFlags = ( f < 1.0f ) ? cent->currentState.eFlags : cent->nextState.eFlags;
+		*outEFlags = ( f < 1.0f ) ? cur->eFlags : nxt->eFlags;
 	}
 	if ( outEs ) {
-		*outEs = ( f < 1.0f ) ? cent->currentState : cent->nextState;
+		*outEs = ( f < 1.0f ) ? *cur : *nxt;
 	}
 	return qtrue;
 }
@@ -752,12 +847,30 @@ static qboolean demoDelagSamplePoseAtTime( centity_t *cent, int entityNum, int t
 	return qfalse;
 }
 
+static qboolean demoDelagCentIsLiveRecorder( const centity_t *cent ) {
+	if ( !cent || !cg.snap ) {
+		return qfalse;
+	}
+	if ( cent != &cg.predictedPlayerEntity &&
+			cent->currentState.number != cg.snap->ps.clientNum ) {
+		return qfalse;
+	}
+	return ( cg.snap->ps.stats[STAT_HEALTH] > 0 ) ? qtrue : qfalse;
+}
+
 static void demoDelagApplyVisual( centity_t *cent, const vec3_t origin, const vec3_t angles, const entityState_t *drawEs ) {
 	int oldFlags;
+	int liveFlags;
 	qboolean hadPrev;
+	qboolean liveDead;
+	qboolean drawDead;
 
 	hadPrev = cent->demoDelagLastVisualEFlagsValid;
 	oldFlags = cent->demoDelagLastVisualEFlags;
+	liveFlags = cent->currentState.eFlags;
+	if ( demoDelagCentIsLiveRecorder( cent ) ) {
+		liveFlags &= ~EF_DEAD;
+	}
 
 	VectorCopy( origin, cent->lerpOrigin );
 	VectorCopy( angles, cent->lerpAngles );
@@ -770,18 +883,63 @@ static void demoDelagApplyVisual( centity_t *cent, const vec3_t origin, const ve
 	}
 
 	cent->demoDelagDrawState = *drawEs;
+	cent->demoDelagDrawState.number = cent->currentState.number;
+	cent->demoDelagDrawState.clientNum = cent->currentState.clientNum;
 	cent->demoDelagDrawStateValid = qtrue;
-
-	if ( hadPrev && demoDelagEFlagsTeleported( oldFlags, drawEs->eFlags ) ) {
-		CG_DemoDelagResetPlayerAnims( cent, drawEs->legsAnim, drawEs->torsoAnim );
+	/* Live snapshot has the gun in hand; delayed history can miss a swap that happened out of PVS. */
+	if ( cent->currentValid && cent->currentState.weapon > WP_NONE ) {
+		cent->demoDelagDrawState.weapon = cent->currentState.weapon;
+	} else if ( demoDelagCentIsLiveRecorder( cent ) && cg.snap->ps.weapon > WP_NONE ) {
+		cent->demoDelagDrawState.weapon = cg.snap->ps.weapon;
 	}
 
-	cent->demoDelagLastVisualEFlags = drawEs->eFlags;
+	liveDead = ( liveFlags & EF_DEAD ) ? qtrue : qfalse;
+	drawDead = ( cent->demoDelagDrawState.eFlags & EF_DEAD ) ? qtrue : qfalse;
+	/*
+	 * Delayed samples (or a spectated player's death) must never paint the
+	 * still-living recording player as a corpse.
+	 */
+	if ( drawDead && !liveDead ) {
+		cent->demoDelagDrawState.eFlags &= ~EF_DEAD;
+		cent->demoDelagDrawState.legsAnim = cent->currentState.legsAnim;
+		cent->demoDelagDrawState.torsoAnim = cent->currentState.torsoAnim;
+		if ( demoDelagCentIsLiveRecorder( cent ) ) {
+			cent->demoDelagDrawState.legsAnim = cg.snap->ps.legsAnim;
+			cent->demoDelagDrawState.torsoAnim = cg.snap->ps.torsoAnim;
+		}
+		drawDead = qfalse;
+	}
+
+	if ( hadPrev && demoDelagEFlagsTeleported( oldFlags, cent->demoDelagDrawState.eFlags ) ) {
+		CG_DemoDelagResetPlayerAnims( cent, cent->demoDelagDrawState.legsAnim,
+			cent->demoDelagDrawState.torsoAnim );
+	} else if ( hadPrev && drawDead && !( oldFlags & EF_DEAD ) ) {
+		CG_DemoDelagResetPlayerAnims( cent, cent->demoDelagDrawState.legsAnim,
+			cent->demoDelagDrawState.torsoAnim );
+	} else if ( hadPrev && !drawDead && ( oldFlags & EF_DEAD ) ) {
+		CG_DemoDelagResetPlayerAnims( cent, cent->demoDelagDrawState.legsAnim,
+			cent->demoDelagDrawState.torsoAnim );
+	}
+
+	cent->demoDelagLastVisualEFlags = cent->demoDelagDrawState.eFlags;
 	cent->demoDelagLastVisualEFlagsValid = qtrue;
 }
 
 static void demoDelagHidePlayerVisual( centity_t *cent ) {
 	int n;
+
+	/*
+	 * A live corpse is still in the snapshot. Do not skip it just because
+	 * the delayed clock no longer has that player slot. Never treat the
+	 * living recording player as that corpse.
+	 */
+	if ( cent && ( cent->currentState.eFlags & EF_DEAD )
+			&& !CG_IsFrozenPlayerState( &cent->currentState )
+			&& !demoDelagCentIsLiveRecorder( cent ) ) {
+		cent->demoDelagVisualCached = qfalse;
+		cent->demoDelagDrawStateValid = qfalse;
+		return;
+	}
 
 	n = cent->currentState.number;
 	if ( n >= 0 && n < MAX_CLIENTS ) {
@@ -913,6 +1071,9 @@ void CG_DemoHistory_BeginHitscanRewind( int rewindToServerTime, int skipEntityNu
 	if ( !CG_DemoHistory_DemoDelagActive() ) {
 		return;
 	}
+	if ( cg_demoDelagPovClient >= 0 && cg_demoDelagPovClient < MAX_CLIENTS ) {
+		skipEntityNum = cg_demoDelagPovClient;
+	}
 
 	tSample = demoDelagAttackerSampleTime( rewindToServerTime );
 	bracketServerTime( tSample, &sOld, &sNew, &frac );
@@ -981,7 +1142,10 @@ void CG_DemoHistory_AdjustPlayerLerpForDemoDelag( centity_t *cent ) {
 	if ( cent->currentState.number >= MAX_CLIENTS ) {
 		return;
 	}
-	if ( cent->currentState.number == cg.predictedPlayerState.clientNum ) {
+	if ( cent->currentState.number == demoDelagSkipClient() ) {
+		/* Drop stale delayed state so a spectated death cannot stick on this body. */
+		cent->demoDelagDrawStateValid = qfalse;
+		cent->demoDelagVisualCached = qfalse;
 		return;
 	}
 	if ( !demoDelagResolvePingMs( &ping ) ) {

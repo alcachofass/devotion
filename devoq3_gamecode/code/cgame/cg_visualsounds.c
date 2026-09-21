@@ -917,16 +917,32 @@ static qboolean VS_IsGrenadeBounce( sfxHandle_t sfx ) {
 	return ( sfx == cgs.media.hgrenb1aSound || sfx == cgs.media.hgrenb2aSound );
 }
 
+static int VS_LocalClientNum( void ) {
+	int	pov;
+
+	if ( CG_DemoControls_PovEyesActive() ) {
+		pov = CG_DemoControls_PovClient();
+		if ( pov >= 0 && pov < MAX_CLIENTS ) {
+			return pov;
+		}
+	}
+	if ( cg.snap ) {
+		return cg.snap->ps.clientNum;
+	}
+	return cg.clientNum;
+}
+
 static qboolean VS_IsLocalSource( int entityNum, const vec3_t origin, vsKind_t kind, const char *label, sfxHandle_t sfx ) {
 	int			localNum;
 	entityState_t		*es;
 	vec3_t			delta;
+	vec3_t			localOrigin;
 
-	localNum = cg.snap->ps.clientNum;
+	localNum = VS_LocalClientNum();
 	if ( VS_IsGrenadeBounce( sfx ) ) {
 		return qfalse;
 	}
-	if ( entityNum == localNum || entityNum == cg.clientNum ) {
+	if ( entityNum == localNum || ( !CG_DemoControls_PovEyesActive() && entityNum == cg.clientNum ) ) {
 		return qtrue;
 	}
 
@@ -938,20 +954,23 @@ static qboolean VS_IsLocalSource( int entityNum, const vec3_t origin, vsKind_t k
 			}
 		} else if ( es->clientNum == localNum && es->eType != ET_MOVER ) {
 			return qtrue;
-		} else if ( es->otherEntityNum == localNum && es->eType == ET_MISSILE ) {
-			return qtrue;
 		}
 	}
 
 	if ( kind == VS_WORLD && ( !Q_stricmp( label, "PAD" ) || !Q_stricmp( label, "TELE" )
 				|| !Q_stricmp( label, "SPWN" ) ) ) {
+		if ( CG_DemoControls_PovEyesActive() ) {
+			VectorCopy( cg.refdef.vieworg, localOrigin );
+		} else {
+			VectorCopy( cg.predictedPlayerState.origin, localOrigin );
+		}
 		if ( entityNum < 0 || entityNum == ENTITYNUM_NONE || entityNum == ENTITYNUM_WORLD ) {
-			VectorSubtract( origin, cg.predictedPlayerState.origin, delta );
+			VectorSubtract( origin, localOrigin, delta );
 			if ( VectorLength( delta ) < 120.0f ) {
 				return qtrue;
 			}
 		}
-		VectorSubtract( origin, cg.predictedPlayerState.origin, delta );
+		VectorSubtract( origin, localOrigin, delta );
 		if ( VectorLength( delta ) < 80.0f ) {
 			return qtrue;
 		}
@@ -1023,8 +1042,8 @@ void CG_VisualSounds_NoteExplosion( const vec3_t origin, int clientNum, int weap
 		return;
 	}
 
-	localNum = cg.snap->ps.clientNum;
-	if ( clientNum == localNum || clientNum == cg.clientNum ) {
+	localNum = VS_LocalClientNum();
+	if ( clientNum == localNum || ( !CG_DemoControls_PovEyesActive() && clientNum == cg.clientNum ) ) {
 		return;
 	}
 
@@ -1159,6 +1178,7 @@ void CG_DrawVisualSounds( void ) {
 	int		rCue[VS_MAX_CUES];
 	qboolean	haveYaw;
 	float		viewYaw, worldTarget, worldCur;
+	int		localNum;
 
 	if ( !cg_visualSounds.integer || !cg.snap ) {
 		return;
@@ -1169,6 +1189,7 @@ void CG_DrawVisualSounds( void ) {
 
 	cx = SCREEN_WIDTH * 0.5f + cg_crosshairX.value;
 	cy = SCREEN_HEIGHT * 0.5f + cg_crosshairY.value;
+	localNum = VS_LocalClientNum();
 
 	for ( i = 0; i < VS_MAX_CUES; i++ ) {
 		live[i] = qfalse;
@@ -1188,6 +1209,10 @@ void CG_DrawVisualSounds( void ) {
 				continue;
 			}
 			fade[i] = VS_PopScale( qfalse, vsCues[i].startTime, vsCues[i].lastHeard );
+		}
+
+		if ( vsCues[i].entityNum == localNum ) {
+			continue;
 		}
 
 		VectorSubtract( vsCues[i].origin, cg.refdef.vieworg, delta );
