@@ -55,6 +55,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	ITEM_RADIUS			15		// item sizes are needed for client side pickup detection
 
 #define	LIGHTNING_RANGE		768
+#define LIGHTNING_ALT_RANGE	LIGHTNING_RANGE * 3	//mrd
 
 #define	SCORE_NOT_PRESENT	-9999	// for the CS_SCORES[12] when only one player is present
 

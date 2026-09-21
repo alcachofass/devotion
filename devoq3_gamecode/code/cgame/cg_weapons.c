@@ -1238,6 +1238,7 @@ void CG_RegisterWeapon( int weaponNum ) {
 
 	case WP_LIGHTNING:
 		MAKERGB( weaponInfo->flashDlightColor, 0.6f, 0.6f, 1.0f );
+		MAKERGB( weaponInfo->flashDlightAltColor, 0.9f, 0.25f, 1.0f );	//mrd purple light for LG altFire
 		/*
 #define NUM_LG_SOUNDPACKS 3
 		soundIdx = (((unsigned int)(cg_lgSound.integer - 1)) % NUM_LG_SOUNDPACKS) + 1;
@@ -1264,6 +1265,11 @@ void CG_RegisterWeapon( int weaponNum ) {
 				cgs.media.lightningShader = trap_R_RegisterShader( "lightningBoltNew");
 				break;
 		} 
+
+		cgs.media.lightningAltShader = trap_R_RegisterShader( "lightningBoltDevoAlt" );	//mrd
+		cgs.media.lightningAltFlash = trap_R_RegisterShader( "lightningFlashDevoAlt");	//mrd
+		cgs.media.lightningAltCrackle = trap_R_RegisterShader( "lightningCrackleDevoAlt");	//mrd
+
 		cgs.media.lightningExplosionModel = trap_R_RegisterModel( "models/weaphits/crackle.md3" );
 		cgs.media.sfx_lghit1 = trap_S_RegisterSound( "sound/weapons/lightning/lg_hit.wav", qfalse );
 		cgs.media.sfx_lghit2 = trap_S_RegisterSound( "sound/weapons/lightning/lg_hit2.wav", qfalse );
@@ -1671,10 +1677,11 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 	VectorMA( muzzlePoint, 14, forward, muzzlePoint );
 
 	// project forward by the lightning range
-	if (cent->altFire)
-		VectorMA( muzzlePoint, LIGHTNING_RANGE * 3, forward, endPoint );	//mrd
-	else
+	if (cent->altFire) { 
+		VectorMA( muzzlePoint, LIGHTNING_ALT_RANGE, forward, endPoint );	//mrd
+	} else {
 		VectorMA( muzzlePoint, LIGHTNING_RANGE, forward, endPoint );
+	}
 		
 
 	// see if it hit a wall
@@ -1705,7 +1712,12 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 	VectorCopy( origin, beam.origin );
 
 	beam.reType = RT_LIGHTNING;
-	beam.customShader = cgs.media.lightningShader;
+	//mrd
+	if (cent->altFire) {
+		beam.customShader = cgs.media.lightningAltShader;
+	} else {
+		beam.customShader = cgs.media.lightningShader;
+	}
 	trap_R_AddRefEntityToScene( &beam );
 
 	// add the impact flare if it hit something
@@ -1719,6 +1731,10 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 
 			memset( &beam, 0, sizeof( beam ) );
 			beam.hModel = cgs.media.lightningExplosionModel;
+			//mrd load a custom shader for LG altFire crackle
+			if ( cent->altFire ){				
+				beam.customShader = cgs.media.lightningAltCrackle;				
+			}
 
 			//VectorMA( trace.endpos, -16, dir, beam.origin );
 			VectorMA( trace.endpos, (-12 - (rand()%8) ), dir, beam.origin );	//mrd - bounce crackle around on wall a bit
@@ -2008,6 +2024,7 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 
 	// make sure we aren't looking at cg.predictedPlayerEntity for LG
 	nonPredictedCent = &cg_entities[cent->currentState.clientNum];
+	nonPredictedCent->altFire = cent->altFire;	//mrd - propagate altFire status for LG beam FX
 
 	// if the index of the nonPredictedCent is not the same as the clientNum
 	// then this is a fake player (like on teh single player podiums), so
@@ -2037,6 +2054,12 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	if (!flash.hModel) {
 		return;
 	}
+	
+	//mrd - load a special colour flash for altFire LG
+	if (weaponNum == WP_LIGHTNING && cent->altFire) {
+		flash.customShader = cgs.media.lightningAltFlash;
+	}
+
 	angles[YAW] = 0;
 	angles[PITCH] = 0;
 	angles[ROLL] = crandom() * 10;
@@ -2063,7 +2086,13 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 		// add rail trail
 		CG_SpawnRailTrail( cent, flash.origin );
 
-		if ( weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2] ) {
+		//if ( weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2] ) {
+		//mrd - add a special altFire LG colour effect
+		if ( weaponNum == WP_LIGHTNING && cent->altFire 
+			&& ( weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2] ) ) {
+				trap_R_AddLightToScene( flash.origin, 300 + (rand()&31), weapon->flashDlightAltColor[0],
+				weapon->flashDlightAltColor[1], weapon->flashDlightAltColor[2] );
+		} else if ( weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2] ) {
 			trap_R_AddLightToScene( flash.origin, 300 + (rand()&31), weapon->flashDlightColor[0],
 				weapon->flashDlightColor[1], weapon->flashDlightColor[2] );
 		}

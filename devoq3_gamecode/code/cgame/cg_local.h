@@ -588,6 +588,7 @@ typedef struct weaponInfo_s {
 
 	float			flashDlight;
 	vec3_t			flashDlightColor;
+	vec3_t			flashDlightAltColor;	//mrd
 	sfxHandle_t		flashSound[4];		// fast firing weapons randomly choose
 
 	qhandle_t		weaponIcon;
@@ -1103,6 +1104,11 @@ typedef struct {
 	qhandle_t	ratRailTubeShader50;
 
 	qhandle_t	lightningShader;
+
+	//mrd - custom altFire LG shaders
+	qhandle_t	lightningAltShader;
+	qhandle_t	lightningAltFlash;
+	qhandle_t	lightningAltCrackle;
 
 	//qhandle_t	friendShader;
 	//qhandle_t	friendShaderThroughWalls;
