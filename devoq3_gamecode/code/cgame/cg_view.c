@@ -732,6 +732,17 @@ static int CG_CalcViewValues( void ) {
 
 	ps = &cg.predictedPlayerState;
 
+	if ( CG_DemoControls_PovParkedActive()
+			|| ( CG_DemoControls_PovEyesActive()
+				&& CG_DemoControls_PovClient() != ps->clientNum ) ) {
+		CG_DemoControls_PovView( cg.refdef.vieworg, cg.refdefViewAngles );
+		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
+		if ( cg.hyperspace ) {
+			cg.refdef.rdflags |= RDF_NOWORLDMODEL | RDF_HYPERSPACE;
+		}
+		return CG_CalcFov();
+	}
+
 	if ( CG_DemoControls_FreeCamActive() ) {
 		CG_DemoControls_FreeCamView( cg.refdef.vieworg, cg.refdefViewAngles );
 		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
@@ -848,6 +859,9 @@ CG_AddBufferedSound
 void CG_AddBufferedSound( sfxHandle_t sfx ) {
 	if ( !sfx )
 		return;
+	if ( CG_DemoControls_PovRedirectHits() ) {
+		return;
+	}
 	cg.soundBuffer[cg.soundBufferIn] = sfx;
 	cg.soundBufferIn = (cg.soundBufferIn + 1) % MAX_SOUNDBUFFER;
 	if (cg.soundBufferIn == cg.soundBufferOut) {
@@ -861,6 +875,10 @@ CG_PlayBufferedSounds
 =====================
 */
 static void CG_PlayBufferedSounds( void ) {
+	if ( CG_DemoControls_PovRedirectHits() ) {
+		cg.soundBufferIn = cg.soundBufferOut;
+		return;
+	}
 	if ( cg.soundTime < cg.time ) {
 		if (cg.soundBufferOut != cg.soundBufferIn && cg.soundBuffer[cg.soundBufferOut]) {
 			trap_S_StartLocalSound(cg.soundBuffer[cg.soundBufferOut], CHAN_ANNOUNCER);
@@ -896,6 +914,10 @@ int CG_AddBufferedRewardSound( sfxHandle_t sfx ) {
 }
 
 static void CG_PlayBufferedRewardSounds( void ) {
+	if ( CG_DemoControls_PovRedirectHits() ) {
+		cg.rewardSoundBufferIn = cg.rewardSoundBufferOut;
+		return;
+	}
 	if ( cg.rewardSoundTime < cg.time ) {
 		if (cg.rewardSoundBufferOut != cg.rewardSoundBufferIn && cg.rewardSoundBuffer[cg.rewardSoundBufferOut]) {
 			trap_S_StartLocalSound(cg.rewardSoundBuffer[cg.rewardSoundBufferOut], CHAN_ANNOUNCER);
@@ -1015,6 +1037,8 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	int		inwater;
 	qboolean	freeCam;
 	qboolean	rigCam;
+	qboolean	povEyes;
+	qboolean	povParked;
 
 	cg.time = serverTime;
 	cg.demoPlayback = demoPlayback;
@@ -1091,8 +1115,12 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	CG_PredictPlayerState();
 	CG_BigHeadUpdateScores();
 
+	CG_DemoControls_PovFrame();
+
 	freeCam = CG_DemoControls_FreeCamActive();
 	rigCam = CG_DemoControls_RigCamActive();
+	povEyes = CG_DemoControls_PovEyesActive();
+	povParked = CG_DemoControls_PovParkedActive();
 	if ( rigCam ) {
 		CG_DemoCams_DirectorFrame();
 	}
@@ -1102,7 +1130,9 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		cg.renderingThirdPerson = qfalse;
 	} else {
 		cg.renderingThirdPerson = cg_thirdPerson.integer || (cg.snap->ps.stats[STAT_HEALTH] <= 0);
-		if ( freeCam ) {
+		if ( povEyes ) {
+			cg.renderingThirdPerson = qfalse;
+		} else if ( freeCam || povParked ) {
 			cg.renderingThirdPerson = qtrue;
 		} else if ( rigCam ) {
 			if ( CG_DemoCams_UsingPlayerView() ) {
@@ -1113,7 +1143,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		}
 	}
 
-	if ( !freeCam && !rigCam ) {
+	if ( !freeCam && !rigCam && !povEyes && !povParked ) {
 		CG_SpecZooming();
 	}
 
@@ -1130,7 +1160,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		CG_AddPacketEntities();			// adter calcViewValues, so predicted player state is correct
 		CG_FreeCamAddAmbientMovers();
 		CG_DemoCams_AddMarkers();
-		if ( !freeCam && !rigCam ) {
+		if ( !freeCam && !rigCam && !povEyes ) {
 			CG_DrawBotAimFollowFirstPerson();
 		}
 		CG_AddPredictedMissiles();
@@ -1141,7 +1171,11 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 			CG_AddSpawnpoints();
 		}
 	}
-	CG_AddViewWeapon( &cg.predictedPlayerState );
+	if ( povEyes ) {
+		CG_DemoControls_PovAddViewWeapon();
+	} else {
+		CG_AddViewWeapon( &cg.predictedPlayerState );
+	}
 
 	// add buffered sounds
 	CG_PlayBufferedSounds();
@@ -1157,7 +1191,8 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 	cg.refdef.time = cg.time;
 	memcpy( cg.refdef.areamask, cg.snap->areamask, sizeof( cg.refdef.areamask ) );
-	if ( freeCam || ( rigCam && !CG_DemoCams_UsingPlayerView() ) ) {
+	if ( freeCam || povParked || ( povEyes && CG_DemoControls_PovClient() != cg.snap->ps.clientNum )
+			|| ( rigCam && !CG_DemoCams_UsingPlayerView() ) ) {
 		memset( cg.refdef.areamask, 0, sizeof( cg.refdef.areamask ) );
 	}
 
@@ -1165,8 +1200,9 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	CG_PowerupTimerSounds();
 
 	// update audio positions
-	trap_S_Respatialize( ( freeCam || ( rigCam && !CG_DemoCams_UsingPlayerView() ) )
-			? ENTITYNUM_NONE : cg.snap->ps.clientNum,
+	trap_S_Respatialize( ( freeCam || povParked || ( rigCam && !CG_DemoCams_UsingPlayerView() ) )
+			? ENTITYNUM_NONE
+			: ( povEyes ? CG_DemoControls_PovClient() : cg.snap->ps.clientNum ),
 			cg.refdef.vieworg, cg.refdef.viewaxis, inwater );
 
 	// make sure the lagometerSample and frame timing isn't done twice when in stereo

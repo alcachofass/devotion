@@ -2308,7 +2308,7 @@ static void CG_BreathPuffs( centity_t *cent, refEntity_t *head) {
 		return;
 	}
 	*/
-	if ( cent->currentState.number == cg.snap->ps.clientNum && !cg.renderingThirdPerson) {
+	if ( CG_DemoControls_IsFirstPersonClient( cent->currentState.number ) ) {
 		return;
 	}
 	if ( cent->currentState.eFlags & EF_DEAD ) {
@@ -2673,7 +2673,7 @@ void CG_PlayerFloatHealth( centity_t *cent, qboolean armor ) {
 	//int xoffset = armor ? - 1 - 3 * HEALTHNUMBER_SIZE : 1 + 3 * HEALTHNUMBER_SIZE;
 	int yoffset = armor ? 0 : cg_friendFloatHealthSize.value*1.10;
 
-	if ( cent->currentState.number == cg.snap->ps.clientNum && !cg.renderingThirdPerson ) {
+	if ( CG_DemoControls_IsFirstPersonClient( cent->currentState.number ) ) {
 		rf = RF_THIRD_PERSON;		// only show in mirrors
 	} else {
 		rf = 0;
@@ -2750,7 +2750,7 @@ static void CG_PlayerFloatSprite( centity_t *cent, qhandle_t shader ) {
 	int				rf;
 	refEntity_t		ent;
 
-	if ( cent->currentState.number == cg.snap->ps.clientNum && !cg.renderingThirdPerson ) {
+	if ( CG_DemoControls_IsFirstPersonClient( cent->currentState.number ) ) {
 		rf = RF_THIRD_PERSON;		// only show in mirrors
 	} else {
 		rf = 0;
@@ -2852,7 +2852,7 @@ static void CG_FriendFlagIndicator(centity_t *cent) {
 	//}
 
 
-	if ( cent->currentState.number == cg.snap->ps.clientNum && !cg.renderingThirdPerson ) {
+	if ( CG_DemoControls_IsFirstPersonClient( cent->currentState.number ) ) {
 		rf = RF_THIRD_PERSON;		// only show in mirrors
 	} else {
 		rf = 0;
@@ -4529,13 +4529,11 @@ void CG_Player( centity_t *cent ) {
 
 	// get the player model information
 	renderfx = 0;
-	if ( cent->currentState.number == cg.snap->ps.clientNum) {
-		if (!cg.renderingThirdPerson) {
-			renderfx = RF_THIRD_PERSON;			// only draw in mirrors
-		} else {
-			if (cg_cameraMode.integer) {
-				return;
-			}
+	if ( CG_DemoControls_IsFirstPersonClient( cent->currentState.number ) ) {
+		renderfx = RF_THIRD_PERSON;			// only draw in mirrors
+	} else if ( cent->currentState.number == cg.snap->ps.clientNum && cg.renderingThirdPerson ) {
+		if ( cg_cameraMode.integer ) {
+			return;
 		}
 	}
 

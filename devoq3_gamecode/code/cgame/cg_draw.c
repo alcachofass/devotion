@@ -5269,15 +5269,22 @@ static void CG_DrawCrosshair(void)
 	float		x, y;
 	int			ca = 0; //only to get rid of the warning(not useful)
 	int 		currentWeapon;
+	int			povClient;
 	vec4_t         color;
 	
 	currentWeapon = cg.predictedPlayerState.weapon;
+	if ( CG_DemoControls_PovEyesActive() ) {
+		povClient = CG_DemoControls_PovClient();
+		if ( povClient >= 0 && povClient < MAX_CLIENTS ) {
+			currentWeapon = cg_entities[povClient].currentState.weapon;
+		}
+	}
 
 	if ( !cg_drawCrosshair.integer ) {
 		return;
 	}
 
-	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR) {
+	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR && !CG_DemoControls_PovEyesActive() ) {
 		return;
 	}
 
@@ -6982,7 +6989,7 @@ void CG_DrawSpecPlayerStatus( void ) {
 
 		cent = &cg_entities[i];
 		inPvs = qfalse;
-		hideSelf = ( i == cg.snap->ps.clientNum && !cg.renderingThirdPerson );
+		hideSelf = CG_DemoControls_IsFirstPersonClient( i );
 		if ( i == cg.snap->ps.clientNum && cg.renderingThirdPerson ) {
 			VectorCopy( cg.predictedPlayerEntity.lerpOrigin, origin );
 			inPvs = qtrue;
@@ -7120,9 +7127,15 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		return;
 	}
 
-	if ( cg_draw2D.integer == 0 ) {
-		if ( cg.demoPlayback ) {
+	if ( cg_draw2D.integer == 0 || CG_DemoControls_PovActive() ) {
+		if ( cg.demoPlayback && !CG_DemoControls_PovActive() ) {
 			CG_DrawSpecPlayerStatus();
+		}
+		if ( CG_DemoControls_PovEyesActive() && stereoFrame == STEREO_CENTER ) {
+			CG_DrawCrosshair();
+			if ( !cg.showScores ) {
+				CG_DrawVisualSounds();
+			}
 		}
 		CG_DemoControls_Draw();
 		return;

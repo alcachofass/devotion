@@ -454,7 +454,7 @@ void CG_ItemGhostsNotePickup( int itemIndex, const vec3_t position ) {
 	vec3_t		delta;
 	centity_t	*cent;
 
-	if ( !CG_DemoControls_RigCamActive() || !position ) {
+	if ( !CG_DemoControls_WorldPersistActive() || !position ) {
 		return;
 	}
 	if ( itemIndex <= 0 || itemIndex >= bg_numItems ) {
@@ -530,7 +530,7 @@ static void CG_Item( centity_t *cent ) {
 	// if set to invisible, skip
 	if ( !es->modelindex || ( es->eFlags & EF_NODRAW ) ) {
 		if ( es->modelindex && ( es->eFlags & EF_NODRAW ) ) {
-			if ( CG_DemoControls_RigCamActive() ) {
+			if ( CG_DemoControls_WorldPersistActive() ) {
 				CG_ItemGhostsRemoveByEntNum( cent->currentState.number );
 			}
 			CG_ItemTimersTouchEntity( cent );
@@ -541,7 +541,7 @@ static void CG_Item( centity_t *cent ) {
 
 	CG_ItemTimersTouchEntity( cent );
 
-	if ( CG_DemoControls_RigCamActive() && !cg_itemGhostDrawing ) {
+	if ( CG_DemoControls_WorldPersistActive() && !cg_itemGhostDrawing ) {
 		CG_ItemGhostsNoteDrawn( cent->currentState.number );
 	}
 
@@ -1330,13 +1330,17 @@ static void CG_ItemGhostsFrame( void ) {
 	int		i;
 	int		entNum;
 
-	if ( !CG_DemoControls_RigCamActive() ) {
+	if ( !CG_DemoControls_WorldPersistActive() ) {
 		CG_ItemGhostsReset();
 		cg_itemGhostGen = 0;
 		return;
 	}
 
-	gen = CG_DemoCams_ItemGhostGen();
+	if ( CG_DemoControls_RigCamActive() ) {
+		gen = CG_DemoCams_ItemGhostGen();
+	} else {
+		gen = 1;
+	}
 	if ( gen != cg_itemGhostGen ) {
 		cg_itemGhostGen = gen;
 		CG_ItemGhostsReset();
@@ -1547,6 +1551,9 @@ static void CG_AddCEntity( centity_t *cent ) {
 	if ( cent->demoDelagDrawStateValid && cent->currentState.eType == ET_PLAYER ) {
 		savedState = cent->currentState;
 		cent->currentState = cent->demoDelagDrawState;
+		if ( savedState.weapon > WP_NONE ) {
+			cent->currentState.weapon = savedState.weapon;
+		}
 		swappedDrawState = qtrue;
 	}
 
