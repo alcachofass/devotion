@@ -1441,7 +1441,12 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			qboolean demoRewind;
 			int attackTime;
 
-			VectorMA( muzzlePoint, LIGHTNING_RANGE, forward, endPoint );
+			//mrd
+			if (cent->altFire) {
+				VectorMA( muzzlePoint, LIGHTNING_ALT_RANGE, forward, endPoint );	
+			} else {
+				VectorMA( muzzlePoint, LIGHTNING_RANGE, forward, endPoint );
+			}
 			demoRewind = CG_DemoHistory_DemoDelagActive();
 			attackTime = CG_PredictHitAttackTime();
 			if ( demoRewind ) {

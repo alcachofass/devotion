@@ -973,7 +973,7 @@ void Weapon_LightningFire( gentity_t *ent, qboolean altFire ) {
 	if (!altFire)	//mrd
 		VectorMA( muzzle, LIGHTNING_RANGE, forward, end );
 	else
-		VectorMA( muzzle, (LIGHTNING_RANGE*3), forward, end );
+		VectorMA( muzzle, LIGHTNING_ALT_RANGE, forward, end );
 
 //Sago: I'm not sure this should recieve backward reconciliation. It is not a real instant hit weapon, it can normally be dogded
 //unlagged - backward reconciliation #2
@@ -987,10 +987,11 @@ void Weapon_LightningFire( gentity_t *ent, qboolean altFire ) {
 		trap_Trace( &tr, muzzle, NULL, NULL, end, passent, MASK_SHOT );
 	}
 
-	if (!altFire)	//mrd
+	if (!altFire) {	//mrd
 		damage = g_lgDamage.integer * s_quadFactor;
-	else
+	} else {
 		damage = g_lgDamage.integer * s_quadFactor * (1 - tr.fraction);	//mrd - scale damage so far-away hits do minimal damage
+	}
 
 //unlagged - backward reconciliation #2
 	// put them back
@@ -1041,6 +1042,7 @@ void Weapon_LightningFire( gentity_t *ent, qboolean altFire ) {
 					ent->client->accuracy[WP_LIGHTNING][1]++;
 				}
 				if (altFire) {
+					//mrd - possibly revisit LG damage...
 					G_Damage( traceEnt, ent, ent, forward, tr.endpos, (damage/2), 0, MOD_LIGHTNING, qtrue);
 				} else {
 					G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_LIGHTNING, qfalse);
