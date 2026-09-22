@@ -5269,15 +5269,22 @@ static void CG_DrawCrosshair(void)
 	float		x, y;
 	int			ca = 0; //only to get rid of the warning(not useful)
 	int 		currentWeapon;
+	int			povClient;
 	vec4_t         color;
 	
 	currentWeapon = cg.predictedPlayerState.weapon;
+	if ( CG_DemoControls_PovEyesActive() ) {
+		povClient = CG_DemoControls_PovClient();
+		if ( povClient >= 0 && povClient < MAX_CLIENTS ) {
+			currentWeapon = cg_entities[povClient].currentState.weapon;
+		}
+	}
 
 	if ( !cg_drawCrosshair.integer ) {
 		return;
 	}
 
-	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR) {
+	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR && !CG_DemoControls_PovEyesActive() ) {
 		return;
 	}
 
@@ -6641,7 +6648,11 @@ static void CG_DrawConsoles(void) {
 }
 
 static qboolean CG_SpecPlayerStatusActive( void ) {
-	if ( !cg_specPlayerStatus.integer ) {
+	if ( cg.demoPlayback ) {
+		if ( !cg_demoPlayerStatus.integer ) {
+			return qfalse;
+		}
+	} else if ( !cg_specPlayerStatus.integer ) {
 		return qfalse;
 	}
 	if ( !cg.snap ) {
@@ -6653,6 +6664,9 @@ static qboolean CG_SpecPlayerStatusActive( void ) {
 	if ( cg.showScores ) {
 		return qfalse;
 	}
+	if ( cg.demoPlayback ) {
+		return qtrue;
+	}
 	if ( cg.snap->ps.pm_type == PM_SPECTATOR ) {
 		return qtrue;
 	}
@@ -6661,13 +6675,10 @@ static qboolean CG_SpecPlayerStatusActive( void ) {
 			&& cgs.clientinfo[cg.clientNum].team == TEAM_SPECTATOR ) {
 		return qtrue;
 	}
-	if ( cg.demoPlayback ) {
-		return qtrue;
-	}
 	return qfalse;
 }
 
-static void CG_DrawSpecPlayerStatusBox( float cx, float cy, float scale, const clientInfo_t *ci ) {
+static void CG_DrawSpecPlayerStatusBox( float cx, float cy, float scale, const clientInfo_t *ci, int health, int armor, float fade ) {
 	float		charW;
 	float		charH;
 	float		nameW;
@@ -6683,8 +6694,6 @@ static void CG_DrawSpecPlayerStatusBox( float cx, float cy, float scale, const c
 	float		barFill;
 	int			i;
 	int			filled;
-	int			health;
-	int			armor;
 	float		*tc;
 	float		outlineSize;
 	vec4_t		bg;
@@ -6700,9 +6709,12 @@ static void CG_DrawSpecPlayerStatusBox( float cx, float cy, float scale, const c
 	} else if ( scale > 1.05f ) {
 		scale = 1.05f;
 	}
+	if ( fade < 0.0f ) {
+		fade = 0.0f;
+	} else if ( fade > 1.0f ) {
+		fade = 1.0f;
+	}
 
-	health = ci->health;
-	armor = ci->armor;
 	if ( health < 0 ) {
 		health = 0;
 	}
@@ -6733,16 +6745,16 @@ static void CG_DrawSpecPlayerStatusBox( float cx, float cy, float scale, const c
 		bg[0] = tc[0] * 0.28f;
 		bg[1] = tc[1] * 0.28f;
 		bg[2] = tc[2] * 0.28f;
-		bg[3] = 0.62f;
+		bg[3] = 0.62f * fade;
 		outline[0] = tc[0] * 0.45f + 0.55f;
 		outline[1] = tc[1] * 0.45f + 0.55f;
 		outline[2] = tc[2] * 0.45f + 0.55f;
-		outline[3] = 0.90f;
+		outline[3] = 0.90f * fade;
 	} else {
 		bg[0] = 0.0f;
 		bg[1] = 0.0f;
 		bg[2] = 0.0f;
-		bg[3] = 0.55f;
+		bg[3] = 0.55f * fade;
 		outline[0] = 0.75f;
 		outline[1] = 0.75f;
 		outline[2] = 0.75f;
@@ -6758,6 +6770,7 @@ static void CG_DrawSpecPlayerStatusBox( float cx, float cy, float scale, const c
 	}
 
 	Vector4Copy( colorWhite, nameColor );
+	nameColor[3] *= fade;
 	CG_DrawStringExtFloat( x + pad, y + pad, ci->name, nameColor, qfalse, qfalse, charW, charH, 0 );
 
 	filled = ( health + 24 ) / 25;
@@ -6781,11 +6794,11 @@ static void CG_DrawSpecPlayerStatusBox( float cx, float cy, float scale, const c
 		pipOn[1] = 0.18f;
 		pipOn[2] = 0.15f;
 	}
-	pipOn[3] = 1.0f;
+	pipOn[3] = fade;
 	pipOff[0] = 0.18f;
 	pipOff[1] = 0.18f;
 	pipOff[2] = 0.18f;
-	pipOff[3] = 0.90f;
+	pipOff[3] = 0.90f * fade;
 
 	for ( i = 0; i < 4; i++ ) {
 		CG_FillRect( x + pad + (float)i * ( pip + gap ), y + pad + charH + 2.0f,
@@ -6795,11 +6808,11 @@ static void CG_DrawSpecPlayerStatusBox( float cx, float cy, float scale, const c
 	barBg[0] = 0.15f;
 	barBg[1] = 0.15f;
 	barBg[2] = 0.15f;
-	barBg[3] = 0.90f;
+	barBg[3] = 0.90f * fade;
 	barFg[0] = 0.35f;
 	barFg[1] = 0.70f;
 	barFg[2] = 1.00f;
-	barFg[3] = 1.00f;
+	barFg[3] = fade;
 	CG_FillRect( x + pad, y + pad + charH + 2.0f + pip + 2.0f, pipsW, barH, barBg );
 	barFill = (float)armor / 200.0f;
 	if ( barFill > 1.0f ) {
@@ -6872,6 +6885,69 @@ static void CG_SpecStatusFollowOrigin( clientInfo_t *ci, const vec3_t sample, ve
 	VectorCopy( sample, origin );
 }
 
+#define SPEC_STATUS_VIS_FADE_MSEC		280
+#define SPEC_STATUS_DEATH_FADE_MSEC		1200
+
+static float	demoStatusAlpha[MAX_CLIENTS];
+static int		demoStatusLastMs[MAX_CLIENTS];
+static int		demoStatusDeathTime[MAX_CLIENTS];
+static qboolean	demoStatusWasDead[MAX_CLIENTS];
+static qboolean	demoStatusHadOrigin[MAX_CLIENTS];
+static vec3_t	demoStatusLastOrigin[MAX_CLIENTS];
+
+void CG_DemoPlayerStatusReset( int clientNum ) {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+	demoStatusAlpha[clientNum] = 0.0f;
+	demoStatusLastMs[clientNum] = 0;
+	demoStatusDeathTime[clientNum] = 0;
+	demoStatusWasDead[clientNum] = qfalse;
+	cgs.clientinfo[clientNum].specDrawValid = qfalse;
+}
+
+static int CG_DemoStatusFadeDt( int *lastMs ) {
+	int	now;
+	int	dt;
+
+	now = trap_Milliseconds();
+	dt = cg.frametime;
+	if ( dt <= 0 ) {
+		if ( *lastMs ) {
+			dt = now - *lastMs;
+		} else {
+			dt = 0;
+		}
+	}
+	*lastMs = now;
+	if ( dt < 0 ) {
+		dt = 0;
+	} else if ( dt > 50 ) {
+		dt = 50;
+	}
+	return dt;
+}
+
+static void CG_DemoStatusStepAlpha( float *alpha, float target, int dt ) {
+	float	step;
+
+	step = (float)dt / (float)SPEC_STATUS_VIS_FADE_MSEC;
+	if ( step > 1.0f ) {
+		step = 1.0f;
+	}
+	if ( *alpha < target ) {
+		*alpha += step;
+		if ( *alpha > target ) {
+			*alpha = target;
+		}
+	} else if ( *alpha > target ) {
+		*alpha -= step;
+		if ( *alpha < target ) {
+			*alpha = target;
+		}
+	}
+}
+
 void CG_DrawSpecPlayerStatus( void ) {
 	int				i;
 	clientInfo_t	*ci;
@@ -6882,28 +6958,38 @@ void CG_DrawSpecPlayerStatus( void ) {
 	float			sy;
 	float			dist;
 	float			scale;
+	float			fade;
+	float			deathFade;
+	float			target;
+	int				health;
+	int				armor;
+	int				dt;
 	qboolean		inPvs;
+	qboolean		dead;
+	qboolean		hideSelf;
+	qboolean		demo;
 
 	if ( !CG_SpecPlayerStatusActive() ) {
 		return;
 	}
 
+	demo = cg.demoPlayback;
+
 	for ( i = 0; i < MAX_CLIENTS; i++ ) {
 		ci = &cgs.clientinfo[i];
-		if ( !ci->infoValid || !ci->specInfoValid ) {
+		if ( !ci->infoValid ) {
 			ci->specDrawValid = qfalse;
+			demoStatusHadOrigin[i] = qfalse;
 			continue;
 		}
-		if ( ci->health <= 0 ) {
+		if ( ci->team == TEAM_SPECTATOR ) {
 			ci->specDrawValid = qfalse;
-			continue;
-		}
-		if ( i == cg.snap->ps.clientNum && !cg.renderingThirdPerson ) {
 			continue;
 		}
 
 		cent = &cg_entities[i];
 		inPvs = qfalse;
+		hideSelf = CG_DemoControls_IsFirstPersonClient( i );
 		if ( i == cg.snap->ps.clientNum && cg.renderingThirdPerson ) {
 			VectorCopy( cg.predictedPlayerEntity.lerpOrigin, origin );
 			inPvs = qtrue;
@@ -6912,13 +6998,97 @@ void CG_DrawSpecPlayerStatus( void ) {
 			inPvs = qtrue;
 		}
 
-		if ( inPvs ) {
-			CG_SpecStatusFollowOrigin( ci, origin, origin );
-		} else {
-			CG_SpecStatusSpringTo( ci, ci->specOrigin, (float)cg.frametime * 0.001f );
-			VectorCopy( ci->specDrawOrigin, origin );
+		dead = qfalse;
+		if ( inPvs && ( cent->currentState.eFlags & EF_DEAD ) && !CG_IsFrozenPlayerState( &cent->currentState ) ) {
+			dead = qtrue;
+		} else if ( !inPvs && ci->health <= 0 ) {
+			dead = qtrue;
 		}
-		origin[2] += 48.0f;
+
+		health = ci->health;
+		armor = ci->armor;
+		if ( i == cg.snap->ps.clientNum ) {
+			health = cg.snap->ps.stats[STAT_HEALTH];
+			armor = cg.snap->ps.stats[STAT_ARMOR];
+			if ( health <= 0 ) {
+				dead = qtrue;
+			}
+		}
+
+		if ( !demo ) {
+			if ( !ci->specInfoValid ) {
+				ci->specDrawValid = qfalse;
+				continue;
+			}
+			if ( ci->health <= 0 ) {
+				ci->specDrawValid = qfalse;
+				continue;
+			}
+			if ( hideSelf ) {
+				continue;
+			}
+			if ( inPvs ) {
+				CG_SpecStatusFollowOrigin( ci, origin, origin );
+			} else {
+				CG_SpecStatusSpringTo( ci, ci->specOrigin, (float)cg.frametime * 0.001f );
+				VectorCopy( ci->specDrawOrigin, origin );
+			}
+			origin[2] += 48.0f;
+			fade = 1.0f;
+		} else {
+			if ( dead ) {
+				if ( demoStatusWasDead[i] == qfalse ) {
+					demoStatusWasDead[i] = qtrue;
+					if ( !demoStatusDeathTime[i] || demoStatusDeathTime[i] > cg.time ) {
+						demoStatusDeathTime[i] = cg.time;
+					}
+				}
+				if ( cg.time - demoStatusDeathTime[i] >= SPEC_STATUS_DEATH_FADE_MSEC ) {
+					deathFade = 0.0f;
+				} else {
+					deathFade = 1.0f - (float)( cg.time - demoStatusDeathTime[i] ) / (float)SPEC_STATUS_DEATH_FADE_MSEC;
+				}
+			} else {
+				if ( demoStatusWasDead[i] ) {
+					CG_DemoPlayerStatusReset( i );
+				}
+				demoStatusDeathTime[i] = 0;
+				deathFade = 1.0f;
+			}
+
+			if ( inPvs ) {
+				CG_SpecStatusFollowOrigin( ci, origin, origin );
+				VectorCopy( origin, demoStatusLastOrigin[i] );
+				demoStatusHadOrigin[i] = qtrue;
+			} else if ( ci->specInfoValid && !dead ) {
+				CG_SpecStatusSpringTo( ci, ci->specOrigin, (float)cg.frametime * 0.001f );
+				VectorCopy( ci->specDrawOrigin, origin );
+				VectorCopy( origin, demoStatusLastOrigin[i] );
+				demoStatusHadOrigin[i] = qtrue;
+			} else if ( demoStatusHadOrigin[i] ) {
+				VectorCopy( demoStatusLastOrigin[i], origin );
+			} else {
+				ci->specDrawValid = qfalse;
+				continue;
+			}
+			origin[2] += 48.0f;
+
+			target = 0.0f;
+			if ( !hideSelf && deathFade > 0.0f ) {
+				if ( inPvs || ci->specInfoValid ) {
+					target = 1.0f;
+				}
+			}
+			dt = CG_DemoStatusFadeDt( &demoStatusLastMs[i] );
+			CG_DemoStatusStepAlpha( &demoStatusAlpha[i], target, dt );
+			fade = demoStatusAlpha[i] * deathFade;
+			if ( fade <= 0.01f ) {
+				if ( target <= 0.0f ) {
+					demoStatusHadOrigin[i] = qfalse;
+				}
+				continue;
+			}
+		}
 
 		if ( !CG_WorldToScreen( origin, &sx, &sy ) ) {
 			continue;
@@ -6936,7 +7106,7 @@ void CG_DrawSpecPlayerStatus( void ) {
 			scale = 0.82f;
 		}
 
-		CG_DrawSpecPlayerStatusBox( sx, sy, scale, ci );
+		CG_DrawSpecPlayerStatusBox( sx, sy, scale, ci, health, armor, fade );
 	}
 }
 
@@ -6957,7 +7127,16 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		return;
 	}
 
-	if ( cg_draw2D.integer == 0 ) {
+	if ( cg_draw2D.integer == 0 || CG_DemoControls_PovActive() ) {
+		if ( cg.demoPlayback && !CG_DemoControls_PovActive() ) {
+			CG_DrawSpecPlayerStatus();
+		}
+		if ( CG_DemoControls_PovEyesActive() && stereoFrame == STEREO_CENTER ) {
+			CG_DrawCrosshair();
+			if ( !cg.showScores ) {
+				CG_DrawVisualSounds();
+			}
+		}
 		CG_DemoControls_Draw();
 		return;
 	}

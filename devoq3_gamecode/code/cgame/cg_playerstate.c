@@ -278,6 +278,9 @@ void CG_CheckChangedPredictableEvents( playerState_t *ps ) {
 }
 
 void CG_PushReward(sfxHandle_t sfx, qhandle_t shader, int rewardCount) {
+	if ( CG_DemoControls_PovRedirectHits() ) {
+		return;
+	}
 	if (cg_drawRewards.integer == 2) {
 		if (cg.rewardStack < (MAX_REWARDSTACK-1)) {
 			cg.rewardStack++;
@@ -326,6 +329,21 @@ Negative cg_hitsound values play a damage-scaled tone ladder from the
 pack registered for that value. Other non-zero values use hitN.wav.
 ==================
 */
+static void CG_PlayHitBeep( sfxHandle_t sfx ) {
+	if ( !sfx ) {
+		return;
+	}
+	if ( CG_DemoControls_FreeCamActive() && cg.snap ) {
+		vec3_t	org;
+
+		VectorCopy( cg.predictedPlayerState.origin, org );
+		org[2] += cg.predictedPlayerState.viewheight;
+		trap_S_StartSound( org, ENTITYNUM_WORLD, CHAN_LOCAL_SOUND, sfx );
+	} else {
+		trap_S_StartLocalSound( sfx, CHAN_LOCAL_SOUND );
+	}
+}
+
 void CG_StartHitSound( int damage ) {
 	sfxHandle_t sfx;
 
@@ -348,7 +366,7 @@ void CG_StartHitSound( int damage ) {
 	}
 
 	if ( sfx ) {
-		trap_S_StartLocalSound( sfx, CHAN_LOCAL_SOUND );
+		CG_PlayHitBeep( sfx );
 	}
 }
 
@@ -365,6 +383,14 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 #endif
 	sfxHandle_t sfx;
 
+	if ( CG_DemoControls_PovRedirectHits() ) {
+		if ( ops->stats[STAT_HEALTH] > 0 && ps->stats[STAT_HEALTH] <= 0 ) {
+			CG_DemoControls_PovNoteFrag( ps->persistant[PERS_ATTACKER],
+					ps->clientNum, NULL );
+		}
+		return;
+	}
+
 	// don't play the sounds if the player just changed teams
 	if ( ps->persistant[PERS_TEAM] != ops->persistant[PERS_TEAM] ) {
 		return;
@@ -379,7 +405,7 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 			CG_StartHitSound( cg.lastHitDamage );
 		}
 	} else if ( ps->persistant[PERS_HITS] < ops->persistant[PERS_HITS] ) {
-		trap_S_StartLocalSound( cgs.media.hitTeamSound, CHAN_LOCAL_SOUND );
+		CG_PlayHitBeep( cgs.media.hitTeamSound );
 	}
 
 	// health changes of more than -1 should make pain sounds

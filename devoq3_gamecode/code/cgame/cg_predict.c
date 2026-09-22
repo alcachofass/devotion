@@ -85,6 +85,532 @@ void CG_BuildSolidList( void ) {
 	}
 }
 
+#define FC_MAX_DESTS	128
+#define FC_MAX_TELES	96
+#define FC_MAX_MOVERS	256
+#define FC_NAME_LEN		64
+
+typedef struct {
+	char	name[FC_NAME_LEN];
+	vec3_t	origin;
+	vec3_t	angles;
+} fcDest_t;
+
+typedef struct {
+	int		modelIndex;
+	vec3_t	origin;
+	vec3_t	dest;
+	vec3_t	destAngles;
+} fcTele_t;
+
+typedef struct {
+	int				modelIndex;
+	qhandle_t		model2;
+	int				constantLight;
+	trajectory_t	pos;
+	trajectory_t	apos;
+} fcMover_t;
+
+static fcTele_t		fc_teles[FC_MAX_TELES];
+static int			fc_numTeles;
+static qboolean		fc_mapParsed;
+static fcMover_t	fc_movers[FC_MAX_MOVERS];
+static int			fc_numMovers;
+static float		fc_gravity;
+
+static void CG_FreeCamPackLight( const char *lightStr, const char *colorStr, int *outLight ) {
+	vec3_t	color;
+	float	light;
+	int		r, g, b, i;
+
+	if ( !outLight ) {
+		return;
+	}
+	*outLight = 0;
+	if ( ( !lightStr || !lightStr[0] ) && ( !colorStr || !colorStr[0] ) ) {
+		return;
+	}
+	light = 100.0f;
+	VectorSet( color, 1.0f, 1.0f, 1.0f );
+	if ( lightStr && lightStr[0] ) {
+		light = atof( lightStr );
+	}
+	if ( colorStr && colorStr[0] ) {
+		sscanf( colorStr, "%f %f %f", &color[0], &color[1], &color[2] );
+	}
+	r = color[0] * 255;
+	if ( r > 255 ) {
+		r = 255;
+	}
+	if ( r < 0 ) {
+		r = 0;
+	}
+	g = color[1] * 255;
+	if ( g > 255 ) {
+		g = 255;
+	}
+	if ( g < 0 ) {
+		g = 0;
+	}
+	b = color[2] * 255;
+	if ( b > 255 ) {
+		b = 255;
+	}
+	if ( b < 0 ) {
+		b = 0;
+	}
+	i = light / 4;
+	if ( i > 255 ) {
+		i = 255;
+	}
+	if ( i < 0 ) {
+		i = 0;
+	}
+	*outLight = r | ( g << 8 ) | ( b << 16 ) | ( i << 24 );
+}
+
+static void CG_FreeCamAddParsedMover( int modelIndex, int spawnflags,
+		const char *classname, const char *originStr, const char *anglesStr,
+		const char *angleStr, const char *speedStr, const char *heightStr,
+		const char *phaseStr, const char *model2, const char *lightStr,
+		const char *colorStr ) {
+	fcMover_t	*mv;
+	vec3_t		origin;
+	vec3_t		angles;
+	vec3_t		mins, maxs;
+	float		speed;
+	float		height;
+	float		phase;
+	float		length;
+	float		freq;
+
+	if ( !classname || modelIndex < 1 || modelIndex >= trap_CM_NumInlineModels() ) {
+		return;
+	}
+	if ( fc_numMovers >= FC_MAX_MOVERS ) {
+		return;
+	}
+
+	mv = &fc_movers[fc_numMovers];
+	memset( mv, 0, sizeof( *mv ) );
+	mv->modelIndex = modelIndex;
+	if ( model2 && model2[0] ) {
+		mv->model2 = trap_R_RegisterModel( model2 );
+	}
+	CG_FreeCamPackLight( lightStr, colorStr, &mv->constantLight );
+
+	VectorClear( origin );
+	VectorClear( angles );
+	sscanf( originStr, "%f %f %f", &origin[0], &origin[1], &origin[2] );
+	if ( anglesStr && anglesStr[0] ) {
+		sscanf( anglesStr, "%f %f %f", &angles[0], &angles[1], &angles[2] );
+	} else if ( angleStr && angleStr[0] ) {
+		angles[YAW] = atof( angleStr );
+	}
+	VectorCopy( origin, mv->pos.trBase );
+	VectorCopy( angles, mv->apos.trBase );
+	mv->pos.trType = TR_STATIONARY;
+	mv->apos.trType = TR_STATIONARY;
+
+	if ( !Q_stricmp( classname, "func_bobbing" ) ) {
+		speed = 4.0f;
+		height = 32.0f;
+		phase = 0.0f;
+		if ( speedStr && speedStr[0] ) {
+			speed = atof( speedStr );
+		}
+		if ( heightStr && heightStr[0] ) {
+			height = atof( heightStr );
+		}
+		if ( phaseStr && phaseStr[0] ) {
+			phase = atof( phaseStr );
+		}
+		if ( speed < 0.05f ) {
+			speed = 0.05f;
+		}
+		mv->pos.trDuration = speed * 1000;
+		mv->pos.trTime = mv->pos.trDuration * phase;
+		mv->pos.trType = TR_SINE;
+		if ( spawnflags & 1 ) {
+			mv->pos.trDelta[0] = height;
+		} else if ( spawnflags & 2 ) {
+			mv->pos.trDelta[1] = height;
+		} else {
+			mv->pos.trDelta[2] = height;
+		}
+	} else if ( !Q_stricmp( classname, "func_pendulum" ) ) {
+		speed = 30.0f;
+		phase = 0.0f;
+		if ( speedStr && speedStr[0] ) {
+			speed = atof( speedStr );
+		}
+		if ( phaseStr && phaseStr[0] ) {
+			phase = atof( phaseStr );
+		}
+		VectorClear( mins );
+		VectorClear( maxs );
+		if ( cgs.inlineDrawModel[modelIndex] ) {
+			trap_R_ModelBounds( cgs.inlineDrawModel[modelIndex], mins, maxs );
+		}
+		length = fabs( mins[2] );
+		if ( length < 8.0f ) {
+			length = 8.0f;
+		}
+		freq = 1.0f / ( M_PI * 2.0f ) * sqrt( fc_gravity / ( 3.0f * length ) );
+		if ( freq < 0.001f ) {
+			freq = 0.001f;
+		}
+		mv->apos.trDuration = 1000.0f / freq;
+		mv->pos.trDuration = mv->apos.trDuration;
+		mv->apos.trTime = mv->apos.trDuration * phase;
+		mv->apos.trType = TR_SINE;
+		mv->apos.trDelta[2] = speed;
+	} else if ( !Q_stricmp( classname, "func_rotating" ) ) {
+		speed = 100.0f;
+		if ( speedStr && speedStr[0] ) {
+			speed = atof( speedStr );
+		}
+		mv->apos.trType = TR_LINEAR;
+		if ( spawnflags & 4 ) {
+			mv->apos.trDelta[2] = speed;
+		} else if ( spawnflags & 8 ) {
+			mv->apos.trDelta[0] = speed;
+		} else {
+			mv->apos.trDelta[1] = speed;
+		}
+	}
+
+	fc_numMovers++;
+}
+
+void CG_FreeCamParseMap( void ) {
+	char		keys[32][64];
+	char		vals[32][64];
+	char		token[MAX_TOKEN_CHARS];
+	static fcDest_t	dests[FC_MAX_DESTS];
+	static char		teleTarget[FC_MAX_TELES][FC_NAME_LEN];
+	int			nDests;
+	int			n;
+	int			d;
+	int			modelIndex;
+	int			spawnflags;
+	const char	*classname;
+	const char	*target;
+	const char	*targetname;
+	const char	*model;
+	const char	*originStr;
+	const char	*anglesStr;
+	const char	*angleStr;
+	const char	*speedStr;
+	const char	*heightStr;
+	const char	*phaseStr;
+	const char	*model2;
+	const char	*lightStr;
+	const char	*colorStr;
+	const char	*gravityStr;
+
+	fc_mapParsed = qtrue;
+	fc_numTeles = 0;
+	fc_numMovers = 0;
+	fc_gravity = 800.0f;
+	nDests = 0;
+
+	while ( 1 ) {
+		if ( !trap_GetEntityToken( token, sizeof( token ) ) ) {
+			break;
+		}
+		if ( token[0] != '{' ) {
+			continue;
+		}
+		n = 0;
+		while ( 1 ) {
+			if ( !trap_GetEntityToken( token, sizeof( token ) ) ) {
+				n = -1;
+				break;
+			}
+			if ( token[0] == '}' ) {
+				break;
+			}
+			if ( n < 32 ) {
+				Q_strncpyz( keys[n], token, sizeof( keys[n] ) );
+			}
+			if ( !trap_GetEntityToken( token, sizeof( token ) ) ) {
+				n = -1;
+				break;
+			}
+			if ( n < 32 ) {
+				Q_strncpyz( vals[n], token, sizeof( vals[n] ) );
+				n++;
+			}
+		}
+		if ( n < 0 ) {
+			break;
+		}
+
+		classname = "";
+		target = "";
+		targetname = "";
+		model = "";
+		originStr = "";
+		anglesStr = "";
+		angleStr = "";
+		speedStr = "";
+		heightStr = "";
+		phaseStr = "";
+		model2 = "";
+		lightStr = "";
+		colorStr = "";
+		gravityStr = "";
+		spawnflags = 0;
+		for ( d = 0; d < n; d++ ) {
+			if ( !Q_stricmp( keys[d], "classname" ) ) {
+				classname = vals[d];
+			} else if ( !Q_stricmp( keys[d], "target" ) ) {
+				target = vals[d];
+			} else if ( !Q_stricmp( keys[d], "targetname" ) ) {
+				targetname = vals[d];
+			} else if ( !Q_stricmp( keys[d], "model" ) ) {
+				model = vals[d];
+			} else if ( !Q_stricmp( keys[d], "origin" ) ) {
+				originStr = vals[d];
+			} else if ( !Q_stricmp( keys[d], "angles" ) ) {
+				anglesStr = vals[d];
+			} else if ( !Q_stricmp( keys[d], "angle" ) ) {
+				angleStr = vals[d];
+			} else if ( !Q_stricmp( keys[d], "spawnflags" ) ) {
+				spawnflags = atoi( vals[d] );
+			} else if ( !Q_stricmp( keys[d], "speed" ) ) {
+				speedStr = vals[d];
+			} else if ( !Q_stricmp( keys[d], "height" ) ) {
+				heightStr = vals[d];
+			} else if ( !Q_stricmp( keys[d], "phase" ) ) {
+				phaseStr = vals[d];
+			} else if ( !Q_stricmp( keys[d], "model2" ) ) {
+				model2 = vals[d];
+			} else if ( !Q_stricmp( keys[d], "light" ) ) {
+				lightStr = vals[d];
+			} else if ( !Q_stricmp( keys[d], "color" ) ) {
+				colorStr = vals[d];
+			} else if ( !Q_stricmp( keys[d], "gravity" ) ) {
+				gravityStr = vals[d];
+			}
+		}
+
+		if ( !Q_stricmp( classname, "worldspawn" ) ) {
+			if ( gravityStr[0] ) {
+				fc_gravity = atof( gravityStr );
+				if ( fc_gravity < 1.0f ) {
+					fc_gravity = 1.0f;
+				}
+			}
+			{
+				char	modBuf[32];
+				float	mod;
+
+				modBuf[0] = '\0';
+				trap_Cvar_VariableStringBuffer( "g_gravityModifier", modBuf, sizeof( modBuf ) );
+				if ( modBuf[0] ) {
+					mod = atof( modBuf );
+					if ( mod > 0.0f ) {
+						fc_gravity *= mod;
+					}
+				}
+			}
+			continue;
+		}
+
+		if ( !Q_stricmp( classname, "target_position" )
+				|| !Q_stricmp( classname, "misc_teleporter_dest" )
+				|| !Q_stricmp( classname, "info_notnull" ) ) {
+			if ( targetname[0] && nDests < FC_MAX_DESTS ) {
+				Q_strncpyz( dests[nDests].name, targetname, sizeof( dests[nDests].name ) );
+				VectorClear( dests[nDests].origin );
+				VectorClear( dests[nDests].angles );
+				sscanf( originStr, "%f %f %f",
+						&dests[nDests].origin[0],
+						&dests[nDests].origin[1],
+						&dests[nDests].origin[2] );
+				if ( anglesStr[0] ) {
+					sscanf( anglesStr, "%f %f %f",
+							&dests[nDests].angles[0],
+							&dests[nDests].angles[1],
+							&dests[nDests].angles[2] );
+				} else if ( angleStr[0] ) {
+					dests[nDests].angles[YAW] = atof( angleStr );
+				}
+				nDests++;
+			}
+			continue;
+		}
+
+		if ( Q_stricmp( classname, "trigger_teleport" ) ) {
+			if ( !Q_stricmp( classname, "func_static" )
+					|| !Q_stricmp( classname, "func_bobbing" )
+					|| !Q_stricmp( classname, "func_pendulum" )
+					|| !Q_stricmp( classname, "func_rotating" ) ) {
+				if ( model[0] == '*' ) {
+					modelIndex = atoi( model + 1 );
+					CG_FreeCamAddParsedMover( modelIndex, spawnflags, classname, originStr,
+							anglesStr, angleStr, speedStr, heightStr, phaseStr,
+							model2, lightStr, colorStr );
+				}
+			}
+			continue;
+		}
+		if ( spawnflags & 1 ) {
+			continue;
+		}
+		if ( !target[0] || model[0] != '*' ) {
+			continue;
+		}
+		modelIndex = atoi( model + 1 );
+		if ( modelIndex < 1 || modelIndex >= trap_CM_NumInlineModels() ) {
+			continue;
+		}
+		if ( fc_numTeles >= FC_MAX_TELES ) {
+			continue;
+		}
+		fc_teles[fc_numTeles].modelIndex = modelIndex;
+		VectorClear( fc_teles[fc_numTeles].origin );
+		sscanf( originStr, "%f %f %f",
+				&fc_teles[fc_numTeles].origin[0],
+				&fc_teles[fc_numTeles].origin[1],
+				&fc_teles[fc_numTeles].origin[2] );
+		Q_strncpyz( teleTarget[fc_numTeles], target, sizeof( teleTarget[fc_numTeles] ) );
+		VectorClear( fc_teles[fc_numTeles].dest );
+		VectorClear( fc_teles[fc_numTeles].destAngles );
+		fc_numTeles++;
+	}
+
+	{
+		int		t;
+		int		nd;
+		int		kept;
+
+		kept = 0;
+		for ( t = 0; t < fc_numTeles; t++ ) {
+			for ( nd = 0; nd < nDests; nd++ ) {
+				if ( !Q_stricmp( dests[nd].name, teleTarget[t] ) ) {
+					VectorCopy( dests[nd].origin, fc_teles[t].dest );
+					VectorCopy( dests[nd].angles, fc_teles[t].destAngles );
+					if ( kept != t ) {
+						fc_teles[kept] = fc_teles[t];
+					}
+					kept++;
+					break;
+				}
+			}
+		}
+		fc_numTeles = kept;
+	}
+}
+
+qboolean CG_FreeCamTouchTeleporter( vec3_t origin, vec3_t angles ) {
+	int				i;
+	trace_t			trace;
+	clipHandle_t	cmodel;
+	vec3_t			mins, maxs;
+	vec3_t			angZero;
+
+	if ( !origin || !angles ) {
+		return qfalse;
+	}
+
+	if ( !fc_mapParsed ) {
+		CG_FreeCamParseMap();
+	}
+
+	VectorSet( mins, -12, -12, -12 );
+	VectorSet( maxs, 12, 12, 12 );
+	VectorClear( angZero );
+
+	for ( i = 0; i < fc_numTeles; i++ ) {
+		cmodel = trap_CM_InlineModel( fc_teles[i].modelIndex );
+		if ( !cmodel ) {
+			continue;
+		}
+		trap_CM_TransformedBoxTrace( &trace, origin, origin, mins, maxs,
+				cmodel, -1, fc_teles[i].origin, angZero );
+		if ( !trace.startsolid ) {
+			continue;
+		}
+		VectorCopy( fc_teles[i].dest, origin );
+		origin[2] += 1.0f;
+		VectorCopy( fc_teles[i].destAngles, angles );
+		angles[ROLL] = 0.0f;
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+void CG_FreeCamAddAmbientMovers( void ) {
+	int				i;
+	int				s;
+	fcMover_t		*mv;
+	refEntity_t		ent;
+	entityState_t	*es;
+	vec3_t			origin;
+	vec3_t			angles;
+	int				cl;
+	float			r, g, b, intensity;
+	qboolean		inSnap;
+
+	if ( !CG_DemoControls_WorldPersistActive() ) {
+		return;
+	}
+	if ( !fc_mapParsed ) {
+		CG_FreeCamParseMap();
+	}
+
+	for ( i = 0; i < fc_numMovers; i++ ) {
+		mv = &fc_movers[i];
+		inSnap = qfalse;
+		if ( cg.snap ) {
+			for ( s = 0; s < cg.snap->numEntities; s++ ) {
+				es = &cg.snap->entities[s];
+				if ( es->eType == ET_MOVER && es->modelindex == mv->modelIndex ) {
+					inSnap = qtrue;
+					break;
+				}
+			}
+		}
+		if ( inSnap ) {
+			continue;
+		}
+		if ( !cgs.inlineDrawModel[mv->modelIndex] ) {
+			continue;
+		}
+
+		BG_EvaluateTrajectory( &mv->pos, cg.time, origin );
+		BG_EvaluateTrajectory( &mv->apos, cg.time, angles );
+
+		memset( &ent, 0, sizeof( ent ) );
+		VectorCopy( origin, ent.origin );
+		VectorCopy( origin, ent.oldorigin );
+		AnglesToAxis( angles, ent.axis );
+		ent.renderfx = RF_NOSHADOW;
+		ent.skinNum = ( cg.time >> 6 ) & 1;
+		ent.hModel = cgs.inlineDrawModel[mv->modelIndex];
+		trap_R_AddRefEntityToScene( &ent );
+
+		if ( mv->model2 ) {
+			ent.skinNum = 0;
+			ent.hModel = mv->model2;
+			trap_R_AddRefEntityToScene( &ent );
+		}
+
+		if ( mv->constantLight ) {
+			cl = mv->constantLight;
+			r = (float)( cl & 0xFF ) / 255.0f;
+			g = (float)( ( cl >> 8 ) & 0xFF ) / 255.0f;
+			b = (float)( ( cl >> 16 ) & 0xFF ) / 255.0f;
+			intensity = (float)( ( cl >> 24 ) & 0xFF ) * 4.0f;
+			trap_R_AddLightToScene( origin, intensity, r, g, b );
+		}
+	}
+}
+
 void CG_EncodePlayerBBox( pmove_t *pm, entityState_t *ent) {
 	int i, j, k;
 

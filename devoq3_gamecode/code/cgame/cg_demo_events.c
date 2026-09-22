@@ -105,6 +105,8 @@ static qboolean			ev_fieldsReady;
 static entityState_t	ev_nullEnt;
 static playerState_t	ev_nullPs;
 static char				ev_playerNames[MAX_CLIENTS][MAX_NAME_LENGTH];
+static qboolean			ev_playerSeen[MAX_CLIENTS];
+static int				ev_playerPing[MAX_CLIENTS];
 static char				ev_currentMap[MAX_QPATH];
 
 static int DemoEv_PtrOff( const byte *base, const byte *member ) {
@@ -686,8 +688,7 @@ static void DemoEv_ApplyConfigstring( int idx, const char *value, qboolean emit 
 		name = Info_ValueForKey( value, "n" );
 		if ( name && name[0] ) {
 			Q_strncpyz( ev_playerNames[clientNum], name, sizeof( ev_playerNames[clientNum] ) );
-		} else {
-			ev_playerNames[clientNum][0] = '\0';
+			ev_playerSeen[clientNum] = qtrue;
 		}
 		return;
 	}
@@ -1013,6 +1014,112 @@ static void DemoEv_ParseGamestate( msg_t *msg ) {
 	}
 }
 
+static void DemoEv_NoteClientPing( int clientNum, int ping ) {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+	ev_playerSeen[clientNum] = qtrue;
+	if ( ping < 1 || ping > 998 ) {
+		return;
+	}
+	if ( ev_playerPing[clientNum] < 1 || ping < ev_playerPing[clientNum] ) {
+		ev_playerPing[clientNum] = ping;
+	}
+}
+
+static void DemoEv_HarvestScorePings( const char *cmd ) {
+	char		buf[MAX_STRING_CHARS];
+	char		*p;
+	const char	*tok;
+	int			idx;
+	int			num;
+	int			numArg;
+	int			stride;
+	int			first;
+	int			rel;
+	int			field;
+	int			client;
+	int			val;
+
+	if ( !Q_stricmpn( cmd, "ratscores1", 10 ) && ( cmd[10] == ' ' || cmd[10] == '\t' ) ) {
+		numArg = 2;
+		stride = 17;
+		first = 7;
+	} else if ( !Q_stricmpn( cmd, "ratscores", 9 ) && ( cmd[9] == ' ' || cmd[9] == '\t' ) ) {
+		numArg = 1;
+		stride = 21;
+		first = 4;
+	} else if ( !Q_stricmpn( cmd, "scores", 6 ) && ( cmd[6] == ' ' || cmd[6] == '\t' ) ) {
+		numArg = 1;
+		stride = 15;
+		first = 4;
+	} else {
+		return;
+	}
+
+	Q_strncpyz( buf, cmd, sizeof( buf ) );
+	p = buf;
+	idx = 0;
+	num = 0;
+	client = -1;
+	while ( 1 ) {
+		tok = COM_Parse( &p );
+		if ( !tok || !tok[0] ) {
+			break;
+		}
+		val = atoi( tok );
+		if ( idx == numArg ) {
+			num = val;
+			if ( num < 0 ) {
+				num = 0;
+			}
+			if ( num > MAX_CLIENTS ) {
+				num = MAX_CLIENTS;
+			}
+		}
+		if ( idx > first && num > 0 ) {
+			rel = idx - ( first + 1 );
+			if ( rel >= 0 && rel < num * stride ) {
+				field = rel % stride;
+				if ( field == 0 ) {
+					client = val;
+				} else if ( field == 2 ) {
+					DemoEv_NoteClientPing( client, val );
+				}
+			}
+		}
+		idx++;
+	}
+}
+
+void CG_DemoEvents_NotePing( int clientNum, int ping ) {
+	DemoEv_NoteClientPing( clientNum, ping );
+}
+
+qboolean CG_DemoEvents_ClientSeen( int clientNum ) {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	return ev_playerSeen[clientNum];
+}
+
+int CG_DemoEvents_ClientPing( int clientNum ) {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return -1;
+	}
+	if ( ev_playerPing[clientNum] < 1 ) {
+		return -1;
+	}
+	return ev_playerPing[clientNum];
+}
+
+const char *CG_DemoEvents_ClientName( int clientNum ) {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return "";
+	}
+	return ev_playerNames[clientNum];
+}
+
 static void DemoEv_ParseServerCommand( const char *cmd ) {
 	char	buf[MAX_STRING_CHARS];
 	char	*p;
@@ -1025,6 +1132,7 @@ static void DemoEv_ParseServerCommand( const char *cmd ) {
 		DemoEv_ApplyElimination( cmd + 11 );
 		return;
 	}
+	DemoEv_HarvestScorePings( cmd );
 	if ( cmd[0] != 'c' || cmd[1] != 's' || ( cmd[2] != ' ' && cmd[2] != '\t' ) ) {
 		return;
 	}
@@ -1238,6 +1346,8 @@ static void DemoEv_ResetScanState( void ) {
 	Com_Memset( &ev_nullEnt, 0, sizeof( ev_nullEnt ) );
 	Com_Memset( &ev_nullPs, 0, sizeof( ev_nullPs ) );
 	Com_Memset( ev_playerNames, 0, sizeof( ev_playerNames ) );
+	Com_Memset( ev_playerSeen, 0, sizeof( ev_playerSeen ) );
+	Com_Memset( ev_playerPing, 0, sizeof( ev_playerPing ) );
 	ev_currentMap[0] = '\0';
 }
 
@@ -1866,7 +1976,8 @@ void CG_DemoEvents_DrawTrack( int trackX, int trackY, int trackW, int trackH,
 	}
 }
 
-qboolean CG_DemoEvents_DrawMarkers( int trackX, int trackY, int trackW, int trackH, int firstServerTime, int durationMs, int cursorX, int cursorY ) {
+static qboolean DemoEv_DrawMarkersEx( int trackX, int trackY, int trackW, int trackH,
+		int firstServerTime, int durationMs, int cursorX, int cursorY, qboolean metaOnly ) {
 	int		i;
 	int		mx;
 	int		my;
@@ -1876,6 +1987,7 @@ qboolean CG_DemoEvents_DrawMarkers( int trackX, int trackY, int trackW, int trac
 	int		bestDist;
 	int		hoverY0;
 	int		hoverY1;
+	byte	kind;
 	vec4_t	color;
 
 	if ( durationMs <= 0 || trackW <= 0 ) {
@@ -1895,11 +2007,17 @@ qboolean CG_DemoEvents_DrawMarkers( int trackX, int trackY, int trackW, int trac
 	bestDist = 9999;
 
 	for ( i = 0; i < ev_count; i++ ) {
-		if ( ev_events[i].kind == DEMOEV_ROUND_START || ev_events[i].kind == DEMOEV_ROUND_END ) {
+		kind = ev_events[i].kind;
+		if ( metaOnly ) {
+			if ( kind != DEMOEV_MATCH_START && kind != DEMOEV_MATCH_END
+					&& kind != DEMOEV_ROUND_START && kind != DEMOEV_ROUND_END ) {
+				continue;
+			}
+		} else if ( kind == DEMOEV_ROUND_START || kind == DEMOEV_ROUND_END ) {
 			continue;
 		}
 		mx = DemoEv_MarkerX( trackX, trackW, firstServerTime, durationMs, ev_events[i].serverTime );
-		DemoEv_KindColor( ev_events[i].kind, color );
+		DemoEv_KindColor( kind, color );
 		CG_FillRect( mx, my, DEMOEV_MARKER_W, mh, color );
 
 		if ( cursorY >= hoverY0 && cursorY < hoverY1 ) {
@@ -1920,4 +2038,14 @@ qboolean CG_DemoEvents_DrawMarkers( int trackX, int trackY, int trackW, int trac
 		return qtrue;
 	}
 	return qfalse;
+}
+
+qboolean CG_DemoEvents_DrawMarkers( int trackX, int trackY, int trackW, int trackH, int firstServerTime, int durationMs, int cursorX, int cursorY ) {
+	return DemoEv_DrawMarkersEx( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
+			cursorX, cursorY, qfalse );
+}
+
+qboolean CG_DemoEvents_DrawMetaMarkers( int trackX, int trackY, int trackW, int trackH, int firstServerTime, int durationMs, int cursorX, int cursorY ) {
+	return DemoEv_DrawMarkersEx( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
+			cursorX, cursorY, qtrue );
 }

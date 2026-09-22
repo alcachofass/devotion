@@ -1238,6 +1238,7 @@ void CG_RegisterWeapon( int weaponNum ) {
 
 	case WP_LIGHTNING:
 		MAKERGB( weaponInfo->flashDlightColor, 0.6f, 0.6f, 1.0f );
+		MAKERGB( weaponInfo->flashDlightAltColor, 0.9f, 0.25f, 1.0f );	//mrd purple light for LG altFire
 		/*
 #define NUM_LG_SOUNDPACKS 3
 		soundIdx = (((unsigned int)(cg_lgSound.integer - 1)) % NUM_LG_SOUNDPACKS) + 1;
@@ -1264,6 +1265,11 @@ void CG_RegisterWeapon( int weaponNum ) {
 				cgs.media.lightningShader = trap_R_RegisterShader( "lightningBoltNew");
 				break;
 		} 
+
+		cgs.media.lightningAltShader = trap_R_RegisterShader( "lightningBoltDevoAlt" );	//mrd
+		cgs.media.lightningAltFlash = trap_R_RegisterShader( "lightningFlashDevoAlt");	//mrd
+		cgs.media.lightningAltCrackle = trap_R_RegisterShader( "lightningCrackleDevoAlt");	//mrd
+
 		cgs.media.lightningExplosionModel = trap_R_RegisterModel( "models/weaphits/crackle.md3" );
 		cgs.media.sfx_lghit1 = trap_S_RegisterSound( "sound/weapons/lightning/lg_hit.wav", qfalse );
 		cgs.media.sfx_lghit2 = trap_S_RegisterSound( "sound/weapons/lightning/lg_hit2.wav", qfalse );
@@ -1594,6 +1600,7 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 	vec3_t   forward;
 	vec3_t   muzzlePoint, endPoint;
 	qboolean demoRewind;
+	qboolean isFp;
 	int attackTime;
 
 	if (cent->currentState.weapon != WP_LIGHTNING) {
@@ -1601,21 +1608,21 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 	}
 
 	memset( &beam, 0, sizeof( beam ) );
+	isFp = CG_DemoControls_IsFirstPersonClient( cent->currentState.number );
 
 //unlagged - attack prediction #1
-	// if the entity is us, unlagged is on server-side, and we've got it on for the lightning gun
-	if ( (cent->currentState.number == cg.predictedPlayerState.clientNum) && cgs.delagHitscan &&
+	// if the entity is the first-person view player, unlagged is on server-side, and we've got it on for the lightning gun
+	if ( isFp && cgs.delagHitscan &&
 			( cg_delag.integer & 1 || cg_delag.integer & 8 ) ) {
-		// always shoot straight forward from our current position
-		AngleVectors( cg.predictedPlayerState.viewangles, forward, NULL, NULL );
-		VectorCopy( cg.predictedPlayerState.origin, muzzlePoint );
-		muzzlePoint[2] += cg.predictedPlayerState.viewheight;
+		// always shoot straight forward from the camera
+		AngleVectors( cg.refdefViewAngles, forward, NULL, NULL );
+		VectorCopy( cg.refdef.vieworg, muzzlePoint );
 	}
 	else
 //unlagged - attack prediction #1
 
 	// CPMA  "true" lightning
-        if ((cent->currentState.number == cg.predictedPlayerState.clientNum) && (cg_trueLightning.value != 0)) {
+        if ( isFp && (cg_trueLightning.value != 0)) {
 		vec3_t angle;
 		int i;
 
@@ -1644,41 +1651,36 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 		}
 
 		AngleVectors(angle, forward, NULL, NULL );
-//unlagged - true lightning
-//		VectorCopy(cent->lerpOrigin, muzzlePoint );
-//		VectorCopy(cg.refdef.vieworg, muzzlePoint );
-		// *this* is the correct origin for true lightning
-		VectorCopy(cg.predictedPlayerState.origin, muzzlePoint );
-		muzzlePoint[2] += cg.predictedPlayerState.viewheight;
-//unlagged - true lightning
+		VectorCopy(cg.refdef.vieworg, muzzlePoint );
+	} else if ( isFp ) {
+		AngleVectors( cg.refdefViewAngles, forward, NULL, NULL );
+		VectorCopy( cg.refdef.vieworg, muzzlePoint );
 	} else {
-		// !CPMA
+		int anim;
+
 		AngleVectors( cent->lerpAngles, forward, NULL, NULL );
 		VectorCopy(cent->lerpOrigin, muzzlePoint );
-		if (cent->currentState.number == cg.predictedPlayerState.clientNum) {
-			muzzlePoint[2] += cg.predictedPlayerState.viewheight;
+		anim = cent->currentState.legsAnim & ~ANIM_TOGGLEBIT;
+		if ( anim == LEGS_WALKCR || anim == LEGS_IDLECR ) {
+			muzzlePoint[2] += CROUCH_VIEWHEIGHT;
 		} else {
-			int anim;
-			anim = cent->currentState.legsAnim & ~ANIM_TOGGLEBIT;
-			if ( anim == LEGS_WALKCR || anim == LEGS_IDLECR ) {
-				muzzlePoint[2] += CROUCH_VIEWHEIGHT;
-			} else {
-				muzzlePoint[2] += DEFAULT_VIEWHEIGHT;
-			}
+			muzzlePoint[2] += DEFAULT_VIEWHEIGHT;
 		}
 	}
 
 	VectorMA( muzzlePoint, 14, forward, muzzlePoint );
 
 	// project forward by the lightning range
-	if (cent->altFire)
-		VectorMA( muzzlePoint, LIGHTNING_RANGE * 3, forward, endPoint );	//mrd
-	else
+	if (cent->altFire) { 
+		VectorMA( muzzlePoint, LIGHTNING_ALT_RANGE, forward, endPoint );	//mrd
+	} else {
 		VectorMA( muzzlePoint, LIGHTNING_RANGE, forward, endPoint );
+	}
 		
 
 	// see if it hit a wall
-	demoRewind = ( cent->currentState.number == cg.predictedPlayerState.clientNum )
+	demoRewind = isFp
+		&& ( cent->currentState.number == cg.predictedPlayerState.clientNum )
 		&& CG_DemoHistory_DemoDelagActive()
 		&& ( cg_delag.integer & 1 || cg_delag.integer & 8 );
 	attackTime = cg.predictedPlayerState.commandTime;
@@ -1705,7 +1707,12 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 	VectorCopy( origin, beam.origin );
 
 	beam.reType = RT_LIGHTNING;
-	beam.customShader = cgs.media.lightningShader;
+	//mrd
+	if (cent->altFire) {
+		beam.customShader = cgs.media.lightningAltShader;
+	} else {
+		beam.customShader = cgs.media.lightningShader;
+	}
 	trap_R_AddRefEntityToScene( &beam );
 
 	// add the impact flare if it hit something
@@ -1719,6 +1726,10 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 
 			memset( &beam, 0, sizeof( beam ) );
 			beam.hModel = cgs.media.lightningExplosionModel;
+			//mrd load a custom shader for LG altFire crackle
+			if ( cent->altFire ){				
+				beam.customShader = cgs.media.lightningAltCrackle;				
+			}
 
 			//VectorMA( trace.endpos, -16, dir, beam.origin );
 			VectorMA( trace.endpos, (-12 - (rand()%8) ), dir, beam.origin );	//mrd - bounce crackle around on wall a bit
@@ -1917,7 +1928,7 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	centity_t	*nonPredictedCent;
 	orientation_t	lerped;
 
-	weaponNum = cent->currentState.weapon;
+	weaponNum = ( ps ) ? ps->weapon : cent->currentState.weapon;
 
 	CG_RegisterWeapon( weaponNum );
 	weapon = &cg_weapons[weaponNum];
@@ -1981,6 +1992,9 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	gun.backlerp = parent->backlerp;
 
 	CG_AddWeaponWithPowerups( &gun, cent->currentState.powerups );
+	if ( !ps ) {
+		CG_AddDemoOccludedOutline( &gun, &cent->currentState, team );
+	}
 
 	// add the spinning barrel
 	if ( weapon->barrelModel ) {
@@ -1998,15 +2012,28 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 		CG_PositionRotatedEntityOnTag( &barrel, &gun, weapon->weaponModel, "tag_barrel" );
 
 		CG_AddWeaponWithPowerups( &barrel, cent->currentState.powerups );
+		if ( !ps ) {
+			CG_AddDemoOccludedOutline( &barrel, &cent->currentState, team );
+		}
 	}
 
 	// make sure we aren't looking at cg.predictedPlayerEntity for LG
+if ( ps && ps->clientNum >= 0 && ps->clientNum < MAX_CLIENTS ) {
+	nonPredictedCent = &cg_entities[ps->clientNum];
+} else {
 	nonPredictedCent = &cg_entities[cent->currentState.clientNum];
+}
+nonPredictedCent->altFire = cent->altFire;	//mrd - propagate altFire status for LG beam FX
+
 
 	// if the index of the nonPredictedCent is not the same as the clientNum
 	// then this is a fake player (like on teh single player podiums), so
 	// go ahead and use the cent
-	if( ( nonPredictedCent - cg_entities ) != cent->currentState.clientNum ) {
+	if ( ps && ps->clientNum >= 0 && ps->clientNum < MAX_CLIENTS ) {
+		if ( ( nonPredictedCent - cg_entities ) != ps->clientNum ) {
+			nonPredictedCent = cent;
+		}
+	} else if ( ( nonPredictedCent - cg_entities ) != cent->currentState.clientNum ) {
 		nonPredictedCent = cent;
 	}
 
@@ -2031,6 +2058,12 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	if (!flash.hModel) {
 		return;
 	}
+	
+	//mrd - load a special colour flash for altFire LG
+	if (weaponNum == WP_LIGHTNING && cent->altFire) {
+		flash.customShader = cgs.media.lightningAltFlash;
+	}
+
 	angles[YAW] = 0;
 	angles[PITCH] = 0;
 	angles[ROLL] = crandom() * 10;
@@ -2050,14 +2083,20 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	trap_R_AddRefEntityToScene( &flash );
 
 	if ( ps || cg.renderingThirdPerson ||
-		cent->currentState.number != cg.predictedPlayerState.clientNum ) {
+		!CG_DemoControls_IsFirstPersonClient( cent->currentState.number ) ) {
 		// add lightning bolt
 		CG_LightningBolt( nonPredictedCent, flash.origin );
 
 		// add rail trail
 		CG_SpawnRailTrail( cent, flash.origin );
 
-		if ( weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2] ) {
+		//if ( weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2] ) {
+		//mrd - add a special altFire LG colour effect
+		if ( weaponNum == WP_LIGHTNING && cent->altFire 
+			&& ( weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2] ) ) {
+				trap_R_AddLightToScene( flash.origin, 300 + (rand()&31), weapon->flashDlightAltColor[0],
+				weapon->flashDlightAltColor[1], weapon->flashDlightAltColor[2] );
+		} else if ( weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2] ) {
 			trap_R_AddLightToScene( flash.origin, 300 + (rand()&31), weapon->flashDlightColor[0],
 				weapon->flashDlightColor[1], weapon->flashDlightColor[2] );
 		}
@@ -2095,13 +2134,13 @@ void CG_AddViewWeapon( playerState_t *ps ) {
 
 
 	// allow the gun to be completely removed
-	if ( !cg_drawGun.integer || 
-			(cg_drawZoomScope.integer && cg.zoomed 
+	if ( ( !cg_drawGun.integer && !CG_DemoControls_PovEyesActive() ) ||
+			(cg_drawZoomScope.integer && cg.zoomed
 			 && (ps->weapon == WP_RAILGUN || ps->weapon == WP_MACHINEGUN)
 			)) {
 		vec3_t		origin;
 
-		if ( cg.predictedPlayerState.eFlags & EF_FIRING ) {
+		if ( ps->eFlags & EF_FIRING ) {
 			// special hack for lightning gun...
 			VectorCopy( cg.refdef.vieworg, origin );
 			VectorMA( origin, -8, cg.refdef.viewaxis[2], origin );
@@ -2123,6 +2162,11 @@ void CG_AddViewWeapon( playerState_t *ps ) {
 	}
 
 	cent = &cg.predictedPlayerEntity;	// &cg_entities[cg.snap->ps.clientNum];
+	if ( ps->clientNum >= 0 && ps->clientNum < MAX_CLIENTS
+			&& ( CG_DemoControls_PovEyesActive()
+				|| ( cg.demoPlayback && ps->clientNum != cg.predictedPlayerState.clientNum ) ) ) {
+		cent = &cg_entities[ps->clientNum];
+	}
 	CG_RegisterWeapon( ps->weapon );
 	weapon = &cg_weapons[ ps->weapon ];
 
@@ -2154,7 +2198,7 @@ void CG_AddViewWeapon( playerState_t *ps ) {
 	hand.renderfx = RF_DEPTHHACK | RF_FIRST_PERSON | RF_MINLIGHT;
 
 	// add everything onto the hand
-	CG_AddPlayerWeapon( &hand, ps, &cg.predictedPlayerEntity, ps->persistant[PERS_TEAM] );
+	CG_AddPlayerWeapon( &hand, ps, cent, ps->persistant[PERS_TEAM] );
 }
 
 /*

@@ -43,7 +43,6 @@ MAIN MENU
 #define ID_MODS					16
 #define ID_EXIT					17
 #define ID_SERVERLIST			18
-#define ID_REFRESH				19
 
 #define MAIN_BANNER_MODEL				"models/mapobjects/banner/banner5.md3"
 #define MAIN_MENU_VERTICAL_SPACING		34
@@ -59,15 +58,7 @@ MAIN MENU
 #define MAIN_MENU_LEVELSHOT_WIDTH		82
 #define MAIN_MENU_LEVELSHOT_HEIGHT		61
 #define MAIN_MENU_SERVERS_HEADER_X		( MAIN_MENU_LEVELSHOT_X + MAIN_MENU_LEVELSHOT_WIDTH )
-#define MAIN_MENU_SCANNING_X			630
-#define MAIN_MENU_SCANNING_Y			346
-#define MAIN_MENU_REFRESH_X				576
-#define MAIN_MENU_REFRESH_Y				398
-#define MAIN_MENU_REFRESH_WIDTH			64
-#define MAIN_MENU_REFRESH_HEIGHT		32
 #define ART_UNKNOWNMAP					"menu/art/unknownmap"
-#define ART_REFRESH0					"menu/art/refresh_0"
-#define ART_REFRESH1					"menu/art/refresh_1"
 
 
 typedef struct {
@@ -86,7 +77,6 @@ typedef struct {
 	menutext_s		servers;
 	menulist_s		serverlist;
 	menubitmap_s	mappic;
-	menubitmap_s	refresh;
 
 	qboolean		serverFocus;
 	int				menuCursor;
@@ -143,29 +133,6 @@ static void Main_MenuServerEvent( void *ptr, int event ) {
 
 /*
 =================
-Main_MenuRefreshEvent
-=================
-*/
-static void Main_MenuRefreshEvent( void *ptr, int event ) {
-	if( event != QM_ACTIVATED ) {
-		return;
-	}
-
-	UI_MainMenuServers_Refresh();
-}
-
-/*
-=================
-Main_MenuRefreshMouse
-=================
-*/
-static qboolean Main_MenuRefreshMouse( void ) {
-	return UI_CursorInRect( MAIN_MENU_REFRESH_X, MAIN_MENU_REFRESH_Y,
-		MAIN_MENU_REFRESH_WIDTH, MAIN_MENU_REFRESH_HEIGHT );
-}
-
-/*
-=================
 Main_MenuSetLeftActive
 =================
 */
@@ -215,19 +182,6 @@ static void Main_MenuUpdateFocus( void ) {
 	int				i;
 
 	m = &s_main.menu;
-
-	if( Main_MenuRefreshMouse() ) {
-		s_main.serverFocus = qfalse;
-		UI_MainMenuServers_SetColumnFocus( qfalse );
-		Main_MenuSetLeftActive( qtrue );
-		Main_MenuSetServersHeaderActive( qfalse );
-		for( i = 0; i < m->nitems; i++ ) {
-			if( ((menucommon_s*)m->items[i])->id == ID_REFRESH ) {
-				Menu_SetCursor( m, i );
-				return;
-			}
-		}
-	}
 
 	if( UI_MainMenuServers_MouseRegion( &s_main.serverlist ) ) {
 		UI_MainMenuServers_Mouse( &s_main.serverlist );
@@ -339,8 +293,6 @@ void MainMenu_Cache( void ) {
 	//s_main.bannerModel = trap_R_RegisterModel( MAIN_BANNER_MODEL );
 	s_main.bannerLogo = trap_R_RegisterShaderNoMip( "devoq3_menulogo_white" );
 	trap_R_RegisterShaderNoMip( ART_UNKNOWNMAP );
-	trap_R_RegisterShaderNoMip( ART_REFRESH0 );
-	trap_R_RegisterShaderNoMip( ART_REFRESH1 );
 }
 
 sfxHandle_t ErrorMessage_Key(int key)
@@ -366,13 +318,6 @@ static sfxHandle_t Main_MenuKey( int key ) {
 	Main_MenuUpdateFocus();
 
 	if( key == K_MOUSE1 ) {
-		if( Main_MenuRefreshMouse() ) {
-			if( !UI_MainMenuServers_IsRefreshing() ) {
-				Main_MenuRefreshEvent( &s_main.refresh, QM_ACTIVATED );
-			}
-			return menu_move_sound;
-		}
-
 		if( UI_MainMenuServers_MouseRegion( &s_main.serverlist ) ) {
 			if( UI_MainMenuServers_MouseClick( &s_main.serverlist ) ) {
 				return menu_move_sound;
@@ -494,10 +439,6 @@ static void Main_MenuDraw( void ) {
 
 		Main_MenuUpdateFocus();
 
-		if( UI_MainMenuServers_IsRefreshing() ) {
-			UI_DrawString( MAIN_MENU_SCANNING_X, MAIN_MENU_SCANNING_Y, "Scanning...", UI_RIGHT | UI_SMALLFONT, menu_text_color );
-		}
-
 		Menu_Draw( &s_main.menu );
 		UI_MainMenuServers_Draw( &s_main.serverlist );
 	}
@@ -582,37 +523,26 @@ void UI_MainMenu( void ) {
 
 	y = MAIN_MENU_TOP_Y;
 
-	s_main.singleplayer.generic.type		= MTYPE_PTEXT;
-	s_main.singleplayer.generic.flags		= QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS;
-	s_main.singleplayer.generic.x			= MAIN_MENU_LEFT_X;
-	s_main.singleplayer.generic.y			= y;
-	s_main.singleplayer.generic.id			= ID_SINGLEPLAYER;
-	s_main.singleplayer.generic.callback	= Main_MenuEvent; 
-	s_main.singleplayer.string				= "SINGLE PLAYER";
-	s_main.singleplayer.color				= color_red;
-	s_main.singleplayer.style				= style;
-
-	y += MAIN_MENU_VERTICAL_SPACING;
 	s_main.multiplayer.generic.type			= MTYPE_PTEXT;
 	s_main.multiplayer.generic.flags		= QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS;
 	s_main.multiplayer.generic.x			= MAIN_MENU_LEFT_X;
 	s_main.multiplayer.generic.y			= y;
 	s_main.multiplayer.generic.id			= ID_MULTIPLAYER;
-	s_main.multiplayer.generic.callback		= Main_MenuEvent; 
-	s_main.multiplayer.string				= "MULTIPLAYER";
+	s_main.multiplayer.generic.callback		= Main_MenuEvent;
+	s_main.multiplayer.string				= "ONLINE";
 	s_main.multiplayer.color				= color_red;
 	s_main.multiplayer.style				= style;
 
 	y += MAIN_MENU_VERTICAL_SPACING;
-	s_main.setup.generic.type				= MTYPE_PTEXT;
-	s_main.setup.generic.flags				= QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS;
-	s_main.setup.generic.x					= MAIN_MENU_LEFT_X;
-	s_main.setup.generic.y					= y;
-	s_main.setup.generic.id					= ID_SETUP;
-	s_main.setup.generic.callback			= Main_MenuEvent; 
-	s_main.setup.string						= "SETUP";
-	s_main.setup.color						= color_red;
-	s_main.setup.style						= style;
+	s_main.singleplayer.generic.type		= MTYPE_PTEXT;
+	s_main.singleplayer.generic.flags		= QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS;
+	s_main.singleplayer.generic.x			= MAIN_MENU_LEFT_X;
+	s_main.singleplayer.generic.y			= y;
+	s_main.singleplayer.generic.id			= ID_SINGLEPLAYER;
+	s_main.singleplayer.generic.callback	= Main_MenuEvent;
+	s_main.singleplayer.string				= "OFFLINE";
+	s_main.singleplayer.color				= color_red;
+	s_main.singleplayer.style				= style;
 
 	y += MAIN_MENU_VERTICAL_SPACING;
 	s_main.demos.generic.type				= MTYPE_PTEXT;
@@ -620,10 +550,21 @@ void UI_MainMenu( void ) {
 	s_main.demos.generic.x					= MAIN_MENU_LEFT_X;
 	s_main.demos.generic.y					= y;
 	s_main.demos.generic.id					= ID_DEMOS;
-	s_main.demos.generic.callback			= Main_MenuEvent; 
+	s_main.demos.generic.callback			= Main_MenuEvent;
 	s_main.demos.string						= "REPLAYS";
 	s_main.demos.color						= color_red;
 	s_main.demos.style						= style;
+
+	y += MAIN_MENU_VERTICAL_SPACING;
+	s_main.setup.generic.type				= MTYPE_PTEXT;
+	s_main.setup.generic.flags				= QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS;
+	s_main.setup.generic.x					= MAIN_MENU_LEFT_X;
+	s_main.setup.generic.y					= y;
+	s_main.setup.generic.id					= ID_SETUP;
+	s_main.setup.generic.callback			= Main_MenuEvent;
+	s_main.setup.string						= "SETUP";
+	s_main.setup.color						= color_red;
+	s_main.setup.style						= style;
 
 	y += MAIN_MENU_VERTICAL_SPACING;
 	s_main.mods.generic.type			= MTYPE_PTEXT;
@@ -664,17 +605,6 @@ void UI_MainMenu( void ) {
 	s_main.serverlist.width					= MAIN_MENU_LIST_WIDTH;
 	s_main.serverlist.height				= MAIN_MENU_LIST_HEIGHT;
 
-	s_main.refresh.generic.type				= MTYPE_BITMAP;
-	s_main.refresh.generic.name				= ART_REFRESH0;
-	s_main.refresh.generic.flags			= QMF_LEFT_JUSTIFY | QMF_PULSEIFFOCUS | QMF_MOUSEONLY;
-	s_main.refresh.generic.callback			= Main_MenuRefreshEvent;
-	s_main.refresh.generic.id				= ID_REFRESH;
-	s_main.refresh.generic.x				= MAIN_MENU_REFRESH_X;
-	s_main.refresh.generic.y				= MAIN_MENU_REFRESH_Y;
-	s_main.refresh.width					= MAIN_MENU_REFRESH_WIDTH;
-	s_main.refresh.height					= MAIN_MENU_REFRESH_HEIGHT;
-	s_main.refresh.focuspic					= ART_REFRESH1;
-
 	s_main.mappic.generic.type				= MTYPE_BITMAP;
 	s_main.mappic.generic.flags				= QMF_LEFT_JUSTIFY | QMF_INACTIVE | QMF_HIDDEN;
 	s_main.mappic.generic.x					= MAIN_MENU_LEVELSHOT_X;
@@ -683,10 +613,10 @@ void UI_MainMenu( void ) {
 	s_main.mappic.height					= MAIN_MENU_LEVELSHOT_HEIGHT;
 	s_main.mappic.errorpic				= ART_UNKNOWNMAP;
 
-	Menu_AddItem( &s_main.menu,	&s_main.singleplayer );
 	Menu_AddItem( &s_main.menu,	&s_main.multiplayer );
-	Menu_AddItem( &s_main.menu,	&s_main.setup );
+	Menu_AddItem( &s_main.menu,	&s_main.singleplayer );
 	Menu_AddItem( &s_main.menu,	&s_main.demos );
+	Menu_AddItem( &s_main.menu,	&s_main.setup );
 	if (teamArena) {
 		Menu_AddItem( &s_main.menu,	&s_main.teamArena );
 	}
@@ -694,7 +624,6 @@ void UI_MainMenu( void ) {
 	Menu_AddItem( &s_main.menu,	&s_main.exit );
 	Menu_AddItem( &s_main.menu,	&s_main.servers );
 	Menu_AddItem( &s_main.menu,	&s_main.mappic );
-	Menu_AddItem( &s_main.menu,	&s_main.refresh );
 	Menu_AddItem( &s_main.menu,	&s_main.serverlist );
 
 	UI_MainMenuServers_Begin( &s_main.serverlist, &s_main.mappic );

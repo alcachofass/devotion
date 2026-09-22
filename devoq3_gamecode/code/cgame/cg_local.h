@@ -588,6 +588,7 @@ typedef struct weaponInfo_s {
 
 	float			flashDlight;
 	vec3_t			flashDlightColor;
+	vec3_t			flashDlightAltColor;	//mrd
 	sfxHandle_t		flashSound[4];		// fast firing weapons randomly choose
 
 	qhandle_t		weaponIcon;
@@ -1104,6 +1105,11 @@ typedef struct {
 
 	qhandle_t	lightningShader;
 
+	//mrd - custom altFire LG shaders
+	qhandle_t	lightningAltShader;
+	qhandle_t	lightningAltFlash;
+	qhandle_t	lightningAltCrackle;
+
 	//qhandle_t	friendShader;
 	//qhandle_t	friendShaderThroughWalls;
 
@@ -1271,6 +1277,9 @@ typedef struct {
         qhandle_t       brightOutlineOpaque;
         qhandle_t       brightOutlineSmall;
         qhandle_t       brightOutlineSmallBlend;
+	qhandle_t	occludedOutline;
+	qhandle_t	occludedOutlineRed;
+	qhandle_t	occludedOutlineBlue;
 
 	// weapon effect models
 	qhandle_t	bulletFlashModel;
@@ -1535,6 +1544,10 @@ typedef struct {
 	qhandle_t sizeCursor;
 	qhandle_t demoLockShader;
 	qhandle_t demoUnlockShader;
+	qhandle_t demoCamFixedShader;
+	qhandle_t demoCamDynamicShader;
+	qhandle_t demoCamRailShader;
+	qhandle_t demoCamRailActiveShader;
 
 	sfxHandle_t	regenSound;
 	sfxHandle_t	protectSound;
@@ -1834,6 +1847,7 @@ void CG_DemoControls_Frame( void );
 void CG_DemoControls_Shutdown( void );
 void CG_DemoControls_Draw( void );
 qboolean CG_DemoControls_IsSeeking( void );
+qboolean CG_DemoControls_IsPaused( void );
 void CG_DemoControls_PrepareSeekDraw( void );
 qboolean CG_DemoControls_SeekWantsKeyframe( void );
 qboolean CG_DemoControls_SeekKeyframeHold( void );
@@ -1841,11 +1855,60 @@ void CG_DemoControls_SeekCaptureTime( int t );
 int CG_DemoControls_SeekHoldTime( void );
 qboolean CG_DemoControls_MouseEvent( int dx, int dy );
 qboolean CG_DemoControls_KeyEvent( int key, qboolean down );
+qboolean CG_DemoControls_FreeCamActive( void );
+qboolean CG_DemoControls_RigCamActive( void );
+qboolean CG_DemoControls_PovActive( void );
+qboolean CG_DemoControls_PovEyesActive( void );
+qboolean CG_DemoControls_PovParkedActive( void );
+qboolean CG_DemoControls_WorldPersistActive( void );
+qboolean CG_DemoControls_IsFirstPersonClient( int clientNum );
+int CG_DemoControls_PovClient( void );
+qboolean CG_DemoControls_PovRedirectHits( void );
+void CG_DemoControls_PovNoteAttack( int clientNum, int weapon );
+void CG_DemoControls_PovNoteHit( int attacker, int victim, int damage, const vec3_t origin, int weapon );
+void CG_DemoControls_PovNoteSplash( int attacker, int weapon, const vec3_t origin );
+void CG_DemoControls_PovNoteVictimPain( int victim, int damage, const vec3_t origin );
+void CG_DemoControls_PovNoteFrag( int attacker, int victim, const vec3_t origin );
+void CG_DemoControls_PovFrame( void );
+void CG_DemoControls_PovView( vec3_t origin, vec3_t angles );
+void CG_DemoControls_PovAddViewWeapon( void );
+void CG_DemoControls_FreeCamView( vec3_t origin, vec3_t angles );
+
+void CG_DemoCams_LoadIfNeeded( void );
+void CG_DemoCams_Load( void );
+void CG_DemoCams_Save( void );
+void CG_DemoCams_Stash( void );
+void CG_DemoCams_ClearStash( void );
+qboolean CG_DemoCams_IsDirty( void );
+void CG_DemoCams_AddCurrent( void );
+void CG_DemoCams_AddRailPoint( void );
+void CG_DemoCams_NewRail( void );
+void CG_DemoCams_SplitRail( void );
+void CG_DemoCams_RemoveNearest( void );
+void CG_DemoCams_SetShow( qboolean show );
+qboolean CG_DemoCams_HasAny( void );
+void CG_DemoCams_SetNearestDynamic( qboolean dynamic );
+void CG_DemoCams_JoinNearestToRail( void );
+void CG_DemoCams_SelectNearestRail( void );
+void CG_DemoCams_DirectorFrame( void );
+void CG_DemoCams_View( vec3_t origin, vec3_t angles );
+qboolean CG_DemoCams_UsingPlayerView( void );
+qboolean CG_DemoCams_PlayerThird( void );
+void CG_DemoCams_CapturePlayerView( const vec3_t origin, const vec3_t angles );
+float CG_DemoCams_FovX( void );
+void CG_DemoCams_DrawCutFade( void );
+void CG_DemoCams_AddMarkers( void );
+int CG_DemoCams_ItemGhostGen( void );
 void CG_DemoEvents_Frame( void );
 void CG_DemoEvents_Shutdown( void );
 int CG_DemoEvents_FirstServerTime( void );
 int CG_DemoEvents_LastServerTime( void );
+void CG_DemoEvents_NotePing( int clientNum, int ping );
+qboolean CG_DemoEvents_ClientSeen( int clientNum );
+int CG_DemoEvents_ClientPing( int clientNum );
+const char *CG_DemoEvents_ClientName( int clientNum );
 qboolean CG_DemoEvents_DrawMarkers( int trackX, int trackY, int trackW, int trackH, int firstServerTime, int durationMs, int cursorX, int cursorY );
+qboolean CG_DemoEvents_DrawMetaMarkers( int trackX, int trackY, int trackW, int trackH, int firstServerTime, int durationMs, int cursorX, int cursorY );
 void CG_DemoEvents_DrawTrack( int trackX, int trackY, int trackW, int trackH, int firstServerTime, int durationMs, int elapsedMs );
 void CG_RankRunFrame( void );
 void CG_SetScoreSelection(void *menu);
@@ -1927,11 +1990,13 @@ void CG_ItemTimersBuildRoster( void );
 void CG_ItemTimersSpecEvent( const entityState_t *es );
 void CG_ItemTimersTouchEntity( const centity_t *cent );
 void CG_ItemTimersNotePickup( int itemIndex, const vec3_t origin );
+void CG_ItemGhostsNotePickup( int itemIndex, const vec3_t origin );
 void CG_ItemTimersDemoFrame( void );
 void CG_DrawItemTimerPie( const centity_t *cent );
 qboolean CG_HudItemTimersAllowed( void );
 void CG_DrawSpecItemTimers( void );
 void CG_DrawSpecPlayerStatus( void );
+void CG_DemoPlayerStatusReset( int clientNum );
 int CG_ItemTimersCollect( cgItemTimer_t *out, int max, int sideFilter, int bitMask );
 int CG_ItemTimerFollowSideFilter( int itTeam );
 
@@ -2067,6 +2132,8 @@ void CG_ResetPlayerEntity( centity_t *cent );
 void CG_DemoDelagResetPlayerAnims( centity_t *cent, int legsAnim, int torsoAnim );
 void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int team, qboolean isMissile,
 	       	clientInfo_t *ci, int orderIndicator, qboolean useBlendBrightshell );
+void CG_AddDemoOccludedOutline( refEntity_t *ent, entityState_t *state, int team );
+void CG_DemoOccludedFadeLost( void );
 void CG_NewClientInfo( int clientNum );
 sfxHandle_t	CG_CustomSound( int clientNum, const char *soundName );
 void CG_LoadForcedSounds(void);
@@ -2095,6 +2162,9 @@ void CG_Trace( trace_t *result, const vec3_t start, const vec3_t mins, const vec
 void CG_PredictPlayerState( void );
 void CG_LoadDeferredPlayers( void );
 qboolean CG_MissileTouchedPortal(const vec3_t start, const vec3_t end);
+void CG_FreeCamParseMap( void );
+qboolean CG_FreeCamTouchTeleporter( vec3_t origin, vec3_t angles );
+void CG_FreeCamAddAmbientMovers( void );
 void CG_EncodePlayerBBox( pmove_t *pm, entityState_t *ent);
 
 

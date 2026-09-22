@@ -575,6 +575,25 @@ Also called by playerstate transition
 */
 void CG_PainEvent( centity_t *cent, int health ) {
 	char	*snd;
+	int		clientNum;
+	int		oldHp;
+	int		damage;
+
+	clientNum = cent->currentState.number;
+	oldHp = -1;
+	damage = 0;
+	if ( cg.demoPlayback && clientNum >= 0 && clientNum < MAX_CLIENTS ) {
+		oldHp = cgs.clientinfo[clientNum].health;
+		if ( !cgs.clientinfo[clientNum].specInfoValid ) {
+			cgs.clientinfo[clientNum].health = health;
+		}
+		if ( oldHp > 0 && health >= 0 && oldHp > health ) {
+			damage = oldHp - health;
+		}
+		if ( !cg.snap || clientNum != cg.snap->ps.clientNum ) {
+			CG_DemoControls_PovNoteVictimPain( clientNum, damage, cent->lerpOrigin );
+		}
+	}
 
 	// don't do more than two pain sounds a second
 	if ( cg.time - cent->pe.painTime < 500 ) {
@@ -920,6 +939,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			}
 
 			CG_ItemTimersNotePickup( index, position );
+			CG_ItemGhostsNotePickup( index, position );
 
 			// show icon and name on status bar
 			if ( es->number == cg.snap->ps.clientNum ) {
@@ -951,6 +971,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			}
 
 			CG_ItemTimersNotePickup( index, position );
+			CG_ItemGhostsNotePickup( index, position );
 
 			// show icon and name on status bar
 			if ( es->number == cg.snap->ps.clientNum ) {
@@ -978,12 +999,14 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		//es->altFire = qfalse;
 		cent->altFire = qfalse;
 		CG_FireWeapon( cent );
+		CG_DemoControls_PovNoteAttack( es->number, es->weapon );
 		break;
 	case EV_ALTFIRE_WEAPON:	//mrd
 		DEBUGNAME("EV_ALTFIRE_WEAPON");
 		//es->altFire = qtrue;
 		cent->altFire = qtrue;
 		CG_FireWeapon( cent );
+		CG_DemoControls_PovNoteAttack( es->number, es->weapon );
 		break;
 	case EV_USE_ITEM0:
 		DEBUGNAME("EV_USE_ITEM0");
@@ -1181,6 +1204,21 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 					MF_EXPLOSIONCONFIRMED | MF_EXPLODED | MF_HITPLAYER,
 					position, es->otherEntityNum);
 		}
+		{
+			int	attacker;
+
+			attacker = -1;
+			if ( es->otherEntityNum2 >= 0 && es->otherEntityNum2 < MAX_CLIENTS ) {
+				attacker = es->otherEntityNum2;
+			} else if ( es->clientNum >= 0 && es->clientNum < MAX_CLIENTS ) {
+				attacker = es->clientNum;
+			}
+			if ( attacker >= 0 ) {
+				CG_DemoControls_PovNoteAttack( attacker, es->weapon );
+				CG_DemoControls_PovNoteHit( attacker, es->otherEntityNum, 0, position, es->weapon );
+				CG_DemoControls_PovNoteSplash( attacker, es->weapon, position );
+			}
+		}
 		break;
 
 	case EV_MISSILE_MISS:
@@ -1202,6 +1240,21 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 					MF_EXPLOSIONCONFIRMED | MF_EXPLODED | MF_HITWALL,
 					position, ENTITYNUM_WORLD);
 		}
+		{
+			int	attacker;
+
+			attacker = -1;
+			if ( es->otherEntityNum2 >= 0 && es->otherEntityNum2 < MAX_CLIENTS ) {
+				attacker = es->otherEntityNum2;
+			} else if ( es->clientNum >= 0 && es->clientNum < MAX_CLIENTS ) {
+				attacker = es->clientNum;
+			} else if ( es->otherEntityNum >= 0 && es->otherEntityNum < MAX_CLIENTS ) {
+				attacker = es->otherEntityNum;
+			}
+			if ( attacker >= 0 ) {
+				CG_DemoControls_PovNoteSplash( attacker, es->weapon, position );
+			}
+		}
 		break;
 
 	case EV_MISSILE_MISS_METAL:
@@ -1219,6 +1272,21 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			CG_UpdateMissileStatus(&cent->missileStatus, 
 					MF_EXPLOSIONCONFIRMED | MF_EXPLODED | MF_HITWALLMETAL,
 					position, ENTITYNUM_WORLD);
+		}
+		{
+			int	attacker;
+
+			attacker = -1;
+			if ( es->otherEntityNum2 >= 0 && es->otherEntityNum2 < MAX_CLIENTS ) {
+				attacker = es->otherEntityNum2;
+			} else if ( es->clientNum >= 0 && es->clientNum < MAX_CLIENTS ) {
+				attacker = es->clientNum;
+			} else if ( es->otherEntityNum >= 0 && es->otherEntityNum < MAX_CLIENTS ) {
+				attacker = es->otherEntityNum;
+			}
+			if ( attacker >= 0 ) {
+				CG_DemoControls_PovNoteSplash( attacker, es->weapon, position );
+			}
 		}
 		break;
 
@@ -1252,6 +1320,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			}
 			//Com_Printf("Non-predicted rail trail\n");
 		}
+		CG_DemoControls_PovNoteAttack( es->clientNum, WP_RAILGUN );
 //unlagged - attack prediction #2
 		break;
 
@@ -1287,6 +1356,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			CG_Bullet( es->pos.trBase, es->otherEntityNum, dir, qtrue, es->eventParm );
 			//Com_Printf("Non-predicted bullet\n");
 		}
+		CG_DemoControls_PovNoteAttack( es->clientNum, WP_MACHINEGUN );
+		CG_DemoControls_PovNoteHit( es->clientNum, es->eventParm, 0, es->pos.trBase, WP_MACHINEGUN );
 //unlagged - attack prediction #2
 		break;
 
@@ -1305,6 +1376,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			CG_ShotgunFire( es, cent->altFire );
 			//Com_Printf("Non-predicted shotgun pattern\n");
 		}
+		CG_DemoControls_PovNoteAttack( es->otherEntityNum, WP_SHOTGUN );
 //unlagged - attack prediction #2
 		break;
 
@@ -1517,6 +1589,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	case EV_OBITUARY:
 		DEBUGNAME("EV_OBITUARY");
 		CG_Obituary( es );
+		CG_DemoControls_PovNoteFrag( es->otherEntityNum2, es->otherEntityNum, position );
 		break;
 
 	case EV_PUSHNOTIFY:

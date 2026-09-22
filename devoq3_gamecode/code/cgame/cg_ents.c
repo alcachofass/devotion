@@ -335,6 +335,179 @@ static void CG_TreasureHuntToken ( centity_t *cent ) {
 	}
 }
 
+#define CG_ITEMGHOST_MAX			64
+#define CG_ITEMGHOST_PICKUP_DIST	160
+
+static int		cg_itemGhostVisible[CG_ITEMGHOST_MAX];
+static int		cg_itemGhostVisibleCount;
+static int		cg_itemGhostList[CG_ITEMGHOST_MAX];
+static int		cg_itemGhostCount;
+static int		cg_itemGhostGen;
+static qboolean	cg_itemGhostDrawing;
+
+static void CG_ItemGhostsReset( void ) {
+	cg_itemGhostVisibleCount = 0;
+	cg_itemGhostCount = 0;
+}
+
+static qboolean CG_ItemInSnap( int entNum ) {
+	int				i;
+	entityState_t	*es;
+
+	if ( !cg.snap ) {
+		return qfalse;
+	}
+	for ( i = 0; i < cg.snap->numEntities; i++ ) {
+		es = &cg.snap->entities[i];
+		if ( es->number != entNum ) {
+			continue;
+		}
+		if ( es->eType == ET_ITEM && es->modelindex > 0 && !( es->eFlags & EF_NODRAW ) ) {
+			return qtrue;
+		}
+		return qfalse;
+	}
+	return qfalse;
+}
+
+static void CG_ItemGhostsNoteDrawn( int entNum ) {
+	int		i;
+
+	if ( entNum <= 0 || entNum >= MAX_GENTITIES ) {
+		return;
+	}
+	for ( i = 0; i < cg_itemGhostVisibleCount; i++ ) {
+		if ( cg_itemGhostVisible[i] == entNum ) {
+			return;
+		}
+	}
+	if ( cg_itemGhostVisibleCount >= CG_ITEMGHOST_MAX ) {
+		return;
+	}
+	cg_itemGhostVisible[cg_itemGhostVisibleCount++] = entNum;
+}
+
+static void CG_ItemGhostsRemoveVisibleAt( int index ) {
+	int		i;
+
+	for ( i = index; i < cg_itemGhostVisibleCount - 1; i++ ) {
+		cg_itemGhostVisible[i] = cg_itemGhostVisible[i + 1];
+	}
+	cg_itemGhostVisibleCount--;
+}
+
+static void CG_ItemGhostsRemoveGhostAt( int index ) {
+	int		i;
+
+	for ( i = index; i < cg_itemGhostCount - 1; i++ ) {
+		cg_itemGhostList[i] = cg_itemGhostList[i + 1];
+	}
+	cg_itemGhostCount--;
+}
+
+static void CG_ItemGhostsRemoveByEntNum( int entNum ) {
+	int		i;
+
+	for ( i = 0; i < cg_itemGhostVisibleCount; i++ ) {
+		if ( cg_itemGhostVisible[i] == entNum ) {
+			CG_ItemGhostsRemoveVisibleAt( i );
+			break;
+		}
+	}
+	for ( i = 0; i < cg_itemGhostCount; i++ ) {
+		if ( cg_itemGhostList[i] == entNum ) {
+			CG_ItemGhostsRemoveGhostAt( i );
+			break;
+		}
+	}
+}
+
+static qboolean CG_ItemHiddenInSnap( int entNum ) {
+	int				i;
+	entityState_t	*es;
+
+	if ( !cg.snap ) {
+		return qfalse;
+	}
+	for ( i = 0; i < cg.snap->numEntities; i++ ) {
+		es = &cg.snap->entities[i];
+		if ( es->number != entNum ) {
+			continue;
+		}
+		if ( es->eType == ET_ITEM && es->modelindex > 0 && ( es->eFlags & EF_NODRAW ) ) {
+			return qtrue;
+		}
+		return qfalse;
+	}
+	return qfalse;
+}
+
+void CG_ItemGhostsNotePickup( int itemIndex, const vec3_t position ) {
+	int			i;
+	int			entNum;
+	int			matchCount;
+	int			onlyEnt;
+	int			bestEnt;
+	float		bestDist;
+	float		dist;
+	vec3_t		itemOrg;
+	vec3_t		delta;
+	centity_t	*cent;
+
+	if ( !CG_DemoControls_WorldPersistActive() || !position ) {
+		return;
+	}
+	if ( itemIndex <= 0 || itemIndex >= bg_numItems ) {
+		return;
+	}
+
+	bestEnt = -1;
+	bestDist = (float)( CG_ITEMGHOST_PICKUP_DIST * CG_ITEMGHOST_PICKUP_DIST );
+	matchCount = 0;
+	onlyEnt = -1;
+
+	for ( i = 0; i < cg_itemGhostVisibleCount + cg_itemGhostCount; i++ ) {
+		entNum = ( i < cg_itemGhostVisibleCount ) ? cg_itemGhostVisible[i]
+				: cg_itemGhostList[i - cg_itemGhostVisibleCount];
+		cent = &cg_entities[entNum];
+		if ( cent->currentState.modelindex != itemIndex ) {
+			continue;
+		}
+		matchCount++;
+		onlyEnt = entNum;
+		BG_EvaluateTrajectory( &cent->currentState.pos, cg.time, itemOrg );
+		VectorSubtract( itemOrg, position, delta );
+		dist = delta[0] * delta[0] + delta[1] * delta[1] + delta[2] * delta[2];
+		if ( dist < bestDist ) {
+			bestDist = dist;
+			bestEnt = entNum;
+		}
+	}
+
+	if ( bestEnt >= 0 && bestDist <= (float)( CG_ITEMGHOST_PICKUP_DIST * CG_ITEMGHOST_PICKUP_DIST ) ) {
+		CG_ItemGhostsRemoveByEntNum( bestEnt );
+	} else if ( matchCount == 1 && onlyEnt >= 0 ) {
+		CG_ItemGhostsRemoveByEntNum( onlyEnt );
+	}
+}
+
+static void CG_ItemGhostsAddGhost( int entNum ) {
+	int		i;
+
+	if ( entNum <= 0 || entNum >= MAX_GENTITIES ) {
+		return;
+	}
+	for ( i = 0; i < cg_itemGhostCount; i++ ) {
+		if ( cg_itemGhostList[i] == entNum ) {
+			return;
+		}
+	}
+	if ( cg_itemGhostCount >= CG_ITEMGHOST_MAX ) {
+		return;
+	}
+	cg_itemGhostList[cg_itemGhostCount++] = entNum;
+}
+
 /*
 ==================
 CG_Item
@@ -357,6 +530,9 @@ static void CG_Item( centity_t *cent ) {
 	// if set to invisible, skip
 	if ( !es->modelindex || ( es->eFlags & EF_NODRAW ) ) {
 		if ( es->modelindex && ( es->eFlags & EF_NODRAW ) ) {
+			if ( CG_DemoControls_WorldPersistActive() ) {
+				CG_ItemGhostsRemoveByEntNum( cent->currentState.number );
+			}
 			CG_ItemTimersTouchEntity( cent );
 			CG_DrawItemTimerPie( cent );
 		}
@@ -364,6 +540,10 @@ static void CG_Item( centity_t *cent ) {
 	}
 
 	CG_ItemTimersTouchEntity( cent );
+
+	if ( CG_DemoControls_WorldPersistActive() && !cg_itemGhostDrawing ) {
+		CG_ItemGhostsNoteDrawn( cent->currentState.number );
+	}
 
 	item = &bg_itemlist[ es->modelindex ];
 	if ( (cg_simpleItems.integer && item->giType != IT_TEAM) || item->giType == IT_COIN ) {
@@ -543,6 +723,22 @@ static void CG_Item( centity_t *cent ) {
 
 //============================================================================
 
+static int CG_MissileOutlineTeam( centity_t *cent ) {
+	int	owner;
+
+	if ( !CG_IsTeamGametype() ) {
+		return TEAM_FREE;
+	}
+	if ( cent->currentState.generic1 == TEAM_RED || cent->currentState.generic1 == TEAM_BLUE ) {
+		return cent->currentState.generic1;
+	}
+	owner = CG_MissileOwner( cent );
+	if ( owner >= 0 && owner < MAX_CLIENTS ) {
+		return cgs.clientinfo[owner].team;
+	}
+	return TEAM_FREE;
+}
+
 /*
 ===============
 CG_Missile
@@ -671,6 +867,7 @@ static void CG_Missile( centity_t *cent ) {
 		ent.rotation = 0;
 		ent.customShader = cgs.media.plasmaBallShader;
 		trap_R_AddRefEntityToScene( &ent );
+		CG_AddDemoOccludedOutline( &ent, s1, CG_MissileOutlineTeam( cent ) );
 		return;
 	}
 
@@ -731,7 +928,7 @@ static void CG_Missile( centity_t *cent ) {
 
 	// add to refresh list, possibly with quad glow
 	if ( ent.hModel ) {
-		CG_AddRefEntityWithPowerups( &ent, s1, TEAM_FREE, qtrue, NULL, 0, qfalse );
+		CG_AddRefEntityWithPowerups( &ent, s1, CG_MissileOutlineTeam( cent ), qtrue, NULL, 0, qfalse );
 	}
 }
 
@@ -1110,6 +1307,68 @@ static void CG_CalcEntityLerpPositions( centity_t *cent ) {
 	CG_DemoHistory_AdjustPlayerLerpForDemoDelag( cent );
 }
 
+static void CG_ItemGhostsDraw( int entNum ) {
+	centity_t		*cent;
+	entityState_t	*es;
+
+	if ( entNum <= 0 || entNum >= MAX_GENTITIES ) {
+		return;
+	}
+	cent = &cg_entities[entNum];
+	es = &cent->currentState;
+	if ( es->eType != ET_ITEM || es->modelindex <= 0 || ( es->eFlags & EF_NODRAW ) ) {
+		return;
+	}
+	cg_itemGhostDrawing = qtrue;
+	CG_CalcEntityLerpPositions( cent );
+	CG_Item( cent );
+	cg_itemGhostDrawing = qfalse;
+}
+
+static void CG_ItemGhostsFrame( void ) {
+	int		gen;
+	int		i;
+	int		entNum;
+
+	if ( !CG_DemoControls_WorldPersistActive() ) {
+		CG_ItemGhostsReset();
+		cg_itemGhostGen = 0;
+		return;
+	}
+
+	if ( CG_DemoControls_RigCamActive() ) {
+		gen = CG_DemoCams_ItemGhostGen();
+	} else {
+		gen = 1;
+	}
+	if ( gen != cg_itemGhostGen ) {
+		cg_itemGhostGen = gen;
+		CG_ItemGhostsReset();
+	}
+
+	for ( i = 0; i < cg_itemGhostVisibleCount; ) {
+		entNum = cg_itemGhostVisible[i];
+		if ( CG_ItemHiddenInSnap( entNum ) ) {
+			CG_ItemGhostsRemoveVisibleAt( i );
+		} else if ( !CG_ItemInSnap( entNum ) ) {
+			CG_ItemGhostsAddGhost( entNum );
+			CG_ItemGhostsRemoveVisibleAt( i );
+		} else {
+			i++;
+		}
+	}
+
+	for ( i = 0; i < cg_itemGhostCount; ) {
+		entNum = cg_itemGhostList[i];
+		if ( CG_ItemInSnap( entNum ) ) {
+			CG_ItemGhostsRemoveGhostAt( i );
+		} else {
+			CG_ItemGhostsDraw( entNum );
+			i++;
+		}
+	}
+}
+
 /*
 ===============
 CG_TeamBase
@@ -1292,6 +1551,9 @@ static void CG_AddCEntity( centity_t *cent ) {
 	if ( cent->demoDelagDrawStateValid && cent->currentState.eType == ET_PLAYER ) {
 		savedState = cent->currentState;
 		cent->currentState = cent->demoDelagDrawState;
+		if ( savedState.weapon > WP_NONE ) {
+			cent->currentState.weapon = savedState.weapon;
+		}
 		swappedDrawState = qtrue;
 	}
 
@@ -1426,5 +1688,7 @@ void CG_AddPacketEntities( void ) {
 
 	CG_SaveHitPredictPoses();
 	CG_ItemTimersDemoFrame();
+	CG_ItemGhostsFrame();
+	CG_DemoOccludedFadeLost();
 }
 

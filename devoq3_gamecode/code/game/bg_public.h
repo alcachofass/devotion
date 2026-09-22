@@ -55,6 +55,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	ITEM_RADIUS			15		// item sizes are needed for client side pickup detection
 
 #define	LIGHTNING_RANGE		768
+#define LIGHTNING_ALT_RANGE	LIGHTNING_RANGE * 3	//mrd
 
 #define	SCORE_NOT_PRESENT	-9999	// for the CS_SCORES[12] when only one player is present
 
@@ -282,7 +283,7 @@ typedef struct {
         int                     pmove_autohop;
 		qboolean				altFireEnabled;	//mrd
 		int						altFireBurstShots;	//mrd
-
+		int						vortexReloadTime;	//mrd
 } pmove_t;
 
 // if a full pmove isn't done on the client, you can just update the angles
@@ -309,8 +310,7 @@ typedef enum {
 	STAT_OVERBOUNCE,					// Overbounce flag (only 1 bit, this could be integrated into another bitflag field if more STAT_ fields are required)
 	STAT_FROZENSTATE,				// used to store frozen/thawing state if g_freeze = 1
 	STAT_SLIDETIMEOUT,				// holds slide time left after releasing crouch
-	STAT_MOVEMENT_KEYS,				// used to store key presses.
-	STAT_VORTEX_RELOAD				// mrd - independent vortex grenade reload timer
+	STAT_MOVEMENT_KEYS				// used to store key presses.
 } statIndex_t;
 
 

@@ -21,6 +21,7 @@ int CG_DemoHistory_GetCount( void );
 const snapshot_t *CG_DemoHistory_GetNewest( void );
 const snapshot_t *CG_DemoHistory_GetByFramesAgo( int framesAgo );
 
+void CG_DemoHistory_SetPovClient( int clientNum );
 qboolean CG_DemoHistory_DemoDelagActive( void );
 qboolean CG_DemoHistory_DelayPlayerTeleportEvent( int clientNum, int event, const vec3_t origin );
 void CG_DemoHistory_BeginHitscanRewind( int rewindToServerTime, int skipEntityNum );

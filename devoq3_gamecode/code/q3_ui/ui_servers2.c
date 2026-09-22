@@ -1377,7 +1377,14 @@ static int MainMenuServers_MouseIndex( menulist_s *list ) {
 }
 
 qboolean UI_MainMenuServers_MouseRegion( menulist_s *list ) {
-	return MainMenuServers_MouseIndex( list ) >= 0;
+	int		x;
+
+	if( !list ) {
+		return qfalse;
+	}
+
+	x = list->generic.x - 2;
+	return UI_CursorInRect( x, 0, 640 - x, 480 );
 }
 
 static void MainMenuServers_GetMapFriendlyName( const char *mapname, char *out, int outlen ) {

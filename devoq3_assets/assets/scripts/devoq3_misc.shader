@@ -168,6 +168,48 @@ playerBrightOutlineOp10
 	}
 }
 
+demoOccludedOutline
+{
+	nopicmip
+	nomipmaps
+	cull disable
+	deformVertexes wave 100 sin 0.8 0 0 0
+	{
+		map gfx/misc/occludedOutline.tga
+		blendFunc blend
+		rgbGen identity
+		alphaGen entity
+	}
+}
+
+demoOccludedOutlineRed
+{
+	nopicmip
+	nomipmaps
+	cull disable
+	deformVertexes wave 100 sin 0.8 0 0 0
+	{
+		map gfx/misc/occludedOutlineRed.tga
+		blendFunc blend
+		rgbGen identity
+		alphaGen entity
+	}
+}
+
+demoOccludedOutlineBlue
+{
+	nopicmip
+	nomipmaps
+	cull disable
+	deformVertexes wave 100 sin 0.8 0 0 0
+	{
+		map gfx/misc/occludedOutlineBlue.tga
+		blendFunc blend
+		rgbGen identity
+		alphaGen entity
+	}
+}
+
 playerBrightShell
 {
 	cull disable
@@ -456,4 +498,56 @@ gfx/2d/bigcharsHiRes
                 blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
                 rgbgen vertex
         }
+}
+
+gfx/2d/cam_fixed
+{
+	nopicmip
+	nomipmaps
+	cull disable
+	{
+		clampmap gfx/2d/cam_fixed.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen identity
+		alphaGen vertex
+	}
+}
+
+gfx/2d/cam_dynamic
+{
+	nopicmip
+	nomipmaps
+	cull disable
+	{
+		clampmap gfx/2d/cam_dynamic.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen identity
+		alphaGen vertex
+	}
+}
+
+gfx/2d/camrail
+{
+	nopicmip
+	nomipmaps
+	cull disable
+	{
+		clampmap gfx/2d/camrail.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen identity
+		alphaGen vertex
+	}
+}
+
+gfx/2d/camrailactive
+{
+	nopicmip
+	nomipmaps
+	cull disable
+	{
+		clampmap gfx/2d/camrailactive.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen identity
+		alphaGen vertex
+	}
 }

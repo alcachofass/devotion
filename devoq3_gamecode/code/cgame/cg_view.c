@@ -559,17 +559,19 @@ static int CG_CalcFovImpl( float fov, float zoomFov ) {
                                 zoomFov = MAX_BASICLOCK_FOV;
                 }
 
-		if ( cg.zoomed ) {
-			f = ( cg.time - cg.zoomTime ) / (float)ZOOM_TIME*cg_zoomAnimScale.value;
-			if ( f > 1.0 || cg_zoomAnim.integer == 0) {
-				fov_x = zoomFov;
+		if ( !CG_DemoControls_FreeCamActive() && !CG_DemoControls_RigCamActive() ) {
+			if ( cg.zoomed ) {
+				f = ( cg.time - cg.zoomTime ) / (float)ZOOM_TIME*cg_zoomAnimScale.value;
+				if ( f > 1.0 || cg_zoomAnim.integer == 0) {
+					fov_x = zoomFov;
+				} else {
+					fov_x = fov_x + f * ( zoomFov - fov_x );
+				}
 			} else {
-				fov_x = fov_x + f * ( zoomFov - fov_x );
-			}
-		} else {
-			f = ( cg.time - cg.zoomTime ) / (float)ZOOM_TIME*cg_zoomAnimScale.value;
-			if ( f <= 1.0 && cg_zoomAnim.integer != 0 ) {
-				fov_x = zoomFov + f * ( fov_x - zoomFov );
+				f = ( cg.time - cg.zoomTime ) / (float)ZOOM_TIME*cg_zoomAnimScale.value;
+				if ( f <= 1.0 && cg_zoomAnim.integer != 0 ) {
+					fov_x = zoomFov + f * ( fov_x - zoomFov );
+				}
 			}
 		}
 	}
@@ -618,6 +620,11 @@ float CG_HorPlusFovX(float fov_y) {
 static int CG_CalcFov( void ) {
 	float fov = cg_fov.value;
 	float zoomFov = cg_zoomFovTmp.value > 0 ? cg_zoomFovTmp.value : cg_zoomFov.value;
+
+	if ( CG_DemoControls_RigCamActive() && !CG_DemoCams_UsingPlayerView() ) {
+		fov = CG_DemoCams_FovX();
+		return CG_CalcFovImpl( fov, fov );
+	}
 
 	if (cg_horplus.integer) {
 		// when using HOR+ FOV, cg_fov / cg_zoomFov refer to the
@@ -724,20 +731,36 @@ static int CG_CalcViewValues( void ) {
 	CG_CalcVrect();
 
 	ps = &cg.predictedPlayerState;
-/*
-	if (cg.cameraMode) {
-		vec3_t origin, angles;
-		if (trap_getCameraInfo(cg.time, &origin, &angles)) {
-			VectorCopy(origin, cg.refdef.vieworg);
-			angles[ROLL] = 0;
-			VectorCopy(angles, cg.refdefViewAngles);
-			AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
-			return CG_CalcFov();
-		} else {
-			cg.cameraMode = qfalse;
+
+	if ( CG_DemoControls_PovParkedActive()
+			|| ( CG_DemoControls_PovEyesActive()
+				&& CG_DemoControls_PovClient() != ps->clientNum ) ) {
+		CG_DemoControls_PovView( cg.refdef.vieworg, cg.refdefViewAngles );
+		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
+		if ( cg.hyperspace ) {
+			cg.refdef.rdflags |= RDF_NOWORLDMODEL | RDF_HYPERSPACE;
 		}
+		return CG_CalcFov();
 	}
-*/
+
+	if ( CG_DemoControls_FreeCamActive() ) {
+		CG_DemoControls_FreeCamView( cg.refdef.vieworg, cg.refdefViewAngles );
+		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
+		if ( cg.hyperspace ) {
+			cg.refdef.rdflags |= RDF_NOWORLDMODEL | RDF_HYPERSPACE;
+		}
+		return CG_CalcFov();
+	}
+
+	if ( CG_DemoControls_RigCamActive() && !CG_DemoCams_UsingPlayerView() ) {
+		CG_DemoCams_View( cg.refdef.vieworg, cg.refdefViewAngles );
+		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
+		if ( cg.hyperspace ) {
+			cg.refdef.rdflags |= RDF_NOWORLDMODEL | RDF_HYPERSPACE;
+		}
+		return CG_CalcFov();
+	}
+
 	// intermission view
 	if ( ps->pm_type == PM_INTERMISSION ) {
 		VectorCopy( ps->origin, cg.refdef.vieworg );
@@ -792,7 +815,15 @@ static int CG_CalcViewValues( void ) {
 	}
 
 	// field of view
-	return CG_CalcFov();
+	{
+		int	inwater;
+
+		inwater = CG_CalcFov();
+		if ( CG_DemoControls_RigCamActive() ) {
+			CG_DemoCams_CapturePlayerView( cg.refdef.vieworg, cg.refdefViewAngles );
+		}
+		return inwater;
+	}
 }
 
 
@@ -828,6 +859,9 @@ CG_AddBufferedSound
 void CG_AddBufferedSound( sfxHandle_t sfx ) {
 	if ( !sfx )
 		return;
+	if ( CG_DemoControls_PovRedirectHits() ) {
+		return;
+	}
 	cg.soundBuffer[cg.soundBufferIn] = sfx;
 	cg.soundBufferIn = (cg.soundBufferIn + 1) % MAX_SOUNDBUFFER;
 	if (cg.soundBufferIn == cg.soundBufferOut) {
@@ -841,6 +875,10 @@ CG_PlayBufferedSounds
 =====================
 */
 static void CG_PlayBufferedSounds( void ) {
+	if ( CG_DemoControls_PovRedirectHits() ) {
+		cg.soundBufferIn = cg.soundBufferOut;
+		return;
+	}
 	if ( cg.soundTime < cg.time ) {
 		if (cg.soundBufferOut != cg.soundBufferIn && cg.soundBuffer[cg.soundBufferOut]) {
 			trap_S_StartLocalSound(cg.soundBuffer[cg.soundBufferOut], CHAN_ANNOUNCER);
@@ -876,6 +914,10 @@ int CG_AddBufferedRewardSound( sfxHandle_t sfx ) {
 }
 
 static void CG_PlayBufferedRewardSounds( void ) {
+	if ( CG_DemoControls_PovRedirectHits() ) {
+		cg.rewardSoundBufferIn = cg.rewardSoundBufferOut;
+		return;
+	}
 	if ( cg.rewardSoundTime < cg.time ) {
 		if (cg.rewardSoundBufferOut != cg.rewardSoundBufferIn && cg.rewardSoundBuffer[cg.rewardSoundBufferOut]) {
 			trap_S_StartLocalSound(cg.rewardSoundBuffer[cg.rewardSoundBufferOut], CHAN_ANNOUNCER);
@@ -993,6 +1035,10 @@ Generates and draws a game scene and status information at the given time.
 */
 void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demoPlayback ) {
 	int		inwater;
+	qboolean	freeCam;
+	qboolean	rigCam;
+	qboolean	povEyes;
+	qboolean	povParked;
 
 	cg.time = serverTime;
 	cg.demoPlayback = demoPlayback;
@@ -1069,10 +1115,37 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	CG_PredictPlayerState();
 	CG_BigHeadUpdateScores();
 
-	// decide on third person view
-	cg.renderingThirdPerson = cg_thirdPerson.integer || (cg.snap->ps.stats[STAT_HEALTH] <= 0);
+	CG_DemoControls_PovFrame();
 
-	CG_SpecZooming();
+	freeCam = CG_DemoControls_FreeCamActive();
+	rigCam = CG_DemoControls_RigCamActive();
+	povEyes = CG_DemoControls_PovEyesActive();
+	povParked = CG_DemoControls_PovParkedActive();
+	if ( rigCam ) {
+		CG_DemoCams_DirectorFrame();
+	}
+
+	// decide on third person view
+	if ( CG_DemoControls_IsSeeking() ) {
+		cg.renderingThirdPerson = qfalse;
+	} else {
+		cg.renderingThirdPerson = cg_thirdPerson.integer || (cg.snap->ps.stats[STAT_HEALTH] <= 0);
+		if ( povEyes ) {
+			cg.renderingThirdPerson = qfalse;
+		} else if ( freeCam || povParked ) {
+			cg.renderingThirdPerson = qtrue;
+		} else if ( rigCam ) {
+			if ( CG_DemoCams_UsingPlayerView() ) {
+				cg.renderingThirdPerson = CG_DemoCams_PlayerThird();
+			} else {
+				cg.renderingThirdPerson = qtrue;
+			}
+		}
+	}
+
+	if ( !freeCam && !rigCam && !povEyes && !povParked ) {
+		CG_SpecZooming();
+	}
 
 	// build cg.refdef
 	inwater = CG_CalcViewValues();
@@ -1085,7 +1158,11 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// build the render lists
 	if ( !cg.hyperspace ) {
 		CG_AddPacketEntities();			// adter calcViewValues, so predicted player state is correct
-		CG_DrawBotAimFollowFirstPerson();
+		CG_FreeCamAddAmbientMovers();
+		CG_DemoCams_AddMarkers();
+		if ( !freeCam && !rigCam && !povEyes ) {
+			CG_DrawBotAimFollowFirstPerson();
+		}
 		CG_AddPredictedMissiles();
 		CG_AddMarks();
 		CG_AddParticles ();
@@ -1094,7 +1171,11 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 			CG_AddSpawnpoints();
 		}
 	}
-	CG_AddViewWeapon( &cg.predictedPlayerState );
+	if ( povEyes ) {
+		CG_DemoControls_PovAddViewWeapon();
+	} else {
+		CG_AddViewWeapon( &cg.predictedPlayerState );
+	}
 
 	// add buffered sounds
 	CG_PlayBufferedSounds();
@@ -1110,12 +1191,19 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 	cg.refdef.time = cg.time;
 	memcpy( cg.refdef.areamask, cg.snap->areamask, sizeof( cg.refdef.areamask ) );
+	if ( freeCam || povParked || ( povEyes && CG_DemoControls_PovClient() != cg.snap->ps.clientNum )
+			|| ( rigCam && !CG_DemoCams_UsingPlayerView() ) ) {
+		memset( cg.refdef.areamask, 0, sizeof( cg.refdef.areamask ) );
+	}
 
 	// warning sounds when powerup is wearing off
 	CG_PowerupTimerSounds();
 
 	// update audio positions
-	trap_S_Respatialize( cg.snap->ps.clientNum, cg.refdef.vieworg, cg.refdef.viewaxis, inwater );
+	trap_S_Respatialize( ( freeCam || povParked || ( rigCam && !CG_DemoCams_UsingPlayerView() ) )
+			? ENTITYNUM_NONE
+			: ( povEyes ? CG_DemoControls_PovClient() : cg.snap->ps.clientNum ),
+			cg.refdef.vieworg, cg.refdef.viewaxis, inwater );
 
 	// make sure the lagometerSample and frame timing isn't done twice when in stereo
 	if ( stereoView != STEREO_RIGHT ) {
@@ -1144,6 +1232,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	// actually issue the rendering calls
 	CG_DrawActive( stereoView );
+	CG_DemoCams_DrawCutFade();
 	CG_DrawLeaveFade( stereoView );
 
 	if ( cg_stats.integer ) {

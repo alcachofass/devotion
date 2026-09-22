@@ -78,7 +78,7 @@ CPMA `ItemTimers1`–`4` `_Icons` / `_Times` are implemented. Place them with `r
 
 World-space pies at the pad are independent of HUD mode (`cg_itemTimers`).
 
-Spectators also get a QL-style overhead status box (`cg_specPlayerStatus`, server `g_specPlayerStatus`): name, four health pips, and an armor bar, drawn in 2D so it shows through walls even when the player model is not in PVS.
+Spectators also get a QL-style overhead status box (`cg_specPlayerStatus`, server `g_specPlayerStatus`): name, four health pips, and an armor bar, drawn in 2D so it shows through walls even when the player model is not in PVS. Demo playback uses the same box (`cg_demoPlayerStatus`, replay sidebar **Status**) for players who are in PVS; out-of-PVS boxes only appear if the recording includes spectator status snapshots.
 
 ---
 

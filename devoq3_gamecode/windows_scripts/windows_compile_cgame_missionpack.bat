@@ -38,6 +38,7 @@ cd windows\build\cgame
 %cc%  ../../../code/cgame/cg_snapshot.c
 %cc%  ../../../code/cgame/cg_demo_history.c
 %cc%  ../../../code/cgame/cg_demo_controls.c
+%cc%  ../../../code/cgame/cg_demo_cams.c
 %cc%  ../../../code/cgame/cg_demo_events.c
 %cc%  ../../../code/cgame/cg_demo_msg_stub.c
 %cc%  ../../../code/cgame/cg_visualsounds.c
