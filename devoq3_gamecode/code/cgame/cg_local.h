@@ -1877,8 +1877,6 @@ void CG_DemoControls_FreeCamView( vec3_t origin, vec3_t angles );
 void CG_DemoCams_LoadIfNeeded( void );
 void CG_DemoCams_Load( void );
 void CG_DemoCams_Save( void );
-void CG_DemoCams_Stash( void );
-void CG_DemoCams_ClearStash( void );
 qboolean CG_DemoCams_IsDirty( void );
 void CG_DemoCams_AddCurrent( void );
 void CG_DemoCams_AddRailPoint( void );

@@ -140,7 +140,7 @@ static void DemoCam_FilePath( char *out, int outSize ) {
 	Com_sprintf( out, outSize, "cams/%s.cfg", map );
 }
 
-static void DemoCam_SessionPath( char *out, int outSize ) {
+static void DemoCam_DefaultPath( char *out, int outSize ) {
 	const char	*map;
 
 	map = cgs.mapbasename;
@@ -148,29 +148,34 @@ static void DemoCam_SessionPath( char *out, int outSize ) {
 		out[0] = '\0';
 		return;
 	}
-	Com_sprintf( out, outSize, "cams/%s.session.cfg", map );
+	Com_sprintf( out, outSize, "cams/%s.default.cfg", map );
 }
 
-static qboolean DemoCam_StashRequested( void ) {
-	char	flag[16];
-	char	map[MAX_QPATH];
+static qboolean DemoCam_FileExists( const char *path ) {
+	fileHandle_t	f;
+	int				len;
 
-	flag[0] = '\0';
-	trap_Cvar_VariableStringBuffer( "cg_demoCamStash", flag, sizeof( flag ) );
-	if ( atoi( flag ) == 0 ) {
+	if ( !path || !path[0] ) {
 		return qfalse;
 	}
-	map[0] = '\0';
-	trap_Cvar_VariableStringBuffer( "cg_demoCamStashMap", map, sizeof( map ) );
-	if ( !map[0] || Q_stricmp( map, cgs.mapbasename ) ) {
-		return qfalse;
+	len = trap_FS_FOpenFile( path, &f, FS_READ );
+	if ( f ) {
+		trap_FS_FCloseFile( f );
 	}
-	return qtrue;
+	return ( len > 0 ) ? qtrue : qfalse;
 }
 
-static void DemoCam_ClearStashCvars( void ) {
-	trap_Cvar_Set( "cg_demoCamStash", "0" );
-	trap_Cvar_Set( "cg_demoCamStashMap", "" );
+static void DemoCam_LoadFromDisk( qboolean quiet ) {
+	char	userPath[MAX_QPATH];
+	char	defaultPath[MAX_QPATH];
+
+	DemoCam_FilePath( userPath, sizeof( userPath ) );
+	DemoCam_DefaultPath( defaultPath, sizeof( defaultPath ) );
+	if ( DemoCam_FileExists( userPath ) ) {
+		DemoCam_ReadFile( userPath, quiet );
+		return;
+	}
+	DemoCam_ReadFile( defaultPath, quiet );
 }
 
 static void DemoCam_BumpItemGhostGen( void ) {
@@ -1407,8 +1412,6 @@ static qboolean DemoCam_UpdateRest( int idx, const vec3_t lookAt ) {
 }
 
 void CG_DemoCams_LoadIfNeeded( void ) {
-	char	path[MAX_QPATH];
-
 	if ( !cg.demoPlayback ) {
 		return;
 	}
@@ -1418,15 +1421,7 @@ void CG_DemoCams_LoadIfNeeded( void ) {
 	if ( !Q_stricmp( dcamLoadedMap, cgs.mapbasename ) ) {
 		return;
 	}
-	if ( DemoCam_StashRequested() ) {
-		DemoCam_SessionPath( path, sizeof( path ) );
-		if ( DemoCam_ReadFile( path, qtrue ) ) {
-			dcamDirty = qtrue;
-			return;
-		}
-	}
-	DemoCam_FilePath( path, sizeof( path ) );
-	DemoCam_ReadFile( path, qfalse );
+	DemoCam_LoadFromDisk( qfalse );
 	dcamDirty = qfalse;
 }
 
@@ -1455,7 +1450,6 @@ void CG_DemoCams_AddCurrent( void ) {
 	dcamCount++;
 	dcamShow = qtrue;
 	dcamDirty = qtrue;
-	CG_DemoCams_Stash();
 	CG_Printf( "Added dynamic camera %d at (%.0f %.0f %.0f)\n",
 			dcamCount,
 			dcams[dcamCount - 1].origin[0],
@@ -1538,7 +1532,6 @@ void CG_DemoCams_AddRailPoint( void ) {
 	}
 	dcamShow = qtrue;
 	dcamDirty = qtrue;
-	CG_DemoCams_Stash();
 	CG_Printf( "Rail %d point %d at (%.0f %.0f %.0f)\n",
 			drailEdit + 1, at + 1,
 			r->pts[at][0], r->pts[at][1], r->pts[at][2] );
@@ -1625,7 +1618,6 @@ void CG_DemoCams_SplitRail( void ) {
 		DemoCam_ResetDirector();
 	}
 	dcamDirty = qtrue;
-	CG_DemoCams_Stash();
 	CG_Printf( "Split rail %d into rails %d (%d pts) and %d (%d pts)\n",
 			bestRail + 1, bestRail + 1, src->n, drailCount, dst->n );
 }
@@ -1641,7 +1633,6 @@ void CG_DemoCams_SetNearestDynamic( qboolean dynamic ) {
 	dcams[best].dynamic = dynamic;
 	dcamShow = qtrue;
 	dcamDirty = qtrue;
-	CG_DemoCams_Stash();
 	CG_Printf( "Camera %d is now %s\n", best + 1, dynamic ? "dynamic" : "fixed" );
 }
 
@@ -1776,7 +1767,6 @@ void CG_DemoCams_JoinNearestToRail( void ) {
 			bestCam + 1, bestRail + 1, bestAt + 1 );
 	DemoCam_RemoveCamAt( bestCam );
 	dcamDirty = qtrue;
-	CG_DemoCams_Stash();
 }
 
 static int DemoCam_NearestRailInRange( float maxDist ) {
@@ -1905,14 +1895,12 @@ void CG_DemoCams_RemoveNearest( void ) {
 			dcamRailT = 0.0f;
 		}
 		dcamDirty = qtrue;
-		CG_DemoCams_Stash();
 		return;
 	}
 
 	CG_Printf( "Removed camera %d\n", bestCam + 1 );
 	DemoCam_RemoveCamAt( bestCam );
 	dcamDirty = qtrue;
-	CG_DemoCams_Stash();
 }
 
 static qboolean DemoCam_ReadFile( const char *path, qboolean quiet ) {
@@ -2104,12 +2092,9 @@ static qboolean DemoCam_WriteFile( const char *path, qboolean quiet ) {
 }
 
 void CG_DemoCams_Load( void ) {
-	char	path[MAX_QPATH];
-
-	DemoCam_FilePath( path, sizeof( path ) );
-	DemoCam_ReadFile( path, qfalse );
+	dcamLoadedMap[0] = '\0';
+	DemoCam_LoadFromDisk( qfalse );
 	dcamDirty = qfalse;
-	DemoCam_ClearStashCvars();
 }
 
 void CG_DemoCams_Save( void ) {
@@ -2120,26 +2105,6 @@ void CG_DemoCams_Save( void ) {
 		return;
 	}
 	dcamDirty = qfalse;
-	DemoCam_ClearStashCvars();
-}
-
-void CG_DemoCams_Stash( void ) {
-	char	path[MAX_QPATH];
-
-	if ( !cgs.mapbasename[0] ) {
-		return;
-	}
-	DemoCam_SessionPath( path, sizeof( path ) );
-	if ( !DemoCam_WriteFile( path, qtrue ) ) {
-		return;
-	}
-	trap_Cvar_Set( "cg_demoCamStash", "1" );
-	trap_Cvar_Set( "cg_demoCamStashMap", cgs.mapbasename );
-}
-
-void CG_DemoCams_ClearStash( void ) {
-	dcamDirty = qfalse;
-	DemoCam_ClearStashCvars();
 }
 
 qboolean CG_DemoCams_IsDirty( void ) {

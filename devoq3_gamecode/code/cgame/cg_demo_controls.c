@@ -3942,7 +3942,7 @@ static void DemoCtrl_CamExitSave( void ) {
 
 static void DemoCtrl_CamExitDiscard( void ) {
 	dc_camExitPrompt = qfalse;
-	CG_DemoCams_ClearStash();
+	CG_DemoCams_Load();
 	DemoCtrl_ExitReplay();
 }
 
@@ -4178,9 +4178,6 @@ void CG_DemoControls_Shutdown( void ) {
 	if ( dc_seekKeepCvars ) {
 		DemoCtrl_SeekWriteCvars();
 		DemoCtrl_ClipWriteCvars();
-		if ( CG_DemoCams_IsDirty() ) {
-			CG_DemoCams_Stash();
-		}
 	} else {
 		DemoCtrl_SeekUnmute();
 		DemoCtrl_SeekClearCvars();
