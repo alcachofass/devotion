@@ -5609,7 +5609,9 @@ static void CG_ScanForCrosshairEntity( void ) {
 	       	if (!ci->infoValid) {
 			return;
 		}
-		if (ci->team != cg.snap->ps.persistant[PERS_TEAM]) {
+		if ((cg.snap->ps.persistant[PERS_TEAM] != TEAM_RED
+				&& cg.snap->ps.persistant[PERS_TEAM] != TEAM_BLUE)
+				|| ci->team != cg.snap->ps.persistant[PERS_TEAM]) {
 			return;
 		}
 	}
@@ -7385,6 +7387,5 @@ void CG_DrawActive( stereoFrame_t stereoView ) {
  	CG_Draw2D(stereoView);
 	CG_DrawLoadFade();
 }
-
 
 

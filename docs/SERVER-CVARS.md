@@ -144,7 +144,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_friendlyFireReflect` | RatMod | `0` | 0 or 1 | When `1`, reflected friendly fire damages the shooter. |
 | `g_friendlyFireReflectFactor` | RatMod | `1` | 0 or 1 | Multiplier for reflected friendly-fire damage. |
 | `g_friendsFlagIndicator` | RatMod | `1` | 0 or 1 | When `1`, shows a teammate flag-carrier indicator. |
-| `g_friendsWallHack` | RatMod | `0` | 0 or 1 | When `1`, teammates are visible through walls. |
+| `g_friendsWallHack` | RatMod | `1` | 0 or 1 | When `1`, teammate indicators are visible through walls; enemies remain occluded. |
 | `g_gametype` | Vanilla | `0` | 0 or 1 | Active game type ID (FFA, tourney, TDM, CTF, etc.; see VOTING.md). |
 | `g_gauntDamage` | RatMod | `50` | integer >= 0 (typical) | Damage per gauntlet hit. |
 | `g_grapple` | RatMod | `0` | 0 or 1 | When `1`, enables the off-hand grapple hook. |
