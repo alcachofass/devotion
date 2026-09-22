@@ -928,6 +928,11 @@ void Weapon_GrapplingHook_Fire (gentity_t *ent)
 	ent->client->fireHeld = qtrue;
 }
 
+qboolean G_GrappleOffhand( void )
+{
+	return g_grapple.integer == GRAPPLE_CPMA;
+}
+
 void Weapon_HookFree (gentity_t *ent)
 {
 	ent->parent->client->hook = NULL;
@@ -1212,7 +1217,28 @@ void CalcMuzzlePointOrigin ( gentity_t *ent, vec3_t origin, vec3_t forward, vec3
 	//SnapVector( muzzlePoint );
 }
 
+void G_FireOffhandGrapple( gentity_t *ent )
+{
+	if ( !ent || !ent->client ) {
+		return;
+	}
+	if ( !( ent->client->ps.stats[STAT_WEAPONS] & ( 1 << WP_GRAPPLING_HOOK ) ) ) {
+		return;
+	}
+	if ( ent->health <= 0 || ent->client->ps.pm_type != PM_NORMAL ) {
+		return;
+	}
+	if ( ent->client->ps.pm_flags & ( PMF_RESPAWNED | PMF_ELIMWARMUP ) ) {
+		return;
+	}
+	if ( ent->client->frozen != FROZEN_NOT ) {
+		return;
+	}
 
+	AngleVectors( ent->client->ps.viewangles, forward, right, up );
+	CalcMuzzlePointOrigin( ent, ent->client->oldOrigin, forward, right, up, muzzle );
+	Weapon_GrapplingHook_Fire( ent );
+}
 
 /*
 ===============
@@ -1341,7 +1367,9 @@ void FireWeapon( gentity_t *ent, qboolean altFire ) {	//mrd - capture routines f
 		}
 		break;
 	case WP_GRAPPLING_HOOK:
-		Weapon_GrapplingHook_Fire( ent );
+		if ( !G_GrappleOffhand() ) {
+			Weapon_GrapplingHook_Fire( ent );
+		}
 		break;
 #ifdef MISSIONPACK
 	case WP_NAILGUN:

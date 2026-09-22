@@ -402,7 +402,7 @@ G_CVAR( g_persistantpowerups, "g_runes", "0", CVAR_LATCH|CVAR_ARCHIVE, 0, qfalse
 #endif
 
 G_CVAR( g_swingGrapple, "g_swingGrapple", "0", CVAR_ARCHIVE, 0, qfalse, qfalse )
-G_CVAR( g_grapple, "g_grapple", "0", CVAR_ARCHIVE, 0, qtrue, qfalse )
+G_CVAR( g_grapple, "g_grapple", "0", CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qtrue, qfalse )
 
 //nexuiz style rocket arena
 G_CVAR( g_rockets, "g_rockets", "0", CVAR_SERVERINFO | CVAR_LATCH | CVAR_NORESTART, 0, qfalse, qfalse )

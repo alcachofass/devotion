@@ -4018,7 +4018,7 @@ void CG_NextWeapon_f( void ) {
                 }
                 if( cg.weaponSelect == 0)
                     cg.weaponSelect = WP_GRAPPLING_HOOK;
-                if ( cg.weaponSelect == WP_GRAPPLING_HOOK && !cg_cyclegrapple.integer ) {
+                if ( cg.weaponSelect == WP_GRAPPLING_HOOK && ( !cg_cyclegrapple.integer || (cgs.ratFlags & RAT_OFFHANDGRAPPLE) ) ) {
                     cg.weaponSelect = 0;
                     continue;		// never cycle to grapple unless the client wants it
 		}
@@ -4070,7 +4070,7 @@ void CG_PrevWeapon_f( void ) {
                 }
                 if( cg.weaponSelect == 0)
                     cg.weaponSelect = WP_GRAPPLING_HOOK;
-                if ( cg.weaponSelect == WP_GRAPPLING_HOOK && !cg_cyclegrapple.integer ) {
+                if ( cg.weaponSelect == WP_GRAPPLING_HOOK && ( !cg_cyclegrapple.integer || (cgs.ratFlags & RAT_OFFHANDGRAPPLE) ) ) {
                     cg.weaponSelect = 0;
                     continue;		// never cycle to grapple unless the client wants it
 		}

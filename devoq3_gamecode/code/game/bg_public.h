@@ -234,6 +234,21 @@ typedef enum {
 	MOVEMENT_NUM_MOVEMENTS,
 } movement_t;
 
+typedef enum {
+	GRAPPLE_OFF = 0,
+	GRAPPLE_Q3,
+	GRAPPLE_QL,
+	GRAPPLE_CPMA,
+	GRAPPLE_NUM_MODES
+} grappleMode_t;
+
+#define GRAPPLE_SPEED_Q3	800
+#define GRAPPLE_SPEED_QL	2000
+#define GRAPPLE_SPEED_CPMA	3000
+#define GRAPPLE_LIFETIME_Q3	10000
+#define GRAPPLE_LIFETIME_QL	10000
+#define GRAPPLE_LIFETIME_CPMA	20000
+
 #define	MAXTOUCH	32
 typedef struct {
 	// state (in / out)
@@ -972,6 +987,7 @@ qboolean	BG_ItemHasTimer( const gitem_t *item );
 #define RAT_CROUCHSLIDE		(1 << 26)
 #define RAT_SLIDEMODE		(1 << 27)
 #define RAT_FORCETAUNTS		(1 << 28)
+#define RAT_OFFHANDGRAPPLE	(1 << 29)
 
 #define MAX_RAT_SAY_TEXT 256
 
@@ -1091,6 +1107,7 @@ char *BG_TeamName( team_t team );
 
 char *BG_MovementToString( movement_t movement );
 movement_t BG_MovementFromString( const char *s );
+char *BG_GrappleModeToString( grappleMode_t mode );
 const char *BG_EntityTypeToString(int eType);
 
 qboolean BG_IsTeamGametype(gametype_t gametype);

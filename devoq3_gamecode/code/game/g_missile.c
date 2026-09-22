@@ -1470,11 +1470,29 @@ fire_grapple
 */
 gentity_t *fire_grapple (gentity_t *self, vec3_t start, vec3_t dir) {
 	gentity_t	*hook;
+	int		speed;
+	int		lifetime;
+
 	VectorNormalize (dir);
+
+	switch ( g_grapple.integer ) {
+	case GRAPPLE_QL:
+		speed = GRAPPLE_SPEED_QL;
+		lifetime = GRAPPLE_LIFETIME_QL;
+		break;
+	case GRAPPLE_CPMA:
+		speed = GRAPPLE_SPEED_CPMA;
+		lifetime = GRAPPLE_LIFETIME_CPMA;
+		break;
+	default:
+		speed = g_swingGrapple.integer ? GRAPPLE_SPEED_QL : GRAPPLE_SPEED_Q3;
+		lifetime = GRAPPLE_LIFETIME_Q3;
+		break;
+	}
 
 	hook = G_Spawn();
 	hook->classname = "hook";
-	hook->nextthink = level.time + 20000;
+	hook->nextthink = level.time + lifetime;
 	hook->think = Weapon_HookFree;
 	hook->s.eType = ET_MISSILE;
 	hook->r.svFlags = SVF_USE_CURRENT_ORIGIN;
@@ -1493,7 +1511,7 @@ gentity_t *fire_grapple (gentity_t *self, vec3_t start, vec3_t dir) {
 	hook->s.pos.trType = TR_LINEAR;
 	hook->s.otherEntityNum = self->s.number; // use to match beam in client
 	VectorCopy( start, hook->s.pos.trBase );
-	VectorScale( dir, g_swingGrapple.integer ? 2000 : 800, hook->s.pos.trDelta );
+	VectorScale( dir, speed, hook->s.pos.trDelta );
 	SnapVector( hook->s.pos.trDelta );			// save net bandwidth
 	VectorCopy (start, hook->r.currentOrigin);
 

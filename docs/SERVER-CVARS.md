@@ -15,7 +15,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `elimination_bfg` | RatMod | `0` | 0 or 1 | Starting BFG ammo in elimination rounds. |
 | `elimination_chain` | RatMod | `0` | 0 or 1 | Starting chaingun ammo in elimination rounds. |
 | `elimination_ctf_oneway` | RatMod | `0` | 0 or 1 | When `1`, CTF elimination attacks one base direction per round. |
-| `elimination_grapple` | RatMod | `0` | 0 or 1 | Starting off-hand grapple ammo in elimination rounds. |
+| `elimination_grapple` | RatMod | `0` | 0 or 1 | When `1`, players can grapple in elimination rounds. |
 | `elimination_grenade` | RatMod | `100` | integer >= 0 (typical) | Starting grenade launcher ammo in elimination rounds. |
 | `elimination_healthReduction` | RatMod | `0` | 0 or 1 | Health reduction applied between elimination rounds. |
 | `elimination_lightning` | RatMod | `300` | integer >= 0 (typical) | Starting lightning gun ammo in elimination rounds. |
@@ -147,7 +147,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_friendsWallHack` | RatMod | `1` | 0 or 1 | When `1`, teammate indicators are visible through walls; enemies remain occluded. |
 | `g_gametype` | Vanilla | `0` | 0 or 1 | Active game type ID (FFA, tourney, TDM, CTF, etc.; see VOTING.md). |
 | `g_gauntDamage` | RatMod | `50` | integer >= 0 (typical) | Damage per gauntlet hit. |
-| `g_grapple` | RatMod | `0` | 0 or 1 | When `1`, enables the off-hand grapple hook. |
+| `g_grapple` | RatMod | `0` | `0`-`3` | Grapple preset. `0` off, `1` Quake 3 style, `2` Quake Live style, `3` CPMA style. |
 | `g_gravity` | Vanilla | `800` | integer >= 0 (typical) | World gravity strength. |
 | `g_gravityJumppadFix` | RatMod | `0` | 0 or 1 | When `1`, fixes jumppad behavior under modified gravity. |
 | `g_gravityModifier` | RatMod | `1.0` | float | Multiplier applied to world gravity. |
@@ -267,7 +267,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_stairSplash` | Devotion | `1` | 0 or 1 | When `1`, splash damage can pass through a stair edges. Makes fighting on staircases more balanced. |
 | `g_startWhenReady` | RatMod | `0` | 0 or 1 | Ready-up mode: `0` off, `1` >50% ready, `2` all ready, `3` >50% ready in team games. |
 | `g_statsboard` | RatMod | `2` | integer >= 0 (typical) | Scoreboard detail level (`0` minimal, higher = more stats). |
-| `g_swingGrapple` | RatMod | `0` | 0 or 1 | When `1`, grapple swings the player on a rope arc. |
+| `g_swingGrapple` | RatMod | `0` | 0 or 1 | When `1`, Q3/QL style grapples uses swing physics. CPMA style grapple always swings. |
 | `g_synchronousClients` | Vanilla | `0` | 0 or 1 | When `1`, forces client input sync for demo recording. |
 | `g_tauntAfterDeathTime` | RatMod | `1500` | integer >= 0 (typical) | Milliseconds after death during which taunts are allowed. |
 | `g_tauntAllowed` | RatMod | `1` | 0 or 1 | When `0`, disables voice taunts. |

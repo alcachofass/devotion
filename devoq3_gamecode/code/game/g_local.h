@@ -1195,6 +1195,8 @@ void SnapVectorTowards( vec3_t v, vec3_t to );
 qboolean CheckGauntletAttack( gentity_t *ent, qboolean altFire);	//mrd
 void Weapon_HookFree (gentity_t *ent);
 void Weapon_HookThink (gentity_t *ent);
+qboolean G_GrappleOffhand( void );
+void G_FireOffhandGrapple( gentity_t *ent );
 
 void G_PingLocation( gentity_t *ent, locationping_t pingtype );
 

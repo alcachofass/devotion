@@ -965,7 +965,7 @@ static void CG_Rules_f( void ) {
 	CG_Printf(" -Screen shake upon hit: %s\n", CG_OnOffStr(cgs.ratFlags & RAT_SCREENSHAKE));
 	CG_Printf(" -Rocket speed:          %i\n", cgs.rocketSpeed);
 	CG_Printf(" -Shotgun type:          %s\n", cgs.ratFlags & RAT_NEWSHOTGUN ? "rat" : "classic");
-	CG_Printf(" -Grapple type:          %s\n", cgs.ratFlags & RAT_SWINGGRAPPLE ? "swinging" : "classic");
+	CG_Printf(" -Grapple:               %s\n", BG_GrappleModeToString(cgs.grappleMode));
 	trap_SendClientCommand("srules");
 }
 

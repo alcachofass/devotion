@@ -18,7 +18,7 @@ Console variables that control bot AI, navigation, chat, and fill rules. Set the
 | `bot_forceclustering` | Vanilla | `0` | 0 or 1 | Forces the navigation system to rebuild area clusters for the current map (slow; map load / AAS build). |
 | `bot_forcereachability` | Vanilla | `0` | 0 or 1 | Forces reachability between areas to be recalculated (slow; map load / AAS build). |
 | `bot_forcewrite` | Vanilla | `0` | 0 or 1 | Forces the navigation `.aas` file to be written to disk when the map is processed. |
-| `bot_grapple` | Vanilla | `0` | 0 or 1 | When `1`, bots may use the off-hand grapple for movement where the mod supports it. |
+| `bot_grapple` | Vanilla | `0` | 0 or 1 | When `1`, bots may use the grappling hook for movement where the mod supports it. |
 | `bot_interbreedbots` | Vanilla | `10` | integer >= 1 | Number of bots spawned when a bot "interbreeding" run starts. |
 | `bot_interbreedchar` | Vanilla | `` | bot name string | Bot character file to use for interbreeding; setting this starts a tournament-style breeding session. Cleared after spawn. |
 | `bot_interbreedcycle` | Vanilla | `20` | integer >= 1 | How many matches to run before the best bot's AI is saved and a new generation is spawned. |

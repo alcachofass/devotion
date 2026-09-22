@@ -1775,6 +1775,7 @@ typedef struct {
     int		predictedMissileNudge;
     int		ratFlags;
     movement_t	movement;
+    grappleMode_t	grappleMode;
     float	maxBrightshellAlpha;
     int		timeoutEnd;
     int		timeoutOvertime;
