@@ -2831,6 +2831,29 @@ static qboolean CG_FriendVisible(centity_t *cent) {
 	//return qfalse;
 }
 
+static qboolean CG_IsValidFriend(centity_t *cent) {
+	int localTeam;
+	int clientNum;
+
+	if (!cg.snap || !cent) {
+		return qfalse;
+	}
+
+	clientNum = cent->currentState.clientNum;
+	if (clientNum < 0 || clientNum >= cgs.maxclients
+			|| !cgs.clientinfo[clientNum].infoValid) {
+		return qfalse;
+	}
+
+	localTeam = cg.snap->ps.persistant[PERS_TEAM];
+	if ((localTeam != TEAM_RED && localTeam != TEAM_BLUE)
+			|| cgs.clientinfo[clientNum].team != localTeam) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
 static void CG_FriendFlagIndicator(centity_t *cent) {
 	int powerups = cent->currentState.powerups;
 	qhandle_t shader = 0;
@@ -2873,17 +2896,15 @@ static void CG_FriendFlagIndicator(centity_t *cent) {
 
 }
 
-static void CG_FriendHudMarker( centity_t *cent ) {
-	int team;
+static void CG_FriendHudMarker(centity_t *cent) {
 	float distance;
 	float hfov_x;
 	float size;
 
-	team = cgs.clientinfo[ cent->currentState.clientNum ].team;
-	if ( !CG_IsTeamGametype()
+	if ( !CG_IsValidFriend(cent)
+		       || !CG_IsTeamGametype()
 		       || !cg_friendHudMarker.integer
 		       || !(cgs.ratFlags & RAT_FRIENDSWALLHACK)
-		       || cg.snap->ps.persistant[PERS_TEAM] != team 
 		       || (cent->currentState.eFlags & EF_DEAD 
 			       && !CG_IsFrozenPlayer(cent))
 		       || cent->currentState.number == cg.snap->ps.clientNum
@@ -2914,12 +2935,10 @@ Float sprites over the player's head
 ===============
 */
 static void CG_PlayerSprites( centity_t *cent ) {
-	int		team;
 	qboolean 	drawFriendInfo = qfalse;
 
-	team = cgs.clientinfo[ cent->currentState.clientNum ].team;
-	if ( CG_IsTeamGametype() &&
-		cg.snap->ps.persistant[PERS_TEAM] == team &&
+	if ( CG_IsValidFriend(cent) &&
+		CG_IsTeamGametype() &&
 		(!(cent->currentState.eFlags & EF_DEAD) 
 		 || CG_IsFrozenPlayer(cent)) && 
 		cg_drawFriend.integer) {
