@@ -385,7 +385,7 @@ void G_ExplodeMissile( gentity_t *ent ) {
 	// splash damage
 	if ( ent->splashDamage ) {
 		if( G_RadiusDamage( ent->r.currentOrigin, ent, ent->parent, ent->splashDamage, ent->splashRadius, ent
-			, ent->splashMethodOfDeath ) ) {
+			, ent->splashMethodOfDeath, qfalse ) ) {
 			g_entities[ent->r.ownerNum].client->accuracy_hits++;
                         g_entities[ent->r.ownerNum].client->accuracy[ent->s.weapon][1]++;
 		}
@@ -991,7 +991,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 	// splash damage (doesn't apply to person directly hit)
 	if ( ent->splashDamage ) {
 		if( G_RadiusDamage( trace->endpos, ent, ent->parent, ent->splashDamage, ent->splashRadius, 
-			other, ent->splashMethodOfDeath ) ) {
+			other, ent->splashMethodOfDeath, qfalse ) ) {
 			if( !hitClient ) {
 				g_entities[ent->r.ownerNum].client->accuracy_hits++;
                                 g_entities[ent->r.ownerNum].client->accuracy[ent->s.weapon][1]++;

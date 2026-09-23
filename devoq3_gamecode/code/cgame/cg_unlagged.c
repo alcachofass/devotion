@@ -1111,10 +1111,10 @@ void CG_PredictedExplosion(trace_t *tr, int weapon, predictedMissile_t *predMiss
 		CG_MissileHitPlayer( weapon, tr->endpos, tr->plane.normal, tr->entityNum, pms );
 		CG_UpdateMissileStatus(pms, MF_EXPLODED | MF_HITPLAYER, tr->endpos, tr->entityNum);
 	} else if (tr->surfaceFlags & SURF_METALSTEPS) {
-		CG_MissileHitWall(weapon, 0, tr->endpos, tr->plane.normal, IMPACTSOUND_METAL, pms);
+		CG_MissileHitWall(weapon, 0, tr->endpos, tr->plane.normal, IMPACTSOUND_METAL, pms, qfalse);	//mrd
 		CG_UpdateMissileStatus(pms, MF_EXPLODED | MF_HITWALLMETAL, tr->endpos, tr->entityNum);
 	} else {
-		CG_MissileHitWall(weapon, 0, tr->endpos, tr->plane.normal, IMPACTSOUND_DEFAULT, pms);
+		CG_MissileHitWall(weapon, 0, tr->endpos, tr->plane.normal, IMPACTSOUND_DEFAULT, pms, qfalse);	//mrd
 		CG_UpdateMissileStatus(pms, MF_EXPLODED | MF_HITWALL, tr->endpos, tr->entityNum);
 	}
 }
@@ -1435,7 +1435,12 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 			// explosion at end if not SURF_NOIMPACT
 			if ( !(trace.surfaceFlags & SURF_NOIMPACT) ) {
 				// predict an explosion
-				CG_MissileHitWall( ent->weapon, cg.predictedPlayerState.clientNum, trace.endpos, trace.plane.normal, IMPACTSOUND_DEFAULT, NULL );
+				//mrd - special altFire RG effect on impact
+				if (cent->altFire) {
+					CG_MissileHitWall( ent->weapon, cg.predictedPlayerState.clientNum, trace.endpos, trace.plane.normal, IMPACTSOUND_DEFAULT, NULL, qtrue );
+				} else {
+					CG_MissileHitWall( ent->weapon, cg.predictedPlayerState.clientNum, trace.endpos, trace.plane.normal, IMPACTSOUND_DEFAULT, NULL, qfalse);
+				}
 			}
 		}
 	}
@@ -1466,7 +1471,7 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 				if (trace.entityNum < MAX_CLIENTS) {
 					CG_MissileHitPlayer(WP_LIGHTNING, trace.endpos, trace.plane.normal, trace.entityNum, NULL);
 				} else if (!(trace.surfaceFlags & SURF_NOIMPACT)) {
-					CG_MissileHitWall(WP_LIGHTNING, 0, trace.endpos, trace.plane.normal, IMPACTSOUND_DEFAULT, NULL);
+					CG_MissileHitWall(WP_LIGHTNING, 0, trace.endpos, trace.plane.normal, IMPACTSOUND_DEFAULT, NULL, qfalse);	//mrd
 				}
 			}
 			if ( CG_ShouldPredictHitSound( WP_LIGHTNING ) ) {

@@ -51,6 +51,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define MACHINEGUN_ALT_BURST_INTERVAL 40
 #define MACHINEGUN_ALT_COOLDOWN	840
 #define VORTEX_RELOAD	4000
+#define	RAILGUN_ALT_DAMAGE	20
+#define RAILGUN_ALT_SHOCKWAVE_DAMAGE 15
+#define RAILGUN_ALT_SHOCKWAVE_RADIUS 120	//mrd - same radius as a rocket explosion
 
 #define	ITEM_RADIUS			15		// item sizes are needed for client side pickup detection
 
@@ -572,8 +575,6 @@ typedef enum {
 
 	EV_FOOTSTEP,
 	EV_FOOTSTEP_METAL,
-	EV_FOOTSTEP_WOOD,	//mrd
-	EV_FOOTSTEP_SNOW,	//mrd
 	EV_FOOTSPLASH,
 	EV_FOOTWADE,
 	EV_SWIM,
@@ -681,6 +682,8 @@ typedef enum {
 	EV_FOOTSLIDE, // for crouch slide
 	EV_DAMAGEPLUM,
 	EV_PUSHNOTIFY,
+	EV_FOOTSTEP_WOOD,	//mrd
+	EV_FOOTSTEP_SNOW,	//mrd
 	EV_ALTFIRE_WEAPON,	//mrd
 	EV_ITEM_PICKUP_SPEC,	// spectator item-timer notification
 	EV_VORTEX_GRENADE_STICK,	//mrd - altFire vortex grenade stuck on a wall
@@ -863,7 +866,8 @@ typedef enum {
 	MOD_KAMIKAZE,
 	MOD_JUICED,
 #endif
-	MOD_GRAPPLE
+	MOD_GRAPPLE,
+	MOD_RAILGUN_SHOCKWAVE	//mrd
 } meansOfDeath_t;
 
 

@@ -751,6 +751,22 @@ RAILGUN
 ======================================================================
 */
 
+/*
+================
+G_AltRailShockwave
+
+mrd - generate an altFire RG shockwave blast
+================
+*/
+void G_AltRailShockwave( gentity_t *ent, vec3_t origin, qboolean altFire ) {
+		
+	// splash damage
+	// origin, inflictor, attacker, damage, radius, ignore, MOD
+	if( G_RadiusDamage( origin, ent, ent, RAILGUN_ALT_SHOCKWAVE_DAMAGE, RAILGUN_ALT_SHOCKWAVE_RADIUS, ent, MOD_RAILGUN_SHOCKWAVE, altFire ) ) {
+		g_entities[ent->r.ownerNum].client->accuracy_hits++;
+		g_entities[ent->r.ownerNum].client->accuracy[ent->s.weapon][1]++;
+	}
+}
 
 /*
 =================
@@ -771,9 +787,16 @@ void weapon_railgun_fire (gentity_t *ent, qboolean altFire) {
 	int			unlinked;
 	int			passent;
 	gentity_t	*unlinkedEntities[MAX_RAIL_HITS];
-
+	
 	//damage = 80 * s_quadFactor;
-	damage = g_railgunDamage.integer * s_quadFactor;
+
+	//mrd
+	if (altFire) {
+		damage = RAILGUN_ALT_DAMAGE;
+	} else {
+		damage = g_railgunDamage.integer * s_quadFactor;
+	}
+
 	if(g_instantgib.integer)
 		damage = 800;
 
@@ -829,7 +852,7 @@ void weapon_railgun_fire (gentity_t *ent, qboolean altFire) {
 					hits++;
 				}
 				if (altFire) {
-					G_Damage (traceEnt, ent, ent, forward, trace.endpos, (damage / 3), 0, MOD_RAILGUN, altFire);
+					G_Damage (traceEnt, ent, ent, forward, trace.endpos, damage, 0, MOD_RAILGUN, altFire);
 				} else {
 					G_Damage (traceEnt, ent, ent, forward, trace.endpos, damage, 0, MOD_RAILGUN, altFire);
 				}
@@ -847,15 +870,22 @@ void weapon_railgun_fire (gentity_t *ent, qboolean altFire) {
 		unlinked++;
 	} while ( unlinked < MAX_RAIL_HITS );
 
-//unlagged - backward reconciliation #2
-	// put them back
-	G_UndoTimeShiftFor( ent );
-//unlagged - backward reconciliation #2
-
 	// link back in any entities we unlinked
 	for ( i = 0 ; i < unlinked ; i++ ) {
 		trap_LinkEntity( unlinkedEntities[i] );
 	}
+
+	//mrd - generate a shockwave on impact	
+	G_AltRailShockwave( ent, trace.endpos, altFire );
+
+	//mrd - moving this unlagged G_UndoTimeShift() down after the entities are relinked
+	//so altFire RG shockwave G_Damage call still affects the reconciled state
+	//but can properly apply knockback & damage to a re-linked enemy
+	
+	//unlagged - backward reconciliation #2
+	// put them back
+	G_UndoTimeShiftFor( ent );
+	//unlagged - backward reconciliation #2
 
 	// the final trace endpos will be the terminal point of the rail trail
 

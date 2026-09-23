@@ -996,14 +996,12 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		break;
 	case EV_FIRE_WEAPON:
 		DEBUGNAME("EV_FIRE_WEAPON");
-		//es->altFire = qfalse;
 		cent->altFire = qfalse;
 		CG_FireWeapon( cent );
 		CG_DemoControls_PovNoteAttack( es->number, es->weapon );
 		break;
 	case EV_ALTFIRE_WEAPON:	//mrd
 		DEBUGNAME("EV_ALTFIRE_WEAPON");
-		//es->altFire = qtrue;
 		cent->altFire = qtrue;
 		CG_FireWeapon( cent );
 		CG_DemoControls_PovNoteAttack( es->number, es->weapon );
@@ -1234,7 +1232,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		}
 		ByteToDir( es->eventParm, dir );
 		CG_MissileHitWall( es->weapon, es->otherEntityNum, position, dir, IMPACTSOUND_DEFAULT,
-			       cent->currentState.eType == ET_MISSILE ? &cent->missileStatus : NULL);
+			       //cent->currentState.eType == ET_MISSILE ? &cent->missileStatus : NULL);
+				   cent->currentState.eType == ET_MISSILE ? &cent->missileStatus : NULL, qfalse);	//mrd
 		if (cent->currentState.eType == ET_MISSILE) {
 			CG_UpdateMissileStatus(&cent->missileStatus,
 					MF_EXPLOSIONCONFIRMED | MF_EXPLODED | MF_HITWALL,
@@ -1267,7 +1266,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		}
 		ByteToDir( es->eventParm, dir );
 		CG_MissileHitWall( es->weapon, es->otherEntityNum, position, dir, IMPACTSOUND_METAL,
-			       cent->currentState.eType == ET_MISSILE ? &cent->missileStatus : NULL);
+			       //cent->currentState.eType == ET_MISSILE ? &cent->missileStatus : NULL);
+				   cent->currentState.eType == ET_MISSILE ? &cent->missileStatus : NULL, qfalse);	//mrd
 		if (cent->currentState.eType == ET_MISSILE) {
 			CG_UpdateMissileStatus(&cent->missileStatus, 
 					MF_EXPLOSIONCONFIRMED | MF_EXPLODED | MF_HITWALLMETAL,
@@ -1316,7 +1316,12 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			// if the end was on a nomark surface, don't make an explosion
 			if ( es->eventParm != 255 ) {
 				ByteToDir( es->eventParm, dir );
-				CG_MissileHitWall( es->weapon, es->clientNum, position, dir, IMPACTSOUND_DEFAULT, NULL );
+				//mrd - special impact effect for altFire RG
+				if (cent->altFire) {
+					CG_MissileHitWall( es->weapon, es->clientNum, position, dir, IMPACTSOUND_DEFAULT, NULL, qtrue);
+				} else {
+					CG_MissileHitWall( es->weapon, es->clientNum, position, dir, IMPACTSOUND_DEFAULT, NULL, qfalse);
+				}
 			}
 			//Com_Printf("Non-predicted rail trail\n");
 		}
