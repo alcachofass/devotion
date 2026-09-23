@@ -1966,26 +1966,31 @@ static void CG_ClearLerpFrame( clientInfo_t *ci, lerpFrame_t *lf, int animationN
 }
 
 void CG_DemoDelagResetPlayerAnims( centity_t *cent, int legsAnim, int torsoAnim ) {
-	int clientNum;
+	int		clientNum;
+	float	legsYaw;
+	float	torsoYaw;
+	float	torsoPitch;
 
 	clientNum = cent->currentState.clientNum;
 	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
 		return;
 	}
 
+	legsYaw = cent->lerpAngles[YAW];
+	torsoYaw = cent->lerpAngles[YAW];
+	torsoPitch = cent->lerpAngles[PITCH];
+
 	CG_ClearLerpFrame( &cgs.clientinfo[ clientNum ], &cent->pe.legs, legsAnim );
 	CG_ClearLerpFrame( &cgs.clientinfo[ clientNum ], &cent->pe.torso, torsoAnim );
 
-	memset( &cent->pe.legs, 0, sizeof( cent->pe.legs ) );
-	cent->pe.legs.yawAngle = cent->lerpAngles[YAW];
+	cent->pe.legs.yawAngle = legsYaw;
 	cent->pe.legs.yawing = qfalse;
 	cent->pe.legs.pitchAngle = 0;
 	cent->pe.legs.pitching = qfalse;
 
-	memset( &cent->pe.torso, 0, sizeof( cent->pe.torso ) );
-	cent->pe.torso.yawAngle = cent->lerpAngles[YAW];
+	cent->pe.torso.yawAngle = torsoYaw;
 	cent->pe.torso.yawing = qfalse;
-	cent->pe.torso.pitchAngle = cent->lerpAngles[PITCH];
+	cent->pe.torso.pitchAngle = torsoPitch;
 	cent->pe.torso.pitching = qfalse;
 }
 

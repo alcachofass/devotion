@@ -920,7 +920,7 @@ static qboolean VS_IsGrenadeBounce( sfxHandle_t sfx ) {
 static int VS_LocalClientNum( void ) {
 	int	pov;
 
-	if ( CG_DemoControls_PovEyesActive() ) {
+	if ( CG_DemoControls_PovActive() ) {
 		pov = CG_DemoControls_PovClient();
 		if ( pov >= 0 && pov < MAX_CLIENTS ) {
 			return pov;
@@ -942,7 +942,7 @@ static qboolean VS_IsLocalSource( int entityNum, const vec3_t origin, vsKind_t k
 	if ( VS_IsGrenadeBounce( sfx ) ) {
 		return qfalse;
 	}
-	if ( entityNum == localNum || ( !CG_DemoControls_PovEyesActive() && entityNum == cg.clientNum ) ) {
+	if ( entityNum == localNum || ( !CG_DemoControls_PovActive() && entityNum == cg.clientNum ) ) {
 		return qtrue;
 	}
 
@@ -959,8 +959,8 @@ static qboolean VS_IsLocalSource( int entityNum, const vec3_t origin, vsKind_t k
 
 	if ( kind == VS_WORLD && ( !Q_stricmp( label, "PAD" ) || !Q_stricmp( label, "TELE" )
 				|| !Q_stricmp( label, "SPWN" ) ) ) {
-		if ( CG_DemoControls_PovEyesActive() ) {
-			VectorCopy( cg.refdef.vieworg, localOrigin );
+		if ( CG_DemoControls_PovActive() ) {
+			CG_DemoControls_PovSubjectOrigin( localOrigin );
 		} else {
 			VectorCopy( cg.predictedPlayerState.origin, localOrigin );
 		}
@@ -1043,7 +1043,7 @@ void CG_VisualSounds_NoteExplosion( const vec3_t origin, int clientNum, int weap
 	}
 
 	localNum = VS_LocalClientNum();
-	if ( clientNum == localNum || ( !CG_DemoControls_PovEyesActive() && clientNum == cg.clientNum ) ) {
+	if ( clientNum == localNum || ( !CG_DemoControls_PovActive() && clientNum == cg.clientNum ) ) {
 		return;
 	}
 

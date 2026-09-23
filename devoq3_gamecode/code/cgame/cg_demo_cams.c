@@ -397,9 +397,9 @@ static float DemoCam_TraceFrac( const vec3_t from, const vec3_t to ) {
 	trace_t	tr;
 	int		skip;
 
-	skip = ENTITYNUM_NONE;
-	if ( cg.snap ) {
-		skip = cg.snap->ps.clientNum;
+	skip = CG_DemoControls_SubjectClient();
+	if ( skip < 0 ) {
+		skip = ENTITYNUM_NONE;
 	}
 	CG_Trace( &tr, from, vec3_origin, vec3_origin, to, skip, MASK_SOLID );
 	return tr.fraction;
@@ -420,7 +420,7 @@ static int DemoCam_ProjectPath( const vec3_t start, const vec3_t vel, vec3_t sam
 	int		n;
 	int		rec;
 
-	rec = cg.snap ? cg.snap->ps.clientNum : -1;
+	rec = CG_DemoControls_SubjectClient();
 	skip = ( rec >= 0 ) ? rec : ENTITYNUM_NONE;
 	VectorCopy( vel, wish );
 	wish[2] *= 0.35f;
@@ -956,10 +956,7 @@ static qboolean DemoCam_ActionTarget( vec3_t lookAt, vec3_t framed[MAX_CLIENTS],
 
 	*nframed = 0;
 	n = DemoCam_CollectPlayers( origins, ids );
-	rec = -1;
-	if ( cg.snap ) {
-		rec = cg.snap->ps.clientNum;
-	}
+	rec = CG_DemoControls_SubjectClient();
 	now = trap_Milliseconds();
 
 	bestA = -1;
@@ -1120,7 +1117,7 @@ static void DemoCam_PlayerScores( qboolean haveRec, const vec3_t recOrg, float *
 		return;
 	}
 	*firstScore = DEMOCAM_PLAYER_BASE;
-	if ( !haveRec || !DemoCam_PlayerViewAngles( cg.snap->ps.clientNum, ang ) ) {
+	if ( !haveRec || !DemoCam_PlayerViewAngles( CG_DemoControls_SubjectClient(), ang ) ) {
 		return;
 	}
 	range = cg_thirdPersonRange.value;
@@ -1131,7 +1128,7 @@ static void DemoCam_PlayerScores( qboolean haveRec, const vec3_t recOrg, float *
 	view[2] += 8.0f;
 	AngleVectors( ang, forward, NULL, NULL );
 	VectorMA( view, -range, forward, dest );
-	CG_Trace( &tr, view, mins, maxs, dest, cg.snap->ps.clientNum, MASK_SOLID );
+	CG_Trace( &tr, view, mins, maxs, dest, CG_DemoControls_SubjectClient(), MASK_SOLID );
 	clear = tr.fraction;
 	if ( clear >= DEMOCAM_THIRD_MINFRAC ) {
 		*thirdScore = DEMOCAM_PLAYER_BASE + 0.06f + 0.08f * clear;
@@ -2256,10 +2253,7 @@ void CG_DemoCams_DirectorFrame( void ) {
 	haveRec = qfalse;
 	VectorClear( recVel );
 	VectorClear( recOrg );
-	rec = -1;
-	if ( cg.snap ) {
-		rec = cg.snap->ps.clientNum;
-	}
+	rec = CG_DemoControls_SubjectClient();
 	if ( rec >= 0 && DemoCam_PlayerAliveOrigin( rec, recOrg ) ) {
 		haveRec = qtrue;
 		if ( !DemoCam_PlayerVelocity( rec, recVel ) ) {
