@@ -405,6 +405,9 @@ static qboolean demoDelagResolvePingMs( int *outPing ) {
 
 	rec = ( cg.snap ) ? cg.predictedPlayerState.clientNum : -1;
 	if ( cg_demoDelagPovClient >= 0 && cg_demoDelagPovClient != rec ) {
+		/* Non-recorders only have sparse scoreboard pings. The demo scan
+		   keeps the lowest reasonable value, which tracks their shots better
+		   than the latest score command. */
 		p = CG_DemoEvents_ClientPing( cg_demoDelagPovClient );
 		if ( p < 1 || p >= 900 ) {
 			return qfalse;

@@ -6,6 +6,7 @@ Chrome can hide after idle; hit-testing stays active so clicks still land.
 */
 
 #include "cg_local.h"
+#include "cg_overlay.h"
 #include "../client/keycodes.h"
 
 #define DEMOCTRL_HIDE_MSEC		2500
@@ -140,18 +141,12 @@ typedef enum {
 static qboolean	dc_inited;
 static qboolean	dc_demoSession;
 static qboolean	dc_dynamicCamCvarSeen;
-static qboolean	dc_visible;
-static qboolean	dc_locked;
 static qboolean	dc_drawerOpen[DEMOCTRL_NUM_DRAWERS];
 static float	dc_drawerFrac[DEMOCTRL_NUM_DRAWERS];
 static float	dc_drawerFrom[DEMOCTRL_NUM_DRAWERS];
 static float	dc_drawerTo[DEMOCTRL_NUM_DRAWERS];
 static int		dc_drawerAnimMs[DEMOCTRL_NUM_DRAWERS];
 static int		dc_hoverDrawer = -1;
-static qboolean	dc_catcherHeld;
-static int		dc_cursorX;
-static int		dc_cursorY;
-static int		dc_lastMoveMs;
 static char		dc_speedLabel[16];
 static int		dc_hoverBtn = -1;
 static int		dc_firstServerTime;
@@ -1685,48 +1680,8 @@ static void DemoCtrl_Activate( int btn ) {
 }
 
 static void DemoCtrl_ForwardKey( int key, qboolean down ) {
-	static const char *cmds[] = {
-		"+scores",
-		"+acc",
-		"+zoom",
-		"screenshot",
-		"screenshotJPEG",
-		"weapnext",
-		"weapprev",
-		"messagemode",
-		"messagemode2",
-		"sizedown",
-		"sizeup",
-		NULL
-	};
-	int i;
-	const char *cmd;
-	char buf[128];
-
-	if ( key == K_MOUSE1 || key == K_MOUSE2 || key == K_MOUSE3 ) {
-		return;
-	}
-
-	for ( i = 0; cmds[i]; i++ ) {
-		if ( trap_Key_GetKey( cmds[i] ) != key ) {
-			continue;
-		}
-		cmd = cmds[i];
-		if ( cmd[0] == '+' ) {
-			if ( down ) {
-				Com_sprintf( buf, sizeof( buf ), "%s\n", cmd );
-			} else {
-				Com_sprintf( buf, sizeof( buf ), "-%s\n", cmd + 1 );
-			}
-			trap_SendConsoleCommand( buf );
-		} else if ( down ) {
-			Com_sprintf( buf, sizeof( buf ), "%s\n", cmd );
-			trap_SendConsoleCommand( buf );
-		}
-		return;
-	}
+	Overlay_ForwardKey( key, down );
 }
-
 static void DemoCtrl_EnsureInit( void ) {
 	if ( dc_inited ) {
 		return;
@@ -1747,21 +1702,11 @@ static void DemoCtrl_Wake( void ) {
 	if ( dc_shotHideFrames > 0 || DemoCtrl_ClipBusy() ) {
 		return;
 	}
-	dc_visible = qtrue;
-	dc_lastMoveMs = trap_Milliseconds();
+	Overlay_Wake();
 }
 
 static void DemoCtrl_ReleaseCatcher( void ) {
-	int catcher;
-
-	if ( !dc_catcherHeld ) {
-		return;
-	}
-	catcher = trap_Key_GetCatcher();
-	if ( ( catcher & KEYCATCH_CGAME ) && !cgs.eventHandling ) {
-		trap_Key_SetCatcher( catcher & ~KEYCATCH_CGAME );
-	}
-	dc_catcherHeld = qfalse;
+	Overlay_ReleaseCatcher();
 }
 
 static void DemoCtrl_FormatClock( int ms, char *out, int outSize ) {
@@ -2047,18 +1992,8 @@ static void DemoCtrl_DisablePov( void ) {
 }
 
 static qboolean DemoCtrl_PovClientConnected( int clientNum ) {
-	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
-		return qfalse;
-	}
-	if ( !cgs.clientinfo[clientNum].infoValid ) {
-		return qfalse;
-	}
-	if ( !CG_ConfigString( CS_PLAYERS + clientNum )[0] ) {
-		return qfalse;
-	}
-	return qtrue;
+	return Overlay_ClientConnected( clientNum );
 }
-
 static qboolean DemoCtrl_PovClientInSnap( int clientNum ) {
 	centity_t	*cent;
 
@@ -2152,55 +2087,8 @@ static void DemoCtrl_PovSample( int clientNum, vec3_t origin, vec3_t angles ) {
 }
 
 static void DemoCtrl_PovCopyName( char *dst, int dstSize, int clientNum, int maxVis ) {
-	const char	*name;
-	int			i;
-	int			j;
-	int			vis;
-	int			fullVis;
-
-	if ( !dst || dstSize < 2 ) {
-		return;
-	}
-	dst[0] = '\0';
-	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
-		return;
-	}
-	name = "";
-	if ( cgs.clientinfo[clientNum].infoValid && cgs.clientinfo[clientNum].name[0] ) {
-		name = cgs.clientinfo[clientNum].name;
-	}
-	if ( !name[0] ) {
-		name = CG_DemoEvents_ClientName( clientNum );
-	}
-	if ( !name[0] ) {
-		Com_sprintf( dst, dstSize, "#%d", clientNum );
-		return;
-	}
-	fullVis = CG_DrawStrlen( name );
-	i = 0;
-	j = 0;
-	vis = 0;
-	while ( name[i] && j < dstSize - 2 ) {
-		if ( Q_IsColorString( name + i ) ) {
-			if ( j + 2 >= dstSize - 1 ) {
-				break;
-			}
-			dst[j++] = name[i++];
-			dst[j++] = name[i++];
-			continue;
-		}
-		if ( vis >= maxVis ) {
-			break;
-		}
-		dst[j++] = name[i++];
-		vis++;
-	}
-	if ( fullVis > maxVis && j < dstSize - 1 ) {
-		dst[j++] = '*';
-	}
-	dst[j] = '\0';
+	Overlay_CopyName( dst, dstSize, clientNum, maxVis );
 }
-
 static int DemoCtrl_SubjectClient( void ) {
 	if ( dc_povView && dc_povClient >= 0 && dc_povClient < MAX_CLIENTS ) {
 		return dc_povClient;
@@ -4303,7 +4191,6 @@ void CG_DemoControls_Frame( void ) {
 	DemoCtrl_EnsureInit();
 
 	if ( !cg.demoPlayback ) {
-		dc_visible = qfalse;
 		dc_speedLabel[0] = '\0';
 		dc_timingReady = qfalse;
 		dc_shotHideFrames = 0;
@@ -4325,8 +4212,8 @@ void CG_DemoControls_Frame( void ) {
 			DemoCtrl_SeekRestoreCam();
 		}
 		DemoCtrl_FreeCamReset();
-		DemoCtrl_ReleaseCatcher();
 		CG_DemoEvents_Shutdown();
+		DemoCtrl_ReleaseCatcher();
 		return;
 	}
 	if ( !dc_demoSession ) {

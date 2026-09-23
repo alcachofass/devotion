@@ -6209,6 +6209,7 @@ static void CG_DrawIntermission( void ) {
 	if ( cgs.gametype == GT_SINGLE_PLAYER ) {
 		CG_DrawCenterString();
 		CG_DemoControls_Draw();
+		CG_SpecControls_Draw();
 		return;
 	}
 #endif
@@ -6226,6 +6227,7 @@ static void CG_DrawIntermission( void ) {
 	}
 
 	CG_DemoControls_Draw();
+	CG_SpecControls_Draw();
 }
 
 
@@ -7142,6 +7144,7 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 			}
 		}
 		CG_DemoControls_Draw();
+		CG_SpecControls_Draw();
 		return;
 	}
 
@@ -7329,6 +7332,7 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 
 	CG_DrawMessagePromptBackground();
 	CG_DemoControls_Draw();
+	CG_SpecControls_Draw();
 }
 
 
@@ -7358,12 +7362,14 @@ void CG_DrawActive( stereoFrame_t stereoView ) {
 		( cg.snap->ps.pm_flags & PMF_SCOREBOARD ) ) {
 		CG_DrawTourneyScoreboard();
 		CG_DemoControls_Draw();
+		CG_SpecControls_Draw();
 		return;
 	}
 
 	if ( CG_DemoControls_IsSeeking() ) {
 		if ( !CG_DemoControls_SeekWantsKeyframe() ) {
 			CG_DemoControls_Draw();
+			CG_SpecControls_Draw();
 			return;
 		}
 
@@ -7373,6 +7379,7 @@ void CG_DrawActive( stereoFrame_t stereoView ) {
 		}
 		trap_R_RenderScene( &cg.refdef );
 		CG_DemoControls_Draw();
+		CG_SpecControls_Draw();
 		return;
 	}
 

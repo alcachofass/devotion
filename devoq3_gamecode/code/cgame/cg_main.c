@@ -2769,6 +2769,7 @@ void CG_Shutdown( void ) {
 	CG_MenuHud_Shutdown();
 	CG_DemoHistory_Clear();
 	CG_DemoControls_Shutdown();
+	CG_SpecControls_Shutdown();
 	challenges_save();
 }
 
@@ -2787,10 +2788,16 @@ void CG_EventHandling(int type) {
 }
 
 void CG_KeyEvent(int key, qboolean down) {
+	if ( CG_SpecControls_KeyEvent( key, down ) ) {
+		return;
+	}
 	CG_DemoControls_KeyEvent( key, down );
 }
 
 void CG_MouseEvent(int x, int y) {
+	if ( CG_SpecControls_MouseEvent( x, y ) ) {
+		return;
+	}
 	CG_DemoControls_MouseEvent( x, y );
 }
 #endif

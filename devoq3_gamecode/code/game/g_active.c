@@ -707,12 +707,8 @@ void SpectatorThink( gentity_t *ent, usercmd_t *ucmd ) {
 	
 	client->oldbuttons = client->buttons;
 	client->buttons = ucmd->buttons;
-	
-    //KK-OAX Changed to keep followcycle functional
-	// attack button cycles through spectators
-	if ( ( client->buttons & BUTTON_ATTACK ) && ! ( client->oldbuttons & BUTTON_ATTACK ) ) {
-		Cmd_FollowCycle_f( ent );
-	}
+
+	/* Attack opens the spectator overlay on the client. Follow is chosen there. */
 
 	if ( ( client->buttons & BUTTON_USE_HOLDABLE ) && ! ( client->oldbuttons & BUTTON_USE_HOLDABLE ) ) {
 		if ( G_IsElimTeamGT() &&

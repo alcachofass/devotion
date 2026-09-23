@@ -1076,6 +1076,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// update cvars
 	CG_UpdateCvars();
 	CG_DemoControls_Frame();
+	CG_SpecControls_Frame();
 	if ( stereoView != STEREO_RIGHT ) {
 		CG_DemoControls_PrepareSeekDraw();
 	}
