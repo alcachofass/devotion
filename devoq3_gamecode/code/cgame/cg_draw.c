@@ -7133,9 +7133,11 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		if ( cg.demoPlayback && !CG_DemoControls_PovActive() ) {
 			CG_DrawSpecPlayerStatus();
 		}
-		if ( CG_DemoControls_PovEyesActive() && stereoFrame == STEREO_CENTER ) {
-			CG_DrawCrosshair();
-			if ( !cg.showScores ) {
+		if ( CG_DemoControls_PovTrackingActive() && stereoFrame == STEREO_CENTER ) {
+			if ( CG_DemoControls_PovEyesActive() ) {
+				CG_DrawCrosshair();
+			}
+			if ( !cg.showScores && !CG_DemoControls_RigCamActive() ) {
 				CG_DrawVisualSounds();
 			}
 		}

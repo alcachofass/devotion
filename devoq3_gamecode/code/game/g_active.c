@@ -1463,9 +1463,18 @@ void ClientThink_real( gentity_t *ent ) {
 	}
 
 	// Let go of the hook if we aren't firing
-	if ( client->ps.weapon == WP_GRAPPLING_HOOK &&
-		client->hook && !( ucmd->buttons & BUTTON_ATTACK ) ) {
-		Weapon_HookFree(client->hook);
+	if ( client->hook ) {
+		qboolean hookHeld;
+
+		if ( G_GrappleOffhand() ) {
+			hookHeld = ( ucmd->buttons & BUTTON_ALT_ATTACK ) != 0;
+		} else {
+			hookHeld = client->ps.weapon == WP_GRAPPLING_HOOK
+				&& ( ucmd->buttons & BUTTON_ATTACK );
+		}
+		if ( !hookHeld ) {
+			Weapon_HookFree(client->hook);
+		}
 	}
 
 	// set up for pmove
@@ -1481,7 +1490,8 @@ void ClientThink_real( gentity_t *ent ) {
 	}
 
 	if ( client->ps.weapon == WP_GAUNTLET && !( ucmd->buttons & BUTTON_TALK ) &&
-		( ucmd->buttons & BUTTON_ALT_ATTACK ) && client->ps.weaponTime <= 0 ) {
+		( ucmd->buttons & BUTTON_ALT_ATTACK ) && client->ps.weaponTime <= 0
+		&& !G_GrappleOffhand() ) {
 		pm.gauntletHit = CheckGauntletAttack( ent, qtrue );	//mrd
 		//Com_Printf("Checking for alt fire gauntlet attack.\n");	//mrd debug
 	}
@@ -1549,7 +1559,7 @@ void ClientThink_real( gentity_t *ent ) {
     pm.pmove_ratflags = g_altFlags.integer;
     pm.pmove_movement = g_movement.integer;
 	pm.pmove_autohop = pmove_autohop.integer;
-	pm.altFireEnabled = g_altFireMode.integer != 0;	//mrd
+	pm.altFireEnabled = g_altFireMode.integer != 0 && !G_GrappleOffhand();	//mrd
 	pm.altFireBurstShots = client->altFireMGBurstShots; //mrd
 	pm.vortexReloadTime = client->vortexReloadTime; //mrd
 
@@ -1602,8 +1612,17 @@ void ClientThink_real( gentity_t *ent ) {
 	//		ent->r.maxs[2]);
 	SendPendingPredictableEvents( &ent->client->ps );
 
-	if ( !( ent->client->ps.eFlags & EF_FIRING ) ) {
+	if ( G_GrappleOffhand() ) {
+		if ( !( ucmd->buttons & BUTTON_ALT_ATTACK ) ) {
+			client->fireHeld = qfalse;
+		}
+	} else if ( !( ent->client->ps.eFlags & EF_FIRING ) ) {
 		client->fireHeld = qfalse;		// for grapple
+	}
+
+	if ( G_GrappleOffhand() && ( ucmd->buttons & BUTTON_ALT_ATTACK )
+			&& !( ucmd->buttons & BUTTON_TALK ) ) {
+		G_FireOffhandGrapple( ent );
 	}
 
 	// use the snapped origin for linking so it matches client predicted versions

@@ -218,7 +218,28 @@ CG_OffsetThirdPersonView
 ===============
 */
 #define	FOCUS_DISTANCE	512
+static void CG_ThirdPersonPullback( int skipNum );
+
 static void CG_OffsetThirdPersonView( void ) {
+	cg.refdef.vieworg[2] += cg.predictedPlayerState.viewheight;
+
+	// if dead, look at killer
+	if ( (cg.predictedPlayerState.stats[STAT_HEALTH] <= 0) && 
+				!BG_IsElimGT(cgs.gametype) ) {
+		cg.refdefViewAngles[YAW] = cg.predictedPlayerState.stats[STAT_DEAD_YAW];
+	}
+
+	CG_ThirdPersonPullback( cg.predictedPlayerState.clientNum );
+}
+
+/*
+===============
+CG_ThirdPersonPullback
+
+Backs cg.refdef away from an eye position already in vieworg / refdefViewAngles.
+===============
+*/
+static void CG_ThirdPersonPullback( int skipNum ) {
 	vec3_t		forward, right, up;
 	vec3_t		view;
 	vec3_t		focusAngles;
@@ -229,16 +250,7 @@ static void CG_OffsetThirdPersonView( void ) {
 	float		focusDist;
 	float		forwardScale, sideScale;
 
-	cg.refdef.vieworg[2] += cg.predictedPlayerState.viewheight;
-
 	VectorCopy( cg.refdefViewAngles, focusAngles );
-
-	// if dead, look at killer
-	if ( (cg.predictedPlayerState.stats[STAT_HEALTH] <= 0) && 
-				!BG_IsElimGT(cgs.gametype) ) {
-		focusAngles[YAW] = cg.predictedPlayerState.stats[STAT_DEAD_YAW];
-		cg.refdefViewAngles[YAW] = cg.predictedPlayerState.stats[STAT_DEAD_YAW];
-	}
 
 	if ( focusAngles[PITCH] > 45 ) {
 		focusAngles[PITCH] = 45;		// don't go too far overhead
@@ -264,7 +276,7 @@ static void CG_OffsetThirdPersonView( void ) {
 	// in a solid block.  Use an 8 by 8 block to prevent the view from near clipping anything
 
 	if (!cg_cameraMode.integer) {
-		CG_Trace( &trace, cg.refdef.vieworg, mins, maxs, view, cg.predictedPlayerState.clientNum, MASK_SOLID );
+		CG_Trace( &trace, cg.refdef.vieworg, mins, maxs, view, skipNum, MASK_SOLID );
 
 		if ( trace.fraction != 1.0 ) {
 			VectorCopy( trace.endpos, view );
@@ -272,7 +284,7 @@ static void CG_OffsetThirdPersonView( void ) {
 			// try another trace to this position, because a tunnel may have the ceiling
 			// close enogh that this is poking out
 
-			CG_Trace( &trace, cg.refdef.vieworg, mins, maxs, view, cg.predictedPlayerState.clientNum, MASK_SOLID );
+			CG_Trace( &trace, cg.refdef.vieworg, mins, maxs, view, skipNum, MASK_SOLID );
 			VectorCopy( trace.endpos, view );
 		}
 	}
@@ -732,9 +744,7 @@ static int CG_CalcViewValues( void ) {
 
 	ps = &cg.predictedPlayerState;
 
-	if ( CG_DemoControls_PovParkedActive()
-			|| ( CG_DemoControls_PovEyesActive()
-				&& CG_DemoControls_PovClient() != ps->clientNum ) ) {
+	if ( CG_DemoControls_PovParkedActive() ) {
 		CG_DemoControls_PovView( cg.refdef.vieworg, cg.refdefViewAngles );
 		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
 		if ( cg.hyperspace ) {
@@ -759,6 +769,25 @@ static int CG_CalcViewValues( void ) {
 			cg.refdef.rdflags |= RDF_NOWORLDMODEL | RDF_HYPERSPACE;
 		}
 		return CG_CalcFov();
+	}
+
+	/* Non-recording subject: eyes come from snapshot interpolation, no prediction. */
+	if ( CG_DemoControls_PovTrackingActive() ) {
+		int	inwater;
+
+		CG_DemoControls_PovView( cg.refdef.vieworg, cg.refdefViewAngles );
+		if ( cg.renderingThirdPerson ) {
+			CG_ThirdPersonPullback( CG_DemoControls_PovClient() );
+		}
+		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
+		if ( cg.hyperspace ) {
+			cg.refdef.rdflags |= RDF_NOWORLDMODEL | RDF_HYPERSPACE;
+		}
+		inwater = CG_CalcFov();
+		if ( CG_DemoControls_RigCamActive() ) {
+			CG_DemoCams_CapturePlayerView( cg.refdef.vieworg, cg.refdefViewAngles );
+		}
+		return inwater;
 	}
 
 	// intermission view
@@ -1039,6 +1068,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	qboolean	rigCam;
 	qboolean	povEyes;
 	qboolean	povParked;
+	qboolean	povActive;
 
 	cg.time = serverTime;
 	cg.demoPlayback = demoPlayback;
@@ -1119,11 +1149,12 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	freeCam = CG_DemoControls_FreeCamActive();
 	rigCam = CG_DemoControls_RigCamActive();
-	povEyes = CG_DemoControls_PovEyesActive();
-	povParked = CG_DemoControls_PovParkedActive();
 	if ( rigCam ) {
 		CG_DemoCams_DirectorFrame();
 	}
+	povActive = CG_DemoControls_PovActive();
+	povEyes = CG_DemoControls_PovEyesActive();
+	povParked = CG_DemoControls_PovParkedActive();
 
 	// decide on third person view
 	if ( CG_DemoControls_IsSeeking() ) {
@@ -1132,7 +1163,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		cg.renderingThirdPerson = cg_thirdPerson.integer || (cg.snap->ps.stats[STAT_HEALTH] <= 0);
 		if ( povEyes ) {
 			cg.renderingThirdPerson = qfalse;
-		} else if ( freeCam || povParked ) {
+		} else if ( freeCam || povParked || povActive ) {
 			cg.renderingThirdPerson = qtrue;
 		} else if ( rigCam ) {
 			if ( CG_DemoCams_UsingPlayerView() ) {
@@ -1143,7 +1174,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		}
 	}
 
-	if ( !freeCam && !rigCam && !povEyes && !povParked ) {
+	if ( !freeCam && !rigCam && !povActive ) {
 		CG_SpecZooming();
 	}
 
@@ -1151,7 +1182,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	inwater = CG_CalcViewValues();
 
 	// first person blend blobs, done after AnglesToAxis
-	if ( !cg.renderingThirdPerson ) {
+	if ( !cg.renderingThirdPerson && !povActive ) {
 		CG_DamageBlendBlob();
 	}
 
@@ -1160,7 +1191,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		CG_AddPacketEntities();			// adter calcViewValues, so predicted player state is correct
 		CG_FreeCamAddAmbientMovers();
 		CG_DemoCams_AddMarkers();
-		if ( !freeCam && !rigCam && !povEyes ) {
+		if ( !freeCam && !rigCam && !povActive ) {
 			CG_DrawBotAimFollowFirstPerson();
 		}
 		CG_AddPredictedMissiles();
@@ -1173,7 +1204,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 	if ( povEyes ) {
 		CG_DemoControls_PovAddViewWeapon();
-	} else {
+	} else if ( !povActive ) {
 		CG_AddViewWeapon( &cg.predictedPlayerState );
 	}
 
@@ -1191,18 +1222,19 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 	cg.refdef.time = cg.time;
 	memcpy( cg.refdef.areamask, cg.snap->areamask, sizeof( cg.refdef.areamask ) );
-	if ( freeCam || povParked || ( povEyes && CG_DemoControls_PovClient() != cg.snap->ps.clientNum )
-			|| ( rigCam && !CG_DemoCams_UsingPlayerView() ) ) {
+	if ( freeCam || povActive || ( rigCam && !CG_DemoCams_UsingPlayerView() ) ) {
 		memset( cg.refdef.areamask, 0, sizeof( cg.refdef.areamask ) );
 	}
 
 	// warning sounds when powerup is wearing off
-	CG_PowerupTimerSounds();
+	if ( !povActive ) {
+		CG_PowerupTimerSounds();
+	}
 
 	// update audio positions
 	trap_S_Respatialize( ( freeCam || povParked || ( rigCam && !CG_DemoCams_UsingPlayerView() ) )
 			? ENTITYNUM_NONE
-			: ( povEyes ? CG_DemoControls_PovClient() : cg.snap->ps.clientNum ),
+			: ( povActive ? CG_DemoControls_PovClient() : cg.snap->ps.clientNum ),
 			cg.refdef.vieworg, cg.refdef.viewaxis, inwater );
 
 	// make sure the lagometerSample and frame timing isn't done twice when in stereo

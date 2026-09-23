@@ -22,6 +22,7 @@ Chrome can hide after idle; hit-testing stays active so clicks still land.
 #define DEMOCTRL_TOP_Y			8
 #define DEMOCTRL_PROG_Y			364
 #define DEMOCTRL_PROG_H			6
+#define DEMOCTRL_PRESENCE_H		1
 #define DEMOCTRL_PROG_HIT_PAD	8
 #define DEMOCTRL_CURSOR_SIZE	32
 #define DEMOCTRL_SEEK_SETTLE_MS		150
@@ -77,11 +78,11 @@ typedef enum {
 	DEMOCTRL_RESTART,
 	DEMOCTRL_MENU,
 	DEMOCTRL_EXIT,
+	DEMOCTRL_CAM_POV,
 	DEMOCTRL_CAM_1ST,
 	DEMOCTRL_CAM_3RD,
-	DEMOCTRL_FREECAM,
 	DEMOCTRL_CAM_RIGS,
-	DEMOCTRL_CAM_POV,
+	DEMOCTRL_FREECAM,
 	DEMOCTRL_SHOT,
 	DEMOCTRL_ITEMS,
 	DEMOCTRL_TIMERS,
@@ -196,13 +197,17 @@ static int		dc_clipModalHover;
 
 static qboolean	dc_freeView;
 static qboolean	dc_rigView;
+/* Subject: dc_povView means a non-recording player is being followed. */
 static qboolean	dc_povView;
 static int		dc_povClient = -1;
-static qboolean	dc_povEyes;
+static qboolean	dc_povTracked;
+static qboolean	dc_povParked;
 static qboolean	dc_povHaveLast;
 static vec3_t	dc_povLastOrigin;
 static vec3_t	dc_povLastAngles;
-static char		dc_povBtnLabel[MAX_NAME_LENGTH];
+static vec3_t	dc_povParkOrigin;
+static vec3_t	dc_povParkAngles;
+static char		dc_povBtnLabel[MAX_NAME_LENGTH + 8];
 static int		dc_povAttackTime;
 static int		dc_povAttackWeapon;
 static int		dc_povHitSnap[MAX_CLIENTS];
@@ -270,6 +275,7 @@ static void DemoCtrl_LeaveFreeCamLook( void );
 static void DemoCtrl_DisableFreeCam( void );
 static void DemoCtrl_DisableRigCam( void );
 static void DemoCtrl_DisablePov( void );
+static void DemoCtrl_PovUpdateLabel( void );
 static void DemoCtrl_PovMenuClose( void );
 static int DemoCtrl_PovMenuHitTest( int mx, int my );
 static qboolean DemoCtrl_PovMenuContains( int mx, int my );
@@ -330,11 +336,26 @@ static qboolean DemoCtrl_IsClipButton( int btn ) {
 }
 
 static qboolean DemoCtrl_IsSideButton( int btn ) {
-	return btn >= DEMOCTRL_CAM_1ST && btn <= DEMOCTRL_DELAG;
+	return btn >= DEMOCTRL_CAM_POV && btn <= DEMOCTRL_DELAG;
 }
 
 static qboolean DemoCtrl_IsCamSideButton( int btn ) {
-	return btn >= DEMOCTRL_CAM_1ST && btn <= DEMOCTRL_SHOT;
+	return btn >= DEMOCTRL_CAM_POV && btn <= DEMOCTRL_SHOT;
+}
+
+/* Subheads split the Views drawer: player, then cameras that follow them, then the rest. */
+static int DemoCtrl_CamSideRowY( int index ) {
+	int	y;
+
+	y = DEMOCTRL_SIDE_Y + DEMOCTRL_SIDE_HDR_H
+			+ index * ( DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP );
+	if ( index >= DEMOCTRL_CAM_1ST - DEMOCTRL_CAM_POV ) {
+		y += DEMOCTRL_SIDE_SUB_H;
+	}
+	if ( index >= DEMOCTRL_FREECAM - DEMOCTRL_CAM_POV ) {
+		y += DEMOCTRL_SIDE_SUB_H;
+	}
+	return y;
 }
 
 static qboolean DemoCtrl_IsDisplayButton( int btn ) {
@@ -388,10 +409,8 @@ static const char *DemoCtrl_ButtonLabel( int btn ) {
 	case DEMOCTRL_CAM_RIGS:
 		return "Dynamic";
 	case DEMOCTRL_CAM_POV:
-		if ( dc_povView && dc_povBtnLabel[0] ) {
-			return dc_povBtnLabel;
-		}
-		return "Others";
+		DemoCtrl_PovUpdateLabel();
+		return dc_povBtnLabel;
 	case DEMOCTRL_ITEMS:
 		return "Items";
 	case DEMOCTRL_TIMERS:
@@ -492,16 +511,16 @@ static qboolean DemoCtrl_ButtonActive( int btn ) {
 		if ( dc_seeking ) {
 			return qtrue;
 		}
-		return ( !dc_freeView && !dc_rigView && !dc_povView && !cg_thirdPerson.integer ) ? qtrue : qfalse;
+		return ( !dc_freeView && !dc_rigView && !cg_thirdPerson.integer ) ? qtrue : qfalse;
 	case DEMOCTRL_CAM_3RD:
 		if ( dc_seeking ) {
 			return qfalse;
 		}
-		return ( !dc_freeView && !dc_rigView && !dc_povView && cg_thirdPerson.integer ) ? qtrue : qfalse;
+		return ( !dc_freeView && !dc_rigView && cg_thirdPerson.integer ) ? qtrue : qfalse;
 	case DEMOCTRL_FREECAM:
 		return ( !dc_seeking && dc_freeView ) ? qtrue : qfalse;
 	case DEMOCTRL_CAM_RIGS:
-		return ( !dc_seeking && dc_rigView ) ? qtrue : qfalse;
+		return ( !dc_seeking && !dc_freeView && dc_rigView ) ? qtrue : qfalse;
 	case DEMOCTRL_CAM_POV:
 		return ( !dc_seeking && dc_povView ) ? qtrue : qfalse;
 	case DEMOCTRL_ITEMS:
@@ -574,6 +593,16 @@ static int DemoCtrl_TransportLift( void ) {
 	return (int)( dc_drawerFrac[DEMOCTRL_DRAWER_CLIP] * (float)DemoCtrl_ClipDrawerBodyH() );
 }
 
+static int DemoCtrl_PresenceY( int trackY, int trackH, int belowY ) {
+	int gap;
+
+	gap = belowY - ( trackY + trackH );
+	if ( gap <= DEMOCTRL_PRESENCE_H ) {
+		return trackY + trackH + 1;
+	}
+	return trackY + trackH + ( gap - DEMOCTRL_PRESENCE_H ) / 2;
+}
+
 static void DemoCtrl_TrackRect( int *x, int *y, int *w, int *h ) {
 	int panelX;
 	int panelW;
@@ -598,12 +627,16 @@ static void DemoCtrl_ClipTrackRect( int *x, int *y, int *w, int *h ) {
 
 static qboolean DemoCtrl_HitTestTrack( int mx, int my ) {
 	int x, y, w, h;
+	int presY;
+	int belowY;
 
 	DemoCtrl_TrackRect( &x, &y, &w, &h );
 	if ( mx < x || mx > x + w ) {
 		return qfalse;
 	}
-	if ( my < y - DEMOCTRL_PROG_HIT_PAD || my > y + h + DEMOCTRL_PROG_HIT_PAD ) {
+	belowY = DEMOCTRL_BAR_Y - DemoCtrl_TransportLift();
+	presY = DemoCtrl_PresenceY( y, h, belowY );
+	if ( my < y - DEMOCTRL_PROG_HIT_PAD || my > presY + DEMOCTRL_PRESENCE_H + DEMOCTRL_PROG_HIT_PAD ) {
 		return qfalse;
 	}
 	return qtrue;
@@ -611,6 +644,8 @@ static qboolean DemoCtrl_HitTestTrack( int mx, int my ) {
 
 static qboolean DemoCtrl_HitTestClipTrack( int mx, int my ) {
 	int x, y, w, h;
+	int by;
+	int presY;
 
 	if ( dc_drawerFrac[DEMOCTRL_DRAWER_CLIP] < 0.35f ) {
 		return qfalse;
@@ -619,7 +654,9 @@ static qboolean DemoCtrl_HitTestClipTrack( int mx, int my ) {
 	if ( mx < x || mx > x + w ) {
 		return qfalse;
 	}
-	if ( my < y - DEMOCTRL_PROG_HIT_PAD || my > y + h + DEMOCTRL_PROG_HIT_PAD ) {
+	by = SCREEN_HEIGHT - DEMOCTRL_TAB_W - 8 - DEMOCTRL_CLIP_BTN_H;
+	presY = DemoCtrl_PresenceY( y, h, by );
+	if ( my < y - DEMOCTRL_PROG_HIT_PAD || my > presY + DEMOCTRL_PRESENCE_H + DEMOCTRL_PROG_HIT_PAD ) {
 		return qfalse;
 	}
 	return qtrue;
@@ -727,19 +764,17 @@ static void DemoCtrl_ButtonRectBase( int btn, int *x, int *y, int *w, int *h ) {
 		}
 		*y = DemoCtrl_LeftCamRowY( 3 );
 	} else if ( DemoCtrl_IsCamSideButton( btn ) ) {
-		index = btn - DEMOCTRL_CAM_1ST;
+		index = btn - DEMOCTRL_CAM_POV;
 		*w = DEMOCTRL_SIDE_BTN_W;
 		*h = DEMOCTRL_SIDE_BTN_H;
 		*x = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_SIDE_BTN_W;
-		*y = DEMOCTRL_SIDE_Y + DEMOCTRL_SIDE_HDR_H
-				+ index * ( DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP );
+		*y = DemoCtrl_CamSideRowY( index );
 	} else if ( DemoCtrl_IsSideButton( btn ) ) {
 		index = btn - DEMOCTRL_ITEMS;
 		*w = DEMOCTRL_SIDE_BTN_W;
 		*h = DEMOCTRL_SIDE_BTN_H;
 		*x = SCREEN_WIDTH - DEMOCTRL_SIDE_MARGIN - DEMOCTRL_SIDE_BTN_W;
-		*y = DEMOCTRL_SIDE_Y + DEMOCTRL_SIDE_HDR_H
-				+ DEMOCTRL_SIDE_CAM_COUNT * ( DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP )
+		*y = DemoCtrl_CamSideRowY( DEMOCTRL_SIDE_CAM_COUNT )
 				- DEMOCTRL_SIDE_BTN_GAP + DEMOCTRL_SIDE_GROUP_GAP + DEMOCTRL_SIDE_HDR_H
 				+ index * ( DEMOCTRL_SIDE_BTN_H + DEMOCTRL_SIDE_BTN_GAP );
 	} else if ( DemoCtrl_IsTopButton( btn ) ) {
@@ -943,7 +978,7 @@ static void DemoCtrl_DrawerLayout( int drawer, int *bodyX, int *bodyY, int *body
 	} else {
 		*bodyW = DEMOCTRL_SIDE_BTN_W + 16;
 		if ( drawer == DEMOCTRL_DRAWER_RIGHT_CAM ) {
-			DemoCtrl_ButtonRectBase( DEMOCTRL_CAM_1ST, &x, &y, &w, &h );
+			DemoCtrl_ButtonRectBase( DEMOCTRL_CAM_POV, &x, &y, &w, &h );
 			DemoCtrl_ButtonRectBase( DEMOCTRL_SHOT, &x2, &y2, &w2, &h2 );
 		} else {
 			DemoCtrl_ButtonRectBase( DEMOCTRL_ITEMS, &x, &y, &w, &h );
@@ -1055,6 +1090,24 @@ static void DemoCtrl_DrawLeftSubheads( void ) {
 	}
 }
 
+static void DemoCtrl_DrawCamSubheads( void ) {
+	static const int	below[2] = { DEMOCTRL_CAM_1ST, DEMOCTRL_FREECAM };
+	static const char	*labels[2] = { "Follow Cam", "Other" };
+	int		i;
+	int		x, y, w, h;
+	vec4_t	color;
+
+	color[0] = 0.72f;
+	color[1] = 0.74f;
+	color[2] = 0.80f;
+	color[3] = 0.95f;
+	for ( i = 0; i < 2; i++ ) {
+		DemoCtrl_ButtonRect( below[i], &x, &y, &w, &h );
+		CG_DrawStringExt( x, y - DEMOCTRL_SIDE_SUB_H + 1, labels[i], color, qtrue, qtrue,
+				DEMOCTRL_SIDE_CHAR_W, DEMOCTRL_SIDE_CHAR_H, 0 );
+	}
+}
+
 static void DemoCtrl_DrawDrawerChrome( int drawer, const float *panel, const float *hover,
 		const float *textColor, const float *border ) {
 	int			bodyX, bodyY, bodyW, bodyH;
@@ -1124,6 +1177,8 @@ static void DemoCtrl_DrawDrawerChrome( int drawer, const float *panel, const flo
 				DEMOCTRL_SIDE_CHAR_W, DEMOCTRL_SIDE_CHAR_H, 0 );
 		if ( drawer == DEMOCTRL_DRAWER_LEFT ) {
 			DemoCtrl_DrawLeftSubheads();
+		} else if ( drawer == DEMOCTRL_DRAWER_RIGHT_CAM ) {
+			DemoCtrl_DrawCamSubheads();
 		}
 	}
 }
@@ -1153,15 +1208,15 @@ static const char *DemoCtrl_ButtonTip( int btn ) {
 	case DEMOCTRL_EXIT:
 		return "^1Exit ^7to main menu";
 	case DEMOCTRL_CAM_1ST:
-		return "Follow in first person";
+		return "Follow the player in first person";
 	case DEMOCTRL_CAM_3RD:
-		return "Follow in third person";
+		return "Follow the player in third person";
 	case DEMOCTRL_FREECAM:
 		return "Fly a free camera";
 	case DEMOCTRL_CAM_RIGS:
-		return "Track player via dynamic cameras";
+		return "Track the player via dynamic cameras";
 	case DEMOCTRL_CAM_POV:
-		return "Choose another player's view";
+		return "Choose which player to follow";
 	case DEMOCTRL_SHOT:
 		return "Save a screenshot";
 	case DEMOCTRL_ITEMS:
@@ -1492,10 +1547,9 @@ static void DemoCtrl_Activate( int btn ) {
 		DemoCtrl_ExitReplay();
 		break;
 	case DEMOCTRL_CAM_1ST:
-		if ( !dc_freeView && !dc_rigView && !dc_povView && !cg_thirdPerson.integer ) {
+		if ( !dc_freeView && !dc_rigView && !cg_thirdPerson.integer ) {
 			break;
 		}
-		DemoCtrl_DisablePov();
 		DemoCtrl_DisableFreeCam();
 		DemoCtrl_DisableRigCam();
 		DemoCtrl_SyncCamHud();
@@ -1503,10 +1557,9 @@ static void DemoCtrl_Activate( int btn ) {
 		trap_Cvar_Set( "cg_thirdPerson", "0" );
 		break;
 	case DEMOCTRL_CAM_3RD:
-		if ( !dc_freeView && !dc_rigView && !dc_povView && cg_thirdPerson.integer ) {
+		if ( !dc_freeView && !dc_rigView && cg_thirdPerson.integer ) {
 			break;
 		}
-		DemoCtrl_DisablePov();
 		DemoCtrl_DisableFreeCam();
 		DemoCtrl_DisableRigCam();
 		DemoCtrl_SyncCamHud();
@@ -1520,7 +1573,6 @@ static void DemoCtrl_Activate( int btn ) {
 		if ( dc_freeView ) {
 			break;
 		}
-		DemoCtrl_DisablePov();
 		DemoCtrl_DisableRigCam();
 		trap_Cvar_Set( "cg_demoDynamicCam", "0" );
 		DemoCtrl_EnterFreeCamLook();
@@ -1533,7 +1585,6 @@ static void DemoCtrl_Activate( int btn ) {
 			CG_Printf( "No dynamic cameras defined for this map\n" );
 			break;
 		}
-		DemoCtrl_DisablePov();
 		DemoCtrl_DisableFreeCam();
 		dc_rigView = qtrue;
 		DemoCtrl_SyncCamHud();
@@ -1879,7 +1930,6 @@ static void DemoCtrl_ApplyDynamicCamCvar( void ) {
 		return;
 	}
 	if ( !dc_rigView ) {
-		DemoCtrl_DisablePov();
 		DemoCtrl_DisableFreeCam();
 		dc_rigView = qtrue;
 		DemoCtrl_SyncCamHud();
@@ -1913,7 +1963,6 @@ static void DemoCtrl_EnableFreeCamView( void ) {
 	int			skip;
 	float		dist;
 
-	DemoCtrl_DisablePov();
 	DemoCtrl_DisableRigCam();
 	if ( dc_freeView ) {
 		DemoCtrl_SyncCamHud();
@@ -1990,9 +2039,9 @@ static void DemoCtrl_DisableRigCam( void ) {
 
 static void DemoCtrl_DisablePov( void ) {
 	dc_povView = qfalse;
-	dc_povEyes = qfalse;
+	dc_povTracked = qfalse;
+	dc_povParked = qfalse;
 	dc_povClient = -1;
-	dc_povBtnLabel[0] = '\0';
 	DemoCtrl_PovMenuClose();
 	CG_DemoHistory_SetPovClient( -1 );
 }
@@ -2010,13 +2059,12 @@ static qboolean DemoCtrl_PovClientConnected( int clientNum ) {
 	return qtrue;
 }
 
-static qboolean DemoCtrl_PovClientInVis( int clientNum ) {
+static qboolean DemoCtrl_PovClientInSnap( int clientNum ) {
 	centity_t	*cent;
 
 	if ( !cg.snap || clientNum < 0 || clientNum >= MAX_CLIENTS ) {
 		return qfalse;
 	}
-	/* First-person cam already covers the recording player. */
 	if ( clientNum == cg.snap->ps.clientNum ) {
 		return qfalse;
 	}
@@ -2030,7 +2078,17 @@ static qboolean DemoCtrl_PovClientInVis( int clientNum ) {
 	if ( cent->currentState.eType != ET_PLAYER ) {
 		return qfalse;
 	}
-	if ( ( cent->currentState.eFlags & EF_DEAD ) && !CG_IsFrozenPlayerState( &cent->currentState ) ) {
+	return qtrue;
+}
+
+static qboolean DemoCtrl_PovSubjectAlive( void ) {
+	entityState_t	*es;
+
+	if ( dc_povClient < 0 || dc_povClient >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	es = &cg_entities[dc_povClient].currentState;
+	if ( ( es->eFlags & EF_DEAD ) && !CG_IsFrozenPlayerState( es ) ) {
 		return qfalse;
 	}
 	return qtrue;
@@ -2143,60 +2201,39 @@ static void DemoCtrl_PovCopyName( char *dst, int dstSize, int clientNum, int max
 	dst[j] = '\0';
 }
 
+static int DemoCtrl_SubjectClient( void ) {
+	if ( dc_povView && dc_povClient >= 0 && dc_povClient < MAX_CLIENTS ) {
+		return dc_povClient;
+	}
+	return ( cg.snap ) ? cg.snap->ps.clientNum : -1;
+}
+
 static void DemoCtrl_PovUpdateLabel( void ) {
 	char	name[MAX_NAME_LENGTH];
+	int		client;
 
-	dc_povBtnLabel[0] = '\0';
-	if ( !dc_povView || dc_povClient < 0 || dc_povClient >= MAX_CLIENTS ) {
+	client = DemoCtrl_SubjectClient();
+	if ( client < 0 || client >= MAX_CLIENTS ) {
+		Q_strncpyz( dc_povBtnLabel, "Player", sizeof( dc_povBtnLabel ) );
 		return;
 	}
-	DemoCtrl_PovCopyName( name, sizeof( name ), dc_povClient, 8 );
+	DemoCtrl_PovCopyName( name, sizeof( name ), client, 9 );
 	Com_sprintf( dc_povBtnLabel, sizeof( dc_povBtnLabel ), "POV: %s", name );
 }
 
-static int DemoCtrl_PovNextVis( int from ) {
-	int	i;
-	int	n;
-	int	start;
-
-	start = from;
-	if ( start < -1 ) {
-		start = -1;
-	}
-	for ( i = 1; i <= MAX_CLIENTS; i++ ) {
-		n = ( start + i ) % MAX_CLIENTS;
-		if ( DemoCtrl_PovClientInVis( n ) ) {
-			return n;
-		}
-	}
-	return -1;
-}
-
+/* Selecting a subject never changes the follow style; it only leaves free cam. */
 static void DemoCtrl_PovEnter( int clientNum ) {
-	DemoCtrl_DisableFreeCam();
-	DemoCtrl_DisableRigCam();
-	dc_povView = qtrue;
-	dc_povClient = clientNum;
-	dc_povEyes = qtrue;
-	dc_povHaveLast = qfalse;
-	trap_Cvar_Set( "cg_demoDynamicCam", "0" );
-	trap_Cvar_Set( "cg_thirdPerson", "0" );
-	DemoCtrl_PovUpdateLabel();
-	DemoCtrl_SyncCamHud();
-}
-
-static void DemoCtrl_PovAbandon( void ) {
-	int	next;
-
-	next = DemoCtrl_PovNextVis( dc_povClient );
-	if ( next >= 0 ) {
-		DemoCtrl_PovEnter( next );
-		return;
+	if ( cg.snap && clientNum == cg.snap->ps.clientNum ) {
+		DemoCtrl_DisablePov();
+	} else {
+		dc_povView = qtrue;
+		dc_povClient = clientNum;
+		dc_povTracked = qfalse;
+		dc_povParked = qfalse;
+		dc_povHaveLast = qfalse;
 	}
-	DemoCtrl_DisablePov();
-	if ( CG_DemoCams_HasAny() ) {
+	if ( dc_freeView ) {
 		DemoCtrl_DisableFreeCam();
-		dc_rigView = qtrue;
 	}
 	DemoCtrl_SyncCamHud();
 }
@@ -2217,11 +2254,18 @@ static qboolean DemoCtrl_PovSelectable( int clientNum ) {
 	return qtrue;
 }
 
+/* Recording player first, then everyone else in play. */
 static int DemoCtrl_PovCollect( int *out, int max ) {
 	int	i;
 	int	n;
 
 	n = 0;
+	if ( cg.snap ) {
+		if ( out && n < max ) {
+			out[n] = cg.snap->ps.clientNum;
+		}
+		n++;
+	}
 	for ( i = 0; i < MAX_CLIENTS; i++ ) {
 		if ( !DemoCtrl_PovSelectable( i ) ) {
 			continue;
@@ -2250,7 +2294,7 @@ static void DemoCtrl_PovMenuClose( void ) {
 
 static void DemoCtrl_PovMenuOpen( void ) {
 	dc_povMenuCount = DemoCtrl_PovCollect( dc_povMenuList, MAX_CLIENTS );
-	if ( dc_povMenuCount <= 1 ) {
+	if ( dc_povMenuCount <= 2 ) {
 		DemoCtrl_PovMenuClose();
 		return;
 	}
@@ -2347,7 +2391,7 @@ static void DemoCtrl_DrawPovMenu( vec4_t btnIdle, vec4_t btnHover, vec4_t btnAct
 	int		rowY;
 	int		rowH;
 	int		len;
-	char	name[MAX_NAME_LENGTH];
+	char	name[MAX_NAME_LENGTH + 8];
 	float	*fill;
 	vec4_t	panel;
 
@@ -2377,7 +2421,7 @@ static void DemoCtrl_DrawPovMenu( vec4_t btnIdle, vec4_t btnHover, vec4_t btnAct
 		if ( rowY + DEMOCTRL_SIDE_BTN_H > y + clipH ) {
 			break;
 		}
-		if ( dc_povView && dc_povMenuList[i] == dc_povClient ) {
+		if ( dc_povMenuList[i] == DemoCtrl_SubjectClient() ) {
 			fill = btnActive;
 		} else if ( i == dc_povMenuHover ) {
 			fill = btnHover;
@@ -2385,7 +2429,14 @@ static void DemoCtrl_DrawPovMenu( vec4_t btnIdle, vec4_t btnHover, vec4_t btnAct
 			fill = btnIdle;
 		}
 		CG_FillRect( x + 1, rowY, w - 2, DEMOCTRL_SIDE_BTN_H, fill );
-		DemoCtrl_PovCopyName( name, sizeof( name ), dc_povMenuList[i], 13 );
+		if ( cg.snap && dc_povMenuList[i] == cg.snap->ps.clientNum ) {
+			char	shortName[MAX_NAME_LENGTH];
+
+			DemoCtrl_PovCopyName( shortName, sizeof( shortName ), dc_povMenuList[i], 8 );
+			Com_sprintf( name, sizeof( name ), "%s^7 (rec)", shortName );
+		} else {
+			DemoCtrl_PovCopyName( name, sizeof( name ), dc_povMenuList[i], 13 );
+		}
 		len = CG_DrawStrlen( name );
 		CG_DrawStringExt( x + ( w - len * DEMOCTRL_SIDE_CHAR_W ) / 2,
 				rowY + ( DEMOCTRL_SIDE_BTN_H - DEMOCTRL_SIDE_CHAR_H ) / 2,
@@ -2399,14 +2450,14 @@ static void DemoCtrl_PovButtonClick( void ) {
 	int	n;
 
 	n = DemoCtrl_PovCollect( list, MAX_CLIENTS );
-	if ( n <= 0 ) {
-		CG_Printf( "No other players to view\n" );
+	if ( n <= 1 ) {
+		CG_Printf( "No other players to follow\n" );
 		DemoCtrl_PovMenuClose();
 		return;
 	}
-	if ( n == 1 ) {
+	if ( n == 2 ) {
 		DemoCtrl_PovMenuClose();
-		DemoCtrl_PovEnter( list[0] );
+		DemoCtrl_PovEnter( dc_povView ? list[0] : list[1] );
 		return;
 	}
 	if ( dc_povMenuOpen ) {
@@ -2536,7 +2587,7 @@ qboolean CG_DemoControls_FreeCamActive( void ) {
 }
 
 qboolean CG_DemoControls_RigCamActive( void ) {
-	if ( !cg.demoPlayback || dc_seeking || dc_povView || DemoCtrl_SnapIntermission() ) {
+	if ( !cg.demoPlayback || dc_seeking || dc_freeView || DemoCtrl_SnapIntermission() ) {
 		return qfalse;
 	}
 	return dc_rigView;
@@ -2546,12 +2597,49 @@ qboolean CG_DemoControls_PovActive( void ) {
 	return ( cg.demoPlayback && dc_povView && !dc_seeking ) ? qtrue : qfalse;
 }
 
-qboolean CG_DemoControls_PovEyesActive( void ) {
-	return ( CG_DemoControls_PovActive() && dc_povEyes ) ? qtrue : qfalse;
+qboolean CG_DemoControls_PovTrackingActive( void ) {
+	return ( CG_DemoControls_PovActive() && dc_povTracked ) ? qtrue : qfalse;
 }
 
+qboolean CG_DemoControls_PovEyesActive( void ) {
+	if ( !CG_DemoControls_PovTrackingActive() || dc_freeView || !DemoCtrl_PovSubjectAlive() ) {
+		return qfalse;
+	}
+	if ( CG_DemoControls_RigCamActive() ) {
+		return ( CG_DemoCams_UsingPlayerView() && !CG_DemoCams_PlayerThird() ) ? qtrue : qfalse;
+	}
+	return cg_thirdPerson.integer ? qfalse : qtrue;
+}
+
+/* Subject left the snapshot: hold the last camera pose until they return. */
 qboolean CG_DemoControls_PovParkedActive( void ) {
-	return ( CG_DemoControls_PovActive() && !dc_povEyes ) ? qtrue : qfalse;
+	return ( CG_DemoControls_PovActive() && !dc_povTracked && !dc_freeView ) ? qtrue : qfalse;
+}
+
+qboolean CG_DemoControls_PovThirdActive( void ) {
+	if ( !CG_DemoControls_PovTrackingActive() || dc_freeView ) {
+		return qfalse;
+	}
+	return CG_DemoControls_PovEyesActive() ? qfalse : qtrue;
+}
+
+void CG_DemoControls_PovSubjectOrigin( vec3_t origin ) {
+	if ( CG_DemoControls_PovTrackingActive() ) {
+		VectorCopy( cg_entities[dc_povClient].lerpOrigin, origin );
+		return;
+	}
+	if ( CG_DemoControls_PovActive() && dc_povHaveLast ) {
+		VectorCopy( dc_povLastOrigin, origin );
+		return;
+	}
+	VectorCopy( cg.predictedPlayerState.origin, origin );
+}
+
+int CG_DemoControls_SubjectClient( void ) {
+	if ( CG_DemoControls_PovActive() ) {
+		return dc_povClient;
+	}
+	return ( cg.snap ) ? cg.snap->ps.clientNum : -1;
 }
 
 qboolean CG_DemoControls_WorldPersistActive( void ) {
@@ -2578,7 +2666,7 @@ int CG_DemoControls_PovClient( void ) {
 }
 
 qboolean CG_DemoControls_PovRedirectHits( void ) {
-	if ( !CG_DemoControls_PovEyesActive() || !cg.snap ) {
+	if ( !CG_DemoControls_PovActive() || !cg.snap ) {
 		return qfalse;
 	}
 	return ( dc_povClient != cg.snap->ps.clientNum ) ? qtrue : qfalse;
@@ -2828,15 +2916,36 @@ void CG_DemoControls_PovNoteFrag( int attacker, int victim, const vec3_t origin 
 }
 
 void CG_DemoControls_PovView( vec3_t origin, vec3_t angles ) {
-	VectorCopy( dc_povLastOrigin, origin );
-	VectorCopy( dc_povLastAngles, angles );
+	if ( dc_povTracked ) {
+		VectorCopy( dc_povLastOrigin, origin );
+		VectorCopy( dc_povLastAngles, angles );
+		return;
+	}
+	VectorCopy( dc_povParkOrigin, origin );
+	VectorCopy( dc_povParkAngles, angles );
+}
+
+static void DemoCtrl_PovPark( void ) {
+	if ( cg.refdef.width > 0 ) {
+		VectorCopy( cg.refdef.vieworg, dc_povParkOrigin );
+		VectorCopy( cg.refdefViewAngles, dc_povParkAngles );
+	} else if ( dc_povHaveLast ) {
+		VectorCopy( dc_povLastOrigin, dc_povParkOrigin );
+		VectorCopy( dc_povLastAngles, dc_povParkAngles );
+	} else if ( cg.snap ) {
+		VectorCopy( cg.predictedPlayerState.origin, dc_povParkOrigin );
+		dc_povParkOrigin[2] += cg.predictedPlayerState.viewheight;
+		VectorCopy( cg.predictedPlayerState.viewangles, dc_povParkAngles );
+	}
+	dc_povParkAngles[ROLL] = 0.0f;
 }
 
 void CG_DemoControls_PovFrame( void ) {
-	int	rec;
+	qboolean	parked;
 
 	if ( !CG_DemoControls_PovActive() ) {
-		dc_povEyes = qfalse;
+		dc_povTracked = qfalse;
+		dc_povParked = qfalse;
 		CG_DemoHistory_SetPovClient( -1 );
 		return;
 	}
@@ -2848,40 +2957,31 @@ void CG_DemoControls_PovFrame( void ) {
 		cg.frameInterpolation = 0.0f;
 	}
 
-	rec = ( cg.snap ) ? cg.snap->ps.clientNum : -1;
-	if ( dc_povClient == rec || !DemoCtrl_PovClientConnected( dc_povClient ) ) {
-		DemoCtrl_PovAbandon();
-		if ( !CG_DemoControls_PovActive() ) {
-			return;
-		}
+	if ( ( cg.snap && dc_povClient == cg.snap->ps.clientNum )
+			|| !DemoCtrl_PovClientConnected( dc_povClient ) ) {
+		DemoCtrl_DisablePov();
+		return;
 	}
-	if ( DemoCtrl_PovClientInVis( dc_povClient ) ) {
-		dc_povEyes = qtrue;
+
+	dc_povTracked = DemoCtrl_PovClientInSnap( dc_povClient );
+	if ( dc_povTracked ) {
 		DemoCtrl_PovSample( dc_povClient, dc_povLastOrigin, dc_povLastAngles );
 		dc_povHaveLast = qtrue;
-		if ( dc_povClient != rec ) {
-			CG_DemoHistory_SetPovClient( dc_povClient );
-			if ( cg_entities[dc_povClient].currentValid &&
-					( cg_entities[dc_povClient].currentState.eFlags & EF_FIRING ) ) {
-				CG_DemoControls_PovNoteAttack( dc_povClient,
-					cg_entities[dc_povClient].currentState.weapon );
-			}
-		} else {
-			CG_DemoHistory_SetPovClient( -1 );
+		CG_DemoHistory_SetPovClient( dc_povClient );
+		if ( cg_entities[dc_povClient].currentState.eFlags & EF_FIRING ) {
+			CG_DemoControls_PovNoteAttack( dc_povClient,
+				cg_entities[dc_povClient].currentState.weapon );
 		}
 	} else {
-		dc_povEyes = qfalse;
 		CG_DemoHistory_SetPovClient( -1 );
-		if ( !dc_povHaveLast ) {
-			if ( cg.snap ) {
-				VectorCopy( cg.predictedPlayerState.origin, dc_povLastOrigin );
-				dc_povLastOrigin[2] += cg.predictedPlayerState.viewheight;
-				VectorCopy( cg.predictedPlayerState.viewangles, dc_povLastAngles );
-			}
-			dc_povHaveLast = qtrue;
-		}
 	}
-	DemoCtrl_PovUpdateLabel();
+
+	/* cg.refdef still holds last frame's camera here, which is the pose to hold. */
+	parked = ( !dc_povTracked && !dc_freeView ) ? qtrue : qfalse;
+	if ( parked && !dc_povParked ) {
+		DemoCtrl_PovPark();
+	}
+	dc_povParked = parked;
 }
 
 void CG_DemoControls_PovAddViewWeapon( void ) {
@@ -3227,21 +3327,15 @@ static void DemoCtrl_SeekSaveCam( void ) {
 	if ( dc_seekCamSaved ) {
 		return;
 	}
-	if ( dc_povView ) {
-		dc_seekCamMode = 4;
-		dc_seekPovClient = dc_povClient;
-	} else if ( dc_freeView ) {
+	dc_seekPovClient = dc_povView ? dc_povClient : -1;
+	if ( dc_freeView ) {
 		dc_seekCamMode = 2;
-		dc_seekPovClient = -1;
 	} else if ( dc_rigView ) {
 		dc_seekCamMode = 3;
-		dc_seekPovClient = -1;
 	} else if ( cg_thirdPerson.integer ) {
 		dc_seekCamMode = 1;
-		dc_seekPovClient = -1;
 	} else {
 		dc_seekCamMode = 0;
-		dc_seekPovClient = -1;
 	}
 	dc_seekThirdPerson = cg_thirdPerson.integer;
 	VectorCopy( dc_freeOrigin, dc_seekFreeOrigin );
@@ -3259,23 +3353,19 @@ static void DemoCtrl_SeekRestoreCam( void ) {
 		VectorCopy( dc_seekFreeAngles, dc_freeAngles );
 		dc_freeView = qtrue;
 		dc_rigView = qfalse;
-		DemoCtrl_DisablePov();
 	} else if ( dc_seekCamMode == 3 ) {
-		DemoCtrl_DisablePov();
 		DemoCtrl_DisableFreeCam();
 		dc_rigView = qtrue;
-	} else if ( dc_seekCamMode == 4 ) {
+	} else {
 		DemoCtrl_DisableFreeCam();
 		DemoCtrl_DisableRigCam();
+	}
+	DemoCtrl_DisablePov();
+	if ( dc_seekPovClient >= 0 && dc_seekPovClient < MAX_CLIENTS
+			&& ( !cg.snap || dc_seekPovClient != cg.snap->ps.clientNum ) ) {
 		dc_povView = qtrue;
 		dc_povClient = dc_seekPovClient;
-		dc_povEyes = qfalse;
 		dc_povHaveLast = qfalse;
-		DemoCtrl_PovUpdateLabel();
-	} else {
-		DemoCtrl_DisablePov();
-		DemoCtrl_DisableFreeCam();
-		DemoCtrl_DisableRigCam();
 	}
 	DemoCtrl_SyncCamHud();
 	dc_seekCamSaved = qfalse;
@@ -3942,7 +4032,7 @@ static void DemoCtrl_CamExitSave( void ) {
 
 static void DemoCtrl_CamExitDiscard( void ) {
 	dc_camExitPrompt = qfalse;
-	CG_DemoCams_ClearStash();
+	CG_DemoCams_Load();
 	DemoCtrl_ExitReplay();
 }
 
@@ -4178,9 +4268,6 @@ void CG_DemoControls_Shutdown( void ) {
 	if ( dc_seekKeepCvars ) {
 		DemoCtrl_SeekWriteCvars();
 		DemoCtrl_ClipWriteCvars();
-		if ( CG_DemoCams_IsDirty() ) {
-			CG_DemoCams_Stash();
-		}
 	} else {
 		DemoCtrl_SeekUnmute();
 		DemoCtrl_SeekClearCvars();
@@ -4684,6 +4771,10 @@ void CG_DemoControls_Draw( void ) {
 
 		CG_DemoEvents_DrawTrack( trackX, trackY, trackW, trackH,
 				dc_firstServerTime, duration, elapsed );
+		CG_DemoEvents_DrawPresence( trackX,
+				DemoCtrl_PresenceY( trackY, trackH, DEMOCTRL_BAR_Y - DemoCtrl_TransportLift() ),
+				trackW, DEMOCTRL_PRESENCE_H, dc_firstServerTime, duration,
+				CG_DemoControls_SubjectClient() );
 		CG_DrawRect( trackX, trackY, trackW, trackH, 1, border );
 		if ( CG_DemoEvents_DrawMarkers( trackX, trackY, trackW, trackH,
 				dc_firstServerTime, duration, dc_cursorX, dc_cursorY ) ) {
@@ -4782,6 +4873,11 @@ void CG_DemoControls_Draw( void ) {
 
 		CG_DemoEvents_DrawTrack( trackX, trackY, trackW, trackH,
 				dc_firstServerTime, duration, elapsed );
+		CG_DemoEvents_DrawPresence( trackX,
+				DemoCtrl_PresenceY( trackY, trackH,
+						SCREEN_HEIGHT - DEMOCTRL_TAB_W - 8 - DEMOCTRL_CLIP_BTN_H ),
+				trackW, DEMOCTRL_PRESENCE_H, dc_firstServerTime, duration,
+				CG_DemoControls_SubjectClient() );
 		CG_DrawRect( trackX, trackY, trackW, trackH, 1, border );
 		if ( duration > 0 && dc_clipInMs >= 0 && dc_clipOutMs > dc_clipInMs ) {
 			inX = trackX + (int)( ( (float)dc_clipInMs / (float)duration ) * (float)trackW );
@@ -4884,7 +4980,7 @@ void CG_DemoControls_Draw( void ) {
 		len = CG_DrawStrlen( DemoCtrl_ButtonLabel( i ) );
 		CG_DrawStringExt( x + ( w - len * cw ) / 2, y + ( h - ch ) / 2,
 				DemoCtrl_ButtonLabel( i ), textColor,
-				( i == DEMOCTRL_CAM_POV && dc_povView ) ? qfalse : qtrue,
+				( i == DEMOCTRL_CAM_POV ) ? qfalse : qtrue,
 				qtrue, cw, ch, 0 );
 	}
 

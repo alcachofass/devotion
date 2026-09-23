@@ -2101,6 +2101,20 @@ movement_t BG_MovementFromString( const char *s )
 	return MOVEMENT_VQ3;
 }
 
+char *BG_GrappleModeToString( grappleMode_t mode )
+{
+	switch (mode) {
+	case GRAPPLE_Q3:
+		return "Q3";
+	case GRAPPLE_QL:
+		return "QL";
+	case GRAPPLE_CPMA:
+		return "CPMA";
+	default:
+		return "off";
+	}
+}
+
 qboolean BG_IsTeamGametype(gametype_t gametype) {
 	return gametype >= GT_TEAM
 #ifdef WITH_MULTITOURNAMENT

@@ -727,6 +727,19 @@ void G_UpdateActionCamera(void) {
 }
 
 
+static void G_CheckGrappleCvars( void ) {
+	if (g_grapple.integer < GRAPPLE_OFF || g_grapple.integer >= GRAPPLE_NUM_MODES) {
+		G_Printf( "g_grapple %i is out of range, defaulting to 0.\n", g_grapple.integer);
+		trap_Cvar_Set("g_grapple","0");
+		trap_Cvar_Update(&g_grapple);
+	}
+	if (g_grapple.integer == GRAPPLE_CPMA && g_altFireMode.integer) {
+		G_Printf( "g_altFireMode forced to 0 (CPMA offhand grapple uses +button14).\n");
+		trap_Cvar_Set("g_altFireMode","0");
+		trap_Cvar_Update(&g_altFireMode);
+	}
+}
+
 /*
 =================
 G_RegisterCvars
@@ -765,6 +778,8 @@ void G_RegisterCvars( void ) {
 		trap_Cvar_Set("g_altFireMode","0");
 		trap_Cvar_Update(&g_altFireMode);
 	}
+
+	G_CheckGrappleCvars();
 
 	g_is_team_gt = BG_IsTeamGametype(g_gametype.integer);
 
@@ -892,8 +907,12 @@ void G_UpdateRatFlags( void ) {
 		rflags |= RAT_FASTSWIM;
 	}
 
-	if (g_swingGrapple.integer) {
+	if (g_swingGrapple.integer || g_grapple.integer == GRAPPLE_CPMA) {
 		rflags |= RAT_SWINGGRAPPLE;
+	}
+
+	if (g_grapple.integer == GRAPPLE_CPMA) {
+		rflags |= RAT_OFFHANDGRAPPLE;
 	}
 
 	if (g_freeze.integer) {
@@ -1017,6 +1036,7 @@ void G_UpdateCvars( void ) {
 						|| cv->vmCvar == &g_bobup
 						|| cv->vmCvar == &g_fastSwim
 						|| cv->vmCvar == &g_swingGrapple
+						|| cv->vmCvar == &g_grapple
 						|| cv->vmCvar == &g_freeze
 						|| cv->vmCvar == &g_crouchSlide
 						|| cv->vmCvar == &g_slideMode
@@ -1027,6 +1047,8 @@ void G_UpdateCvars( void ) {
 			}
 		}
 	}
+
+	G_CheckGrappleCvars();
 
 	if (remapped) {
 		G_RemapTeamShaders();

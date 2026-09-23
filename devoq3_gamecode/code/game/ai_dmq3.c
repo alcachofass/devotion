@@ -5137,10 +5137,10 @@ BotCheckForProxMines
 */
 void BotCheckForProxMines(bot_state_t *bs, entityState_t *state) {
 #ifdef MISSIONPACK
-	// if this is not a prox mine
+	// Gate the whole body: a type check inside MISSIONPACK with the rest
+	// always running treats every snapshot entity as a mine (plasma-at-sky).
 	if (state->eType != ET_MISSILE || state->weapon != WP_PROX_LAUNCHER)
 		return;
-#endif
 	// if this prox mine is from someone on our own team
 	if (state->generic1 == BotTeam(bs))
 		return;
@@ -5157,6 +5157,7 @@ void BotCheckForProxMines(bot_state_t *bs, entityState_t *state) {
 		return;
 	bs->proxmines[bs->numproxmines] = state->number;
 	bs->numproxmines++;
+#endif
 }
 
 /*
@@ -5165,16 +5166,17 @@ BotCheckForKamikazeBody
 ==================
 */
 void BotCheckForKamikazeBody(bot_state_t *bs, entityState_t *state) {
-	// if this entity is not wearing the kamikaze
 #ifdef MISSIONPACK
+	// Gate the whole body: EF_KAMIKAZE-only inside MISSIONPACK made every
+	// corpse a shoot-to-gib target in vanilla.
 	if (!(state->eFlags & EF_KAMIKAZE))
 		return;
-#endif
 	// if this entity isn't dead
 	if (!(state->eFlags & EF_DEAD))
 		return;
 	//remember this kamikaze body
 	bs->kamikazebody = state->number;
+#endif
 }
 
 /*

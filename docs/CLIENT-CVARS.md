@@ -102,7 +102,7 @@ Client-side variables registered by the **cgame** module (`cg_*`, plus related n
 | `cg_crosshairY` | Vanilla | `0` | 0 or 1 | Vertical offset of the crosshair from screen center, in pixels. |
 | `cg_currentSelectedPlayer` | Vanilla | `0` | 0 or 1 | Teammate currently selected for team orders; managed by the UI. |
 | `cg_currentSelectedPlayerName` | Vanilla | `` | string or numeric (see default) | Name of the teammate selected for team orders; managed by the UI. |
-| `cg_cyclegrapple` | RatMod | `1` | 0 or 1 | When `1`, weapon cycle keys can select the off-hand grappling hook. |
+| `cg_cyclegrapple` | RatMod | `1` | 0 or 1 | When `1`, weapon cycle keys can select the grappling hook. Ignored for CPMA offhand (`g_grapple 3`). |
 | `cg_damagePlumSize` | RatMod | `8.0` | float | Size of floating damage numbers shown when you deal damage. |
 | `cg_damagePlums` | RatMod | `1` | 0 or 1 | When `1`, shows floating damage numbers on hits. |
 | `cg_debugDelag` | RatMod | `0` | 0 or 1 | Debug output for lag-compensated hit prediction. Currently unused. |

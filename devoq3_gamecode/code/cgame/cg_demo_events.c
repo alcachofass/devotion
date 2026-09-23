@@ -33,6 +33,7 @@ cg_event / snapshot playback.
 #define DEMOEV_HIT_SLOP				4
 #define DEMOEV_NO_CLIENT			255
 #define DEMOEV_TIP_ICON				12
+#define DEMOEV_PRESENCE_SPANS		256
 
 typedef enum {
 	DEMOEV_DEATH_FRAG = 0,
@@ -107,6 +108,10 @@ static playerState_t	ev_nullPs;
 static char				ev_playerNames[MAX_CLIENTS][MAX_NAME_LENGTH];
 static qboolean			ev_playerSeen[MAX_CLIENTS];
 static int				ev_playerPing[MAX_CLIENTS];
+static int				ev_presStart[MAX_CLIENTS][DEMOEV_PRESENCE_SPANS];
+static int				ev_presEnd[MAX_CLIENTS][DEMOEV_PRESENCE_SPANS];
+static int				ev_presCount[MAX_CLIENTS];
+static qboolean			ev_presOpen[MAX_CLIENTS];
 static char				ev_currentMap[MAX_QPATH];
 
 static int DemoEv_PtrOff( const byte *base, const byte *member ) {
@@ -851,6 +856,88 @@ static qboolean DemoEv_ParsePacketEntities( msg_t *msg, int oldSlot, int newSlot
 	return qtrue;
 }
 
+static void DemoEv_PresMergeSmallestGap( int clientNum ) {
+	int	i;
+	int	best;
+	int	bestGap;
+	int	gap;
+	int	n;
+
+	n = ev_presCount[clientNum];
+	if ( n < 2 ) {
+		if ( n > 0 ) {
+			ev_presCount[clientNum] = n - 1;
+		}
+		return;
+	}
+	best = 0;
+	bestGap = ev_presStart[clientNum][1] - ev_presEnd[clientNum][0];
+	for ( i = 1; i < n - 1; i++ ) {
+		gap = ev_presStart[clientNum][i + 1] - ev_presEnd[clientNum][i];
+		if ( gap < bestGap ) {
+			bestGap = gap;
+			best = i;
+		}
+	}
+	ev_presEnd[clientNum][best] = ev_presEnd[clientNum][best + 1];
+	for ( i = best + 1; i < n - 1; i++ ) {
+		ev_presStart[clientNum][i] = ev_presStart[clientNum][i + 1];
+		ev_presEnd[clientNum][i] = ev_presEnd[clientNum][i + 1];
+	}
+	ev_presCount[clientNum] = n - 1;
+}
+
+static void DemoEv_NoteSnapshotPresence( int serverTime, int recClient, int entSlot ) {
+	byte				present[MAX_CLIENTS];
+	const entityState_t	*es;
+	int					i;
+	int					c;
+	int					n;
+	int					slot;
+
+	Com_Memset( present, 0, sizeof( present ) );
+	if ( recClient >= 0 && recClient < MAX_CLIENTS ) {
+		present[recClient] = 1;
+	}
+	n = ev_numEnts[entSlot];
+	for ( i = 0; i < n; i++ ) {
+		es = &ev_ents[entSlot][i];
+		if ( es->eType != ET_PLAYER ) {
+			continue;
+		}
+		c = es->number;
+		if ( c < 0 || c >= MAX_CLIENTS ) {
+			c = es->clientNum;
+		}
+		if ( c >= 0 && c < MAX_CLIENTS ) {
+			present[c] = 1;
+		}
+	}
+	for ( c = 0; c < MAX_CLIENTS; c++ ) {
+		if ( present[c] ) {
+			if ( !ev_presOpen[c] ) {
+				if ( ev_presCount[c] >= DEMOEV_PRESENCE_SPANS ) {
+					DemoEv_PresMergeSmallestGap( c );
+				}
+				slot = ev_presCount[c];
+				if ( slot < DEMOEV_PRESENCE_SPANS ) {
+					ev_presStart[c][slot] = serverTime;
+					ev_presEnd[c][slot] = serverTime;
+					ev_presCount[c] = slot + 1;
+					ev_presOpen[c] = qtrue;
+				}
+			} else {
+				slot = ev_presCount[c] - 1;
+				if ( slot >= 0 ) {
+					ev_presEnd[c][slot] = serverTime;
+				}
+			}
+		} else if ( ev_presOpen[c] ) {
+			ev_presOpen[c] = qfalse;
+		}
+	}
+}
+
 static qboolean DemoEv_ParseSnapshot( msg_t *msg, int messageNum ) {
 	int				deltaNum;
 	int				oldMsg;
@@ -920,6 +1007,7 @@ static qboolean DemoEv_ParseSnapshot( msg_t *msg, int messageNum ) {
 		return qfalse;
 	}
 
+	DemoEv_NoteSnapshotPresence( serverTime, newPs.clientNum, newSlot );
 	DemoEv_CheckPlayerstateEvents( fromPs, &newPs, serverTime );
 
 	psIdx = messageNum & DEMOEV_PS_MASK;
@@ -1348,6 +1436,10 @@ static void DemoEv_ResetScanState( void ) {
 	Com_Memset( ev_playerNames, 0, sizeof( ev_playerNames ) );
 	Com_Memset( ev_playerSeen, 0, sizeof( ev_playerSeen ) );
 	Com_Memset( ev_playerPing, 0, sizeof( ev_playerPing ) );
+	Com_Memset( ev_presStart, 0, sizeof( ev_presStart ) );
+	Com_Memset( ev_presEnd, 0, sizeof( ev_presEnd ) );
+	Com_Memset( ev_presCount, 0, sizeof( ev_presCount ) );
+	Com_Memset( ev_presOpen, 0, sizeof( ev_presOpen ) );
 	ev_currentMap[0] = '\0';
 }
 
@@ -1762,11 +1854,12 @@ static int DemoEv_TimeToX( int trackX, int trackW, int firstServerTime, int dura
 	return x;
 }
 
-static void DemoEv_FillTimeRange( int trackX, int trackY, int trackW, int trackH,
-		int firstServerTime, int durationMs, int t0, int t1, const vec4_t color ) {
+static void DemoEv_FillTimeRangeEx( int trackX, int trackY, int trackW, int trackH,
+		int firstServerTime, int durationMs, int t0, int t1, int minW, const vec4_t color ) {
 	int x0;
 	int x1;
 	int w;
+	int right;
 
 	if ( t1 <= t0 || durationMs <= 0 ) {
 		return;
@@ -1774,10 +1867,32 @@ static void DemoEv_FillTimeRange( int trackX, int trackY, int trackW, int trackH
 	x0 = DemoEv_TimeToX( trackX, trackW, firstServerTime, durationMs, t0 );
 	x1 = DemoEv_TimeToX( trackX, trackW, firstServerTime, durationMs, t1 );
 	w = x1 - x0;
+	if ( w < minW ) {
+		w = minW;
+	}
+	if ( w < 1 ) {
+		return;
+	}
+	right = trackX + trackW;
+	if ( x0 + w > right ) {
+		x0 = right - w;
+	}
+	if ( x0 < trackX ) {
+		x0 = trackX;
+		if ( x0 + w > right ) {
+			w = right - x0;
+		}
+	}
 	if ( w < 1 ) {
 		return;
 	}
 	CG_FillRect( x0, trackY, w, trackH, color );
+}
+
+static void DemoEv_FillTimeRange( int trackX, int trackY, int trackW, int trackH,
+		int firstServerTime, int durationMs, int t0, int t1, const vec4_t color ) {
+	DemoEv_FillTimeRangeEx( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
+			t0, t1, 0, color );
 }
 
 static int DemoEv_BuildMatchSpans( int firstServerTime, int durationMs, demoEvSpan_t *spans, int maxSpans ) {
@@ -1973,6 +2088,75 @@ void CG_DemoEvents_DrawTrack( int trackX, int trackY, int trackW, int trackH,
 				elapsedEnd, spans, n, matchPlayed );
 		DemoEv_FillElapsedSpans( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
 				elapsedEnd, gaps, nGaps, roundGapPlayed );
+	}
+}
+
+void CG_DemoEvents_DrawPresence( int trackX, int trackY, int trackW, int trackH,
+		int firstServerTime, int durationMs, int clientNum ) {
+	int		i;
+	int		n;
+	int		t0;
+	int		t1;
+	int		spanEnd;
+	int		cursor;
+	int		knownEnd;
+	vec4_t	bg;
+	vec4_t	fill;
+
+	bg[0] = 0.12f;
+	bg[1] = 0.12f;
+	bg[2] = 0.14f;
+	bg[3] = 0.80f;
+	fill[0] = 0.46f;
+	fill[1] = 0.46f;
+	fill[2] = 0.50f;
+	fill[3] = 0.92f;
+
+	CG_FillRect( trackX, trackY, trackW, trackH, bg );
+	if ( durationMs <= 0 || trackW <= 0 ) {
+		return;
+	}
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+
+	n = ev_presCount[clientNum];
+	knownEnd = ev_lastServerTime;
+	if ( knownEnd < firstServerTime ) {
+		return;
+	}
+
+	for ( i = 0; i < n; i++ ) {
+		t0 = ev_presStart[clientNum][i];
+		t1 = ev_presEnd[clientNum][i];
+		if ( ev_presOpen[clientNum] && i == n - 1 && knownEnd > t1 ) {
+			t1 = knownEnd;
+		}
+		if ( t1 <= t0 ) {
+			t1 = t0 + 1;
+		}
+		DemoEv_FillTimeRangeEx( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
+				t0, t1, 1, fill );
+	}
+
+	cursor = firstServerTime;
+	for ( i = 0; i < n; i++ ) {
+		t0 = ev_presStart[clientNum][i];
+		spanEnd = ev_presEnd[clientNum][i];
+		if ( ev_presOpen[clientNum] && i == n - 1 && knownEnd > spanEnd ) {
+			spanEnd = knownEnd;
+		}
+		if ( t0 > cursor ) {
+			DemoEv_FillTimeRangeEx( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
+					cursor, t0, 1, bg );
+		}
+		if ( spanEnd > cursor ) {
+			cursor = spanEnd;
+		}
+	}
+	if ( knownEnd > cursor ) {
+		DemoEv_FillTimeRangeEx( trackX, trackY, trackW, trackH, firstServerTime, durationMs,
+				cursor, knownEnd, 1, bg );
 	}
 }
 

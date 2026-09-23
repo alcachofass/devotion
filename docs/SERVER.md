@@ -57,15 +57,30 @@ map pro-q3dm6
 
 ### Movement Presets
 
-`\g_movement` controls how players move.
+`\g_movement` controls player physics:
 
-- `0` is standard Quake 3.
-
-- `4` is Quake Live. Step-up (Ledge grab), slightly higher jump, Auto-Jump (hold to keep jumping), Auto-Bunnyhop, Crouch Step-jump, and support for ladders. 
+- `0` is Quake 3 style.
+- `1` is Defrag style.
+- `2` is RatMod style.
+- `3` is CPMA/Promode style.
+- `4` is Quake Live style: Step-up (Ledge grab), slightly higher jump, Auto-Jump (hold to keep jumping), Auto-Bunnyhop, Crouch Step-jump, and support for ladders. 
 
 See [Server CVARs](SERVER-CVARS.md) for the full list (`VQ3`, `CPMD`, `RM`, `CPMA`, `QL`).
 
-### Restricting Callvote Verbs
+### Grappling Hook
+
+`\g_grapple` controls whether players can grapple and which game it mimics.
+
+- `0` is off.
+- `1` is Quake 3 style: Grapple is a weapon alongside gauntlet/mg etc. Slow speed, straight line.
+- `2` is Quake Live style: Same as Q3 but ~2x faster.
+- `3` is CPMA style: Offhand on `+button14` (Same button as alt-fire), has swing physics, 3x faster.
+
+`g_swingGrapple 1` Adds swinging to the QL/Q3 style grapples. No effect when grapple is off or on CPMA mode.
+
+### Restricting what players can vote for
+
+Players can only vote for things in the votenames string. It is set like this:
 
 ```
 set g_votenames "/map_restart/map/kick/clientkick/shuffle/nextmap/g_gametype/fraglimit/timelimit/g_dowarmup/custom/lock/unlock/"
