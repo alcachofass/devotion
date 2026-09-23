@@ -3391,6 +3391,22 @@ static void CG_DemoOccludedStoreGhost( int entNum, int part, const refEntity_t *
 	}
 }
 
+static qboolean CG_OccludedOutlineWanted( void ) {
+	if ( !cg_demoOccludedOutline.integer || !cgs.media.occludedOutline ) {
+		return qfalse;
+	}
+	if ( cg.demoPlayback ) {
+		return qtrue;
+	}
+	if ( cg.clientNum < 0 || cg.clientNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	if ( !cgs.clientinfo[cg.clientNum].infoValid ) {
+		return qfalse;
+	}
+	return ( cgs.clientinfo[cg.clientNum].team == TEAM_SPECTATOR ) ? qtrue : qfalse;
+}
+
 /*
 ===============
 CG_DemoOccludedFadeLost
@@ -3407,7 +3423,7 @@ void CG_DemoOccludedFadeLost( void ) {
 	refEntity_t		re;
 	demoOccGhost_t	*ghost;
 
-	if ( !cg.demoPlayback || !cg_demoOccludedOutline.integer || !cgs.media.occludedOutline ) {
+	if ( !CG_OccludedOutlineWanted() ) {
 		for ( i = 0; i < DEMO_OCCLUDED_GHOSTS; i++ ) {
 			demoOccGhosts[i].used = qfalse;
 		}
@@ -3496,8 +3512,7 @@ void CG_AddDemoOccludedOutline( refEntity_t *ent, entityState_t *state, int team
 	float		deathFade;
 	byte		alpha;
 
-	if ( !cg.demoPlayback || !cg_demoOccludedOutline.integer
-			|| !cgs.media.occludedOutline || !state
+	if ( !CG_OccludedOutlineWanted() || !state
 			|| ( ent->renderfx & RF_THIRD_PERSON )
 			|| ( state->powerups & ( 1 << PW_INVIS ) ) ) {
 		return;

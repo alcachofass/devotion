@@ -1881,8 +1881,15 @@ static void DemoCtrl_ApplyDynamicCamCvar( void ) {
 	}
 }
 
+static qboolean DemoCtrl_DemoRigActive( void ) {
+	if ( !cg.demoPlayback || dc_seeking || dc_freeView || DemoCtrl_SnapIntermission() ) {
+		return qfalse;
+	}
+	return dc_rigView;
+}
+
 static void DemoCtrl_SyncCamHud( void ) {
-	if ( ( CG_DemoControls_FreeCamActive() || CG_DemoControls_RigCamActive() )
+	if ( ( CG_DemoControls_FreeCamActive() || DemoCtrl_DemoRigActive() )
 			&& !DemoCtrl_SnapIntermission() ) {
 		DemoCtrl_FreeCamHudOff();
 	} else {
@@ -2475,10 +2482,10 @@ qboolean CG_DemoControls_FreeCamActive( void ) {
 }
 
 qboolean CG_DemoControls_RigCamActive( void ) {
-	if ( !cg.demoPlayback || dc_seeking || dc_freeView || DemoCtrl_SnapIntermission() ) {
-		return qfalse;
+	if ( DemoCtrl_DemoRigActive() ) {
+		return qtrue;
 	}
-	return dc_rigView;
+	return CG_SpecControls_DynamicCamActive();
 }
 
 qboolean CG_DemoControls_PovActive( void ) {
@@ -2532,7 +2539,7 @@ int CG_DemoControls_SubjectClient( void ) {
 
 qboolean CG_DemoControls_WorldPersistActive( void ) {
 	return ( CG_DemoControls_FreeCamActive()
-			|| CG_DemoControls_RigCamActive()
+			|| DemoCtrl_DemoRigActive()
 			|| CG_DemoControls_PovActive() ) ? qtrue : qfalse;
 }
 

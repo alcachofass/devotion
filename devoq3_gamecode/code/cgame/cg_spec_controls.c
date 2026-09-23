@@ -10,14 +10,20 @@ Shared cursor, catcher, and drawer animation are in cg_overlay.c.
 #include "../client/keycodes.h"
 
 #define SPEC_BTN_MAX			8
+#define SPEC_DISP_COUNT			6
+#define SPEC_SHOT_HIDE_FRAMES	8
 #define SPEC_BTN_W				88
 #define SPEC_BTN_H				18
 #define SPEC_BTN_GAP			4
+#define SPEC_SUB_H				10
 #define SPEC_MENU_REFRESH_MSEC	1000
 
 static overlayDrawer_t	specDrawer;
+static overlayDrawer_t	specDispDrawer;
 static qboolean			specTabHover;
+static qboolean			specDispTabHover;
 static qboolean			dc_specLook = qtrue;
+static qboolean			dc_specRig;
 static qboolean			dc_specAttackDown;
 static qboolean			dc_specAttackLatch;
 static qboolean			dc_specHintShown;
@@ -35,9 +41,18 @@ static char				dc_specPlayersBtnLabel[MAX_NAME_LENGTH + 8];
 static int				dc_specBarHover = -1;
 static qboolean			dc_specLockHover;
 static qboolean			dc_specDrawerReady;
+static int				dc_specShotHide;
+static int				dc_specDispHover = -1;
+static int				dc_specHudDraw2D;
+static int				dc_specHudDrawGun;
+static qboolean			dc_specHudSaved;
+static int				dc_specTimersSaved;
 
 static int DemoCtrl_SpecActions( int *actions, int max );
+static int DemoCtrl_SpecRowShift( int action );
 static void DemoCtrl_SpecMenuClose( void );
+static int DemoCtrl_SpecDispHitTest( int mx, int my );
+static qboolean Spec_DispTabHit( int mx, int my );
 static void Spec_DrawerLayout( int *bodyX, int *bodyY, int *bodyW, int *bodyH,
 		int *tabX, int *tabY, int *tabW, int *tabH );
 
@@ -57,20 +72,45 @@ static void Spec_DrawerLayout( int *bodyX, int *bodyY, int *bodyW, int *bodyH,
 
 	Overlay_DrawerTick( &specDrawer );
 	n = DemoCtrl_SpecActions( actions, SPEC_BTN_MAX );
-	if ( n < 1 ) {
+	if ( n > 0 ) {
+		*bodyH = OVERLAY_SIDE_HDR_H + OVERLAY_SIDE_CHAR_H + 8
+				+ n * ( SPEC_BTN_H + SPEC_BTN_GAP )
+				+ DemoCtrl_SpecRowShift( actions[n - 1] ) + 6;
+	} else {
 		n = 1;
+		*bodyH = OVERLAY_SIDE_HDR_H + OVERLAY_SIDE_CHAR_H + 8
+				+ ( SPEC_BTN_H + SPEC_BTN_GAP ) + 6;
 	}
 	frac = specDrawer.frac;
 	*bodyW = SPEC_BTN_W + 16;
 	*bodyY = OVERLAY_SIDE_Y - 4;
-	*bodyH = OVERLAY_SIDE_HDR_H + OVERLAY_SIDE_CHAR_H + 8
-			+ n * ( SPEC_BTN_H + SPEC_BTN_GAP ) + 6;
 	*tabW = OVERLAY_TAB_W;
 	*tabX = SCREEN_WIDTH - OVERLAY_TAB_W;
 	*tabY = *bodyY;
 	*tabH = *bodyH;
 	openX = *tabX - *bodyW;
 	*bodyX = openX + (int)( ( 1.0f - frac ) * (float)*bodyW );
+}
+
+static void Spec_DispLayout( int *bodyX, int *bodyY, int *bodyW, int *bodyH,
+		int *tabX, int *tabY, int *tabW, int *tabH ) {
+	int		viewsX, viewsY, viewsW, viewsH;
+	int		viewsTabX, viewsTabY, viewsTabW, viewsTabH;
+	float	frac;
+
+	Spec_DrawerLayout( &viewsX, &viewsY, &viewsW, &viewsH,
+			&viewsTabX, &viewsTabY, &viewsTabW, &viewsTabH );
+	Overlay_DrawerTick( &specDispDrawer );
+	frac = specDispDrawer.frac;
+	*bodyW = viewsW;
+	*bodyH = OVERLAY_SIDE_HDR_H + 8
+			+ SPEC_DISP_COUNT * ( SPEC_BTN_H + SPEC_BTN_GAP ) + 6;
+	*bodyY = viewsY + viewsH;
+	*tabW = OVERLAY_TAB_W;
+	*tabX = SCREEN_WIDTH - OVERLAY_TAB_W;
+	*tabY = *bodyY;
+	*tabH = *bodyH;
+	*bodyX = viewsX + (int)( ( specDrawer.frac - frac ) * (float)viewsW );
 }
 
 static qboolean Spec_TabHit( int mx, int my ) {
@@ -92,22 +132,21 @@ static qboolean Spec_TabHit( int mx, int my ) {
 	return qfalse;
 }
 
-static void Spec_DrawChrome( const float *panel, const float *hover,
-		const float *textColor, const float *border ) {
-	int			bodyX, bodyY, bodyW, bodyH;
-	int			tabX, tabY, tabW, tabH;
+static void Spec_DrawChrome( overlayDrawer_t *drawer, const char *label, qboolean tabHover,
+		const float *panel, const float *hover, const float *textColor, const float *border,
+		int bodyX, int bodyY, int bodyW, int bodyH,
+		int tabX, int tabY, int tabW, int tabH ) {
 	int			innerY;
 	int			innerH;
 	const char	*chev;
 	const float	*tabFill;
 	vec4_t		hdrColor;
 
-	Spec_DrawerLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
-	chev = ( specDrawer.frac > 0.5f ) ? ">" : "<";
-	if ( specDrawer.frac > 0.02f ) {
+	chev = ( drawer->frac > 0.5f ) ? ">" : "<";
+	if ( drawer->frac > 0.02f ) {
 		CG_FillRect( bodyX, bodyY, bodyW, bodyH, panel );
 	}
-	tabFill = specTabHover ? hover : panel;
+	tabFill = tabHover ? hover : panel;
 	CG_FillRect( tabX, tabY, tabW, tabH, tabFill );
 	CG_DrawRect( tabX, tabY, tabW, tabH, 1, border );
 	hdrColor[0] = 0.85f;
@@ -122,14 +161,14 @@ static void Spec_DrawChrome( const float *panel, const float *hover,
 	innerY = tabY + OVERLAY_SIDE_CHAR_H + 8;
 	innerH = tabH - 2 * ( OVERLAY_SIDE_CHAR_H + 8 );
 	if ( innerH > OVERLAY_SIDE_CHAR_H ) {
-		Overlay_DrawVerticalText( tabX + tabW / 2, innerY, innerH, "SPEC", hdrColor );
+		Overlay_DrawVerticalText( tabX + tabW / 2, innerY, innerH, label, hdrColor );
 	}
-	if ( specDrawer.frac > 0.45f ) {
+	if ( drawer->frac > 0.45f ) {
 		int		hdrLen;
 		char	hdr[32];
 		int		hx;
 
-		Com_sprintf( hdr, sizeof( hdr ), "%s  %s  %s", chev, "SPEC", chev );
+		Com_sprintf( hdr, sizeof( hdr ), "%s  %s  %s", chev, label, chev );
 		hdrLen = CG_DrawStrlen( hdr );
 		hx = bodyX + ( bodyW - hdrLen * OVERLAY_SIDE_CHAR_W ) / 2;
 		CG_DrawStringExt( hx, bodyY + 3, hdr, hdrColor, qtrue, qtrue,
@@ -148,7 +187,11 @@ Fire, or a click on empty view, returns to look.
 
 typedef enum {
 	SPEC_PLAYERS = 0,
+	SPEC_1ST,
+	SPEC_3RD,
+	SPEC_DYNAMIC,
 	SPEC_FREE,
+	SPEC_SHOT,
 	SPEC_QUEUE,
 	SPEC_RED,
 	SPEC_BLUE
@@ -216,6 +259,7 @@ static void DemoCtrl_SpecEnterLook( void ) {
 }
 
 static void DemoCtrl_SpecEndSession( void ) {
+	dc_specRig = qfalse;
 	dc_specLook = qtrue;
 	dc_specHover = -1;
 	dc_specBarHover = -1;
@@ -231,8 +275,12 @@ static void DemoCtrl_SpecEndSession( void ) {
 	dc_specAttackDown = qfalse;
 	dc_specAttackLatch = qfalse;
 	dc_specDrawerReady = qfalse;
+	dc_specShotHide = 0;
+	dc_specDispHover = -1;
 	specTabHover = qfalse;
+	specDispTabHover = qfalse;
 	Overlay_DrawerReset( &specDrawer );
+	Overlay_DrawerReset( &specDispDrawer );
 	Overlay_ReleaseCatcher();
 }
 
@@ -269,7 +317,19 @@ static int DemoCtrl_SpecActions( int *actions, int max ) {
 		actions[n++] = SPEC_PLAYERS;
 	}
 	if ( n < max ) {
+		actions[n++] = SPEC_1ST;
+	}
+	if ( n < max ) {
+		actions[n++] = SPEC_3RD;
+	}
+	if ( n < max ) {
+		actions[n++] = SPEC_DYNAMIC;
+	}
+	if ( n < max ) {
 		actions[n++] = SPEC_FREE;
+	}
+	if ( n < max ) {
+		actions[n++] = SPEC_SHOT;
 	}
 	if ( CG_IsTeamGametype() ) {
 		if ( n < max ) {
@@ -289,8 +349,16 @@ static const char *DemoCtrl_SpecLabel( int action ) {
 	case SPEC_PLAYERS:
 		DemoCtrl_SpecPlayersUpdateLabel();
 		return dc_specPlayersBtnLabel;
+	case SPEC_1ST:
+		return "1st Person";
+	case SPEC_3RD:
+		return "3rd Person";
 	case SPEC_FREE:
 		return "Free";
+	case SPEC_SHOT:
+		return "Screenshot";
+	case SPEC_DYNAMIC:
+		return "Dynamic";
 	case SPEC_QUEUE:
 		if ( cg.spectatorGroup == SPECTATORGROUP_QUEUED ) {
 			return "Leave Queue";
@@ -314,7 +382,44 @@ static const char *DemoCtrl_SpecLabel( int action ) {
 static void DemoCtrl_SpecActivate( int action ) {
 	switch ( action ) {
 	case SPEC_FREE:
+		dc_specRig = qfalse;
 		trap_SendConsoleCommand( "follow\n" );
+		break;
+	case SPEC_SHOT:
+		dc_visible = qfalse;
+		dc_specHover = -1;
+		dc_specShotHide = SPEC_SHOT_HIDE_FRAMES;
+		trap_SendConsoleCommand( "wait 2; screenshotJPEG\n" );
+		break;
+	case SPEC_1ST:
+		if ( !dc_specRig && !cg_thirdPerson.integer && DemoCtrl_SpecFollowing() ) {
+			break;
+		}
+		dc_specRig = qfalse;
+		trap_Cvar_Set( "cg_thirdPerson", "0" );
+		break;
+	case SPEC_3RD:
+		if ( !dc_specRig && cg_thirdPerson.integer && DemoCtrl_SpecFollowing() ) {
+			break;
+		}
+		dc_specRig = qfalse;
+		trap_Cvar_Set( "cg_thirdPerson", "1" );
+		if ( cg_thirdPersonRange.value < 1.0f ) {
+			trap_Cvar_Set( "cg_thirdPersonRange", "100" );
+		}
+		break;
+	case SPEC_DYNAMIC:
+		if ( dc_specRig ) {
+			dc_specRig = qfalse;
+			break;
+		}
+		if ( !CG_DemoCams_HasAny() ) {
+			CG_Printf( "No dynamic cameras defined for this map\n" );
+			break;
+		}
+		dc_specRig = qtrue;
+		DemoCtrl_SpecEnterUi();
+		Overlay_Wake();
 		break;
 	case SPEC_QUEUE:
 		if ( cg.spectatorGroup == SPECTATORGROUP_QUEUED ) {
@@ -349,8 +454,23 @@ static qboolean DemoCtrl_SpecActionOn( int action ) {
 	switch ( action ) {
 	case SPEC_PLAYERS:
 		return ( dc_specMenuOpen || DemoCtrl_SpecFollowing() ) ? qtrue : qfalse;
+	case SPEC_1ST:
+		if ( dc_specRig || !DemoCtrl_SpecFollowing() ) {
+			return qfalse;
+		}
+		return cg_thirdPerson.integer ? qfalse : qtrue;
+	case SPEC_3RD:
+		if ( dc_specRig || !DemoCtrl_SpecFollowing() ) {
+			return qfalse;
+		}
+		return cg_thirdPerson.integer ? qtrue : qfalse;
 	case SPEC_FREE:
+		if ( dc_specRig ) {
+			return qfalse;
+		}
 		return ( cg.snap->ps.pm_flags & PMF_FOLLOW ) ? qfalse : qtrue;
+	case SPEC_DYNAMIC:
+		return dc_specRig;
 	case SPEC_QUEUE:
 		return ( cg.spectatorGroup == SPECTATORGROUP_QUEUED ) ? qtrue : qfalse;
 	case SPEC_RED:
@@ -385,12 +505,34 @@ static void DemoCtrl_SpecTeamFill( int team, qboolean active, qboolean hover,
 	out[3] = active ? btnActive[3] : ( hover ? btnHover[3] : btnIdle[3] );
 }
 
+static int DemoCtrl_SpecRowShift( int action ) {
+	if ( action == SPEC_1ST || action == SPEC_3RD || action == SPEC_DYNAMIC ) {
+		return SPEC_SUB_H;
+	}
+	if ( action == SPEC_FREE || action == SPEC_SHOT ) {
+		return SPEC_SUB_H * 2;
+	}
+	if ( action == SPEC_QUEUE || action == SPEC_RED || action == SPEC_BLUE ) {
+		return SPEC_SUB_H * 3;
+	}
+	return 0;
+}
+
 static void DemoCtrl_SpecBtnRectBase( int index, int *x, int *y, int *w, int *h ) {
+	int	actions[SPEC_BTN_MAX];
+	int	n;
+	int	shift;
+
 	*w = SPEC_BTN_W;
 	*h = SPEC_BTN_H;
 	*x = SCREEN_WIDTH - OVERLAY_SIDE_MARGIN - SPEC_BTN_W;
+	n = DemoCtrl_SpecActions( actions, SPEC_BTN_MAX );
+	shift = 0;
+	if ( index >= 0 && index < n ) {
+		shift = DemoCtrl_SpecRowShift( actions[index] );
+	}
 	*y = OVERLAY_SIDE_Y + OVERLAY_SIDE_HDR_H + OVERLAY_SIDE_CHAR_H + 2
-			+ index * ( SPEC_BTN_H + SPEC_BTN_GAP );
+			+ index * ( SPEC_BTN_H + SPEC_BTN_GAP ) + shift;
 }
 
 static void DemoCtrl_SpecBtnRect( int index, int *x, int *y, int *w, int *h ) {
@@ -741,9 +883,11 @@ static void DemoCtrl_SpecUpdateHover( void ) {
 	int	x, y, w, h;
 
 	dc_specHover = -1;
+	dc_specDispHover = -1;
 	dc_specBarHover = -1;
 	dc_specLockHover = qfalse;
 	specTabHover = qfalse;
+	specDispTabHover = qfalse;
 	if ( cg.showScores ) {
 		return;
 	}
@@ -763,12 +907,352 @@ static void DemoCtrl_SpecUpdateHover( void ) {
 		dc_specLockHover = qtrue;
 		return;
 	}
+	if ( Spec_DispTabHit( dc_cursorX, dc_cursorY ) ) {
+		specDispTabHover = qtrue;
+		return;
+	}
 	if ( Spec_TabHit( dc_cursorX, dc_cursorY ) ) {
 		specTabHover = qtrue;
 		return;
 	}
+	if ( specDispDrawer.frac >= 0.35f ) {
+		dc_specDispHover = DemoCtrl_SpecDispHitTest( dc_cursorX, dc_cursorY );
+		if ( dc_specDispHover >= 0 ) {
+			return;
+		}
+	}
 	if ( specDrawer.frac >= 0.35f ) {
 		dc_specHover = DemoCtrl_SpecHitTest( dc_cursorX, dc_cursorY );
+	}
+}
+
+typedef enum {
+	SPEC_DISP_ITEMS = 0,
+	SPEC_DISP_TIMERS,
+	SPEC_DISP_HUD,
+	SPEC_DISP_VSOUNDS,
+	SPEC_DISP_SILHOUETTE,
+	SPEC_DISP_STATUS
+} specDispAction_t;
+
+static const char *DemoCtrl_SpecDispLabel( int action ) {
+	switch ( action ) {
+	case SPEC_DISP_ITEMS:
+		return "Items";
+	case SPEC_DISP_TIMERS:
+		return "Timers";
+	case SPEC_DISP_HUD:
+		return "HUD";
+	case SPEC_DISP_VSOUNDS:
+		return "VSound";
+	case SPEC_DISP_SILHOUETTE:
+		return "Silhouette";
+	case SPEC_DISP_STATUS:
+		return "Status";
+	default:
+		return "";
+	}
+}
+
+static qboolean DemoCtrl_SpecDispOn( int action ) {
+	switch ( action ) {
+	case SPEC_DISP_ITEMS:
+		return cg_simpleItems.integer ? qtrue : qfalse;
+	case SPEC_DISP_TIMERS:
+		return ( cg_specItemTimers.integer > 0 ) ? qtrue : qfalse;
+	case SPEC_DISP_HUD:
+		return cg_draw2D.integer ? qtrue : qfalse;
+	case SPEC_DISP_VSOUNDS:
+		return cg_visualSounds.integer ? qtrue : qfalse;
+	case SPEC_DISP_SILHOUETTE:
+		return cg_demoOccludedOutline.integer ? qtrue : qfalse;
+	case SPEC_DISP_STATUS:
+		return cg_specPlayerStatus.integer ? qtrue : qfalse;
+	default:
+		return qfalse;
+	}
+}
+
+static void DemoCtrl_SpecDispActivate( int action ) {
+	int	restore;
+
+	switch ( action ) {
+	case SPEC_DISP_ITEMS:
+		trap_Cvar_Set( "cg_simpleItems", cg_simpleItems.integer ? "0" : "1" );
+		break;
+	case SPEC_DISP_TIMERS:
+		if ( cg_specItemTimers.integer > 0 ) {
+			dc_specTimersSaved = cg_specItemTimers.integer;
+			trap_Cvar_Set( "cg_specItemTimers", "0" );
+		} else {
+			restore = ( dc_specTimersSaved > 0 ) ? dc_specTimersSaved : 15;
+			trap_Cvar_Set( "cg_specItemTimers", va( "%d", restore ) );
+		}
+		break;
+	case SPEC_DISP_HUD:
+		if ( cg_draw2D.integer || cg_drawGun.integer ) {
+			dc_specHudDraw2D = cg_draw2D.integer;
+			dc_specHudDrawGun = cg_drawGun.integer;
+			dc_specHudSaved = qtrue;
+			trap_Cvar_Set( "cg_draw2D", "0" );
+			trap_Cvar_Set( "cg_drawGun", "0" );
+		} else if ( dc_specHudSaved ) {
+			trap_Cvar_Set( "cg_draw2D", va( "%d", dc_specHudDraw2D ? dc_specHudDraw2D : 1 ) );
+			trap_Cvar_Set( "cg_drawGun", va( "%d", dc_specHudDrawGun ) );
+		} else {
+			trap_Cvar_Set( "cg_draw2D", "1" );
+			trap_Cvar_Set( "cg_drawGun", "1" );
+		}
+		break;
+	case SPEC_DISP_VSOUNDS:
+		trap_Cvar_Set( "cg_visualSounds", cg_visualSounds.integer ? "0" : "1" );
+		break;
+	case SPEC_DISP_SILHOUETTE:
+		trap_Cvar_Set( "cg_demoOccludedOutline", cg_demoOccludedOutline.integer ? "0" : "1" );
+		break;
+	case SPEC_DISP_STATUS:
+		trap_Cvar_Set( "cg_specPlayerStatus", cg_specPlayerStatus.integer ? "0" : "1" );
+		break;
+	default:
+		break;
+	}
+}
+
+static void DemoCtrl_SpecDispBtnRect( int index, int *x, int *y, int *w, int *h ) {
+	int	bodyX, bodyY, bodyW, bodyH;
+	int	tabX, tabY, tabW, tabH;
+
+	*w = SPEC_BTN_W;
+	*h = SPEC_BTN_H;
+	Spec_DispLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
+	*x = bodyX + 8;
+	*y = bodyY + OVERLAY_SIDE_HDR_H + 4 + index * ( SPEC_BTN_H + SPEC_BTN_GAP );
+}
+
+static int DemoCtrl_SpecDispHitTest( int mx, int my ) {
+	int	i;
+	int	x, y, w, h;
+
+	if ( specDispDrawer.frac < 0.35f ) {
+		return -1;
+	}
+	for ( i = 0; i < SPEC_DISP_COUNT; i++ ) {
+		DemoCtrl_SpecDispBtnRect( i, &x, &y, &w, &h );
+		if ( mx >= x && mx < x + w && my >= y && my < y + h ) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static qboolean Spec_DispTabHit( int mx, int my ) {
+	int	bodyX, bodyY, bodyW, bodyH;
+	int	tabX, tabY, tabW, tabH;
+	int	hdrY, hdrH;
+
+	Spec_DispLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
+	if ( mx >= tabX && mx < tabX + tabW && my >= tabY && my < tabY + tabH ) {
+		return qtrue;
+	}
+	if ( specDispDrawer.frac > 0.5f ) {
+		hdrY = bodyY;
+		hdrH = OVERLAY_SIDE_HDR_H + 4;
+		if ( mx >= bodyX && mx < bodyX + bodyW && my >= hdrY && my < hdrY + hdrH ) {
+			return qtrue;
+		}
+	}
+	return qfalse;
+}
+
+static void DemoCtrl_DrawSpecSubheads( void ) {
+	static const char	*labels[3] = { "Follow Cam", "Other", "Join" };
+	int		anchors[3];
+	int		actions[SPEC_BTN_MAX];
+	int		n;
+	int		a;
+	int		i;
+	int		x, y, w, h;
+	vec4_t	color;
+
+	anchors[0] = SPEC_1ST;
+	anchors[1] = SPEC_FREE;
+	anchors[2] = -1;
+	n = DemoCtrl_SpecActions( actions, SPEC_BTN_MAX );
+	for ( i = 0; i < n; i++ ) {
+		if ( actions[i] == SPEC_QUEUE || actions[i] == SPEC_RED ) {
+			anchors[2] = actions[i];
+			break;
+		}
+	}
+	color[0] = 0.72f;
+	color[1] = 0.74f;
+	color[2] = 0.80f;
+	color[3] = 0.95f;
+	for ( a = 0; a < 3; a++ ) {
+		if ( anchors[a] < 0 ) {
+			continue;
+		}
+		for ( i = 0; i < n; i++ ) {
+			if ( actions[i] != anchors[a] ) {
+				continue;
+			}
+			DemoCtrl_SpecBtnRect( i, &x, &y, &w, &h );
+			CG_DrawStringExt( x, y - SPEC_SUB_H + 1, labels[a], color, qtrue, qtrue,
+					OVERLAY_SIDE_CHAR_W, OVERLAY_SIDE_CHAR_H, 0 );
+			break;
+		}
+	}
+}
+
+static const char *DemoCtrl_SpecTip( int action ) {
+	switch ( action ) {
+	case SPEC_PLAYERS:
+		return "Choose a player to follow";
+	case SPEC_1ST:
+		return "Follow in first person";
+	case SPEC_3RD:
+		return "Follow in third person";
+	case SPEC_DYNAMIC:
+		return "Follow via dynamic cameras";
+	case SPEC_FREE:
+		return "Free camera mode";
+	case SPEC_SHOT:
+		return "Take a screenshot";
+	case SPEC_QUEUE:
+		if ( cg.spectatorGroup == SPECTATORGROUP_QUEUED ) {
+			return "Leave the queue";
+		}
+		return "Join the game";
+	case SPEC_RED:
+		if ( cg.spectatorGroup == SPECTATORGROUP_QUEUED_RED ) {
+			return "Leave the red team";
+		}
+		return "Join the ^1red ^7team";
+	case SPEC_BLUE:
+		if ( cg.spectatorGroup == SPECTATORGROUP_QUEUED_BLUE ) {
+			return "Leave the blue team";
+		}
+		return "Join the ^4blue ^7team";
+	default:
+		return "";
+	}
+}
+
+static const char *DemoCtrl_SpecDispTip( int action ) {
+	switch ( action ) {
+	case SPEC_DISP_ITEMS:
+		return "Toggle between simple or 3D items";
+	case SPEC_DISP_TIMERS:
+		return "Toggle HUD item timers ^2ON^7/^1OFF";
+	case SPEC_DISP_HUD:
+		return "Toggle game HUD ^2ON^7/^1OFF";
+	case SPEC_DISP_VSOUNDS:
+		return "Toggle visual sounds ^2ON^7/^1OFF";
+	case SPEC_DISP_SILHOUETTE:
+		return "^2Show^7/^1hide ^7silhouettes of hidden players";
+	case SPEC_DISP_STATUS:
+		return "^2Show^7/^1hide ^7overhead player status boxes";
+	default:
+		return "";
+	}
+}
+
+static void DemoCtrl_SpecDrawTipBox( const char *tip, int btnX, int btnY, int btnW, int btnH, int place ) {
+	int		cw, ch, pad;
+	int		tipW, tipH;
+	int		x, y;
+	int		len;
+	vec4_t	bg;
+	vec4_t	border;
+	vec4_t	textColor;
+
+	if ( !tip || !tip[0] ) {
+		return;
+	}
+	cw = 6;
+	ch = 10;
+	pad = 6;
+	len = CG_DrawStrlen( tip );
+	tipW = len * cw + pad * 2;
+	tipH = ch + pad * 2;
+	if ( place == 1 ) {
+		x = btnX + ( btnW - tipW ) / 2;
+		y = btnY + btnH + 6;
+	} else if ( place == 2 ) {
+		x = btnX + btnW + 8;
+		y = btnY + ( btnH - tipH ) / 2;
+	} else {
+		x = btnX - 8 - tipW;
+		y = btnY + ( btnH - tipH ) / 2;
+	}
+	if ( x < 4 ) {
+		x = 4;
+	}
+	if ( x + tipW > SCREEN_WIDTH - 4 ) {
+		x = SCREEN_WIDTH - 4 - tipW;
+	}
+	if ( y < 4 ) {
+		y = 4;
+	}
+	if ( y + tipH > SCREEN_HEIGHT - 4 ) {
+		y = SCREEN_HEIGHT - 4 - tipH;
+	}
+	bg[0] = 0.04f;
+	bg[1] = 0.04f;
+	bg[2] = 0.05f;
+	bg[3] = 0.92f;
+	border[0] = 1.0f;
+	border[1] = 1.0f;
+	border[2] = 1.0f;
+	border[3] = 0.40f;
+	textColor[0] = 1.0f;
+	textColor[1] = 1.0f;
+	textColor[2] = 1.0f;
+	textColor[3] = 1.0f;
+	CG_FillRect( x, y, tipW, tipH, bg );
+	CG_DrawRect( x, y, tipW, tipH, 1, border );
+	CG_DrawStringExt( x + pad, y + pad, tip, textColor, qfalse, qtrue, cw, ch, 0 );
+}
+
+static void DemoCtrl_SpecDrawHoverTip( void ) {
+	int	actions[SPEC_BTN_MAX];
+	int	n;
+	int	x, y, w, h;
+	int	bodyH;
+	int	rowY;
+
+	if ( dc_specMenuHover >= 0 && dc_specMenuHover < dc_specMenuCount ) {
+		DemoCtrl_SpecMenuGeom( &x, &y, &w, &bodyH );
+		rowY = y + 1 + dc_specMenuHover * ( OVERLAY_SIDE_BTN_H + 1 );
+		DemoCtrl_SpecDrawTipBox( "Follow this player", x, rowY, w, OVERLAY_SIDE_BTN_H, 0 );
+		return;
+	}
+	if ( dc_specBarHover == 0 ) {
+		DemoCtrl_SpecTopRect( 0, &x, &y, &w, &h );
+		DemoCtrl_SpecDrawTipBox( "^2Open ^7in-game menu", x, y, w, h, 1 );
+		return;
+	}
+	if ( dc_specBarHover == 1 ) {
+		DemoCtrl_SpecTopRect( 1, &x, &y, &w, &h );
+		DemoCtrl_SpecDrawTipBox( "^1Disconnect ^7from the server", x, y, w, h, 1 );
+		return;
+	}
+	if ( dc_specLockHover ) {
+		Overlay_LockRect( &x, &y, &w, &h );
+		DemoCtrl_SpecDrawTipBox( "^1Lock^7/^2unlock ^7the spectator overlay", x, y, w, h, 2 );
+		return;
+	}
+	if ( dc_specDispHover >= 0 && dc_specDispHover < SPEC_DISP_COUNT ) {
+		DemoCtrl_SpecDispBtnRect( dc_specDispHover, &x, &y, &w, &h );
+		DemoCtrl_SpecDrawTipBox( DemoCtrl_SpecDispTip( dc_specDispHover ), x, y, w, h, 0 );
+		return;
+	}
+	if ( dc_specHover >= 0 ) {
+		n = DemoCtrl_SpecActions( actions, SPEC_BTN_MAX );
+		if ( dc_specHover < n ) {
+			DemoCtrl_SpecBtnRect( dc_specHover, &x, &y, &w, &h );
+			DemoCtrl_SpecDrawTipBox( DemoCtrl_SpecTip( actions[dc_specHover] ), x, y, w, h, 0 );
+		}
 	}
 }
 
@@ -854,7 +1338,12 @@ static void DemoCtrl_DrawSpec( void ) {
 		trap_R_SetColor( NULL );
 	}
 
-	Spec_DrawChrome( panel, btnHover, textColor, border );
+	Spec_DrawerLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
+	Spec_DrawChrome( &specDrawer, "VIEWS", specTabHover, panel, btnHover, textColor, border,
+			bodyX, bodyY, bodyW, bodyH, tabX, tabY, tabW, tabH );
+	Spec_DispLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
+	Spec_DrawChrome( &specDispDrawer, "DISPLAY", specDispTabHover, panel, btnHover, textColor, border,
+			bodyX, bodyY, bodyW, bodyH, tabX, tabY, tabW, tabH );
 	if ( specDrawer.frac > 0.45f ) {
 		Spec_DrawerLayout( &bodyX, &bodyY, &bodyW, &bodyH,
 				&tabX, &tabY, &tabW, &tabH );
@@ -909,9 +1398,35 @@ static void DemoCtrl_DrawSpec( void ) {
 					label, textColor, forceColor, qtrue,
 					OVERLAY_SIDE_CHAR_W, OVERLAY_SIDE_CHAR_H, 0 );
 		}
+		DemoCtrl_DrawSpecSubheads();
+	}
+
+	if ( specDispDrawer.frac > 0.45f ) {
+		for ( i = 0; i < SPEC_DISP_COUNT; i++ ) {
+			DemoCtrl_SpecDispBtnRect( i, &x, &y, &w, &h );
+			if ( x + w < 0 || x > SCREEN_WIDTH ) {
+				continue;
+			}
+			if ( DemoCtrl_SpecDispOn( i ) ) {
+				fill = btnActive;
+			} else if ( i == dc_specDispHover ) {
+				fill = btnHover;
+			} else {
+				fill = btnIdle;
+			}
+			CG_FillRect( x, y, w, h, fill );
+			CG_DrawRect( x, y, w, h, 1, border );
+			label = DemoCtrl_SpecDispLabel( i );
+			len = CG_DrawStrlen( label );
+			CG_DrawStringExt( x + ( w - len * OVERLAY_SIDE_CHAR_W ) / 2,
+					y + ( h - OVERLAY_SIDE_CHAR_H ) / 2,
+					label, textColor, qtrue, qtrue,
+					OVERLAY_SIDE_CHAR_W, OVERLAY_SIDE_CHAR_H, 0 );
+		}
 	}
 
 	DemoCtrl_DrawSpecMenu( btnIdle, btnHover, btnActive, border, textColor );
+	DemoCtrl_SpecDrawHoverTip();
 
 	if ( cgs.media.cursor ) {
 		CG_DrawPic( dc_cursorX - OVERLAY_CURSOR_SIZE / 2, dc_cursorY - OVERLAY_CURSOR_SIZE / 2,
@@ -946,7 +1461,7 @@ static void DemoCtrl_SpecFrame( void ) {
 	}
 
 	following = DemoCtrl_SpecFollowing();
-	if ( following ) {
+	if ( following || dc_specRig ) {
 		dc_specLook = qfalse;
 	}
 
@@ -986,6 +1501,17 @@ static void DemoCtrl_SpecFrame( void ) {
 	DemoCtrl_SpecMenuTick();
 
 	now = trap_Milliseconds();
+	if ( dc_specShotHide > 0 ) {
+		dc_visible = qfalse;
+		dc_specHover = -1;
+		dc_specDispHover = -1;
+		dc_specShotHide--;
+		if ( dc_specShotHide <= 0 ) {
+			dc_visible = qtrue;
+			dc_lastMoveMs = now;
+		}
+		return;
+	}
 	if ( dc_locked ) {
 		dc_visible = qtrue;
 		return;
@@ -1007,11 +1533,14 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 	if ( !DemoCtrl_SpecUiActive() ) {
 		return qfalse;
 	}
+	if ( dc_specShotHide > 0 ) {
+		return qtrue;
+	}
 	if ( trap_Key_GetCatcher() & ( KEYCATCH_UI | KEYCATCH_CONSOLE | KEYCATCH_MESSAGE ) ) {
 		return qfalse;
 	}
 	if ( down && ( Spec_KeyIsAttack( key ) || key == K_ESCAPE ) ) {
-		if ( DemoCtrl_SpecFollowing() ) {
+		if ( DemoCtrl_SpecFollowing() || dc_specRig ) {
 			Overlay_Wake();
 		} else {
 			DemoCtrl_SpecEnterLook();
@@ -1050,6 +1579,10 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 			Overlay_DrawerToggle( &specDrawer );
 			return qtrue;
 		}
+		if ( specDispTabHover ) {
+			Overlay_DrawerToggle( &specDispDrawer );
+			return qtrue;
+		}
 		n = DemoCtrl_SpecActions( actions, SPEC_BTN_MAX );
 		hit = -1;
 		if ( specDrawer.frac >= 0.35f ) {
@@ -1068,7 +1601,9 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 		}
 		if ( hit >= 0 && hit < n ) {
 			DemoCtrl_SpecActivate( actions[hit] );
-		} else if ( !DemoCtrl_SpecFollowing() ) {
+		} else if ( dc_specDispHover >= 0 && dc_specDispHover < SPEC_DISP_COUNT ) {
+			DemoCtrl_SpecDispActivate( dc_specDispHover );
+		} else if ( !DemoCtrl_SpecFollowing() && !dc_specRig ) {
 			DemoCtrl_SpecEnterLook();
 		}
 		return qtrue;
@@ -1092,6 +1627,9 @@ static qboolean DemoCtrl_SpecMouse( int dx, int dy ) {
 		return qfalse;
 	}
 	if ( trap_Key_GetCatcher() & ( KEYCATCH_UI | KEYCATCH_CONSOLE | KEYCATCH_MESSAGE ) ) {
+		return qtrue;
+	}
+	if ( dc_specShotHide > 0 ) {
 		return qtrue;
 	}
 	if ( dx || dy ) {
@@ -1128,6 +1666,10 @@ void CG_SpecControls_Draw( void ) {
 	if ( DemoCtrl_SpecUiActive() && dc_visible ) {
 		DemoCtrl_DrawSpec();
 	}
+}
+
+qboolean CG_SpecControls_DynamicCamActive( void ) {
+	return ( dc_specRig && DemoCtrl_SpecSession() ) ? qtrue : qfalse;
 }
 
 qboolean CG_SpecControls_MouseEvent( int dx, int dy ) {

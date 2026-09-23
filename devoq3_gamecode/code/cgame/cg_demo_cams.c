@@ -1409,9 +1409,6 @@ static qboolean DemoCam_UpdateRest( int idx, const vec3_t lookAt ) {
 }
 
 void CG_DemoCams_LoadIfNeeded( void ) {
-	if ( !cg.demoPlayback ) {
-		return;
-	}
 	if ( !cgs.mapbasename[0] ) {
 		return;
 	}
@@ -2226,9 +2223,6 @@ void CG_DemoCams_DirectorFrame( void ) {
 	qboolean	playerSwap;
 	qboolean	holdLos;
 
-	if ( !cg.demoPlayback ) {
-		return;
-	}
 	if ( dcamDirFrame == cg.clientFrame ) {
 		return;
 	}

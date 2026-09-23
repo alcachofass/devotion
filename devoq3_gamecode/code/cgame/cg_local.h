@@ -1851,6 +1851,7 @@ void CG_DemoControls_Draw( void );
 void CG_SpecControls_Frame( void );
 void CG_SpecControls_Shutdown( void );
 void CG_SpecControls_Draw( void );
+qboolean CG_SpecControls_DynamicCamActive( void );
 qboolean CG_SpecControls_MouseEvent( int dx, int dy );
 qboolean CG_SpecControls_KeyEvent( int key, qboolean down );
 qboolean CG_DemoControls_IsSeeking( void );

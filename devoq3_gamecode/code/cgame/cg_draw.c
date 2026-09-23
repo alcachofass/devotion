@@ -7131,8 +7131,9 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		return;
 	}
 
-	if ( cg_draw2D.integer == 0 || CG_DemoControls_PovActive() ) {
-		if ( cg.demoPlayback && !CG_DemoControls_PovActive() ) {
+	if ( cg_draw2D.integer == 0 || CG_DemoControls_PovActive()
+			|| CG_SpecControls_DynamicCamActive() ) {
+		if ( !CG_DemoControls_PovActive() ) {
 			CG_DrawSpecPlayerStatus();
 		}
 		if ( CG_DemoControls_PovTrackingActive() && stereoFrame == STEREO_CENTER ) {
