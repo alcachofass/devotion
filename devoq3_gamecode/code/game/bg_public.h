@@ -575,6 +575,8 @@ typedef enum {
 
 	EV_FOOTSTEP,
 	EV_FOOTSTEP_METAL,
+	EV_FOOTSTEP_WOOD,	//mrd
+	EV_FOOTSTEP_SNOW,	//mrd
 	EV_FOOTSPLASH,
 	EV_FOOTWADE,
 	EV_SWIM,
@@ -682,8 +684,6 @@ typedef enum {
 	EV_FOOTSLIDE, // for crouch slide
 	EV_DAMAGEPLUM,
 	EV_PUSHNOTIFY,
-	EV_FOOTSTEP_WOOD,	//mrd
-	EV_FOOTSTEP_SNOW,	//mrd
 	EV_ALTFIRE_WEAPON,	//mrd
 	EV_ITEM_PICKUP_SPEC,	// spectator item-timer notification
 	EV_VORTEX_GRENADE_STICK,	//mrd - altFire vortex grenade stuck on a wall
