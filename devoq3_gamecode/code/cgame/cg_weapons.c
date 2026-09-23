@@ -1392,6 +1392,7 @@ void CG_RegisterWeapon( int weaponNum ) {
 		MAKERGB( weaponInfo->flashDlightColor, 1, 0.5f, 0 );
 		weaponInfo->flashSound[0] = CG_RegisterRailFireSound();
 		cgs.media.railExplosionShader = trap_R_RegisterShader( "railExplosion" );
+		cgs.media.railAltExplosionShader = trap_R_RegisterShader( "railAltExplosion" );	//mrd
 		cgs.media.railRingsShader = trap_R_RegisterShader( "railDisc" );
 		cgs.media.railCoreShader = trap_R_RegisterShader( "railCore" );
 		switch (cg_altRail.integer) {
@@ -4355,13 +4356,25 @@ static void CG_Explosionia ( centity_t *cent ) {
 
 /*
 =================
+CG_AltRailImpact
+
+mrd - Helper functon for CG_MissileHitWall
+Triggered by altFire RG impact on the wall
+=================
+*/
+//void CG_AltRailImpact()
+
+/*
+=================
 CG_MissileHitWall
 
 Caused by an EV_MISSILE_MISS event, or directly by local bullet tracing
 =================
 */
-void CG_MissileHitWall( int weapon, int clientNum, vec3_t origin, vec3_t dir, impactSound_t soundType,
-	       predictedMissileStatus_t *missileStatus	) {
+void CG_MissileHitWall( int weapon, int clientNum, vec3_t origin, vec3_t dir, impactSound_t soundType, 
+	       //predictedMissileStatus_t *missileStatus	) {
+		   //mrd - need altFire status so we can render different effects on some weapons
+		   predictedMissileStatus_t *missileStatus, qboolean altFire ) {
 	qhandle_t		mod;
 	qhandle_t		mark;
 	qhandle_t		shader;
@@ -4537,10 +4550,18 @@ void CG_MissileHitWall( int weapon, int clientNum, vec3_t origin, vec3_t dir, im
 		break;
 	case WP_RAILGUN:
 		mod = cgs.media.ringFlashModel;
-		shader = cgs.media.railExplosionShader;
-		sfx = cgs.media.sfx_plasmaexp;
 		mark = cgs.media.energyMarkShader;
-		radius = 24;
+		sfx = cgs.media.sfx_plasmaexp;	//mrd - potentially change this later...
+
+		//mrd - stock shot
+		if (!altFire) {
+			shader = cgs.media.railExplosionShader;
+			radius = 24;
+		//mrd - altFire shot
+		} else {
+			shader = cgs.media.railAltExplosionShader;
+			radius = 60;
+		}
 		break;
 	case WP_PLASMAGUN:
 		mod = cgs.media.ringFlashModel;
@@ -4724,7 +4745,7 @@ CG_MissileHitPlayer
 void CG_MissileHitPlayer( int weapon, vec3_t origin, vec3_t dir, int entityNum, 
 	       predictedMissileStatus_t *missileStatus) {
 	if (weapon == WP_LIGHTNING) {
-		CG_MissileHitWall( weapon, 0, origin, dir, IMPACTSOUND_FLESH, missileStatus );
+		CG_MissileHitWall( weapon, 0, origin, dir, IMPACTSOUND_FLESH, missileStatus, qfalse );	//mrd
 		return;
 	}
 // LEILEI ENHANCEMENT
@@ -4748,7 +4769,7 @@ void CG_MissileHitPlayer( int weapon, vec3_t origin, vec3_t dir, int entityNum,
 	case WP_CHAINGUN:
 	case WP_PROX_LAUNCHER:
 #endif
-		CG_MissileHitWall( weapon, 0, origin, dir, IMPACTSOUND_FLESH, missileStatus );
+		CG_MissileHitWall( weapon, 0, origin, dir, IMPACTSOUND_FLESH, missileStatus, qfalse );	//mrd
 		break;
 	default:
 		break;
@@ -4842,7 +4863,7 @@ static void CG_ShotgunPellet( vec3_t start, vec3_t end, int skipNum ) {
 			return;
 		}
 		if ( tr.surfaceFlags & SURF_METALSTEPS ) {
-			CG_MissileHitWall( WP_SHOTGUN, 0, tr.endpos, tr.plane.normal, IMPACTSOUND_METAL, NULL );
+			CG_MissileHitWall( WP_SHOTGUN, 0, tr.endpos, tr.plane.normal, IMPACTSOUND_METAL, NULL, qfalse );	//mrd
 // LEILEI ENHANCEMENT
 			if (cg_leiEnhancement.integer) {
 					VectorCopy( tr.plane.normal, kapow );
@@ -4857,7 +4878,7 @@ static void CG_ShotgunPellet( vec3_t start, vec3_t end, int skipNum ) {
 				}
 // END LEIHANCMENET
 		} else {
-			CG_MissileHitWall( WP_SHOTGUN, 0, tr.endpos, tr.plane.normal, IMPACTSOUND_DEFAULT, NULL );
+			CG_MissileHitWall( WP_SHOTGUN, 0, tr.endpos, tr.plane.normal, IMPACTSOUND_DEFAULT, NULL, qfalse );	//mrd
 	
 // LEILEI ENHANCEMENT
 				if (cg_leiEnhancement.integer) {
@@ -5261,7 +5282,7 @@ if (cg_leiSuperGoreyAwesome.integer) {
 	else
 		CG_Bleed( end, fleshEntityNum );
 	} else {
-		CG_MissileHitWall( WP_MACHINEGUN, 0, end, normal, IMPACTSOUND_DEFAULT, NULL );
+		CG_MissileHitWall( WP_MACHINEGUN, 0, end, normal, IMPACTSOUND_DEFAULT, NULL, qfalse );	//mrd
 
 // LEILEI ENHANCEMENT
 				if (cg_leiEnhancement.integer) {

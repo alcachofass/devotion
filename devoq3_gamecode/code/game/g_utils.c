@@ -499,7 +499,7 @@ must be taken if the origin is right on a surface (snap towards start vector fir
 */
 gentity_t *G_TempEntity( vec3_t origin, int event ) {
 	gentity_t		*e;
-	vec3_t		snapped;
+	//vec3_t		snapped;	//mrd
 
 	e = G_Spawn();
 	e->s.eType = ET_EVENTS + event;
@@ -508,9 +508,9 @@ gentity_t *G_TempEntity( vec3_t origin, int event ) {
 	e->eventTime = level.time;
 	e->freeAfterEvent = qtrue;
 
-	VectorCopy( origin, snapped );
+	//VectorCopy( origin, snapped );	//mrd
 	//SnapVector( snapped );		// save network bandwidth	//mrd
-	G_SetOrigin( e, snapped );
+	G_SetOrigin( e, origin );
 
 	// find cluster for PVS
 	trap_LinkEntity( e );

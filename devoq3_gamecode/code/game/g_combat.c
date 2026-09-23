@@ -2089,10 +2089,13 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 
 		if (altFire && mod == MOD_RAILGUN) {	//mrd - altFire RG pushes enemy back more due to lower mass
 			knockback *= 3;	//mrd - RG does less damage, thus knockback is already lowered, so we have to compensate
-			mass = 145;	
+			mass = 100;	
+		} else if (altFire && mod == MOD_RAILGUN_SHOCKWAVE) {
+			knockback = 200;
+			mass = 500;
 		} else if (altFire && mod == MOD_GAUNTLET) {
-			knockback *= 3;
-			mass = 200;
+			knockback *= 3.2;
+			mass = 50;
 		} else {
 			mass = 200;
 		}
@@ -2114,8 +2117,8 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 			if ( t > 200 ) {
 				t = 200;
 			}
-			if (altFire && mod == MOD_RAILGUN) {
-				targ->client->ps.pm_time = t * 2;	//mrd - altFire RG has annoyingly long knockback recovery time
+			if (altFire && ( mod == MOD_RAILGUN || mod == MOD_RAILGUN_SHOCKWAVE ) ) {
+				targ->client->ps.pm_time = t * 2.5;	//mrd - altFire RG has annoyingly long knockback recovery time
 			} else {
 				targ->client->ps.pm_time = t;
 			}
@@ -2833,7 +2836,7 @@ G_RadiusDamage
 ============
 */
 qboolean G_RadiusDamage ( vec3_t origin, gentity_t *inflictor, gentity_t *attacker, float damage, float radius,
-					 gentity_t *ignore, int mod) {
+					 gentity_t *ignore, int mod, qboolean altFire) {
 	float		points, dist;
 	gentity_t	*ent;
 	int			entityList[MAX_GENTITIES];
@@ -2889,7 +2892,7 @@ qboolean G_RadiusDamage ( vec3_t origin, gentity_t *inflictor, gentity_t *attack
 			// push the center of mass higher than the origin so players
 			// get knocked into the air more
 			dir[2] += 24;
-			G_Damage (ent, inflictor, attacker, dir, origin, (int)points, DAMAGE_RADIUS, mod, qfalse);	//mrd
+			G_Damage (ent, inflictor, attacker, dir, origin, (int)points, DAMAGE_RADIUS, mod, altFire);	//mrd
 		}
 	}
 
