@@ -27,6 +27,7 @@ g_arenas
 g_bot
 g_client
 g_cmds
+g_camsession
 g_cmds_ext
 g_combat
 g_items

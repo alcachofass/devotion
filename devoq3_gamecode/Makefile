@@ -1718,6 +1718,8 @@ Q3CGOBJ_ = \
   $(B)/baseq3/cgame/cg_snapshot.o \
   $(B)/baseq3/cgame/cg_demo_history.o \
   $(B)/baseq3/cgame/cg_demo_controls.o \
+  $(B)/baseq3/cgame/cg_overlay.o \
+  $(B)/baseq3/cgame/cg_spec_controls.o \
   $(B)/baseq3/cgame/cg_demo_cams.o \
   $(B)/baseq3/cgame/cg_demo_events.o \
   $(B)/baseq3/cgame/cg_demo_msg_stub.o \
@@ -1778,6 +1780,8 @@ MPCGOBJ_ = \
   $(B)/missionpack/cgame/cg_snapshot.o \
   $(B)/missionpack/cgame/cg_demo_history.o \
   $(B)/missionpack/cgame/cg_demo_controls.o \
+  $(B)/missionpack/cgame/cg_overlay.o \
+  $(B)/missionpack/cgame/cg_spec_controls.o \
   $(B)/missionpack/cgame/cg_demo_cams.o \
   $(B)/missionpack/cgame/cg_demo_events.o \
   $(B)/missionpack/cgame/cg_demo_msg_stub.o \
@@ -1843,6 +1847,7 @@ Q3GOBJ_ = \
   $(B)/baseq3/game/g_bot.o \
   $(B)/baseq3/game/g_client.o \
   $(B)/baseq3/game/g_cmds.o \
+  $(B)/baseq3/game/g_camsession.o \
   $(B)/baseq3/game/g_cmds_ext.o \
   $(B)/baseq3/game/g_combat.o \
   $(B)/baseq3/game/g_items.o \
@@ -1916,6 +1921,7 @@ MPGOBJ_ = \
   $(B)/missionpack/game/g_bot.o \
   $(B)/missionpack/game/g_client.o \
   $(B)/missionpack/game/g_cmds.o \
+  $(B)/missionpack/game/g_camsession.o \
   $(B)/missionpack/game/g_cmds_ext.o \
   $(B)/missionpack/game/g_combat.o \
   $(B)/missionpack/game/g_items.o \

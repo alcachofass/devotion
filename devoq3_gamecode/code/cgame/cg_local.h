@@ -1148,6 +1148,7 @@ typedef struct {
 	qhandle_t	connectionShader;
 
 	qhandle_t	selectShader;
+	qhandle_t	specEyeShader;
 	qhandle_t	viewBloodShader;
 	qhandle_t	tracerShader;
 	qhandle_t	crosshairShader[NUM_CROSSHAIRS];
@@ -1848,6 +1849,12 @@ void CG_EventHandling(int type);
 void CG_DemoControls_Frame( void );
 void CG_DemoControls_Shutdown( void );
 void CG_DemoControls_Draw( void );
+void CG_SpecControls_Frame( void );
+void CG_SpecControls_Shutdown( void );
+void CG_SpecControls_Draw( void );
+qboolean CG_SpecControls_DynamicCamActive( void );
+qboolean CG_SpecControls_MouseEvent( int dx, int dy );
+qboolean CG_SpecControls_KeyEvent( int key, qboolean down );
 qboolean CG_DemoControls_IsSeeking( void );
 qboolean CG_DemoControls_IsPaused( void );
 void CG_DemoControls_PrepareSeekDraw( void );
@@ -1880,7 +1887,20 @@ void CG_DemoControls_PovView( vec3_t origin, vec3_t angles );
 void CG_DemoControls_PovAddViewWeapon( void );
 void CG_DemoControls_FreeCamView( vec3_t origin, vec3_t angles );
 
+void CG_Orbit_Set( qboolean on );
+qboolean CG_Orbit_Active( void );
+void CG_Orbit_Mouse( int dx, int dy );
+void CG_Orbit_Zoom( int notches );
+
+void CG_DemoControls_RefreshAttackKeys( void );
+qboolean CG_DemoControls_AttackKey( int key );
+
 void CG_DemoCams_LoadIfNeeded( void );
+void CG_DemoCams_NetFrame( void );
+void CG_DemoCams_NetCommand( void );
+int CG_DemoCams_ShareState( void );
+const char *CG_DemoCams_ShareLabel( void );
+void CG_DemoCams_ShareActivate( void );
 void CG_DemoCams_Load( void );
 void CG_DemoCams_Save( void );
 qboolean CG_DemoCams_IsDirty( void );
@@ -2001,6 +2021,7 @@ void CG_DrawItemTimerPie( const centity_t *cent );
 qboolean CG_HudItemTimersAllowed( void );
 void CG_DrawSpecItemTimers( void );
 void CG_DrawSpecPlayerStatus( void );
+void CG_DrawSpectatorEyes( void );
 void CG_DemoPlayerStatusReset( int clientNum );
 int CG_ItemTimersCollect( cgItemTimer_t *out, int max, int sideFilter, int bitMask );
 int CG_ItemTimerFollowSideFilter( int itTeam );

@@ -67,6 +67,7 @@ typedef struct {
 } demoCam_t;
 
 typedef struct {
+	int			netId;
 	int			n;
 	vec3_t		pts[DEMORAIL_PTS];
 } demoRail_t;
@@ -80,6 +81,11 @@ static qboolean		drailStartNew;
 static char			dcamLoadedMap[MAX_QPATH];
 static qboolean		dcamShow = qfalse;
 static qboolean		dcamDirty = qfalse;
+static int			dcamNetMode;
+static qboolean		dcamNetOpen;
+static qboolean		dcamApplyingNet;
+static int			dcamNetGen;
+static int			dcamNetRev = -1;
 
 static int			dcamCur = -1;
 static int			dcamKind = DEMOCAM_KIND_STILL;
@@ -126,8 +132,12 @@ static float DemoCam_AngleBetween( const vec3_t a, const vec3_t b );
 static int DemoCam_NearestIndex( void );
 static qboolean DemoCam_RailInsert( demoRail_t *r, int at, const vec3_t p );
 static int DemoCam_RailInsertAt( const demoRail_t *r, const vec3_t p );
+static qboolean DemoCam_RailLinksClear( const demoRail_t *r, int at, const vec3_t p );
 static qboolean DemoCam_ReadFile( const char *path, qboolean quiet );
 static qboolean DemoCam_WriteFile( const char *path, qboolean quiet );
+static void DemoCam_NetSendCam( const vec3_t origin, const vec3_t angles, qboolean dynamic, qboolean remove );
+static void DemoCam_NetSendRail( int idx );
+static void DemoCam_NetSendRailGone( int id, const vec3_t first );
 
 static void DemoCam_FilePath( char *out, int outSize ) {
 	const char	*map;
@@ -1409,15 +1419,14 @@ static qboolean DemoCam_UpdateRest( int idx, const vec3_t lookAt ) {
 }
 
 void CG_DemoCams_LoadIfNeeded( void ) {
-	if ( !cg.demoPlayback ) {
-		return;
-	}
 	if ( !cgs.mapbasename[0] ) {
 		return;
 	}
 	if ( !Q_stricmp( dcamLoadedMap, cgs.mapbasename ) ) {
 		return;
 	}
+	dcamNetMode = 0;
+	dcamNetOpen = qfalse;
 	DemoCam_LoadFromDisk( qfalse );
 	dcamDirty = qfalse;
 }
@@ -1447,6 +1456,7 @@ void CG_DemoCams_AddCurrent( void ) {
 	dcamCount++;
 	dcamShow = qtrue;
 	dcamDirty = qtrue;
+	DemoCam_NetSendCam( dcams[dcamCount - 1].origin, dcams[dcamCount - 1].angles, qtrue, qfalse );
 	CG_Printf( "Added dynamic camera %d at (%.0f %.0f %.0f)\n",
 			dcamCount,
 			dcams[dcamCount - 1].origin[0],
@@ -1514,6 +1524,7 @@ void CG_DemoCams_AddRailPoint( void ) {
 			return;
 		}
 		drailEdit = drailCount;
+		drails[drailEdit].netId = 0;
 		drails[drailEdit].n = 0;
 		drailCount++;
 		drailStartNew = qfalse;
@@ -1524,11 +1535,16 @@ void CG_DemoCams_AddRailPoint( void ) {
 		return;
 	}
 	at = DemoCam_RailInsertAt( r, cg.refdef.vieworg );
+	if ( !DemoCam_RailLinksClear( r, at, cg.refdef.vieworg ) ) {
+		CG_Printf( "Rail node blocked. No line of sight to the neighboring node.\n" );
+		return;
+	}
 	if ( !DemoCam_RailInsert( r, at, cg.refdef.vieworg ) ) {
 		return;
 	}
 	dcamShow = qtrue;
 	dcamDirty = qtrue;
+	DemoCam_NetSendRail( drailEdit );
 	CG_Printf( "Rail %d point %d at (%.0f %.0f %.0f)\n",
 			drailEdit + 1, at + 1,
 			r->pts[at][0], r->pts[at][1], r->pts[at][2] );
@@ -1607,6 +1623,7 @@ void CG_DemoCams_SplitRail( void ) {
 		VectorCopy( src->pts[bestSeg + j], dst->pts[j] );
 	}
 	src->n = bestSeg;
+	dst->netId = 0;
 	drailCount++;
 	drailEdit = bestRail;
 	drailStartNew = qfalse;
@@ -1617,6 +1634,8 @@ void CG_DemoCams_SplitRail( void ) {
 	dcamDirty = qtrue;
 	CG_Printf( "Split rail %d into rails %d (%d pts) and %d (%d pts)\n",
 			bestRail + 1, bestRail + 1, src->n, drailCount, dst->n );
+	DemoCam_NetSendRail( bestRail );
+	DemoCam_NetSendRail( drailCount - 1 );
 }
 
 void CG_DemoCams_SetNearestDynamic( qboolean dynamic ) {
@@ -1630,6 +1649,7 @@ void CG_DemoCams_SetNearestDynamic( qboolean dynamic ) {
 	dcams[best].dynamic = dynamic;
 	dcamShow = qtrue;
 	dcamDirty = qtrue;
+	DemoCam_NetSendCam( dcams[best].origin, dcams[best].angles, dynamic, qfalse );
 	CG_Printf( "Camera %d is now %s\n", best + 1, dynamic ? "dynamic" : "fixed" );
 }
 
@@ -1652,6 +1672,8 @@ static qboolean DemoCam_RailInsert( demoRail_t *r, int at, const vec3_t p ) {
 }
 
 static int DemoCam_RailInsertAt( const demoRail_t *r, const vec3_t p ) {
+	vec3_t	dir;
+	vec3_t	delta;
 	vec3_t	q;
 	float	frac;
 	float	raw;
@@ -1667,7 +1689,16 @@ static int DemoCam_RailInsertAt( const demoRail_t *r, const vec3_t p ) {
 		return 1;
 	}
 
-	bestAt = r->n;
+	/* Plane through the last node, perpendicular to the last segment.
+	   Past that plane the node belongs on the end, even if an earlier
+	   segment happens to be closer. */
+	VectorSubtract( r->pts[r->n - 1], r->pts[r->n - 2], dir );
+	VectorSubtract( p, r->pts[r->n - 1], delta );
+	if ( DotProduct( dir, dir ) > 1.0f && DotProduct( delta, dir ) > 0.0f ) {
+		return r->n;
+	}
+
+	bestAt = r->n - 1;
 	bestDist = 999999.0f;
 	for ( s = 1; s < r->n; s++ ) {
 		DemoCam_ClosestOnSeg( r->pts[s - 1], r->pts[s], p, q, &frac );
@@ -1677,14 +1708,34 @@ static int DemoCam_RailInsertAt( const demoRail_t *r, const vec3_t p ) {
 			raw = DemoCam_SegT( r->pts[s - 1], r->pts[s], p );
 			if ( s == 1 && raw < 0.0f ) {
 				bestAt = 0;
-			} else if ( s == r->n - 1 && raw > 1.0f ) {
-				bestAt = r->n;
 			} else {
 				bestAt = s;
 			}
 		}
 	}
+	if ( bestAt > r->n ) {
+		bestAt = r->n;
+	}
 	return bestAt;
+}
+
+static qboolean DemoCam_RailLinksClear( const demoRail_t *r, int at, const vec3_t p ) {
+	if ( !r || r->n <= 0 ) {
+		return qtrue;
+	}
+	if ( at <= 0 ) {
+		return ( DemoCam_TraceFrac( p, r->pts[0] ) >= 1.0f ) ? qtrue : qfalse;
+	}
+	if ( at >= r->n ) {
+		return ( DemoCam_TraceFrac( p, r->pts[r->n - 1] ) >= 1.0f ) ? qtrue : qfalse;
+	}
+	if ( DemoCam_TraceFrac( p, r->pts[at - 1] ) < 1.0f ) {
+		return qfalse;
+	}
+	if ( DemoCam_TraceFrac( p, r->pts[at] ) < 1.0f ) {
+		return qfalse;
+	}
+	return qtrue;
 }
 
 static void DemoCam_RemoveCamAt( int idx ) {
@@ -1754,6 +1805,10 @@ void CG_DemoCams_JoinNearestToRail( void ) {
 
 	r = &drails[bestRail];
 	bestAt = DemoCam_RailInsertAt( r, dcams[bestCam].origin );
+	if ( !DemoCam_RailLinksClear( r, bestAt, dcams[bestCam].origin ) ) {
+		CG_Printf( "Rail node blocked. No line of sight to the neighboring node.\n" );
+		return;
+	}
 	if ( !DemoCam_RailInsert( r, bestAt, dcams[bestCam].origin ) ) {
 		return;
 	}
@@ -1762,8 +1817,15 @@ void CG_DemoCams_JoinNearestToRail( void ) {
 	dcamShow = qtrue;
 	CG_Printf( "Camera %d joined rail %d as point %d\n",
 			bestCam + 1, bestRail + 1, bestAt + 1 );
-	DemoCam_RemoveCamAt( bestCam );
-	dcamDirty = qtrue;
+	{
+		vec3_t	gone;
+
+		VectorCopy( dcams[bestCam].origin, gone );
+		DemoCam_RemoveCamAt( bestCam );
+		dcamDirty = qtrue;
+		DemoCam_NetSendCam( gone, gone, qfalse, qtrue );
+		DemoCam_NetSendRail( bestRail );
+	}
 }
 
 static int DemoCam_NearestRailInRange( float maxDist ) {
@@ -1868,12 +1930,20 @@ void CG_DemoCams_RemoveNearest( void ) {
 	}
 
 	if ( bestRail >= 0 && ( bestCam < 0 || bestRailDist <= bestCamDist ) ) {
+		vec3_t		first;
+		int			railId;
+		qboolean	railGone;
+
 		CG_Printf( "Removed rail %d point %d\n", bestRail + 1, bestPt + 1 );
+		railId = drails[bestRail].netId;
+		VectorCopy( drails[bestRail].pts[0], first );
+		railGone = qfalse;
 		for ( j = bestPt; j < drails[bestRail].n - 1; j++ ) {
 			VectorCopy( drails[bestRail].pts[j + 1], drails[bestRail].pts[j] );
 		}
 		drails[bestRail].n--;
 		if ( drails[bestRail].n <= 0 ) {
+			railGone = qtrue;
 			for ( i = bestRail; i < drailCount - 1; i++ ) {
 				drails[i] = drails[i + 1];
 			}
@@ -1892,12 +1962,23 @@ void CG_DemoCams_RemoveNearest( void ) {
 			dcamRailT = 0.0f;
 		}
 		dcamDirty = qtrue;
+		if ( railGone ) {
+			DemoCam_NetSendRailGone( railId, first );
+		} else {
+			DemoCam_NetSendRail( bestRail );
+		}
 		return;
 	}
 
 	CG_Printf( "Removed camera %d\n", bestCam + 1 );
-	DemoCam_RemoveCamAt( bestCam );
-	dcamDirty = qtrue;
+	{
+		vec3_t	gone;
+
+		VectorCopy( dcams[bestCam].origin, gone );
+		DemoCam_RemoveCamAt( bestCam );
+		dcamDirty = qtrue;
+		DemoCam_NetSendCam( gone, gone, qfalse, qtrue );
+	}
 }
 
 static qboolean DemoCam_ReadFile( const char *path, qboolean quiet ) {
@@ -2089,6 +2170,10 @@ static qboolean DemoCam_WriteFile( const char *path, qboolean quiet ) {
 }
 
 void CG_DemoCams_Load( void ) {
+	if ( dcamNetMode != 0 ) {
+		CG_Printf( "Leave the camera session before loading from disk.\n" );
+		return;
+	}
 	dcamLoadedMap[0] = '\0';
 	DemoCam_LoadFromDisk( qfalse );
 	dcamDirty = qfalse;
@@ -2226,9 +2311,6 @@ void CG_DemoCams_DirectorFrame( void ) {
 	qboolean	playerSwap;
 	qboolean	holdLos;
 
-	if ( !cg.demoPlayback ) {
-		return;
-	}
 	if ( dcamDirFrame == cg.clientFrame ) {
 		return;
 	}
@@ -2583,7 +2665,7 @@ void CG_DemoCams_AddMarkers( void ) {
 	float		t;
 	byte		a;
 
-	if ( !cg.demoPlayback || !dcamShow ) {
+	if ( !dcamShow ) {
 		return;
 	}
 	if ( dcamCount <= 0 && drailCount <= 0 ) {
@@ -2641,6 +2723,491 @@ void CG_DemoCams_AddMarkers( void ) {
 				VectorMA( drails[i].pts[j], t, dir, p );
 				DemoCam_AddSprite( icon, p, radius * 0.4f, (byte)( a - 40 ) );
 			}
+		}
+	}
+}
+
+#define CAMS_MAGIC_PARM			197
+#define CAMS_MAGIC_LIGHT		0x04A5E501
+#define CAMS_KIND_CAM			1
+#define CAMS_KIND_RAIL			2
+#define CAMS_KIND_DELCAM		3
+#define CAMS_KIND_DELRAIL		4
+#define CAMS_FLAG_OPEN			1
+#define CAMS_FLAG_COMMIT		2
+#define CAMS_NEAR				1.0f
+
+typedef struct {
+	int			id;
+	int			n;
+	int			rev;
+	qboolean	have[DEMORAIL_PTS];
+	vec3_t		pts[DEMORAIL_PTS];
+} demoNetRail_t;
+
+static qboolean		dcamNetCamSeen[DEMOCAM_MAX];
+static qboolean		dcamNetRailSeen[DEMORAIL_MAX];
+static demoNetRail_t	dcamNetRails[DEMORAIL_MAX];
+
+static void DemoCam_NetClearSeen( void ) {
+	memset( dcamNetCamSeen, 0, sizeof( dcamNetCamSeen ) );
+	memset( dcamNetRailSeen, 0, sizeof( dcamNetRailSeen ) );
+	memset( dcamNetRails, 0, sizeof( dcamNetRails ) );
+}
+
+static qboolean DemoCam_NetNear( const vec3_t a, const vec3_t b ) {
+	return ( Distance( a, b ) <= CAMS_NEAR ) ? qtrue : qfalse;
+}
+
+static void DemoCam_NetSendCam( const vec3_t origin, const vec3_t angles, qboolean dynamic, qboolean remove ) {
+	if ( dcamNetMode != 1 || dcamApplyingNet ) {
+		return;
+	}
+	if ( remove ) {
+		trap_SendClientCommand( va( "camup d %.2f %.2f %.2f",
+				origin[0], origin[1], origin[2] ) );
+		return;
+	}
+	trap_SendClientCommand( va( "camup c %.2f %.2f %.2f %.2f %.2f %d",
+			origin[0], origin[1], origin[2],
+			angles[0], angles[1], dynamic ? 1 : 0 ) );
+}
+
+static void DemoCam_NetSendRail( int idx ) {
+	char	buf[1024];
+	int		i;
+	int		n;
+
+	if ( dcamNetMode != 1 || dcamApplyingNet ) {
+		return;
+	}
+	if ( idx < 0 || idx >= drailCount || drails[idx].n <= 0 ) {
+		return;
+	}
+	Com_sprintf( buf, sizeof( buf ), "camup r %d %d", drails[idx].netId, drails[idx].n );
+	for ( i = 0; i < drails[idx].n; i++ ) {
+		n = (int)strlen( buf );
+		if ( n >= (int)sizeof( buf ) - 32 ) {
+			break;
+		}
+		Com_sprintf( buf + n, (int)sizeof( buf ) - n, " %.2f %.2f %.2f",
+				drails[idx].pts[i][0], drails[idx].pts[i][1], drails[idx].pts[i][2] );
+	}
+	trap_SendClientCommand( buf );
+}
+
+static void DemoCam_NetSendRailGone( int id, const vec3_t first ) {
+	if ( dcamNetMode != 1 || dcamApplyingNet ) {
+		return;
+	}
+	trap_SendClientCommand( va( "camup rd %d %.2f %.2f %.2f",
+			id, first[0], first[1], first[2] ) );
+}
+
+static void DemoCam_NetUploadAll( void ) {
+	int	i;
+
+	for ( i = 0; i < dcamCount; i++ ) {
+		trap_SendClientCommand( va( "camup c %.2f %.2f %.2f %.2f %.2f %d",
+				dcams[i].origin[0], dcams[i].origin[1], dcams[i].origin[2],
+				dcams[i].angles[0], dcams[i].angles[1],
+				dcams[i].dynamic ? 1 : 0 ) );
+	}
+	for ( i = 0; i < drailCount; i++ ) {
+		dcamNetMode = 1;
+		DemoCam_NetSendRail( i );
+	}
+}
+
+static void DemoCam_NetUpsertCam( const vec3_t origin, const vec3_t angles, qboolean dynamic ) {
+	int		i;
+	float	dp;
+	float	dy;
+
+	for ( i = 0; i < dcamCount; i++ ) {
+		if ( !DemoCam_NetNear( dcams[i].origin, origin ) ) {
+			continue;
+		}
+		dp = angles[0] - dcams[i].angles[0];
+		dy = angles[1] - dcams[i].angles[1];
+		if ( dp < 0.0f ) {
+			dp = -dp;
+		}
+		if ( dy < 0.0f ) {
+			dy = -dy;
+		}
+		if ( dcams[i].dynamic == dynamic && dp < 0.5f && dy < 0.5f ) {
+			return;
+		}
+		VectorCopy( angles, dcams[i].angles );
+		dcams[i].angles[ROLL] = 0.0f;
+		dcams[i].dynamic = dynamic;
+		dcamDirty = qtrue;
+		return;
+	}
+	if ( dcamCount >= DEMOCAM_MAX ) {
+		return;
+	}
+	VectorCopy( origin, dcams[dcamCount].origin );
+	VectorCopy( angles, dcams[dcamCount].angles );
+	dcams[dcamCount].angles[ROLL] = 0.0f;
+	dcams[dcamCount].dynamic = dynamic;
+	dcamCount++;
+	dcamShow = qtrue;
+	dcamDirty = qtrue;
+}
+
+static void DemoCam_NetDeleteCam( const vec3_t origin ) {
+	int	i;
+
+	for ( i = 0; i < dcamCount; i++ ) {
+		if ( !DemoCam_NetNear( dcams[i].origin, origin ) ) {
+			continue;
+		}
+		DemoCam_RemoveCamAt( i );
+		dcamDirty = qtrue;
+		return;
+	}
+}
+
+static qboolean DemoCam_NetRailSame( const demoRail_t *r, int n, vec3_t *pts ) {
+	int	i;
+
+	if ( r->n != n ) {
+		return qfalse;
+	}
+	for ( i = 0; i < n; i++ ) {
+		if ( !DemoCam_NetNear( r->pts[i], pts[i] ) ) {
+			return qfalse;
+		}
+	}
+	return qtrue;
+}
+
+static void DemoCam_NetCommitRail( int id, int n, vec3_t *pts ) {
+	int	i;
+	int	slot;
+	int	p;
+
+	for ( i = 0; i < drailCount; i++ ) {
+		if ( id > 0 && drails[i].netId == id ) {
+			break;
+		}
+		if ( ( id <= 0 || drails[i].netId <= 0 ) && drails[i].n > 0
+				&& DemoCam_NetNear( drails[i].pts[0], pts[0] ) ) {
+			break;
+		}
+	}
+	if ( i < drailCount ) {
+		slot = i;
+		if ( drails[slot].netId == id && DemoCam_NetRailSame( &drails[slot], n, pts ) ) {
+			return;
+		}
+		drails[slot].netId = id;
+		drails[slot].n = n;
+		for ( p = 0; p < n; p++ ) {
+			VectorCopy( pts[p], drails[slot].pts[p] );
+		}
+		dcamDirty = qtrue;
+		return;
+	}
+	if ( drailCount >= DEMORAIL_MAX || n <= 0 ) {
+		return;
+	}
+	drails[drailCount].netId = id;
+	drails[drailCount].n = n;
+	for ( i = 0; i < n; i++ ) {
+		VectorCopy( pts[i], drails[drailCount].pts[i] );
+	}
+	drailCount++;
+	dcamShow = qtrue;
+	dcamDirty = qtrue;
+}
+
+static void DemoCam_NetDeleteRail( int id, const vec3_t origin ) {
+	int	i;
+	int	j;
+
+	for ( i = 0; i < drailCount; i++ ) {
+		if ( id > 0 && drails[i].netId == id ) {
+			break;
+		}
+		if ( drails[i].n > 0 && DemoCam_NetNear( drails[i].pts[0], origin ) ) {
+			break;
+		}
+	}
+	if ( i >= drailCount ) {
+		return;
+	}
+	for ( j = i; j < drailCount - 1; j++ ) {
+		drails[j] = drails[j + 1];
+	}
+	drailCount--;
+	if ( drailEdit == i ) {
+		drailEdit = drailCount - 1;
+	} else if ( drailEdit > i ) {
+		drailEdit--;
+	}
+	dcamDirty = qtrue;
+}
+
+static void DemoCam_NetReadPoint( const entityState_t *es, int slot, vec3_t p ) {
+	if ( slot == 0 ) {
+		VectorCopy( es->origin, p );
+	} else if ( slot == 1 ) {
+		VectorCopy( es->origin2, p );
+	} else if ( slot == 2 ) {
+		VectorCopy( es->pos.trBase, p );
+	} else {
+		VectorCopy( es->apos.trBase, p );
+	}
+}
+
+static void DemoCam_NetAbsorbRail( const entityState_t *es ) {
+	demoNetRail_t	*b;
+	int				ri;
+	int				base;
+	int				count;
+	int				p;
+	int				i;
+	qboolean		full;
+
+	ri = es->otherEntityNum2;
+	if ( ri < 0 || ri >= DEMORAIL_MAX ) {
+		return;
+	}
+	b = &dcamNetRails[ri];
+	if ( b->rev != es->time || b->n != es->weapon || b->id != es->modelindex ) {
+		memset( b, 0, sizeof( *b ) );
+		b->rev = es->time;
+		b->n = es->weapon;
+		b->id = es->modelindex;
+		dcamNetRailSeen[ri] = qfalse;
+	}
+	if ( b->n < 1 || b->n > DEMORAIL_PTS ) {
+		return;
+	}
+	base = es->legsAnim;
+	count = es->torsoAnim;
+	if ( count < 1 || count > 4 ) {
+		return;
+	}
+	for ( p = 0; p < count; p++ ) {
+		if ( base + p < 0 || base + p >= b->n ) {
+			continue;
+		}
+		DemoCam_NetReadPoint( es, p, b->pts[base + p] );
+		b->have[base + p] = qtrue;
+	}
+	full = qtrue;
+	for ( i = 0; i < b->n; i++ ) {
+		if ( !b->have[i] ) {
+			full = qfalse;
+			break;
+		}
+	}
+	if ( !full ) {
+		return;
+	}
+	DemoCam_NetCommitRail( b->id, b->n, b->pts );
+	dcamNetRailSeen[ri] = qtrue;
+}
+
+static qboolean DemoCam_NetRecvDone( int camCount, int railCount ) {
+	int	i;
+
+	if ( camCount < 0 ) {
+		camCount = 0;
+	}
+	if ( railCount < 0 ) {
+		railCount = 0;
+	}
+	if ( camCount > DEMOCAM_MAX ) {
+		camCount = DEMOCAM_MAX;
+	}
+	if ( railCount > DEMORAIL_MAX ) {
+		railCount = DEMORAIL_MAX;
+	}
+	for ( i = 0; i < camCount; i++ ) {
+		if ( !dcamNetCamSeen[i] ) {
+			return qfalse;
+		}
+	}
+	for ( i = 0; i < railCount; i++ ) {
+		if ( !dcamNetRailSeen[i] ) {
+			return qfalse;
+		}
+	}
+	return qtrue;
+}
+
+static void DemoCam_NetApply( const entityState_t *es ) {
+	int			kind;
+	int			idx;
+	qboolean	open;
+	qboolean	committed;
+	vec3_t		origin;
+	vec3_t		angles;
+
+	open = ( es->modelindex2 & CAMS_FLAG_OPEN ) ? qtrue : qfalse;
+	committed = ( es->modelindex2 & CAMS_FLAG_COMMIT ) ? qtrue : qfalse;
+	dcamNetOpen = open;
+	if ( !open ) {
+		if ( dcamNetMode != 0 ) {
+			dcamNetMode = 0;
+			CG_Printf( "Camera session ended.\n" );
+		}
+		return;
+	}
+	if ( es->otherEntityNum != dcamNetGen ) {
+		dcamNetGen = es->otherEntityNum;
+		dcamNetRev = -1;
+	}
+	if ( es->time != dcamNetRev ) {
+		dcamNetRev = es->time;
+		DemoCam_NetClearSeen();
+	}
+	if ( dcamNetMode != 1 && dcamNetMode != 2 ) {
+		return;
+	}
+	kind = es->generic1;
+	dcamApplyingNet = qtrue;
+	if ( kind == CAMS_KIND_CAM ) {
+		idx = es->otherEntityNum2;
+		VectorCopy( es->origin, origin );
+		VectorCopy( es->angles, angles );
+		DemoCam_NetUpsertCam( origin, angles, es->weapon ? qtrue : qfalse );
+		if ( idx >= 0 && idx < DEMOCAM_MAX ) {
+			dcamNetCamSeen[idx] = qtrue;
+		}
+	} else if ( kind == CAMS_KIND_RAIL ) {
+		DemoCam_NetAbsorbRail( es );
+	} else if ( kind == CAMS_KIND_DELCAM ) {
+		DemoCam_NetDeleteCam( es->origin );
+	} else if ( kind == CAMS_KIND_DELRAIL ) {
+		DemoCam_NetDeleteRail( es->modelindex, es->origin );
+	}
+	dcamApplyingNet = qfalse;
+	if ( dcamNetMode == 2 && committed
+			&& DemoCam_NetRecvDone( es->powerups, es->frame ) ) {
+		dcamNetMode = 1;
+		dcamShow = qtrue;
+		dcamDirty = qtrue;
+		CG_Printf( "Joined the camera session (%d cameras, %d rails).\n",
+				dcamCount, drailCount );
+	}
+}
+
+void CG_DemoCams_NetFrame( void ) {
+	int					i;
+	const entityState_t	*es;
+
+	if ( cg.demoPlayback || !cg.snap ) {
+		return;
+	}
+	for ( i = 0; i < cg.snap->numEntities; i++ ) {
+		es = &cg.snap->entities[i];
+		if ( es->eType != ET_INVISIBLE ) {
+			continue;
+		}
+		if ( es->eventParm != CAMS_MAGIC_PARM || es->constantLight != CAMS_MAGIC_LIGHT ) {
+			continue;
+		}
+		DemoCam_NetApply( es );
+		return;
+	}
+}
+
+int CG_DemoCams_ShareState( void ) {
+	if ( dcamNetMode == 1 ) {
+		return 3;
+	}
+	if ( dcamNetMode == 2 || dcamNetMode == 3 || dcamNetMode == 4 ) {
+		return 2;
+	}
+	if ( dcamNetOpen ) {
+		return 1;
+	}
+	return 0;
+}
+
+const char *CG_DemoCams_ShareLabel( void ) {
+	if ( dcamNetMode == 1 ) {
+		return "Leave";
+	}
+	if ( dcamNetMode == 3 ) {
+		return "Starting";
+	}
+	if ( dcamNetMode == 2 || dcamNetMode == 4 ) {
+		return "Joining";
+	}
+	if ( dcamNetOpen ) {
+		return "Join";
+	}
+	return "Start";
+}
+
+void CG_DemoCams_ShareActivate( void ) {
+	if ( dcamNetMode == 1 ) {
+		trap_SendClientCommand( "camsession leave" );
+		dcamNetMode = 0;
+		CG_Printf( "Left the camera session. This set stays on your client.\n" );
+		return;
+	}
+	if ( dcamNetMode != 0 ) {
+		return;
+	}
+	if ( dcamNetOpen ) {
+		dcamNetMode = 4;
+		trap_SendClientCommand( "camsession join" );
+		return;
+	}
+	if ( dcamCount <= 0 && drailCount <= 0 ) {
+		CG_Printf( "Place or load cameras before starting a session.\n" );
+		return;
+	}
+	dcamNetMode = 3;
+	trap_SendClientCommand( "camsession start" );
+}
+
+void CG_DemoCams_NetCommand( void ) {
+	const char	*sub;
+
+	sub = CG_Argv( 1 );
+	if ( !Q_stricmp( sub, "start" ) ) {
+		dcamNetMode = 1;
+		dcamNetOpen = qtrue;
+		DemoCam_NetUploadAll();
+		trap_SendClientCommand( "camsession commit" );
+		CG_Printf( "Camera session started. Uploaded %d cameras and %d rails.\n",
+				dcamCount, drailCount );
+		return;
+	}
+	if ( !Q_stricmp( sub, "deny" ) ) {
+		if ( dcamNetMode == 3 || dcamNetMode == 4 ) {
+			dcamNetMode = 0;
+		}
+		return;
+	}
+	if ( !Q_stricmp( sub, "join" ) ) {
+		dcamApplyingNet = qtrue;
+		dcamCount = 0;
+		drailCount = 0;
+		drailEdit = -1;
+		drailStartNew = qfalse;
+		DemoCam_ResetDirector();
+		dcamApplyingNet = qfalse;
+		DemoCam_NetClearSeen();
+		dcamNetRev = -1;
+		dcamNetMode = 2;
+		dcamDirty = qtrue;
+		CG_Printf( "Joining the camera session. Waiting for the server's set.\n" );
+		return;
+	}
+	if ( !Q_stricmp( sub, "end" ) ) {
+		if ( dcamNetMode != 0 ) {
+			dcamNetMode = 0;
+			CG_Printf( "Camera session ended.\n" );
 		}
 	}
 }

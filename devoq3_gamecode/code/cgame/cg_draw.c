@@ -6209,6 +6209,7 @@ static void CG_DrawIntermission( void ) {
 	if ( cgs.gametype == GT_SINGLE_PLAYER ) {
 		CG_DrawCenterString();
 		CG_DemoControls_Draw();
+		CG_SpecControls_Draw();
 		return;
 	}
 #endif
@@ -6226,6 +6227,7 @@ static void CG_DrawIntermission( void ) {
 	}
 
 	CG_DemoControls_Draw();
+	CG_SpecControls_Draw();
 }
 
 
@@ -6950,6 +6952,276 @@ static void CG_DemoStatusStepAlpha( float *alpha, float target, int dt ) {
 	}
 }
 
+/*
+=================
+CG_SpecEyeHeight
+
+Screen height of a player-sized sprite at this point. Grows as the camera
+approaches, matching how a player model would project.
+=================
+*/
+static float CG_SpecEyeHeight( const vec3_t origin ) {
+	vec3_t	trans;
+	float	z;
+	float	ay;
+	float	py;
+	float	h;
+
+	VectorSubtract( origin, cg.refdef.vieworg, trans );
+	z = DotProduct( trans, cg.refdef.viewaxis[0] );
+	if ( z < 24.0f ) {
+		z = 24.0f;
+	}
+	ay = cg.refdef.fov_y * ( M_PI / 360.0f );
+	py = sin( ay ) / cos( ay );
+	if ( py < 0.001f ) {
+		py = 0.001f;
+	}
+	h = 240.0f * 52.0f / ( z * py );
+	if ( h < 8.0f ) {
+		h = 8.0f;
+	} else if ( h > 200.0f ) {
+		h = 200.0f;
+	}
+	return h;
+}
+
+static qboolean CG_SpecEyesOpenToPlayers( void ) {
+	if ( CG_IsHudWarmup() ) {
+		return qtrue;
+	}
+	if ( cg.snap->ps.pm_type == PM_INTERMISSION ) {
+		return qtrue;
+	}
+	if ( cgs.timeoutEnd > cg.time ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+static float CG_SpecStatusBoxHeight( float scale ) {
+	float	charH;
+	float	pip;
+	float	barH;
+	float	pad;
+
+	if ( scale < 0.80f ) {
+		scale = 0.80f;
+	} else if ( scale > 1.05f ) {
+		scale = 1.05f;
+	}
+	charH = 6.0f * scale;
+	pip = 4.0f * scale;
+	barH = 2.0f * scale;
+	pad = 2.0f * scale;
+	return pad + charH + 2.0f + pip + 2.0f + barH + pad;
+}
+
+static float CG_SpecEyeSlotWidth( int clientNum, float h, float *nameHOut ) {
+	float	w;
+	float	nameH;
+	float	charW;
+	float	nameW;
+	int		len;
+
+	w = CG_HeightToWidth( h );
+	nameH = h * 0.22f;
+	if ( nameH < 6.0f ) {
+		nameH = 6.0f;
+	} else if ( nameH > 11.0f ) {
+		nameH = 11.0f;
+	}
+	charW = CG_HeightToWidth( nameH );
+	len = CG_DrawStrlen( cgs.clientinfo[clientNum].name );
+	nameW = (float)len * charW;
+	if ( nameW > w ) {
+		w = nameW;
+	}
+	if ( nameHOut ) {
+		*nameHOut = nameH;
+	}
+	return w;
+}
+
+static void CG_DrawSpecEyeIcon( float cx, float bottom, float h, int clientNum ) {
+	float		w;
+	float		nameH;
+	float		charW;
+	float		nameW;
+	vec4_t		color;
+	const char	*name;
+
+	if ( !cgs.media.specEyeShader || clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+	w = CG_HeightToWidth( h );
+	trap_R_SetColor( NULL );
+	CG_DrawPic( cx - w * 0.5f, bottom - h, w, h, cgs.media.specEyeShader );
+
+	name = cgs.clientinfo[clientNum].name;
+	nameH = h * 0.22f;
+	if ( nameH < 6.0f ) {
+		nameH = 6.0f;
+	} else if ( nameH > 11.0f ) {
+		nameH = 11.0f;
+	}
+	charW = CG_HeightToWidth( nameH );
+	nameW = (float)CG_DrawStrlen( name ) * charW;
+	Vector4Copy( colorWhite, color );
+	CG_DrawStringExtFloat( cx - nameW * 0.5f, bottom - h - nameH - 1.0f,
+			name, color, qfalse, qtrue, charW, nameH, 0 );
+}
+
+static void CG_DrawSpecEyeRow( float cx, float bottom, const int *clients, int count, float h ) {
+	float	slot;
+	float	gap;
+	float	rowW;
+	float	x;
+	int		i;
+
+	if ( count < 1 || h <= 0.0f ) {
+		return;
+	}
+	gap = 4.0f;
+	rowW = 0.0f;
+	for ( i = 0; i < count; i++ ) {
+		rowW += CG_SpecEyeSlotWidth( clients[i], h, NULL );
+	}
+	rowW += gap * (float)( count - 1 );
+	x = cx - rowW * 0.5f;
+	for ( i = 0; i < count; i++ ) {
+		slot = CG_SpecEyeSlotWidth( clients[i], h, NULL );
+		CG_DrawSpecEyeIcon( x + slot * 0.5f, bottom, h, clients[i] );
+		x += slot + gap;
+	}
+}
+
+static qboolean CG_SpecEyePlayerOrigin( int clientNum, vec3_t origin ) {
+	centity_t		*cent;
+	clientInfo_t	*ci;
+
+	cent = &cg_entities[clientNum];
+	ci = &cgs.clientinfo[clientNum];
+	if ( clientNum == cg.snap->ps.clientNum && cg.renderingThirdPerson ) {
+		VectorCopy( cg.predictedPlayerEntity.lerpOrigin, origin );
+	} else if ( cent->currentValid && cent->currentState.eType == ET_PLAYER ) {
+		VectorCopy( cent->lerpOrigin, origin );
+	} else if ( ci->specInfoValid ) {
+		VectorCopy( ci->specOrigin, origin );
+	} else {
+		return qfalse;
+	}
+	origin[2] += 48.0f;
+	return qtrue;
+}
+
+/*
+=================
+CG_DrawSpectatorEyes
+
+Free spectators are an eye at their camera, with their name above it.
+Spectators following a player stack an eye above that player's status box.
+Other spectators always see them. Players see them only while the match
+is not being played: warmup, the wait before a round, timeout, or intermission.
+=================
+*/
+void CG_DrawSpectatorEyes( void ) {
+	int				i;
+	int				n;
+	int				target;
+	int				followCount[MAX_CLIENTS];
+	int				followSpec[MAX_CLIENTS][8];
+	centity_t		*cent;
+	clientInfo_t	*ci;
+	vec3_t			origin;
+	float			sx;
+	float			sy;
+	float			h;
+	float			bottom;
+	qboolean		localSpec;
+	int				one;
+
+	if ( !cg.snap || !cgs.media.specEyeShader ) {
+		return;
+	}
+	if ( cg.showScores ) {
+		return;
+	}
+	if ( cg.clientNum < 0 || cg.clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+	ci = &cgs.clientinfo[cg.clientNum];
+	localSpec = ( ci->infoValid && ci->team == TEAM_SPECTATOR ) ? qtrue : qfalse;
+	if ( !localSpec && !CG_SpecEyesOpenToPlayers() ) {
+		return;
+	}
+
+	memset( followCount, 0, sizeof( followCount ) );
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		if ( i == cg.clientNum ) {
+			continue;
+		}
+		cent = &cg_entities[i];
+		if ( !cent->currentValid || cent->currentState.eType != ET_INVISIBLE ) {
+			continue;
+		}
+		ci = &cgs.clientinfo[i];
+		if ( !ci->infoValid || ci->team != TEAM_SPECTATOR ) {
+			continue;
+		}
+		if ( cent->currentState.generic1 == 1 ) {
+			VectorCopy( cent->lerpOrigin, origin );
+			if ( !CG_WorldToScreen( origin, &sx, &sy ) ) {
+				continue;
+			}
+			if ( sx < -80.0f || sx > 720.0f || sy < -80.0f || sy > 560.0f ) {
+				continue;
+			}
+			h = CG_SpecEyeHeight( origin );
+			one = i;
+			CG_DrawSpecEyeRow( sx, sy + h * 0.5f, &one, 1, h );
+		} else if ( cent->currentState.generic1 == 2 ) {
+			target = cent->currentState.otherEntityNum;
+			if ( target < 0 || target >= MAX_CLIENTS ) {
+				continue;
+			}
+			if ( CG_DemoControls_IsFirstPersonClient( target ) ) {
+				continue;
+			}
+			n = followCount[target];
+			if ( n < 8 ) {
+				followSpec[target][n] = i;
+				followCount[target] = n + 1;
+			}
+		}
+	}
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		if ( followCount[i] < 1 ) {
+			continue;
+		}
+		if ( !CG_SpecEyePlayerOrigin( i, origin ) ) {
+			continue;
+		}
+		if ( !CG_WorldToScreen( origin, &sx, &sy ) ) {
+			continue;
+		}
+		if ( sx < -80.0f || sx > 720.0f || sy < -80.0f || sy > 560.0f ) {
+			continue;
+		}
+		h = CG_SpecEyeHeight( origin );
+		if ( h > 36.0f ) {
+			h = 36.0f;
+		}
+		bottom = sy;
+		if ( CG_SpecPlayerStatusActive() && cgs.clientinfo[i].health > 0 ) {
+			bottom = sy - CG_SpecStatusBoxHeight( 1.0f ) - 3.0f;
+		}
+		CG_DrawSpecEyeRow( sx, bottom, followSpec[i], followCount[i], h );
+	}
+}
+
 void CG_DrawSpecPlayerStatus( void ) {
 	int				i;
 	clientInfo_t	*ci;
@@ -7129,9 +7401,11 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		return;
 	}
 
-	if ( cg_draw2D.integer == 0 || CG_DemoControls_PovActive() ) {
-		if ( cg.demoPlayback && !CG_DemoControls_PovActive() ) {
+	if ( cg_draw2D.integer == 0 || CG_DemoControls_PovActive()
+			|| CG_SpecControls_DynamicCamActive() ) {
+		if ( !CG_DemoControls_PovActive() ) {
 			CG_DrawSpecPlayerStatus();
+			CG_DrawSpectatorEyes();
 		}
 		if ( CG_DemoControls_PovTrackingActive() && stereoFrame == STEREO_CENTER ) {
 			if ( CG_DemoControls_PovEyesActive() ) {
@@ -7142,6 +7416,7 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 			}
 		}
 		CG_DemoControls_Draw();
+		CG_SpecControls_Draw();
 		return;
 	}
 
@@ -7287,6 +7562,7 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 
 	CG_DrawSpecItemTimers();
 	CG_DrawSpecPlayerStatus();
+	CG_DrawSpectatorEyes();
 
 	//if ( !CG_DrawFollow() ) {
 	//	CG_DrawWarmup();
@@ -7329,6 +7605,7 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 
 	CG_DrawMessagePromptBackground();
 	CG_DemoControls_Draw();
+	CG_SpecControls_Draw();
 }
 
 
@@ -7358,12 +7635,14 @@ void CG_DrawActive( stereoFrame_t stereoView ) {
 		( cg.snap->ps.pm_flags & PMF_SCOREBOARD ) ) {
 		CG_DrawTourneyScoreboard();
 		CG_DemoControls_Draw();
+		CG_SpecControls_Draw();
 		return;
 	}
 
 	if ( CG_DemoControls_IsSeeking() ) {
 		if ( !CG_DemoControls_SeekWantsKeyframe() ) {
 			CG_DemoControls_Draw();
+			CG_SpecControls_Draw();
 			return;
 		}
 
@@ -7373,6 +7652,7 @@ void CG_DrawActive( stereoFrame_t stereoView ) {
 		}
 		trap_R_RenderScene( &cg.refdef );
 		CG_DemoControls_Draw();
+		CG_SpecControls_Draw();
 		return;
 	}
 

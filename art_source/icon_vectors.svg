@@ -10,9 +10,9 @@
    inkscape:version="1.4.4 (dcaf3e7, 2026-05-05)"
    sodipodi:docname="icon_vectors.svg"
    xml:space="preserve"
-   inkscape:export-filename="camrail.png"
-   inkscape:export-xdpi="48"
-   inkscape:export-ydpi="48"
+   inkscape:export-filename="eye.png"
+   inkscape:export-xdpi="96"
+   inkscape:export-ydpi="96"
    inkscape:export-batch-name=""
    inkscape:export-batch-path="Batch"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
@@ -31,14 +31,14 @@
      inkscape:document-units="px"
      showgrid="true"
      inkscape:zoom="2.8284271"
-     inkscape:cx="91.923882"
-     inkscape:cy="161.39712"
+     inkscape:cx="138.23938"
+     inkscape:cy="188.62074"
      inkscape:window-width="2560"
      inkscape:window-height="1377"
      inkscape:window-x="-8"
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
-     inkscape:current-layer="layer45"
+     inkscape:current-layer="layer46"
      labelstyle="default"
      inkscape:antialias-rendering="true"
      inkscape:clip-to-page="false"
@@ -553,6 +553,13 @@
          style="opacity:1;fill:#008000;stroke:#000000;stroke-width:2;stroke-linecap:round;stroke-dasharray:none;paint-order:fill markers stroke"
          d="m 112,120 32,32 v 0 m -32,-32 32,-32 v 0 0" /></g><g
        inkscape:groupmode="layer"
+       id="layer46"
+       inkscape:label="Eye 2"
+       style="display:inline"><path
+         id="path109"
+         style="fill:#ffffff;stroke-width:15;stroke-linecap:round;paint-order:fill markers stroke"
+         d="M 128 64 C 56 64 8 128 8 128 C 8 128 56 192 128 192 C 200 192 248 128 248 128 C 248 128 200 64 128 64 z M 128 72 A 56 56 0 0 1 184 128 A 56 56 0 0 1 128 184 A 56 56 0 0 1 72 128 A 56 56 0 0 1 128 72 z M 128 88 A 40 40 0 0 0 88 128 A 40 40 0 0 0 128 168 A 40 40 0 0 0 168 128 A 40 40 0 0 0 128 88 z " /></g><g
+       inkscape:groupmode="layer"
        id="layer45"
        inkscape:label="Camera Rail (Active)"
        style="display:none"><circle
@@ -565,7 +572,7 @@
        inkscape:groupmode="layer"
        id="g28"
        inkscape:label="Camera Rail"
-       style="display:inline"><circle
+       style="display:none"><circle
          style="display:inline;fill:#008080;stroke-width:1.06667;stroke-linecap:round;paint-order:fill markers stroke"
          id="circle26"
          cx="128"
@@ -755,7 +762,7 @@
              inkscape:label="Text"><tspan
                x="8"
                y="93.42565"
-               id="tspan10">A</tspan></text><path
+               id="tspan1">A</tspan></text><path
              style="display:inline;fill:url(#linearGradient25);fill-opacity:1;stroke-width:19.285;stroke-linecap:round;stroke-linejoin:bevel"
              d="M 108.715,252.85419 V 46.57 H 89.430008 L 128.00001,8 166.57,46.57 h -19.28499 v 206.28419 l -19.285,-19.285 z"
              id="path84"
@@ -773,7 +780,7 @@
              inkscape:label="Text"><tspan
                x="8"
                y="93.42565"
-               id="tspan11">W</tspan></text><path
+               id="tspan2">W</tspan></text><path
              style="display:inline;fill:url(#linearGradient25);fill-opacity:1;stroke-width:19.285;stroke-linecap:round;stroke-linejoin:bevel"
              d="M 108.715,252.85419 V 46.57 H 89.430008 L 128.00001,8 166.57,46.57 h -19.28499 v 206.28419 l -19.285,-19.285 z"
              id="path43"
@@ -881,7 +888,7 @@
              inkscape:label="Text"><tspan
                x="8"
                y="93.42565"
-               id="tspan12">P</tspan></text><path
+               id="tspan3">P</tspan></text><path
              style="display:inline;fill:url(#linearGradient25);fill-opacity:1;stroke-width:19.285;stroke-linecap:round;stroke-linejoin:bevel"
              d="M 108.715,252.85419 V 46.57 H 89.430008 L 128.00001,8 166.57,46.57 h -19.28499 v 206.28419 l -19.285,-19.285 z"
              id="path97"
@@ -1462,7 +1469,7 @@
              inkscape:label="Text"><tspan
                x="8"
                y="93.42565"
-               id="tspan13">A</tspan></text><path
+               id="tspan4">A</tspan></text><path
              style="display:inline;fill:url(#linearGradient25);fill-opacity:1;stroke-width:19.285;stroke-linecap:round;stroke-linejoin:bevel"
              d="M 108.715,252.85419 V 46.57 H 89.430008 L 128.00001,8 166.57,46.57 h -19.28499 v 206.28419 l -19.285,-19.285 z"
              id="path39"
@@ -1480,7 +1487,7 @@
              inkscape:label="Text"><tspan
                x="8"
                y="93.42565"
-               id="tspan14">W</tspan></text><path
+               id="tspan5">W</tspan></text><path
              style="display:inline;fill:url(#linearGradient25);fill-opacity:1;stroke-width:19.285;stroke-linecap:round;stroke-linejoin:bevel"
              d="M 108.715,252.85419 V 46.57 H 89.430008 L 128.00001,8 166.57,46.57 h -19.28499 v 206.28419 l -19.285,-19.285 z"
              id="path40"
@@ -1588,7 +1595,7 @@
              inkscape:label="Text"><tspan
                x="8"
                y="93.42565"
-               id="tspan15">P</tspan></text><path
+               id="tspan6">P</tspan></text><path
              style="display:inline;fill:url(#linearGradient25);fill-opacity:1;stroke-width:19.285;stroke-linecap:round;stroke-linejoin:bevel"
              d="M 108.715,252.85419 V 46.57 H 89.430008 L 128.00001,8 166.57,46.57 h -19.28499 v 206.28419 l -19.285,-19.285 z"
              id="path61"
@@ -2171,7 +2178,7 @@
              inkscape:label="Text"><tspan
                x="8"
                y="93.42565"
-               id="tspan16">A</tspan></text><path
+               id="tspan7">A</tspan></text><path
              style="display:inline;fill:url(#linearGradient25);fill-opacity:1;stroke-width:19.285;stroke-linecap:round;stroke-linejoin:bevel"
              d="M 108.715,252.85419 V 46.57 H 89.430008 L 128.00001,8 166.57,46.57 h -19.28499 v 206.28419 l -19.285,-19.285 z"
              id="path165"
@@ -2189,7 +2196,7 @@
              inkscape:label="Text"><tspan
                x="8"
                y="93.42565"
-               id="tspan17">W</tspan></text><path
+               id="tspan8">W</tspan></text><path
              style="display:inline;fill:url(#linearGradient25);fill-opacity:1;stroke-width:19.285;stroke-linecap:round;stroke-linejoin:bevel"
              d="M 108.715,252.85419 V 46.57 H 89.430008 L 128.00001,8 166.57,46.57 h -19.28499 v 206.28419 l -19.285,-19.285 z"
              id="path166"
@@ -2306,7 +2313,7 @@
              inkscape:label="Text"><tspan
                x="8"
                y="93.42565"
-               id="tspan18">P</tspan></text><path
+               id="tspan9">P</tspan></text><path
              style="display:inline;fill:url(#linearGradient25);fill-opacity:1;stroke-width:19.285;stroke-linecap:round;stroke-linejoin:bevel"
              d="M 108.715,252.85419 V 46.57 H 89.430008 L 128.00001,8 166.57,46.57 h -19.28499 v 206.28419 l -19.285,-19.285 z"
              id="path177"

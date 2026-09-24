@@ -4682,6 +4682,9 @@ commands_t cmds[ ] =
 
   // game commands
 
+  { "camsession", 0, Cmd_CamSession_f },
+  { "camup", 0, Cmd_CamUp_f },
+
   { "follow", CMD_NOTEAM, Cmd_Follow_f },
   { "follownext", CMD_NOTEAM, Cmd_FollowCycle_f },
   { "followprev", CMD_NOTEAM, Cmd_FollowCycle_f },

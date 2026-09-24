@@ -707,12 +707,8 @@ void SpectatorThink( gentity_t *ent, usercmd_t *ucmd ) {
 	
 	client->oldbuttons = client->buttons;
 	client->buttons = ucmd->buttons;
-	
-    //KK-OAX Changed to keep followcycle functional
-	// attack button cycles through spectators
-	if ( ( client->buttons & BUTTON_ATTACK ) && ! ( client->oldbuttons & BUTTON_ATTACK ) ) {
-		Cmd_FollowCycle_f( ent );
-	}
+
+	/* Attack opens the spectator overlay on the client. Follow is chosen there. */
 
 	if ( ( client->buttons & BUTTON_USE_HOLDABLE ) && ! ( client->oldbuttons & BUTTON_USE_HOLDABLE ) ) {
 		if ( G_IsElimTeamGT() &&
@@ -1761,6 +1757,155 @@ void G_RunClient( gentity_t *ent ) {
 
 /*
 ==================
+Spec_PublishMarker
+
+Put a team spectator into the snapshot so other spectators can see them.
+Free cam is linked at the camera. Follow is linked on the player they
+watch. The entity stays non-solid and invisible to players.
+==================
+*/
+static void Spec_PublishMarker( gentity_t *ent ) {
+	int			cn;
+	int			target;
+	gclient_t	*cl;
+	vec3_t		org;
+
+	if ( ent->client->sess.sessionTeam != TEAM_SPECTATOR ) {
+		return;
+	}
+
+	cn = ent - g_entities;
+	if ( ent->client->sess.spectatorState == SPECTATOR_FOLLOW ) {
+		target = ent->client->sess.spectatorClient;
+		if ( target == -1 ) {
+			target = level.follow1;
+		} else if ( target == -2 ) {
+			target = level.follow2;
+		}
+		if ( target < 0 || target >= level.maxclients ) {
+			trap_UnlinkEntity( ent );
+			return;
+		}
+		cl = &level.clients[target];
+		if ( cl->pers.connected != CON_CONNECTED || cl->sess.sessionTeam == TEAM_SPECTATOR ) {
+			trap_UnlinkEntity( ent );
+			return;
+		}
+		VectorCopy( cl->ps.origin, org );
+		ent->s.generic1 = 2;
+		ent->s.otherEntityNum = target;
+	} else if ( ent->client->sess.spectatorState == SPECTATOR_FREE ) {
+		VectorCopy( ent->client->ps.origin, org );
+		ent->s.generic1 = 1;
+		ent->s.otherEntityNum = ENTITYNUM_NONE;
+	} else {
+		trap_UnlinkEntity( ent );
+		return;
+	}
+
+	ent->r.contents = 0;
+	ent->s.solid = 0;
+	VectorSet( ent->r.mins, -8, -8, -8 );
+	VectorSet( ent->r.maxs, 8, 8, 8 );
+	ent->s.eType = ET_INVISIBLE;
+	ent->s.eFlags = 0;
+	ent->s.event = 0;
+	ent->s.number = cn;
+	ent->s.clientNum = cn;
+	ent->s.weapon = 0;
+	ent->s.powerups = 0;
+	ent->s.loopSound = 0;
+	ent->s.pos.trType = TR_INTERPOLATE;
+	ent->s.pos.trTime = 0;
+	VectorClear( ent->s.pos.trDelta );
+	VectorCopy( org, ent->s.pos.trBase );
+	VectorCopy( org, ent->s.origin );
+	VectorCopy( org, ent->r.currentOrigin );
+	trap_LinkEntity( ent );
+}
+
+/*
+==================
+Spec_MatchHidesMarkers
+
+Players receive spectator markers during warmup, the wait before a
+round, timeout, and intermission. Once the match is being played
+they are omitted from those snapshots.
+==================
+*/
+static qboolean Spec_MatchHidesMarkers( void ) {
+	if ( level.intermissiontime ) {
+		return qfalse;
+	}
+	if ( level.warmupTime != 0 ) {
+		return qfalse;
+	}
+	if ( level.timeout ) {
+		return qfalse;
+	}
+	if ( G_IsElimGT() && level.roundStartTime > 0 && level.time < level.roundStartTime ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+/*
+==================
+Spec_UpdateMarkerSnapshotMask
+
+SVF_CLIENTMASK is a 32-bit recipient list. While a match is live, only
+spectator slots are on that list. A connected client at slot 32 or above
+makes the flag unsafe, so the mask is left off in that case.
+==================
+*/
+void Spec_UpdateMarkerSnapshotMask( void ) {
+	int			i;
+	int			mask;
+	qboolean	hide;
+	gentity_t	*ent;
+
+	hide = Spec_MatchHidesMarkers();
+	mask = 0;
+	if ( hide ) {
+		for ( i = 32; i < level.maxclients; i++ ) {
+			if ( level.clients[i].pers.connected != CON_DISCONNECTED ) {
+				hide = qfalse;
+				break;
+			}
+		}
+	}
+	if ( hide ) {
+		for ( i = 0; i < level.maxclients && i < 32; i++ ) {
+			if ( level.clients[i].pers.connected != CON_CONNECTED ) {
+				continue;
+			}
+			if ( level.clients[i].sess.sessionTeam != TEAM_SPECTATOR ) {
+				continue;
+			}
+			mask |= ( 1 << i );
+		}
+	}
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		ent = &g_entities[i];
+		if ( !ent->inuse || !ent->client ) {
+			continue;
+		}
+		if ( ent->client->sess.sessionTeam != TEAM_SPECTATOR ) {
+			continue;
+		}
+		if ( hide ) {
+			ent->r.svFlags |= SVF_CLIENTMASK;
+			ent->r.singleClient = mask;
+		} else if ( ent->r.svFlags & SVF_CLIENTMASK ) {
+			ent->r.svFlags &= ~SVF_CLIENTMASK;
+			ent->r.singleClient = 0;
+		}
+	}
+}
+
+/*
+==================
 SpectatorClientEndFrame
 
 ==================
@@ -1786,29 +1931,30 @@ void SpectatorClientEndFrame( gentity_t *ent ) {
 		} else if ( clientNum == -3 ) {
 			clientNum = level.followauto;
 		}
-		if ( clientNum >= 0 ) {
-			cl = &level.clients[ clientNum ];
-			if ( cl->pers.connected == CON_CONNECTED && cl->sess.sessionTeam != TEAM_SPECTATOR ) {
-				flags = (cl->ps.eFlags & ~(EF_VOTED | EF_TEAMVOTED)) | (ent->client->ps.eFlags & (EF_VOTED | EF_TEAMVOTED));
-				//this is here LMS/Elimination goes wrong with player follow
-				if(ent->client->sess.sessionTeam!=TEAM_SPECTATOR){
-					frozenState = ent->client->ps.stats[STAT_FROZENSTATE];
-					for(i = 0; i < MAX_PERSISTANT; i++)
-						preservedScore[i] = ent->client->ps.persistant[i];
-					ent->client->ps = cl->ps;
-					for(i = 0; i < MAX_PERSISTANT; i++)
-						ent->client->ps.persistant[i] = preservedScore[i];
-					ent->client->ps.stats[STAT_FROZENSTATE] = frozenState;
+	if ( clientNum >= 0 ) {
+		cl = &level.clients[ clientNum ];
+		if ( cl->pers.connected == CON_CONNECTED && cl->sess.sessionTeam != TEAM_SPECTATOR ) {
+			flags = (cl->ps.eFlags & ~(EF_VOTED | EF_TEAMVOTED)) | (ent->client->ps.eFlags & (EF_VOTED | EF_TEAMVOTED));
+			//this is here LMS/Elimination goes wrong with player follow
+			if(ent->client->sess.sessionTeam!=TEAM_SPECTATOR){
+				frozenState = ent->client->ps.stats[STAT_FROZENSTATE];
+				for(i = 0; i < MAX_PERSISTANT; i++)
+					preservedScore[i] = ent->client->ps.persistant[i];
+				ent->client->ps = cl->ps;
+				for(i = 0; i < MAX_PERSISTANT; i++)
+					ent->client->ps.persistant[i] = preservedScore[i];
+				ent->client->ps.stats[STAT_FROZENSTATE] = frozenState;
 
-					ent->client->ps.persistant[PERS_HITS] = cl->ps.persistant[PERS_HITS];
-					ent->client->ps.persistant[PERS_DAMAGE_DONE] = cl->ps.persistant[PERS_DAMAGE_DONE];
-				}
-				else
-					ent->client->ps = cl->ps;
-				ent->client->ps.pm_flags |= PMF_FOLLOW;
-				ent->client->ps.eFlags = flags;
-				return;
-			} else {
+				ent->client->ps.persistant[PERS_HITS] = cl->ps.persistant[PERS_HITS];
+				ent->client->ps.persistant[PERS_DAMAGE_DONE] = cl->ps.persistant[PERS_DAMAGE_DONE];
+			}
+			else
+				ent->client->ps = cl->ps;
+			ent->client->ps.pm_flags |= PMF_FOLLOW;
+			ent->client->ps.eFlags = flags;
+			Spec_PublishMarker( ent );
+			return;
+		} else {
 				// drop them to free spectators unless they are dedicated camera followers
 				if ( ent->client->sess.spectatorClient >= 0 ) {
 					ent->client->sess.spectatorState = SPECTATOR_FREE;
@@ -1831,6 +1977,7 @@ void SpectatorClientEndFrame( gentity_t *ent ) {
 	} else {
 		ent->client->ps.pm_flags &= ~PMF_SCOREBOARD;
 	}
+	Spec_PublishMarker( ent );
 }
 
 
