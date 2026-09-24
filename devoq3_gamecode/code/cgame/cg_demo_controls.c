@@ -42,7 +42,7 @@ Chrome can hide after idle; hit-testing stays active so clicks still land.
 #define DEMOCTRL_SIDE_HDR_H		12
 #define DEMOCTRL_SIDE_SUB_H		10
 #define DEMOCTRL_SIDE_GROUP_GAP		10
-#define DEMOCTRL_SIDE_CAM_COUNT		6
+#define DEMOCTRL_SIDE_CAM_COUNT		7
 #define DEMOCTRL_SIDE_CHAR_W		5
 #define DEMOCTRL_SIDE_CHAR_H		8
 #define DEMOCTRL_TAB_W			18
@@ -82,6 +82,7 @@ typedef enum {
 	DEMOCTRL_CAM_POV,
 	DEMOCTRL_CAM_1ST,
 	DEMOCTRL_CAM_3RD,
+	DEMOCTRL_CAM_ORBIT,
 	DEMOCTRL_CAM_RIGS,
 	DEMOCTRL_FREECAM,
 	DEMOCTRL_SHOT,
@@ -215,6 +216,9 @@ static int		dc_povMenuHover = -1;
 static int		dc_povMenuList[MAX_CLIENTS];
 static int		dc_povMenuCount;
 static qboolean	dc_freeLook;
+static qboolean	dc_orbitLook;
+static qboolean	dc_orbitDemo;
+static qboolean	dc_orbitHintShown;
 static vec3_t	dc_freeOrigin;
 static vec3_t	dc_freeAngles;
 static int		dc_freeLastMs;
@@ -399,6 +403,8 @@ static const char *DemoCtrl_ButtonLabel( int btn ) {
 		return "1st Person";
 	case DEMOCTRL_CAM_3RD:
 		return "3rd Person";
+	case DEMOCTRL_CAM_ORBIT:
+		return "Orbit";
 	case DEMOCTRL_FREECAM:
 		return "Free Cam";
 	case DEMOCTRL_CAM_RIGS:
@@ -506,12 +512,17 @@ static qboolean DemoCtrl_ButtonActive( int btn ) {
 		if ( dc_seeking ) {
 			return qtrue;
 		}
-		return ( !dc_freeView && !dc_rigView && !cg_thirdPerson.integer ) ? qtrue : qfalse;
+		return ( !dc_freeView && !dc_rigView && !CG_Orbit_Active() && !cg_thirdPerson.integer ) ? qtrue : qfalse;
 	case DEMOCTRL_CAM_3RD:
 		if ( dc_seeking ) {
 			return qfalse;
 		}
-		return ( !dc_freeView && !dc_rigView && cg_thirdPerson.integer ) ? qtrue : qfalse;
+		return ( !dc_freeView && !dc_rigView && !CG_Orbit_Active() && cg_thirdPerson.integer ) ? qtrue : qfalse;
+	case DEMOCTRL_CAM_ORBIT:
+		if ( dc_seeking ) {
+			return qfalse;
+		}
+		return ( !dc_freeView && !dc_rigView && CG_Orbit_Active() ) ? qtrue : qfalse;
 	case DEMOCTRL_FREECAM:
 		return ( !dc_seeking && dc_freeView ) ? qtrue : qfalse;
 	case DEMOCTRL_CAM_RIGS:
@@ -1206,6 +1217,8 @@ static const char *DemoCtrl_ButtonTip( int btn ) {
 		return "Follow the player in first person";
 	case DEMOCTRL_CAM_3RD:
 		return "Follow the player in third person";
+	case DEMOCTRL_CAM_ORBIT:
+		return "Orbit the player. Mouse aims, wheel zooms";
 	case DEMOCTRL_FREECAM:
 		return "Fly a free camera";
 	case DEMOCTRL_CAM_RIGS:
@@ -1542,21 +1555,27 @@ static void DemoCtrl_Activate( int btn ) {
 		DemoCtrl_ExitReplay();
 		break;
 	case DEMOCTRL_CAM_1ST:
-		if ( !dc_freeView && !dc_rigView && !cg_thirdPerson.integer ) {
+		if ( !dc_freeView && !dc_rigView && !CG_Orbit_Active() && !cg_thirdPerson.integer ) {
 			break;
 		}
 		DemoCtrl_DisableFreeCam();
 		DemoCtrl_DisableRigCam();
+		dc_orbitLook = qfalse;
+		dc_orbitDemo = qfalse;
+		CG_Orbit_Set( qfalse );
 		DemoCtrl_SyncCamHud();
 		trap_Cvar_Set( "cg_demoDynamicCam", "0" );
 		trap_Cvar_Set( "cg_thirdPerson", "0" );
 		break;
 	case DEMOCTRL_CAM_3RD:
-		if ( !dc_freeView && !dc_rigView && cg_thirdPerson.integer ) {
+		if ( !dc_freeView && !dc_rigView && !CG_Orbit_Active() && cg_thirdPerson.integer ) {
 			break;
 		}
 		DemoCtrl_DisableFreeCam();
 		DemoCtrl_DisableRigCam();
+		dc_orbitLook = qfalse;
+		dc_orbitDemo = qfalse;
+		CG_Orbit_Set( qfalse );
 		DemoCtrl_SyncCamHud();
 		trap_Cvar_Set( "cg_demoDynamicCam", "0" );
 		trap_Cvar_Set( "cg_thirdPerson", "1" );
@@ -1564,11 +1583,34 @@ static void DemoCtrl_Activate( int btn ) {
 			trap_Cvar_Set( "cg_thirdPersonRange", "100" );
 		}
 		break;
+	case DEMOCTRL_CAM_ORBIT:
+		if ( !dc_freeView && !dc_rigView && CG_Orbit_Active() && dc_orbitLook ) {
+			break;
+		}
+		DemoCtrl_DisableFreeCam();
+		DemoCtrl_DisableRigCam();
+		DemoCtrl_SyncCamHud();
+		trap_Cvar_Set( "cg_demoDynamicCam", "0" );
+		trap_Cvar_Set( "cg_thirdPerson", "0" );
+		CG_Orbit_Set( qtrue );
+		DemoCtrl_RefreshAttackKeys();
+		dc_orbitDemo = qtrue;
+		dc_orbitLook = qtrue;
+		dc_visible = qfalse;
+		dc_hoverBtn = -1;
+		if ( !dc_orbitHintShown ) {
+			CG_Printf( "Orbit cam: mouse orbits, mouse wheel changes distance, fire shows the overlay.\n" );
+			dc_orbitHintShown = qtrue;
+		}
+		break;
 	case DEMOCTRL_FREECAM:
 		if ( dc_freeView ) {
 			break;
 		}
 		DemoCtrl_DisableRigCam();
+		dc_orbitLook = qfalse;
+		dc_orbitDemo = qfalse;
+		CG_Orbit_Set( qfalse );
 		trap_Cvar_Set( "cg_demoDynamicCam", "0" );
 		DemoCtrl_EnterFreeCamLook();
 		break;
@@ -1581,6 +1623,9 @@ static void DemoCtrl_Activate( int btn ) {
 			break;
 		}
 		DemoCtrl_DisableFreeCam();
+		dc_orbitLook = qfalse;
+		dc_orbitDemo = qfalse;
+		CG_Orbit_Set( qfalse );
 		dc_rigView = qtrue;
 		DemoCtrl_SyncCamHud();
 		break;
@@ -2500,6 +2545,9 @@ qboolean CG_DemoControls_PovEyesActive( void ) {
 	if ( !CG_DemoControls_PovTrackingActive() || dc_freeView || !DemoCtrl_PovSubjectAlive() ) {
 		return qfalse;
 	}
+	if ( CG_Orbit_Active() ) {
+		return qfalse;
+	}
 	if ( CG_DemoControls_RigCamActive() ) {
 		return ( CG_DemoCams_UsingPlayerView() && !CG_DemoCams_PlayerThird() ) ? qtrue : qfalse;
 	}
@@ -3120,6 +3168,14 @@ static qboolean DemoCtrl_KeyIsAttack( int key ) {
 		}
 	}
 	return qfalse;
+}
+
+void CG_DemoControls_RefreshAttackKeys( void ) {
+	DemoCtrl_RefreshAttackKeys();
+}
+
+qboolean CG_DemoControls_AttackKey( int key ) {
+	return DemoCtrl_KeyIsAttack( key );
 }
 
 static qboolean DemoCtrl_KeyIsMoveBind( int key ) {
@@ -4198,6 +4254,11 @@ void CG_DemoControls_Frame( void ) {
 	DemoCtrl_EnsureInit();
 
 	if ( !cg.demoPlayback ) {
+		if ( dc_orbitDemo ) {
+			dc_orbitDemo = qfalse;
+			dc_orbitLook = qfalse;
+			CG_Orbit_Set( qfalse );
+		}
 		dc_speedLabel[0] = '\0';
 		dc_timingReady = qfalse;
 		dc_shotHideFrames = 0;
@@ -4285,12 +4346,18 @@ void CG_DemoControls_Frame( void ) {
 		if ( dc_freeLook ) {
 			DemoCtrl_LeaveFreeCamLook();
 		}
+		dc_orbitLook = qfalse;
 		dc_visible = qtrue;
 		return;
 	}
 
 	if ( dc_freeLook ) {
 		DemoCtrl_FreeCamMove();
+		dc_visible = qfalse;
+		return;
+	}
+
+	if ( dc_orbitLook && CG_Orbit_Active() ) {
 		dc_visible = qfalse;
 		return;
 	}
@@ -4325,6 +4392,13 @@ qboolean CG_DemoControls_MouseEvent( int dx, int dy ) {
 	if ( dc_freeLook ) {
 		if ( dx || dy ) {
 			DemoCtrl_FreeCamMouseLook( dx, dy );
+		}
+		return qtrue;
+	}
+
+	if ( dc_orbitLook && CG_Orbit_Active() ) {
+		if ( dx || dy ) {
+			CG_Orbit_Mouse( dx, dy );
 		}
 		return qtrue;
 	}
@@ -4415,6 +4489,30 @@ qboolean CG_DemoControls_KeyEvent( int key, qboolean down ) {
 			}
 			return qtrue;
 		}
+		return qtrue;
+	}
+
+	if ( CG_Orbit_Active() && down && ( key == K_MWHEELUP || key == K_MWHEELDOWN ) ) {
+		CG_Orbit_Zoom( ( key == K_MWHEELUP ) ? -1 : 1 );
+		return qtrue;
+	}
+
+	if ( dc_orbitLook && CG_Orbit_Active() ) {
+		if ( down && ( DemoCtrl_KeyIsAttack( key ) || key == K_MOUSE1 ) ) {
+			dc_orbitLook = qfalse;
+			DemoCtrl_Wake();
+			return qtrue;
+		}
+		if ( key == K_SPACE && !DemoCtrl_KeyIsMoveBind( key ) ) {
+			if ( dc_shotHideFrames > 0 ) {
+				return qtrue;
+			}
+			if ( down ) {
+				DemoCtrl_TogglePause();
+			}
+			return qtrue;
+		}
+		DemoCtrl_ForwardKey( key, down );
 		return qtrue;
 	}
 
@@ -4513,6 +4611,12 @@ qboolean CG_DemoControls_KeyEvent( int key, qboolean down ) {
 			dc_freeIgnoreAttackKey = key;
 			return qtrue;
 		}
+		if ( down && CG_Orbit_Active() && !dc_orbitLook ) {
+			dc_orbitLook = qtrue;
+			dc_visible = qfalse;
+			dc_hoverBtn = -1;
+			return qtrue;
+		}
 	}
 
 	if ( key == K_MOUSE2 ) {
@@ -4551,11 +4655,13 @@ void CG_DemoControls_Draw( void ) {
 	if ( trap_Key_GetCatcher() & ( KEYCATCH_UI | KEYCATCH_CONSOLE ) ) {
 		return;
 	}
-	if ( dc_freeLook ) {
+	if ( dc_freeLook || ( dc_orbitLook && CG_Orbit_Active() ) ) {
 		const char *hint;
 		int hintLen;
 
-		hint = "Fire: Overlay   Click View: Look   1ST/3RD: follow player";
+		hint = dc_freeLook
+				? "Fire: Overlay   Click View: Look   1ST/3RD: follow player"
+				: "Fire: Overlay   Mouse: Orbit   Wheel: Distance";
 		cw = 6;
 		ch = 10;
 		hintLen = CG_DrawStrlen( hint );

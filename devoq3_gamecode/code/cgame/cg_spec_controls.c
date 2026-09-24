@@ -9,7 +9,7 @@ Shared cursor, catcher, and drawer animation are in cg_overlay.c.
 #include "cg_overlay.h"
 #include "../client/keycodes.h"
 
-#define SPEC_BTN_MAX			8
+#define SPEC_BTN_MAX			10
 #define SPEC_DISP_COUNT			6
 #define SPEC_SHOT_HIDE_FRAMES	8
 #define SPEC_BTN_W				88
@@ -41,6 +41,7 @@ static qboolean			specTabHover;
 static qboolean			specDispTabHover;
 static qboolean			specEditTabHover;
 static qboolean			dc_specLook = qtrue;
+static qboolean			dc_specOrbitLook;
 static qboolean			dc_specRig;
 static qboolean			dc_specAttackDown;
 static qboolean			dc_specAttackLatch;
@@ -357,6 +358,7 @@ typedef enum {
 	SPEC_PLAYERS = 0,
 	SPEC_1ST,
 	SPEC_3RD,
+	SPEC_ORBIT,
 	SPEC_DYNAMIC,
 	SPEC_FREE,
 	SPEC_SHOT,
@@ -429,6 +431,8 @@ static void DemoCtrl_SpecEnterLook( void ) {
 static void DemoCtrl_SpecEndSession( void ) {
 	dc_specRig = qfalse;
 	dc_specLook = qtrue;
+	dc_specOrbitLook = qfalse;
+	CG_Orbit_Set( qfalse );
 	dc_specHover = -1;
 	dc_specBarHover = -1;
 	dc_specLockHover = qfalse;
@@ -465,6 +469,8 @@ static void Spec_EditToggle( void ) {
 	CG_DemoCams_SetShow( specEditDrawer.open );
 	if ( specEditDrawer.open ) {
 		dc_specRig = qfalse;
+		dc_specOrbitLook = qfalse;
+		CG_Orbit_Set( qfalse );
 		DemoCtrl_SpecClearThirdPerson();
 		if ( DemoCtrl_SpecFollowing() ) {
 			trap_SendConsoleCommand( "follow\n" );
@@ -636,6 +642,9 @@ static int DemoCtrl_SpecActions( int *actions, int max ) {
 		actions[n++] = SPEC_3RD;
 	}
 	if ( n < max ) {
+		actions[n++] = SPEC_ORBIT;
+	}
+	if ( n < max ) {
 		actions[n++] = SPEC_DYNAMIC;
 	}
 	if ( n < max ) {
@@ -666,6 +675,8 @@ static const char *DemoCtrl_SpecLabel( int action ) {
 		return "1st Person";
 	case SPEC_3RD:
 		return "3rd Person";
+	case SPEC_ORBIT:
+		return "Orbit";
 	case SPEC_FREE:
 		return "Free";
 	case SPEC_SHOT:
@@ -702,6 +713,8 @@ static void DemoCtrl_SpecActivate( int action ) {
 	switch ( action ) {
 	case SPEC_FREE:
 		dc_specRig = qfalse;
+		dc_specOrbitLook = qfalse;
+		CG_Orbit_Set( qfalse );
 		DemoCtrl_SpecClearThirdPerson();
 		trap_SendConsoleCommand( "follow\n" );
 		break;
@@ -712,21 +725,42 @@ static void DemoCtrl_SpecActivate( int action ) {
 		trap_SendConsoleCommand( "wait 2; screenshotJPEG\n" );
 		break;
 	case SPEC_1ST:
-		if ( !dc_specRig && !cg_thirdPerson.integer && DemoCtrl_SpecFollowing() ) {
+		if ( !dc_specRig && !CG_Orbit_Active() && !cg_thirdPerson.integer && DemoCtrl_SpecFollowing() ) {
 			break;
 		}
 		dc_specRig = qfalse;
+		dc_specOrbitLook = qfalse;
+		CG_Orbit_Set( qfalse );
 		trap_Cvar_Set( "cg_thirdPerson", "0" );
 		break;
 	case SPEC_3RD:
-		if ( !dc_specRig && cg_thirdPerson.integer && DemoCtrl_SpecFollowing() ) {
+		if ( !dc_specRig && !CG_Orbit_Active() && cg_thirdPerson.integer && DemoCtrl_SpecFollowing() ) {
 			break;
 		}
 		dc_specRig = qfalse;
+		dc_specOrbitLook = qfalse;
+		CG_Orbit_Set( qfalse );
 		trap_Cvar_Set( "cg_thirdPerson", "1" );
 		if ( cg_thirdPersonRange.value < 1.0f ) {
 			trap_Cvar_Set( "cg_thirdPersonRange", "100" );
 		}
+		break;
+	case SPEC_ORBIT:
+		if ( !DemoCtrl_SpecFollowing() ) {
+			CG_Printf( "Follow a player to use the orbit camera\n" );
+			break;
+		}
+		if ( CG_Orbit_Active() && dc_specOrbitLook ) {
+			break;
+		}
+		dc_specRig = qfalse;
+		DemoCtrl_SpecClearThirdPerson();
+		CG_Orbit_Set( qtrue );
+		CG_DemoControls_RefreshAttackKeys();
+		dc_specOrbitLook = qtrue;
+		dc_visible = qfalse;
+		dc_specHover = -1;
+		DemoCtrl_SpecMenuClose();
 		break;
 	case SPEC_DYNAMIC:
 		if ( dc_specRig ) {
@@ -737,6 +771,8 @@ static void DemoCtrl_SpecActivate( int action ) {
 			CG_Printf( "No dynamic cameras defined for this map\n" );
 			break;
 		}
+		dc_specOrbitLook = qfalse;
+		CG_Orbit_Set( qfalse );
 		dc_specRig = qtrue;
 		DemoCtrl_SpecEnterUi();
 		Overlay_Wake();
@@ -775,15 +811,20 @@ static qboolean DemoCtrl_SpecActionOn( int action ) {
 	case SPEC_PLAYERS:
 		return ( dc_specMenuOpen || DemoCtrl_SpecFollowing() ) ? qtrue : qfalse;
 	case SPEC_1ST:
-		if ( dc_specRig || !DemoCtrl_SpecFollowing() ) {
+		if ( dc_specRig || CG_Orbit_Active() || !DemoCtrl_SpecFollowing() ) {
 			return qfalse;
 		}
 		return cg_thirdPerson.integer ? qfalse : qtrue;
 	case SPEC_3RD:
-		if ( dc_specRig || !DemoCtrl_SpecFollowing() ) {
+		if ( dc_specRig || CG_Orbit_Active() || !DemoCtrl_SpecFollowing() ) {
 			return qfalse;
 		}
 		return cg_thirdPerson.integer ? qtrue : qfalse;
+	case SPEC_ORBIT:
+		if ( dc_specRig || !DemoCtrl_SpecFollowing() ) {
+			return qfalse;
+		}
+		return CG_Orbit_Active();
 	case SPEC_FREE:
 		if ( dc_specRig ) {
 			return qfalse;
@@ -826,7 +867,7 @@ static void DemoCtrl_SpecTeamFill( int team, qboolean active, qboolean hover,
 }
 
 static int DemoCtrl_SpecRowShift( int action ) {
-	if ( action == SPEC_1ST || action == SPEC_3RD || action == SPEC_DYNAMIC ) {
+	if ( action == SPEC_1ST || action == SPEC_3RD || action == SPEC_ORBIT || action == SPEC_DYNAMIC ) {
 		return SPEC_SUB_H;
 	}
 	if ( action == SPEC_FREE || action == SPEC_SHOT ) {
@@ -1444,6 +1485,8 @@ static const char *DemoCtrl_SpecTip( int action ) {
 		return "Follow in first person";
 	case SPEC_3RD:
 		return "Follow in third person";
+	case SPEC_ORBIT:
+		return "Orbit the player. Mouse aims, wheel zooms";
 	case SPEC_DYNAMIC:
 		return "Follow via dynamic cameras";
 	case SPEC_FREE:
@@ -1829,8 +1872,24 @@ static void DemoCtrl_SpecFrame( void ) {
 	if ( !following && !dc_specRig ) {
 		DemoCtrl_SpecClearThirdPerson();
 	}
-	if ( following || dc_specRig ) {
+	if ( dc_specOrbitLook && ( !CG_Orbit_Active() || !following ) ) {
+		dc_specOrbitLook = qfalse;
+	}
+	if ( ( following || dc_specRig ) && !dc_specOrbitLook ) {
 		dc_specLook = qfalse;
+	}
+	if ( dc_specOrbitLook ) {
+		catcher = trap_Key_GetCatcher();
+		if ( catcher & ( KEYCATCH_UI | KEYCATCH_CONSOLE | KEYCATCH_MESSAGE ) ) {
+			return;
+		}
+		if ( !( catcher & KEYCATCH_CGAME ) ) {
+			trap_Key_SetCatcher( catcher | KEYCATCH_CGAME );
+		}
+		dc_catcherHeld = qtrue;
+		dc_visible = qfalse;
+		dc_specHover = -1;
+		return;
 	}
 
 	if ( dc_specLook ) {
@@ -1910,6 +1969,26 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 	if ( trap_Key_GetCatcher() & ( KEYCATCH_UI | KEYCATCH_CONSOLE | KEYCATCH_MESSAGE ) ) {
 		return qfalse;
 	}
+	if ( CG_Orbit_Active() && down && ( key == K_MWHEELUP || key == K_MWHEELDOWN ) ) {
+		CG_Orbit_Zoom( ( key == K_MWHEELUP ) ? -1 : 1 );
+		return qtrue;
+	}
+	if ( dc_specOrbitLook && CG_Orbit_Active() ) {
+		if ( down && ( CG_DemoControls_AttackKey( key ) || key == K_MOUSE1 || key == K_ESCAPE ) ) {
+			dc_specOrbitLook = qfalse;
+			DemoCtrl_SpecEnterUi();
+			Overlay_Wake();
+		}
+		return qtrue;
+	}
+	if ( down && Spec_KeyIsAttack( key ) && CG_Orbit_Active()
+			&& DemoCtrl_SpecFollowing() && !dc_specRig ) {
+		dc_specOrbitLook = qtrue;
+		dc_visible = qfalse;
+		dc_specHover = -1;
+		DemoCtrl_SpecMenuClose();
+		return qtrue;
+	}
 	if ( down && ( Spec_KeyIsAttack( key ) || key == K_ESCAPE ) ) {
 		if ( DemoCtrl_SpecFollowing() || dc_specRig ) {
 			Overlay_Wake();
@@ -1982,6 +2061,10 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 			DemoCtrl_SpecEditActivate( dc_specEditHover );
 		} else if ( Spec_EditContains( dc_cursorX, dc_cursorY ) ) {
 			return qtrue;
+		} else if ( CG_Orbit_Active() && DemoCtrl_SpecFollowing() ) {
+			dc_specOrbitLook = qtrue;
+			dc_visible = qfalse;
+			dc_specHover = -1;
 		} else if ( !DemoCtrl_SpecFollowing() && !dc_specRig ) {
 			DemoCtrl_SpecEnterLook();
 		}
@@ -1994,6 +2077,16 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 static qboolean DemoCtrl_SpecMouse( int dx, int dy ) {
 	int catcher;
 
+	if ( dc_specOrbitLook && CG_Orbit_Active() && DemoCtrl_SpecSession() ) {
+		catcher = trap_Key_GetCatcher();
+		if ( catcher & ( KEYCATCH_UI | KEYCATCH_CONSOLE | KEYCATCH_MESSAGE ) ) {
+			return qtrue;
+		}
+		if ( dx || dy ) {
+			CG_Orbit_Mouse( dx, dy );
+		}
+		return qtrue;
+	}
 	if ( !DemoCtrl_SpecUiActive() ) {
 		if ( DemoCtrl_SpecSession() && dc_specLook ) {
 			catcher = trap_Key_GetCatcher();
@@ -2042,6 +2135,16 @@ void CG_SpecControls_Frame( void ) {
 }
 
 void CG_SpecControls_Draw( void ) {
+	if ( dc_specOrbitLook && CG_Orbit_Active() && DemoCtrl_SpecSession() ) {
+		const char	*hint;
+		int			hintLen;
+
+		hint = "Fire: Overlay   Mouse: Orbit   Wheel: Distance";
+		hintLen = CG_DrawStrlen( hint );
+		CG_DrawStringExt( ( SCREEN_WIDTH - hintLen * 6 ) / 2, SCREEN_HEIGHT - 18,
+				hint, colorWhite, qtrue, qtrue, 6, 10, 0 );
+		return;
+	}
 	if ( DemoCtrl_SpecUiActive() && dc_visible ) {
 		DemoCtrl_DrawSpec();
 	}

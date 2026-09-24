@@ -1886,6 +1886,14 @@ void CG_DemoControls_PovView( vec3_t origin, vec3_t angles );
 void CG_DemoControls_PovAddViewWeapon( void );
 void CG_DemoControls_FreeCamView( vec3_t origin, vec3_t angles );
 
+void CG_Orbit_Set( qboolean on );
+qboolean CG_Orbit_Active( void );
+void CG_Orbit_Mouse( int dx, int dy );
+void CG_Orbit_Zoom( int notches );
+
+void CG_DemoControls_RefreshAttackKeys( void );
+qboolean CG_DemoControls_AttackKey( int key );
+
 void CG_DemoCams_LoadIfNeeded( void );
 void CG_DemoCams_Load( void );
 void CG_DemoCams_Save( void );

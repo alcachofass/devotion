@@ -292,7 +292,7 @@ static void CG_ThirdPersonPullback( int skipNum ) {
 
 	VectorCopy( view, cg.refdef.vieworg );
 
-	// select pitch to look at focus point from vieword
+	// select pitch to look at focus point from vieworg
 	VectorSubtract( focusPoint, cg.refdef.vieworg, focusPoint );
 	focusDist = sqrt( focusPoint[0] * focusPoint[0] + focusPoint[1] * focusPoint[1] );
 	if ( focusDist < 1 ) {
@@ -300,6 +300,85 @@ static void CG_ThirdPersonPullback( int skipNum ) {
 	}
 	cg.refdefViewAngles[PITCH] = -180 / M_PI * atan2( focusPoint[2], focusDist );
 	cg.refdefViewAngles[YAW] -= cg_thirdPersonAngle.value;
+}
+
+/*
+===============
+CG_Orbit
+
+Fixed orbit around the followed player's eyes. Mouse owns yaw and pitch.
+Wheel owns distance. A solid trace pulls the camera in toward the player.
+===============
+*/
+static qboolean	orbitOn;
+static float	orbitYaw;
+static float	orbitPitch;
+static float	orbitDist;
+static qboolean	orbitSeeded;
+
+void CG_Orbit_Set( qboolean on ) {
+	if ( on && !orbitOn && !orbitSeeded ) {
+		orbitYaw = cg.predictedPlayerState.viewangles[YAW] + 180.0f;
+		orbitPitch = 18.0f;
+		orbitDist = 140.0f;
+		orbitSeeded = qtrue;
+	}
+	orbitOn = on;
+}
+
+qboolean CG_Orbit_Active( void ) {
+	return orbitOn;
+}
+
+void CG_Orbit_Mouse( int dx, int dy ) {
+	orbitYaw -= dx * 0.22f;
+	orbitPitch += dy * 0.22f;
+	if ( orbitPitch > 80.0f ) {
+		orbitPitch = 80.0f;
+	} else if ( orbitPitch < -80.0f ) {
+		orbitPitch = -80.0f;
+	}
+}
+
+void CG_Orbit_Zoom( int notches ) {
+	orbitDist += notches * 28.0f;
+	if ( orbitDist < 32.0f ) {
+		orbitDist = 32.0f;
+	} else if ( orbitDist > 800.0f ) {
+		orbitDist = 800.0f;
+	}
+}
+
+static void CG_Orbit_Place( const vec3_t focus, int skipNum ) {
+	vec3_t		ang;
+	vec3_t		forward;
+	vec3_t		cam;
+	vec3_t		back;
+	trace_t		tr;
+	float		gap;
+	static vec3_t	mins = { -4, -4, -4 };
+	static vec3_t	maxs = { 4, 4, 4 };
+
+	ang[PITCH] = -orbitPitch;
+	ang[YAW] = orbitYaw;
+	ang[ROLL] = 0.0f;
+	AngleVectors( ang, forward, NULL, NULL );
+	VectorMA( focus, orbitDist, forward, cam );
+
+	CG_Trace( &tr, focus, mins, maxs, cam, skipNum, MASK_SOLID );
+	if ( tr.fraction < 1.0f ) {
+		VectorCopy( tr.endpos, cam );
+		VectorSubtract( focus, cam, back );
+		gap = VectorNormalize( back );
+		if ( gap > 12.0f ) {
+			VectorMA( cam, 8.0f, back, cam );
+		}
+	}
+
+	VectorCopy( cam, cg.refdef.vieworg );
+	VectorSubtract( focus, cam, back );
+	vectoangles( back, cg.refdefViewAngles );
+	cg.refdefViewAngles[ROLL] = 0.0f;
 }
 
 
@@ -744,7 +823,7 @@ static int CG_CalcViewValues( void ) {
 
 	ps = &cg.predictedPlayerState;
 
-	if ( CG_DemoControls_PovParkedActive() ) {
+	if ( CG_DemoControls_PovParkedActive() && !CG_Orbit_Active() ) {
 		CG_DemoControls_PovView( cg.refdef.vieworg, cg.refdefViewAngles );
 		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
 		if ( cg.hyperspace ) {
@@ -764,6 +843,27 @@ static int CG_CalcViewValues( void ) {
 
 	if ( CG_DemoControls_RigCamActive() && !CG_DemoCams_UsingPlayerView() ) {
 		CG_DemoCams_View( cg.refdef.vieworg, cg.refdefViewAngles );
+		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
+		if ( cg.hyperspace ) {
+			cg.refdef.rdflags |= RDF_NOWORLDMODEL | RDF_HYPERSPACE;
+		}
+		return CG_CalcFov();
+	}
+
+	if ( CG_Orbit_Active() ) {
+		vec3_t	focus;
+		int		skip;
+
+		if ( cg.demoPlayback && CG_DemoControls_PovActive() ) {
+			CG_DemoControls_PovSubjectOrigin( focus );
+			focus[2] += DEFAULT_VIEWHEIGHT;
+			skip = CG_DemoControls_PovClient();
+		} else {
+			VectorCopy( ps->origin, focus );
+			focus[2] += ps->viewheight;
+			skip = ps->clientNum;
+		}
+		CG_Orbit_Place( focus, skip );
 		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
 		if ( cg.hyperspace ) {
 			cg.refdef.rdflags |= RDF_NOWORLDMODEL | RDF_HYPERSPACE;
@@ -1173,9 +1273,12 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 				cg.renderingThirdPerson = qtrue;
 			}
 		}
+		if ( CG_Orbit_Active() ) {
+			cg.renderingThirdPerson = qtrue;
+		}
 	}
 
-	if ( !freeCam && !rigCam && !povActive ) {
+	if ( !freeCam && !rigCam && !povActive && !CG_Orbit_Active() ) {
 		CG_SpecZooming();
 	}
 
@@ -1223,7 +1326,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 	cg.refdef.time = cg.time;
 	memcpy( cg.refdef.areamask, cg.snap->areamask, sizeof( cg.refdef.areamask ) );
-	if ( freeCam || povActive || ( rigCam && !CG_DemoCams_UsingPlayerView() ) ) {
+	if ( freeCam || povActive || CG_Orbit_Active() || ( rigCam && !CG_DemoCams_UsingPlayerView() ) ) {
 		memset( cg.refdef.areamask, 0, sizeof( cg.refdef.areamask ) );
 	}
 
@@ -1233,7 +1336,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 
 	// update audio positions
-	trap_S_Respatialize( ( freeCam || povParked || ( rigCam && !CG_DemoCams_UsingPlayerView() ) )
+	trap_S_Respatialize( ( freeCam || povParked || CG_Orbit_Active() || ( rigCam && !CG_DemoCams_UsingPlayerView() ) )
 			? ENTITYNUM_NONE
 			: ( povActive ? CG_DemoControls_PovClient() : cg.snap->ps.clientNum ),
 			cg.refdef.vieworg, cg.refdef.viewaxis, inwater );
