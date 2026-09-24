@@ -2577,7 +2577,7 @@ void CG_DemoCams_AddMarkers( void ) {
 	float		t;
 	byte		a;
 
-	if ( !cg.demoPlayback || !dcamShow ) {
+	if ( !dcamShow ) {
 		return;
 	}
 	if ( dcamCount <= 0 && drailCount <= 0 ) {

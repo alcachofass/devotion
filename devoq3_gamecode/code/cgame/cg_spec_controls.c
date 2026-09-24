@@ -13,15 +13,33 @@ Shared cursor, catcher, and drawer animation are in cg_overlay.c.
 #define SPEC_DISP_COUNT			6
 #define SPEC_SHOT_HIDE_FRAMES	8
 #define SPEC_BTN_W				88
+#define SPEC_LEFT_BTN_W			114
 #define SPEC_BTN_H				18
 #define SPEC_BTN_GAP			4
 #define SPEC_SUB_H				10
 #define SPEC_MENU_REFRESH_MSEC	1000
 
+typedef enum {
+	SPEC_CAMADD = 0,
+	SPEC_CAMDEL,
+	SPEC_CAMFIX,
+	SPEC_CAMDYN,
+	SPEC_CAMJOIN,
+	SPEC_CAMRAILADD,
+	SPEC_CAMRAILNEW,
+	SPEC_CAMRAILSPLIT,
+	SPEC_CAMRAILSEL,
+	SPEC_CAMLOAD,
+	SPEC_CAMSAVE,
+	SPEC_CAM_NUM
+} specCamAction_t;
+
 static overlayDrawer_t	specDrawer;
 static overlayDrawer_t	specDispDrawer;
+static overlayDrawer_t	specEditDrawer;
 static qboolean			specTabHover;
 static qboolean			specDispTabHover;
+static qboolean			specEditTabHover;
 static qboolean			dc_specLook = qtrue;
 static qboolean			dc_specRig;
 static qboolean			dc_specAttackDown;
@@ -43,6 +61,7 @@ static qboolean			dc_specLockHover;
 static qboolean			dc_specDrawerReady;
 static int				dc_specShotHide;
 static int				dc_specDispHover = -1;
+static int				dc_specEditHover = -1;
 static int				dc_specHudDraw2D;
 static int				dc_specHudDrawGun;
 static qboolean			dc_specHudSaved;
@@ -53,6 +72,10 @@ static int DemoCtrl_SpecRowShift( int action );
 static void DemoCtrl_SpecMenuClose( void );
 static int DemoCtrl_SpecDispHitTest( int mx, int my );
 static qboolean Spec_DispTabHit( int mx, int my );
+static qboolean Spec_EditTabHit( int mx, int my );
+static int DemoCtrl_SpecEditHitTest( int mx, int my );
+static qboolean Spec_EditContains( int mx, int my );
+static void Spec_EditBtnRect( int action, int *x, int *y, int *w, int *h );
 static void Spec_DrawerLayout( int *bodyX, int *bodyY, int *bodyW, int *bodyH,
 		int *tabX, int *tabY, int *tabW, int *tabH );
 
@@ -113,6 +136,146 @@ static void Spec_DispLayout( int *bodyX, int *bodyY, int *bodyW, int *bodyH,
 	*bodyX = viewsX + (int)( ( specDrawer.frac - frac ) * (float)viewsW );
 }
 
+static int Spec_EditRowY( int row ) {
+	int	y;
+
+	y = OVERLAY_SIDE_Y + OVERLAY_SIDE_HDR_H;
+	if ( row <= 0 ) {
+		return y;
+	}
+	y += SPEC_BTN_H + SPEC_BTN_GAP + SPEC_SUB_H;
+	if ( row == 1 ) {
+		return y;
+	}
+	y += SPEC_BTN_H + SPEC_BTN_GAP + SPEC_SUB_H;
+	if ( row == 2 ) {
+		return y;
+	}
+	y += SPEC_BTN_H + SPEC_BTN_GAP + SPEC_SUB_H;
+	return y;
+}
+
+static void Spec_EditLayout( int *bodyX, int *bodyY, int *bodyW, int *bodyH,
+		int *tabX, int *tabY, int *tabW, int *tabH ) {
+	int		openX;
+	float	frac;
+
+	Overlay_DrawerTick( &specEditDrawer );
+	frac = specEditDrawer.frac;
+	*bodyW = SPEC_LEFT_BTN_W + 16;
+	*bodyY = OVERLAY_SIDE_Y - 4;
+	*bodyH = ( Spec_EditRowY( 3 ) + SPEC_BTN_H + 6 ) - *bodyY;
+	*tabW = OVERLAY_TAB_W;
+	*tabX = 0;
+	*tabY = *bodyY;
+	*tabH = *bodyH;
+	openX = *tabW;
+	*bodyX = openX + (int)( ( frac - 1.0f ) * (float)*bodyW );
+}
+
+static void Spec_EditBtnRectBase( int action, int *x, int *y, int *w, int *h ) {
+	*h = SPEC_BTN_H;
+	if ( action == SPEC_CAMADD || action == SPEC_CAMDEL ) {
+		*w = ( SPEC_LEFT_BTN_W - 4 ) / 2;
+		*x = OVERLAY_SIDE_MARGIN;
+		if ( action == SPEC_CAMDEL ) {
+			*x += *w + 4;
+		}
+		*y = Spec_EditRowY( 0 );
+	} else if ( action == SPEC_CAMFIX || action == SPEC_CAMDYN || action == SPEC_CAMJOIN ) {
+		*w = ( SPEC_LEFT_BTN_W - 6 ) / 3;
+		*x = OVERLAY_SIDE_MARGIN;
+		if ( action == SPEC_CAMDYN ) {
+			*x += *w + 3;
+		} else if ( action == SPEC_CAMJOIN ) {
+			*x += 2 * ( *w + 3 );
+		}
+		*y = Spec_EditRowY( 1 );
+	} else if ( action == SPEC_CAMRAILADD || action == SPEC_CAMRAILNEW
+			|| action == SPEC_CAMRAILSPLIT || action == SPEC_CAMRAILSEL ) {
+		*w = ( SPEC_LEFT_BTN_W - 9 ) / 4;
+		*x = OVERLAY_SIDE_MARGIN;
+		if ( action == SPEC_CAMRAILNEW ) {
+			*x += *w + 3;
+		} else if ( action == SPEC_CAMRAILSPLIT ) {
+			*x += 2 * ( *w + 3 );
+		} else if ( action == SPEC_CAMRAILSEL ) {
+			*x += 3 * ( *w + 3 );
+		}
+		*y = Spec_EditRowY( 2 );
+	} else {
+		*w = ( SPEC_LEFT_BTN_W - 4 ) / 2;
+		*x = OVERLAY_SIDE_MARGIN;
+		if ( action == SPEC_CAMSAVE ) {
+			*x += *w + 4;
+		}
+		*y = Spec_EditRowY( 3 );
+	}
+}
+
+static void Spec_EditBtnRect( int action, int *x, int *y, int *w, int *h ) {
+	int	bodyX, bodyY, bodyW, bodyH;
+	int	tabX, tabY, tabW, tabH;
+	int	baseBodyX;
+
+	Spec_EditBtnRectBase( action, x, y, w, h );
+	Spec_EditLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
+	baseBodyX = OVERLAY_SIDE_MARGIN - 8;
+	if ( baseBodyX < 0 ) {
+		baseBodyX = 0;
+	}
+	*x += bodyX - baseBodyX;
+}
+
+static qboolean Spec_EditTabHit( int mx, int my ) {
+	int	bodyX, bodyY, bodyW, bodyH;
+	int	tabX, tabY, tabW, tabH;
+	int	hdrY, hdrH;
+
+	Spec_EditLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
+	if ( mx >= tabX && mx < tabX + tabW && my >= tabY && my < tabY + tabH ) {
+		return qtrue;
+	}
+	if ( specEditDrawer.frac > 0.5f ) {
+		hdrY = bodyY;
+		hdrH = OVERLAY_SIDE_HDR_H + 4;
+		if ( mx >= bodyX && mx < bodyX + bodyW && my >= hdrY && my < hdrY + hdrH ) {
+			return qtrue;
+		}
+	}
+	return qfalse;
+}
+
+static qboolean Spec_EditContains( int mx, int my ) {
+	int	bodyX, bodyY, bodyW, bodyH;
+	int	tabX, tabY, tabW, tabH;
+
+	Spec_EditLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
+	if ( mx >= tabX && mx < tabX + tabW && my >= tabY && my < tabY + tabH ) {
+		return qtrue;
+	}
+	if ( specEditDrawer.frac < 0.35f ) {
+		return qfalse;
+	}
+	return ( mx >= bodyX && mx < bodyX + bodyW && my >= bodyY && my < bodyY + bodyH ) ? qtrue : qfalse;
+}
+
+static int DemoCtrl_SpecEditHitTest( int mx, int my ) {
+	int	i;
+	int	x, y, w, h;
+
+	if ( specEditDrawer.frac < 0.35f ) {
+		return -1;
+	}
+	for ( i = 0; i < SPEC_CAM_NUM; i++ ) {
+		Spec_EditBtnRect( i, &x, &y, &w, &h );
+		if ( mx >= x && mx < x + w && my >= y && my < y + h ) {
+			return i;
+		}
+	}
+	return -1;
+}
+
 static qboolean Spec_TabHit( int mx, int my ) {
 	int	bodyX, bodyY, bodyW, bodyH;
 	int	tabX, tabY, tabW, tabH;
@@ -133,8 +296,8 @@ static qboolean Spec_TabHit( int mx, int my ) {
 }
 
 static void Spec_DrawChrome( overlayDrawer_t *drawer, const char *label, qboolean tabHover,
-		const float *panel, const float *hover, const float *textColor, const float *border,
-		int bodyX, int bodyY, int bodyW, int bodyH,
+		qboolean fromLeft, const float *panel, const float *hover, const float *textColor,
+		const float *border, int bodyX, int bodyY, int bodyW, int bodyH,
 		int tabX, int tabY, int tabW, int tabH ) {
 	int			innerY;
 	int			innerH;
@@ -142,7 +305,11 @@ static void Spec_DrawChrome( overlayDrawer_t *drawer, const char *label, qboolea
 	const float	*tabFill;
 	vec4_t		hdrColor;
 
-	chev = ( drawer->frac > 0.5f ) ? ">" : "<";
+	if ( fromLeft ) {
+		chev = ( drawer->frac > 0.5f ) ? "<" : ">";
+	} else {
+		chev = ( drawer->frac > 0.5f ) ? ">" : "<";
+	}
 	if ( drawer->frac > 0.02f ) {
 		CG_FillRect( bodyX, bodyY, bodyW, bodyH, panel );
 	}
@@ -277,15 +444,159 @@ static void DemoCtrl_SpecEndSession( void ) {
 	dc_specDrawerReady = qfalse;
 	dc_specShotHide = 0;
 	dc_specDispHover = -1;
+	dc_specEditHover = -1;
 	specTabHover = qfalse;
 	specDispTabHover = qfalse;
+	specEditTabHover = qfalse;
 	Overlay_DrawerReset( &specDrawer );
 	Overlay_DrawerReset( &specDispDrawer );
+	Overlay_DrawerReset( &specEditDrawer );
+	CG_DemoCams_SetShow( qfalse );
 	Overlay_ReleaseCatcher();
 }
 
 static qboolean DemoCtrl_SpecFollowing( void ) {
 	return ( cg.snap && ( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) ? qtrue : qfalse;
+}
+
+static void Spec_EditToggle( void ) {
+	Overlay_DrawerToggle( &specEditDrawer );
+	CG_DemoCams_SetShow( specEditDrawer.open );
+	if ( specEditDrawer.open ) {
+		dc_specRig = qfalse;
+		if ( DemoCtrl_SpecFollowing() ) {
+			trap_SendConsoleCommand( "follow\n" );
+		}
+	}
+}
+
+static qboolean Spec_EditNeedFree( void ) {
+	if ( !DemoCtrl_SpecFollowing() && !dc_specRig ) {
+		return qfalse;
+	}
+	CG_Printf( "Switch to Free to edit cameras\n" );
+	return qtrue;
+}
+
+static const char *DemoCtrl_SpecEditLabel( int action ) {
+	switch ( action ) {
+	case SPEC_CAMADD:
+		return "Add Cam";
+	case SPEC_CAMDEL:
+		return "Remove Cam";
+	case SPEC_CAMFIX:
+		return "Fixed";
+	case SPEC_CAMDYN:
+		return "Dyn";
+	case SPEC_CAMJOIN:
+		return "Rail";
+	case SPEC_CAMRAILADD:
+		return "+ Node";
+	case SPEC_CAMRAILNEW:
+		return "New";
+	case SPEC_CAMRAILSPLIT:
+		return "Split";
+	case SPEC_CAMRAILSEL:
+		return "Active";
+	case SPEC_CAMLOAD:
+		return "Load";
+	case SPEC_CAMSAVE:
+		return "Save";
+	default:
+		return "";
+	}
+}
+
+static const char *DemoCtrl_SpecEditTip( int action ) {
+	switch ( action ) {
+	case SPEC_CAMADD:
+		return "^3Place ^7a camera here";
+	case SPEC_CAMDEL:
+		return "^1Remove ^7the nearest camera or rail point";
+	case SPEC_CAMFIX:
+		return "Set nearest camera to ^3fixed ^7(no pan or zoom)";
+	case SPEC_CAMDYN:
+		return "Set nearest camera to ^2dynamic ^7(track the action)";
+	case SPEC_CAMJOIN:
+		return "Insert nearest camera onto the nearest rail";
+	case SPEC_CAMRAILADD:
+		return "^3Add ^7a rail node at this camera pose";
+	case SPEC_CAMRAILNEW:
+		return "Start a ^3new rail ^7on the next + Node";
+	case SPEC_CAMRAILSPLIT:
+		return "^3Split ^7the nearest rail at this pose (within 128 of a segment)";
+	case SPEC_CAMRAILSEL:
+		return "Make the nearest rail ^3active ^7for editing";
+	case SPEC_CAMLOAD:
+		return "^1Reload ^7cameras and rails from disk";
+	case SPEC_CAMSAVE:
+		return "^3Save ^7cameras and rails to disk";
+	default:
+		return "";
+	}
+}
+
+static void DemoCtrl_SpecEditActivate( int action ) {
+	if ( action != SPEC_CAMLOAD && action != SPEC_CAMSAVE ) {
+		if ( Spec_EditNeedFree() ) {
+			return;
+		}
+	}
+	switch ( action ) {
+	case SPEC_CAMADD:
+		CG_DemoCams_AddCurrent();
+		break;
+	case SPEC_CAMDEL:
+		CG_DemoCams_RemoveNearest();
+		break;
+	case SPEC_CAMFIX:
+		CG_DemoCams_SetNearestDynamic( qfalse );
+		break;
+	case SPEC_CAMDYN:
+		CG_DemoCams_SetNearestDynamic( qtrue );
+		break;
+	case SPEC_CAMJOIN:
+		CG_DemoCams_JoinNearestToRail();
+		break;
+	case SPEC_CAMRAILADD:
+		CG_DemoCams_AddRailPoint();
+		break;
+	case SPEC_CAMRAILNEW:
+		CG_DemoCams_NewRail();
+		break;
+	case SPEC_CAMRAILSPLIT:
+		CG_DemoCams_SplitRail();
+		break;
+	case SPEC_CAMRAILSEL:
+		CG_DemoCams_SelectNearestRail();
+		break;
+	case SPEC_CAMLOAD:
+		CG_DemoCams_Load();
+		break;
+	case SPEC_CAMSAVE:
+		CG_DemoCams_Save();
+		break;
+	default:
+		break;
+	}
+}
+
+static void DemoCtrl_DrawSpecEditSubheads( void ) {
+	static const int	below[3] = { SPEC_CAMFIX, SPEC_CAMRAILADD, SPEC_CAMLOAD };
+	static const char	*labels[3] = { "Type", "Rail Cams", "Config File" };
+	int		i;
+	int		x, y, w, h;
+	vec4_t	color;
+
+	color[0] = 0.72f;
+	color[1] = 0.74f;
+	color[2] = 0.80f;
+	color[3] = 0.95f;
+	for ( i = 0; i < 3; i++ ) {
+		Spec_EditBtnRect( below[i], &x, &y, &w, &h );
+		CG_DrawStringExt( x, y - SPEC_SUB_H + 1, labels[i], color, qtrue, qtrue,
+				OVERLAY_SIDE_CHAR_W, OVERLAY_SIDE_CHAR_H, 0 );
+	}
 }
 
 static void DemoCtrl_SpecPlayersUpdateLabel( void ) {
@@ -884,10 +1195,12 @@ static void DemoCtrl_SpecUpdateHover( void ) {
 
 	dc_specHover = -1;
 	dc_specDispHover = -1;
+	dc_specEditHover = -1;
 	dc_specBarHover = -1;
 	dc_specLockHover = qfalse;
 	specTabHover = qfalse;
 	specDispTabHover = qfalse;
+	specEditTabHover = qfalse;
 	if ( cg.showScores ) {
 		return;
 	}
@@ -907,6 +1220,10 @@ static void DemoCtrl_SpecUpdateHover( void ) {
 		dc_specLockHover = qtrue;
 		return;
 	}
+	if ( Spec_EditTabHit( dc_cursorX, dc_cursorY ) ) {
+		specEditTabHover = qtrue;
+		return;
+	}
 	if ( Spec_DispTabHit( dc_cursorX, dc_cursorY ) ) {
 		specDispTabHover = qtrue;
 		return;
@@ -923,6 +1240,12 @@ static void DemoCtrl_SpecUpdateHover( void ) {
 	}
 	if ( specDrawer.frac >= 0.35f ) {
 		dc_specHover = DemoCtrl_SpecHitTest( dc_cursorX, dc_cursorY );
+		if ( dc_specHover >= 0 ) {
+			return;
+		}
+	}
+	if ( specEditDrawer.frac >= 0.35f ) {
+		dc_specEditHover = DemoCtrl_SpecEditHitTest( dc_cursorX, dc_cursorY );
 	}
 }
 
@@ -1242,6 +1565,11 @@ static void DemoCtrl_SpecDrawHoverTip( void ) {
 		DemoCtrl_SpecDrawTipBox( "^1Lock^7/^2unlock ^7the spectator overlay", x, y, w, h, 2 );
 		return;
 	}
+	if ( dc_specEditHover >= 0 && dc_specEditHover < SPEC_CAM_NUM ) {
+		Spec_EditBtnRect( dc_specEditHover, &x, &y, &w, &h );
+		DemoCtrl_SpecDrawTipBox( DemoCtrl_SpecEditTip( dc_specEditHover ), x, y, w, h, 2 );
+		return;
+	}
 	if ( dc_specDispHover >= 0 && dc_specDispHover < SPEC_DISP_COUNT ) {
 		DemoCtrl_SpecDispBtnRect( dc_specDispHover, &x, &y, &w, &h );
 		DemoCtrl_SpecDrawTipBox( DemoCtrl_SpecDispTip( dc_specDispHover ), x, y, w, h, 0 );
@@ -1339,10 +1667,13 @@ static void DemoCtrl_DrawSpec( void ) {
 	}
 
 	Spec_DrawerLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
-	Spec_DrawChrome( &specDrawer, "VIEWS", specTabHover, panel, btnHover, textColor, border,
+	Spec_DrawChrome( &specDrawer, "VIEWS", specTabHover, qfalse, panel, btnHover, textColor, border,
 			bodyX, bodyY, bodyW, bodyH, tabX, tabY, tabW, tabH );
 	Spec_DispLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
-	Spec_DrawChrome( &specDispDrawer, "DISPLAY", specDispTabHover, panel, btnHover, textColor, border,
+	Spec_DrawChrome( &specDispDrawer, "DISPLAY", specDispTabHover, qfalse, panel, btnHover, textColor, border,
+			bodyX, bodyY, bodyW, bodyH, tabX, tabY, tabW, tabH );
+	Spec_EditLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
+	Spec_DrawChrome( &specEditDrawer, "EDIT CAMS", specEditTabHover, qtrue, panel, btnHover, textColor, border,
 			bodyX, bodyY, bodyW, bodyH, tabX, tabY, tabW, tabH );
 	if ( specDrawer.frac > 0.45f ) {
 		Spec_DrawerLayout( &bodyX, &bodyY, &bodyW, &bodyH,
@@ -1425,6 +1756,31 @@ static void DemoCtrl_DrawSpec( void ) {
 		}
 	}
 
+	if ( specEditDrawer.frac > 0.45f ) {
+		for ( i = 0; i < SPEC_CAM_NUM; i++ ) {
+			Spec_EditBtnRect( i, &x, &y, &w, &h );
+			if ( x + w < 0 || x > SCREEN_WIDTH ) {
+				continue;
+			}
+			if ( i == dc_specEditHover ) {
+				fill = btnHover;
+			} else if ( i == SPEC_CAMSAVE && CG_DemoCams_IsDirty() ) {
+				fill = btnActive;
+			} else {
+				fill = btnIdle;
+			}
+			CG_FillRect( x, y, w, h, fill );
+			CG_DrawRect( x, y, w, h, 1, border );
+			label = DemoCtrl_SpecEditLabel( i );
+			len = CG_DrawStrlen( label );
+			CG_DrawStringExt( x + ( w - len * OVERLAY_SIDE_CHAR_W ) / 2,
+					y + ( h - OVERLAY_SIDE_CHAR_H ) / 2,
+					label, textColor, qtrue, qtrue,
+					OVERLAY_SIDE_CHAR_W, OVERLAY_SIDE_CHAR_H, 0 );
+		}
+		DemoCtrl_DrawSpecEditSubheads();
+	}
+
 	DemoCtrl_DrawSpecMenu( btnIdle, btnHover, btnActive, border, textColor );
 	DemoCtrl_SpecDrawHoverTip();
 
@@ -1505,6 +1861,7 @@ static void DemoCtrl_SpecFrame( void ) {
 		dc_visible = qfalse;
 		dc_specHover = -1;
 		dc_specDispHover = -1;
+		dc_specEditHover = -1;
 		dc_specShotHide--;
 		if ( dc_specShotHide <= 0 ) {
 			dc_visible = qtrue;
@@ -1522,6 +1879,8 @@ static void DemoCtrl_SpecFrame( void ) {
 		dc_specBarHover = -1;
 		dc_specLockHover = qfalse;
 		specTabHover = qfalse;
+		specDispTabHover = qfalse;
+		specEditTabHover = qfalse;
 	}
 }
 
@@ -1583,6 +1942,10 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 			Overlay_DrawerToggle( &specDispDrawer );
 			return qtrue;
 		}
+		if ( specEditTabHover ) {
+			Spec_EditToggle();
+			return qtrue;
+		}
 		n = DemoCtrl_SpecActions( actions, SPEC_BTN_MAX );
 		hit = -1;
 		if ( specDrawer.frac >= 0.35f ) {
@@ -1603,6 +1966,10 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 			DemoCtrl_SpecActivate( actions[hit] );
 		} else if ( dc_specDispHover >= 0 && dc_specDispHover < SPEC_DISP_COUNT ) {
 			DemoCtrl_SpecDispActivate( dc_specDispHover );
+		} else if ( dc_specEditHover >= 0 && dc_specEditHover < SPEC_CAM_NUM ) {
+			DemoCtrl_SpecEditActivate( dc_specEditHover );
+		} else if ( Spec_EditContains( dc_cursorX, dc_cursorY ) ) {
+			return qtrue;
 		} else if ( !DemoCtrl_SpecFollowing() && !dc_specRig ) {
 			DemoCtrl_SpecEnterLook();
 		}
