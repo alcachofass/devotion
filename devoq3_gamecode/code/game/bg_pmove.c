@@ -2760,6 +2760,11 @@ void PmoveSingle (pmove_t *pmove) {
 	}
 
 	if ( pm->ps->pm_type == PM_SPECTATOR ) {
+		/* Spectator fly must not inherit live movement presets (QL autohop
+		   on stairs, CPM/RM accel, etc.). */
+		pm->pmove_movement = MOVEMENT_VQ3;
+		pm->pmove_autohop = 0;
+		pm->pmove_ratflags = 0;
 		PM_CheckDuck ();
 		PM_FlyMove ();
 		PM_DropTimers ();

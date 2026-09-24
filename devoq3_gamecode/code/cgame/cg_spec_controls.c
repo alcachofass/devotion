@@ -70,6 +70,7 @@ static int				dc_specTimersSaved;
 static int DemoCtrl_SpecActions( int *actions, int max );
 static int DemoCtrl_SpecRowShift( int action );
 static void DemoCtrl_SpecMenuClose( void );
+static void DemoCtrl_SpecClearThirdPerson( void );
 static int DemoCtrl_SpecDispHitTest( int mx, int my );
 static qboolean Spec_DispTabHit( int mx, int my );
 static qboolean Spec_EditTabHit( int mx, int my );
@@ -464,6 +465,7 @@ static void Spec_EditToggle( void ) {
 	CG_DemoCams_SetShow( specEditDrawer.open );
 	if ( specEditDrawer.open ) {
 		dc_specRig = qfalse;
+		DemoCtrl_SpecClearThirdPerson();
 		if ( DemoCtrl_SpecFollowing() ) {
 			trap_SendConsoleCommand( "follow\n" );
 		}
@@ -690,10 +692,17 @@ static const char *DemoCtrl_SpecLabel( int action ) {
 	}
 }
 
+static void DemoCtrl_SpecClearThirdPerson( void ) {
+	if ( cg_thirdPerson.integer ) {
+		trap_Cvar_Set( "cg_thirdPerson", "0" );
+	}
+}
+
 static void DemoCtrl_SpecActivate( int action ) {
 	switch ( action ) {
 	case SPEC_FREE:
 		dc_specRig = qfalse;
+		DemoCtrl_SpecClearThirdPerson();
 		trap_SendConsoleCommand( "follow\n" );
 		break;
 	case SPEC_SHOT:
@@ -1817,6 +1826,9 @@ static void DemoCtrl_SpecFrame( void ) {
 	}
 
 	following = DemoCtrl_SpecFollowing();
+	if ( !following && !dc_specRig ) {
+		DemoCtrl_SpecClearThirdPerson();
+	}
 	if ( following || dc_specRig ) {
 		dc_specLook = qfalse;
 	}
