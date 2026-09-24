@@ -145,10 +145,8 @@ qboolean CheckGauntletAttack( gentity_t *ent, qboolean altFire ) {	//mrd
 		ent->client->accuracy[WP_GAUNTLET][0]++;
 		ent->client->accuracy[WP_GAUNTLET][1]++;
 	}
-	//mrd - TODO: more knockback
 	if (altFire)
 	{
-		//Com_Printf("Alt-fire gauntlet G_Damage!\n");
 		G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_GAUNTLET, qtrue );
 	}
 	else {
@@ -759,10 +757,14 @@ mrd - generate an altFire RG shockwave blast
 ================
 */
 void G_AltRailShockwave( gentity_t *ent, vec3_t origin, qboolean altFire ) {
-		
-	// splash damage
-	// origin, inflictor, attacker, damage, radius, ignore, MOD
-	if( G_RadiusDamage( origin, ent, ent, RAILGUN_ALT_SHOCKWAVE_DAMAGE, RAILGUN_ALT_SHOCKWAVE_RADIUS, ent, MOD_RAILGUN_SHOCKWAVE, altFire ) ) {
+	int damage, radius;
+	
+	damage = RAILGUN_ALT_SHOCKWAVE_DAMAGE * s_quadFactor;
+	radius = RAILGUN_ALT_SHOCKWAVE_RADIUS * s_quadFactor;
+
+	// origin, inflictor, attacker, damage, radius, ignore, MOD, altFire
+	// allow self-damage with shockwave (ignore = NULL)
+	if( G_RadiusDamage( origin, ent, ent, damage, radius, NULL, MOD_RAILGUN_SHOCKWAVE, altFire ) ) {
 		g_entities[ent->r.ownerNum].client->accuracy_hits++;
 		g_entities[ent->r.ownerNum].client->accuracy[ent->s.weapon][1]++;
 	}
@@ -794,11 +796,13 @@ void weapon_railgun_fire (gentity_t *ent, qboolean altFire) {
 	if (altFire) {
 		damage = RAILGUN_ALT_DAMAGE;
 	} else {
-		damage = g_railgunDamage.integer * s_quadFactor;
+		damage = g_railgunDamage.integer;
 	}
 
 	if(g_instantgib.integer)
 		damage = 800;
+
+	damage *= s_quadFactor;
 
 	VectorMA (muzzle, 8192, forward, end);
 
@@ -846,18 +850,15 @@ void weapon_railgun_fire (gentity_t *ent, qboolean altFire) {
 					passent = ENTITYNUM_NONE;
 				}
 #endif
-			}
-			else {
+			
+			} else {
 				if( LogAccuracyHit( traceEnt, ent ) ) {
 					hits++;
 				}
-				if (altFire) {
-					G_Damage (traceEnt, ent, ent, forward, trace.endpos, damage, 0, MOD_RAILGUN, altFire);
-				} else {
-					G_Damage (traceEnt, ent, ent, forward, trace.endpos, damage, 0, MOD_RAILGUN, altFire);
-				}
+				G_Damage (traceEnt, ent, ent, forward, trace.endpos, damage, 0, MOD_RAILGUN, altFire);
 			}
 		}
+		
 		if ( trace.contents & CONTENTS_SOLID ) {
 			if (g_railJump.integer) {
 				G_RailJump( trace.endpos, ent );
@@ -875,8 +876,10 @@ void weapon_railgun_fire (gentity_t *ent, qboolean altFire) {
 		trap_LinkEntity( unlinkedEntities[i] );
 	}
 
-	//mrd - generate a shockwave on impact	
-	G_AltRailShockwave( ent, trace.endpos, altFire );
+	//mrd - generate a shockwave on impact
+	if (altFire) {
+		G_AltRailShockwave( ent, trace.endpos, altFire );
+	}
 
 	//mrd - moving this unlagged G_UndoTimeShift() down after the entities are relinked
 	//so altFire RG shockwave G_Damage call still affects the reconciled state

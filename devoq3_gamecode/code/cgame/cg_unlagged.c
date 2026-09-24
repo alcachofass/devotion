@@ -1429,7 +1429,12 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
                         }
 
 			// draw a rail trail
-			CG_RailTrail( &cgs.clientinfo[cent->currentState.number], muzzlePoint, trace.endpos );
+			if ( cent->altFire ){
+				CG_RailTrail( &cgs.clientinfo[cent->currentState.number], muzzlePoint, trace.endpos, qtrue );
+
+			} else {
+				CG_RailTrail( &cgs.clientinfo[cent->currentState.number], muzzlePoint, trace.endpos, qfalse );
+			}
 			//Com_Printf( "Predicted rail trail\n" );
 
 			// explosion at end if not SURF_NOIMPACT

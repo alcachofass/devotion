@@ -56,7 +56,7 @@ railAltExplosion
 		blendfunc blend
 	}
 	{
-		animmap 5 models/weaphits/ring02_1.tga  models/weaphits/ring02_2.tga  models/weaphits/ring02_1.tga models/weaphits/ring02_2.tga models/weaphits/ring02_1.tga models/weaphits/ring02_2.tga models/weaphits/ring02_1.tga gfx/colors/black.tga
+		animmap 5 models/weaphits/ring02_2.tga  models/weaphits/ring02_3.tga  models/weaphits/ring02_4.tga models/weaphits/ring02_3.tga models/weaphits/ring02_2.tga models/weaphits/ring02_1.tga gfx/colors/black.tga gfx/colors/black.tga
 		alphaGen wave sawtooth 0 1 0 8
 		rgbGen const ( 0.8 0.3 1.0 )
 		blendfunc blend

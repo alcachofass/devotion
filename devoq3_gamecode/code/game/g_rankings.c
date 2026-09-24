@@ -328,6 +328,7 @@ void G_RankDamage( int self, int attacker, int damage, int means_of_death )
 		key_splash = QGR_KEY_SPLASH_TAKEN_PLASMA;
 		break;
 	case MOD_RAILGUN:
+	case MOD_RAILGUN_SHOCKWAVE:	//mrd
 		key_hit = QGR_KEY_HIT_TAKEN_RAILGUN;
 		key_damage = QGR_KEY_DAMAGE_TAKEN_RAILGUN;
 		break;
@@ -405,6 +406,7 @@ void G_RankDamage( int self, int attacker, int damage, int means_of_death )
 			key_splash = QGR_KEY_SPLASH_GIVEN_PLASMA;
 			break;
 		case MOD_RAILGUN:
+		case MOD_RAILGUN_SHOCKWAVE:	//mrd
 			key_hit = QGR_KEY_HIT_GIVEN_RAILGUN;
 			key_damage = QGR_KEY_DAMAGE_GIVEN_RAILGUN;
 			break;
@@ -567,6 +569,7 @@ void G_RankPlayerDie( int self, int attacker, int means_of_death )
 			trap_RankReportInt( p1, p2, QGR_KEY_SUICIDE_PLASMA, 1, 1 );
 			break;
 		case MOD_RAILGUN:
+		case MOD_RAILGUN_SHOCKWAVE:	//mrd
 			trap_RankReportInt( p1, p2, QGR_KEY_SUICIDE_RAILGUN, 1, 1 );
 			break;
 		case MOD_LIGHTNING:

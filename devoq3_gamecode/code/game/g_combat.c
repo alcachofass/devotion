@@ -62,6 +62,7 @@ void DamagePlum( gentity_t *ent, gentity_t *target, int mod, int damage ) {
 			case MOD_PLASMA:
 			case MOD_PLASMA_SPLASH:
 			case MOD_RAILGUN:
+			case MOD_RAILGUN_SHOCKWAVE:	//mrd
 			case MOD_BFG:
 			case MOD_BFG_SPLASH:
 			/*
@@ -510,7 +511,8 @@ char	*modNames[] = {
 	"MOD_KAMIKAZE",
 	"MOD_JUICED",
 #endif
-	"MOD_GRAPPLE"
+	"MOD_GRAPPLE",
+	"MOD_RAILGUN_SHOCKWAVE"	//mrd
 };
 
 #ifdef MISSIONPACK
@@ -1861,6 +1863,7 @@ static int G_WeaponForMOD(int mod) {
 		case MOD_LIGHTNING:
 			return WP_LIGHTNING;
 		case MOD_RAILGUN:
+		case MOD_RAILGUN_SHOCKWAVE:	//mrd
 			return WP_RAILGUN;
 		case MOD_BFG:
 		case MOD_BFG_SPLASH:
