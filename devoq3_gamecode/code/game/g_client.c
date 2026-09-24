@@ -3948,6 +3948,7 @@ void ClientDisconnect( int clientNum ) {
 	//}
 
 	G_LogPrintf( "ClientDisconnect: %i\n", clientNum );
+	CamSession_ClientDisconnect( clientNum );
 
 	//// if we are playing in tourney mode and losing, give a win to the other player
 	//if ( (g_gametype.integer == GT_TOURNAMENT )

@@ -1895,6 +1895,11 @@ void CG_DemoControls_RefreshAttackKeys( void );
 qboolean CG_DemoControls_AttackKey( int key );
 
 void CG_DemoCams_LoadIfNeeded( void );
+void CG_DemoCams_NetFrame( void );
+void CG_DemoCams_NetCommand( void );
+int CG_DemoCams_ShareState( void );
+const char *CG_DemoCams_ShareLabel( void );
+void CG_DemoCams_ShareActivate( void );
 void CG_DemoCams_Load( void );
 void CG_DemoCams_Save( void );
 qboolean CG_DemoCams_IsDirty( void );

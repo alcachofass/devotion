@@ -31,6 +31,7 @@ typedef enum {
 	SPEC_CAMRAILSEL,
 	SPEC_CAMLOAD,
 	SPEC_CAMSAVE,
+	SPEC_CAMSHARE,
 	SPEC_CAM_NUM
 } specCamAction_t;
 
@@ -154,6 +155,10 @@ static int Spec_EditRowY( int row ) {
 		return y;
 	}
 	y += SPEC_BTN_H + SPEC_BTN_GAP + SPEC_SUB_H;
+	if ( row <= 3 ) {
+		return y;
+	}
+	y += SPEC_BTN_H + SPEC_BTN_GAP;
 	return y;
 }
 
@@ -166,7 +171,7 @@ static void Spec_EditLayout( int *bodyX, int *bodyY, int *bodyW, int *bodyH,
 	frac = specEditDrawer.frac;
 	*bodyW = SPEC_LEFT_BTN_W + 16;
 	*bodyY = OVERLAY_SIDE_Y - 4;
-	*bodyH = ( Spec_EditRowY( 3 ) + SPEC_BTN_H + 6 ) - *bodyY;
+	*bodyH = ( Spec_EditRowY( 4 ) + SPEC_BTN_H + 6 ) - *bodyY;
 	*tabW = OVERLAY_TAB_W;
 	*tabX = 0;
 	*tabY = *bodyY;
@@ -205,6 +210,10 @@ static void Spec_EditBtnRectBase( int action, int *x, int *y, int *w, int *h ) {
 			*x += 3 * ( *w + 3 );
 		}
 		*y = Spec_EditRowY( 2 );
+	} else if ( action == SPEC_CAMSHARE ) {
+		*w = SPEC_LEFT_BTN_W;
+		*x = OVERLAY_SIDE_MARGIN;
+		*y = Spec_EditRowY( 4 );
 	} else {
 		*w = ( SPEC_LEFT_BTN_W - 4 ) / 2;
 		*x = OVERLAY_SIDE_MARGIN;
@@ -510,6 +519,8 @@ static const char *DemoCtrl_SpecEditLabel( int action ) {
 		return "Load";
 	case SPEC_CAMSAVE:
 		return "Save";
+	case SPEC_CAMSHARE:
+		return CG_DemoCams_ShareLabel();
 	default:
 		return "";
 	}
@@ -539,6 +550,14 @@ static const char *DemoCtrl_SpecEditTip( int action ) {
 		return "^1Reload ^7cameras and rails from disk";
 	case SPEC_CAMSAVE:
 		return "^3Save ^7cameras and rails to disk";
+	case SPEC_CAMSHARE:
+		if ( CG_DemoCams_ShareState() == 3 ) {
+			return "Leave the shared camera session";
+		}
+		if ( CG_DemoCams_ShareState() == 1 ) {
+			return "Take the server's shared camera set";
+		}
+		return "Upload your cameras and start a shared session";
 	default:
 		return "";
 	}
@@ -583,6 +602,9 @@ static void DemoCtrl_SpecEditActivate( int action ) {
 		break;
 	case SPEC_CAMSAVE:
 		CG_DemoCams_Save();
+		break;
+	case SPEC_CAMSHARE:
+		CG_DemoCams_ShareActivate();
 		break;
 	default:
 		break;
@@ -1816,6 +1838,8 @@ static void DemoCtrl_DrawSpec( void ) {
 			}
 			if ( i == dc_specEditHover ) {
 				fill = btnHover;
+			} else if ( i == SPEC_CAMSHARE && CG_DemoCams_ShareState() >= 2 ) {
+				fill = btnActive;
 			} else if ( i == SPEC_CAMSAVE && CG_DemoCams_IsDirty() ) {
 				fill = btnActive;
 			} else {
@@ -1856,6 +1880,7 @@ static void DemoCtrl_SpecFrame( void ) {
 		}
 		return;
 	}
+	CG_DemoCams_NetFrame();
 
 	if ( !dc_specDrawerReady ) {
 		DemoCtrl_SpecOpenDrawer();

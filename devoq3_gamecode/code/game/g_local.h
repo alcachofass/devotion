@@ -1373,6 +1373,12 @@ void ClientDisconnect( int clientNum );
 void ClientBegin( int clientNum );
 void ClientCommand( int clientNum );
 
+void CamSession_Init( void );
+void CamSession_Frame( void );
+void CamSession_ClientDisconnect( int clientNum );
+void Cmd_CamSession_f( gentity_t *ent );
+void Cmd_CamUp_f( gentity_t *ent );
+
 //
 // g_active.c
 //

@@ -41,6 +41,7 @@ cd windows\build\game
 %cc%  ../../../code/game/g_bot.c
 %cc%  ../../../code/game/g_client.c
 %cc%  ../../../code/game/g_cmds.c
+%cc%  ../../../code/game/g_camsession.c
 %cc%  ../../../code/game/g_cmds_ext.c
 %cc%  ../../../code/game/g_combat.c
 %cc%  ../../../code/game/g_items.c

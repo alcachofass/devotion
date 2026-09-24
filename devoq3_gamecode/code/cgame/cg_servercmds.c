@@ -2411,6 +2411,11 @@ static void CG_ServerCommand( void ) {
 		return;
 	}
 
+	if ( !strcmp( cmd, "camsync" ) ) {
+		CG_DemoCams_NetCommand();
+		return;
+	}
+
 	if ( !strcmp( cmd, "cp" ) ) {
 		//CG_CenterPrint( CG_Argv(1), SCREEN_HEIGHT * 0.30, BIGCHAR_WIDTH );
 		CG_CenterPrint( CG_Argv(1), SCREEN_HEIGHT * 0.30, CENTERPRINT_WIDTH );

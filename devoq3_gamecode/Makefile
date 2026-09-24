@@ -1847,6 +1847,7 @@ Q3GOBJ_ = \
   $(B)/baseq3/game/g_bot.o \
   $(B)/baseq3/game/g_client.o \
   $(B)/baseq3/game/g_cmds.o \
+  $(B)/baseq3/game/g_camsession.o \
   $(B)/baseq3/game/g_cmds_ext.o \
   $(B)/baseq3/game/g_combat.o \
   $(B)/baseq3/game/g_items.o \
@@ -1920,6 +1921,7 @@ MPGOBJ_ = \
   $(B)/missionpack/game/g_bot.o \
   $(B)/missionpack/game/g_client.o \
   $(B)/missionpack/game/g_cmds.o \
+  $(B)/missionpack/game/g_camsession.o \
   $(B)/missionpack/game/g_cmds_ext.o \
   $(B)/missionpack/game/g_combat.o \
   $(B)/missionpack/game/g_items.o \
