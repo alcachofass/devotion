@@ -211,7 +211,7 @@ static void CG_NailgunEjectBrass( centity_t *cent ) {
 //#endif
 
 
-void CG_RailSpiral(clientInfo_t *ci, vec3_t start, vec3_t end) {
+void CG_RailSpiral(clientInfo_t *ci, vec3_t start, vec3_t end, qboolean altFire) {
 	vec3_t axis[36], move, move2, vec, temp;
 	float  len;
 	int    i, j, skip;
@@ -255,15 +255,28 @@ void CG_RailSpiral(clientInfo_t *ci, vec3_t start, vec3_t end) {
 			re->radius = 1.1f;
 			re->customShader = cgs.media.railRingsShader;
 
-			re->shaderRGBA[0] = ci->color2[0] * 255;
-			re->shaderRGBA[1] = ci->color2[1] * 255;
-			re->shaderRGBA[2] = ci->color2[2] * 255;
-			re->shaderRGBA[3] = 255;
+			//mrd - force a gold spiral on altFire
+			if (altFire) {
+				re->shaderRGBA[0] = 242;
+				re->shaderRGBA[1] = 191;
+				re->shaderRGBA[2] = 51;
+				re->shaderRGBA[3] = 255;
 
-			le->color[0] = ci->color2[0] * 0.75;
-			le->color[1] = ci->color2[1] * 0.75;
-			le->color[2] = ci->color2[2] * 0.75;
-			le->color[3] = 1.0f;
+				le->color[0] = 0.95f * 0.75f;
+				le->color[1] = 0.75f * 0.75f;
+				le->color[2] = 0.20f * 0.75f;
+				le->color[3] = 1.0f;
+			} else {
+				re->shaderRGBA[0] = ci->color2[0] * 255;
+				re->shaderRGBA[1] = ci->color2[1] * 255;
+				re->shaderRGBA[2] = ci->color2[2] * 255;
+				re->shaderRGBA[3] = 255;
+
+				le->color[0] = ci->color2[0] * 0.75;
+				le->color[1] = ci->color2[1] * 0.75;
+				le->color[2] = ci->color2[2] * 0.75;
+				le->color[3] = 1.0f;
+			}
 
 			le->pos.trType = TR_LINEAR;
 			le->pos.trTime = cg.time;
@@ -293,7 +306,7 @@ void CG_RailSpiral(clientInfo_t *ci, vec3_t start, vec3_t end) {
 	}
 }
 
-void CG_RailSpiral2(clientInfo_t *ci, vec3_t start, vec3_t end) {
+void CG_RailSpiral2(clientInfo_t *ci, vec3_t start, vec3_t end, qboolean altFire) {
 	vec3_t axis[36], move, move2, vec, temp, last;
 	trajectory_t lastTraj;
 	float  len;
@@ -363,17 +376,32 @@ void CG_RailSpiral2(clientInfo_t *ci, vec3_t start, vec3_t end) {
 
 			re->customShader = cgs.media.ratRailSpiralShaders[(k++) % NUM_RAILSPIRALSHADERS];
 
-			re->shaderRGBA[0] = ci->color2[0] * 255;
-			re->shaderRGBA[1] = ci->color2[1] * 255;
-			re->shaderRGBA[2] = ci->color2[2] * 255;
+			//mrd - force a gold spiral for altFire RG
+			if (altFire) {
+				re->shaderRGBA[0] = 242;
+				re->shaderRGBA[1] = 191;
+				re->shaderRGBA[2] = 51;
 
-			re->shaderRGBA[3] = 255;
+				re->shaderRGBA[3] = 255;
 
-			le->color[0] = ci->color2[0] * 0.75;
-			le->color[1] = ci->color2[1] * 0.75;
-			le->color[2] = ci->color2[2] * 0.75;
+				le->color[0] = 0.95f * 0.75;
+				le->color[1] = 0.75f * 0.75;
+				le->color[2] = 0.20f * 0.75;
 
-			le->color[3] = 1.0f;
+				le->color[3] = 1.0f;
+			} else {
+				re->shaderRGBA[0] = ci->color2[0] * 255;
+				re->shaderRGBA[1] = ci->color2[1] * 255;
+				re->shaderRGBA[2] = ci->color2[2] * 255;
+
+				re->shaderRGBA[3] = 255;
+
+				le->color[0] = ci->color2[0] * 0.75;
+				le->color[1] = ci->color2[1] * 0.75;
+				le->color[2] = ci->color2[2] * 0.75;
+
+				le->color[3] = 1.0f;
+			}
 
 			AxisClear( re->axis );
 
@@ -408,7 +436,7 @@ void CG_RailSpiral2(clientInfo_t *ci, vec3_t start, vec3_t end) {
 
 #define RAIL3_SPIRALLENGTH 180
 #define RAIL3_NUMROT	6
-void CG_RailSpiral3(clientInfo_t *ci, vec3_t start, vec3_t end) {
+void CG_RailSpiral3(clientInfo_t *ci, vec3_t start, vec3_t end, qboolean altFire) {
 	vec3_t rotaxis[RAIL3_NUMROT];
 	vec3_t rotaxis2[RAIL3_NUMROT];
 	vec3_t second;
@@ -461,17 +489,32 @@ void CG_RailSpiral3(clientInfo_t *ci, vec3_t start, vec3_t end) {
 
 		re->shaderTime = cg.time / 1000.0f;
 
-		re->shaderRGBA[0] = ci->color2[0] * 255;
-		re->shaderRGBA[1] = ci->color2[1] * 255;
-		re->shaderRGBA[2] = ci->color2[2] * 255;
+		//mrd - force a gold spiral for altFire RG
+		if (altFire) {
+			re->shaderRGBA[0] = 242;
+			re->shaderRGBA[1] = 191;
+			re->shaderRGBA[2] = 51;
 
-		re->shaderRGBA[3] = 255;
+			re->shaderRGBA[3] = 255;
 
-		le->color[0] = ci->color2[0] * 0.75;
-		le->color[1] = ci->color2[1] * 0.75;
-		le->color[2] = ci->color2[2] * 0.75;
+			le->color[0] = 0.95f * 0.75;
+			le->color[1] = 0.75f * 0.75;
+			le->color[2] = 0.20f * 0.75;
 
-		le->color[3] = 1.0f;
+			le->color[3] = 1.0f;
+		} else {
+			re->shaderRGBA[0] = ci->color2[0] * 255;
+			re->shaderRGBA[1] = ci->color2[1] * 255;
+			re->shaderRGBA[2] = ci->color2[2] * 255;
+
+			re->shaderRGBA[3] = 255;
+
+			le->color[0] = ci->color2[0] * 0.75;
+			le->color[1] = ci->color2[1] * 0.75;
+			le->color[2] = ci->color2[2] * 0.75;
+
+			le->color[3] = 1.0f;
+		}
 
 
 		re->nonNormalizedAxes = qtrue;
@@ -503,7 +546,8 @@ void CG_RailSpiral3(clientInfo_t *ci, vec3_t start, vec3_t end) {
 CG_RailTrail
 ==========================
 */
-void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end) {
+//void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end) {
+void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end, qboolean altFire) {
 	vec3_t axis[36], move, move2, vec, temp;
 	float  len;
 	int    i, j, skip;
@@ -519,13 +563,13 @@ void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end) {
 	if (cg_altRailRadius.value > 0 || (!cg_altRail.integer && !cg_oldRail.integer)) {
 		switch (cg_altRail.integer) {
 			case 2:
-				CG_RailSpiral2(ci, start, end);
+				CG_RailSpiral2(ci, start, end, altFire);
 				break;
 			case 3:
-				CG_RailSpiral3(ci, start, end);
+				CG_RailSpiral3(ci, start, end, altFire);
 				break;
 			default:
-				CG_RailSpiral(ci, start, end);
+				CG_RailSpiral(ci, start, end, altFire);
 				break;
 
 		}
@@ -557,15 +601,29 @@ void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end) {
 	VectorCopy(start, re->origin);
 	VectorCopy(end, re->oldorigin);
  
-	re->shaderRGBA[0] = ci->color1[0] * 255;
-	re->shaderRGBA[1] = ci->color1[1] * 255;
-	re->shaderRGBA[2] = ci->color1[2] * 255;
 	re->shaderRGBA[3] = 255;
 
-	le->color[0] = ci->color1[0] * 0.75;
-	le->color[1] = ci->color1[1] * 0.75;
-	le->color[2] = ci->color1[2] * 0.75;
 	le->color[3] = 1.0f;
+
+	//mrd - force a purple core on altFire
+	if (altFire) {
+		re->shaderRGBA[0] = 230;
+		re->shaderRGBA[1] = 64;
+		re->shaderRGBA[2] = 255;
+		
+		le->color[0] = 0.90f;
+		le->color[1] = 0.25f;
+		le->color[2] = 1.00f;
+	} else {
+		re->shaderRGBA[0] = ci->color1[0] * 255;
+		re->shaderRGBA[1] = ci->color1[1] * 255;
+		re->shaderRGBA[2] = ci->color1[2] * 255;		
+
+		le->color[0] = ci->color1[0] * 0.75;
+		le->color[1] = ci->color1[1] * 0.75;
+		le->color[2] = ci->color1[2] * 0.75;
+	}
+
 
 	AxisClear( re->axis );
 	if (cg_altRail.integer) {
@@ -586,14 +644,26 @@ void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end) {
 		re->customShader = cgs.media.ratRailCoreShaderOverlay;
 		VectorCopy(start, re->origin);
 		VectorCopy(end, re->oldorigin);
-		re->shaderRGBA[0] = 255;
-		re->shaderRGBA[1] = 255;
-		re->shaderRGBA[2] = 255;
-		re->shaderRGBA[3] = 255;
-		le->color[0] = 1.0;
-		le->color[1] = 1.0;
-		le->color[2] = 1.0;
-		le->color[3] = 1.0f;
+		if (altFire) {
+			re->shaderRGBA[0] = 230;
+			re->shaderRGBA[1] = 64;
+			re->shaderRGBA[2] = 255;
+			re->shaderRGBA[3] = 255;
+			
+			le->color[0] = 0.90f;
+			le->color[1] = 0.25f;
+			le->color[2] = 1.00f;
+			le->color[3] = 1.0f;
+		} else {
+			re->shaderRGBA[0] = 255;
+			re->shaderRGBA[1] = 255;
+			re->shaderRGBA[2] = 255;
+			re->shaderRGBA[3] = 255;
+			le->color[0] = 1.0;
+			le->color[1] = 1.0;
+			le->color[2] = 1.0;
+			le->color[3] = 1.0f;
+		}
 		AxisClear( re->axis );
 	}
 	if (cg_oldRail.integer && !cg_altRail.integer) {
@@ -1390,6 +1460,7 @@ void CG_RegisterWeapon( int weaponNum ) {
 	case WP_RAILGUN:
 		weaponInfo->readySound = trap_S_RegisterSound( "sound/weapons/railgun/rg_hum.wav", qfalse );
 		MAKERGB( weaponInfo->flashDlightColor, 1, 0.5f, 0 );
+		MAKERGB( weaponInfo->flashDlightAltColor, 0.9f, 0.25f, 1.0f );	//mrd purple light for RG altFire
 		weaponInfo->flashSound[0] = CG_RegisterRailFireSound();
 		cgs.media.railExplosionShader = trap_R_RegisterShader( "railExplosion" );
 		cgs.media.railAltExplosionShader = trap_R_RegisterShader( "railAltExplosion" );	//mrd
@@ -1829,7 +1900,8 @@ Origin will be the exact tag point, which is slightly
 different than the muzzle point used for determining hits.
 ===============
 */
-static void CG_SpawnRailTrail( centity_t *cent, vec3_t origin ) {
+//static void CG_SpawnRailTrail( centity_t *cent, vec3_t origin ) {
+static void CG_SpawnRailTrail( centity_t *cent, vec3_t origin, qboolean altFire ) {
 	clientInfo_t	*ci;
 
 	if ( cent->currentState.weapon != WP_RAILGUN ) {
@@ -1840,7 +1912,7 @@ static void CG_SpawnRailTrail( centity_t *cent, vec3_t origin ) {
 	}
 	cent->pe.railgunFlash = qtrue;
 	ci = &cgs.clientinfo[ cent->currentState.clientNum ];
-	CG_RailTrail( ci, origin, cent->pe.railgunImpact );
+	CG_RailTrail( ci, origin, cent->pe.railgunImpact, qfalse );
 }
 
 
@@ -1943,13 +2015,22 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	// set custom shading for railgun refire rate
 	if ( ps || cent->currentState.clientNum == cg.predictedPlayerState.clientNum ) {
 		if ( cg.predictedPlayerState.weapon == WP_RAILGUN 
-			&& cg.predictedPlayerState.weaponstate == WEAPON_FIRING ) {
+			&& cg.predictedPlayerState.weaponstate == WEAPON_FIRING && !cent->altFire ) {
 			float	f = (float)cg.predictedPlayerState.weaponTime;
 
 			f /= (float)((cgs.ratFlags & RAT_FASTWEAPONS) ? RAIL_RELOAD_FAST : RAIL_RELOAD_REGULAR);
 			gun.shaderRGBA[1] = 0;
 			gun.shaderRGBA[0] = 
 			gun.shaderRGBA[2] = 255 * ( 1.0 - f );
+		//mrd - force a gold gun shader effect for altFire RG
+		} else if (cg.predictedPlayerState.weapon == WP_RAILGUN 
+			&& cg.predictedPlayerState.weaponstate == WEAPON_FIRING && cent->altFire ) {
+			float	f = (float)cg.predictedPlayerState.weaponTime;
+
+			f /= (float)((cgs.ratFlags & RAT_FASTWEAPONS) ? RAIL_RELOAD_FAST : RAIL_RELOAD_REGULAR);
+			gun.shaderRGBA[0] = 242 * ( 1.0 - f );
+			gun.shaderRGBA[1] = 191 * ( 1.0 - f );
+			gun.shaderRGBA[2] = 51 * ( 1.0 - f );		
 		} else {
 			gun.shaderRGBA[0] = 255;
 			gun.shaderRGBA[1] = 255;
@@ -2019,12 +2100,12 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	}
 
 	// make sure we aren't looking at cg.predictedPlayerEntity for LG
-if ( ps && ps->clientNum >= 0 && ps->clientNum < MAX_CLIENTS ) {
-	nonPredictedCent = &cg_entities[ps->clientNum];
-} else {
-	nonPredictedCent = &cg_entities[cent->currentState.clientNum];
-}
-nonPredictedCent->altFire = cent->altFire;	//mrd - propagate altFire status for LG beam FX
+	if ( ps && ps->clientNum >= 0 && ps->clientNum < MAX_CLIENTS ) {
+		nonPredictedCent = &cg_entities[ps->clientNum];
+	} else {
+		nonPredictedCent = &cg_entities[cent->currentState.clientNum];
+	}
+	nonPredictedCent->altFire = cent->altFire;	//mrd - propagate altFire status for LG beam FX
 
 
 	// if the index of the nonPredictedCent is not the same as the clientNum
@@ -2075,9 +2156,16 @@ nonPredictedCent->altFire = cent->altFire;	//mrd - propagate altFire status for 
 		clientInfo_t	*ci;
 
 		ci = &cgs.clientinfo[ cent->currentState.clientNum ];
-		flash.shaderRGBA[0] = 255 * ci->color1[0];
-		flash.shaderRGBA[1] = 255 * ci->color1[1];
-		flash.shaderRGBA[2] = 255 * ci->color1[2];
+		//mrd - force a purple blast for altFire RG
+		if (cent->altFire){
+			flash.shaderRGBA[0] = 230;
+			flash.shaderRGBA[1] = 64;
+			flash.shaderRGBA[2] = 255;
+		} else {
+			flash.shaderRGBA[0] = 255 * ci->color1[0];
+			flash.shaderRGBA[1] = 255 * ci->color1[1];
+			flash.shaderRGBA[2] = 255 * ci->color1[2];
+		}
 	}
 
 	CG_PositionRotatedEntityOnTag( &flash, &gun, weapon->weaponModel, "tag_flash");
@@ -2089,12 +2177,16 @@ nonPredictedCent->altFire = cent->altFire;	//mrd - propagate altFire status for 
 		CG_LightningBolt( nonPredictedCent, flash.origin );
 
 		// add rail trail
-		CG_SpawnRailTrail( cent, flash.origin );
+		if ( cent->altFire ) {	//mrd
+			CG_SpawnRailTrail( cent, flash.origin, qtrue );	
+		} else {
+			CG_SpawnRailTrail( cent, flash.origin, qfalse );
+		}
 
 		//if ( weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2] ) {
-		//mrd - add a special altFire LG colour effect
-		if ( weaponNum == WP_LIGHTNING && cent->altFire 
-			&& ( weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2] ) ) {
+		//mrd - add a special altFire colour effect
+		if ( ( weaponNum == WP_LIGHTNING || weaponNum == WP_RAILGUN ) && cent->altFire 
+			&& ( weapon->flashDlightAltColor[0] || weapon->flashDlightAltColor[1] || weapon->flashDlightAltColor[2] ) ) {
 				trap_R_AddLightToScene( flash.origin, 300 + (rand()&31), weapon->flashDlightAltColor[0],
 				weapon->flashDlightAltColor[1], weapon->flashDlightAltColor[2] );
 		} else if ( weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2] ) {
