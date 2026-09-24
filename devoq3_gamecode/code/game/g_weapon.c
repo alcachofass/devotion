@@ -145,10 +145,8 @@ qboolean CheckGauntletAttack( gentity_t *ent, qboolean altFire ) {	//mrd
 		ent->client->accuracy[WP_GAUNTLET][0]++;
 		ent->client->accuracy[WP_GAUNTLET][1]++;
 	}
-	//mrd - TODO: more knockback
 	if (altFire)
 	{
-		//Com_Printf("Alt-fire gauntlet G_Damage!\n");
 		G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_GAUNTLET, qtrue );
 	}
 	else {
@@ -762,7 +760,8 @@ void G_AltRailShockwave( gentity_t *ent, vec3_t origin, qboolean altFire ) {
 		
 	// splash damage
 	// origin, inflictor, attacker, damage, radius, ignore, MOD
-	if( G_RadiusDamage( origin, ent, ent, RAILGUN_ALT_SHOCKWAVE_DAMAGE, RAILGUN_ALT_SHOCKWAVE_RADIUS, ent, MOD_RAILGUN_SHOCKWAVE, altFire ) ) {
+	// allow self-damage with shockwave
+	if( G_RadiusDamage( origin, ent, ent, RAILGUN_ALT_SHOCKWAVE_DAMAGE, RAILGUN_ALT_SHOCKWAVE_RADIUS, NULL, MOD_RAILGUN_SHOCKWAVE, altFire ) ) {
 		g_entities[ent->r.ownerNum].client->accuracy_hits++;
 		g_entities[ent->r.ownerNum].client->accuracy[ent->s.weapon][1]++;
 	}

@@ -186,6 +186,9 @@ static void CG_Obituary( entityState_t *ent ) {
 		case MOD_BFG_SPLASH:
 			message = "should have used a smaller gun";
 			break;
+		case MOD_RAILGUN_SHOCKWAVE:	//mrd
+			message = "absorbed their own shockwave";
+			break;
 			/*
 		case MOD_PROXIMITY_MINE:
 			if( gender == GENDER_FEMALE ) {
@@ -306,6 +309,10 @@ static void CG_Obituary( entityState_t *ent ) {
 			break;
 		case MOD_RAILGUN:
 			message = "was railed by";
+			break;
+		case MOD_RAILGUN_SHOCKWAVE:	//mrd
+			message = "was concussed by";
+			message2 = "'s shockwave";
 			break;
 		case MOD_LIGHTNING:
 			message = "was electrocuted by";
@@ -1311,7 +1318,11 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 
 			// draw a rail trail, because it wasn't predicted
-			CG_RailTrail( ci, es->origin2, es->pos.trBase );
+			if ( cent->altFire ){	//mrd
+				CG_RailTrail( ci, es->origin2, es->pos.trBase, qtrue );
+			} else{
+				CG_RailTrail( ci, es->origin2, es->pos.trBase, qfalse );
+			}
 
 			// if the end was on a nomark surface, don't make an explosion
 			if ( es->eventParm != 255 ) {
