@@ -132,6 +132,7 @@ static float DemoCam_AngleBetween( const vec3_t a, const vec3_t b );
 static int DemoCam_NearestIndex( void );
 static qboolean DemoCam_RailInsert( demoRail_t *r, int at, const vec3_t p );
 static int DemoCam_RailInsertAt( const demoRail_t *r, const vec3_t p );
+static qboolean DemoCam_RailLinksClear( const demoRail_t *r, int at, const vec3_t p );
 static qboolean DemoCam_ReadFile( const char *path, qboolean quiet );
 static qboolean DemoCam_WriteFile( const char *path, qboolean quiet );
 static void DemoCam_NetSendCam( const vec3_t origin, const vec3_t angles, qboolean dynamic, qboolean remove );
@@ -1534,6 +1535,10 @@ void CG_DemoCams_AddRailPoint( void ) {
 		return;
 	}
 	at = DemoCam_RailInsertAt( r, cg.refdef.vieworg );
+	if ( !DemoCam_RailLinksClear( r, at, cg.refdef.vieworg ) ) {
+		CG_Printf( "Rail node blocked. No line of sight to the neighboring node.\n" );
+		return;
+	}
 	if ( !DemoCam_RailInsert( r, at, cg.refdef.vieworg ) ) {
 		return;
 	}
@@ -1667,6 +1672,8 @@ static qboolean DemoCam_RailInsert( demoRail_t *r, int at, const vec3_t p ) {
 }
 
 static int DemoCam_RailInsertAt( const demoRail_t *r, const vec3_t p ) {
+	vec3_t	dir;
+	vec3_t	delta;
 	vec3_t	q;
 	float	frac;
 	float	raw;
@@ -1682,7 +1689,16 @@ static int DemoCam_RailInsertAt( const demoRail_t *r, const vec3_t p ) {
 		return 1;
 	}
 
-	bestAt = r->n;
+	/* Plane through the last node, perpendicular to the last segment.
+	   Past that plane the node belongs on the end, even if an earlier
+	   segment happens to be closer. */
+	VectorSubtract( r->pts[r->n - 1], r->pts[r->n - 2], dir );
+	VectorSubtract( p, r->pts[r->n - 1], delta );
+	if ( DotProduct( dir, dir ) > 1.0f && DotProduct( delta, dir ) > 0.0f ) {
+		return r->n;
+	}
+
+	bestAt = r->n - 1;
 	bestDist = 999999.0f;
 	for ( s = 1; s < r->n; s++ ) {
 		DemoCam_ClosestOnSeg( r->pts[s - 1], r->pts[s], p, q, &frac );
@@ -1692,14 +1708,34 @@ static int DemoCam_RailInsertAt( const demoRail_t *r, const vec3_t p ) {
 			raw = DemoCam_SegT( r->pts[s - 1], r->pts[s], p );
 			if ( s == 1 && raw < 0.0f ) {
 				bestAt = 0;
-			} else if ( s == r->n - 1 && raw > 1.0f ) {
-				bestAt = r->n;
 			} else {
 				bestAt = s;
 			}
 		}
 	}
+	if ( bestAt > r->n ) {
+		bestAt = r->n;
+	}
 	return bestAt;
+}
+
+static qboolean DemoCam_RailLinksClear( const demoRail_t *r, int at, const vec3_t p ) {
+	if ( !r || r->n <= 0 ) {
+		return qtrue;
+	}
+	if ( at <= 0 ) {
+		return ( DemoCam_TraceFrac( p, r->pts[0] ) >= 1.0f ) ? qtrue : qfalse;
+	}
+	if ( at >= r->n ) {
+		return ( DemoCam_TraceFrac( p, r->pts[r->n - 1] ) >= 1.0f ) ? qtrue : qfalse;
+	}
+	if ( DemoCam_TraceFrac( p, r->pts[at - 1] ) < 1.0f ) {
+		return qfalse;
+	}
+	if ( DemoCam_TraceFrac( p, r->pts[at] ) < 1.0f ) {
+		return qfalse;
+	}
+	return qtrue;
 }
 
 static void DemoCam_RemoveCamAt( int idx ) {
@@ -1769,6 +1805,10 @@ void CG_DemoCams_JoinNearestToRail( void ) {
 
 	r = &drails[bestRail];
 	bestAt = DemoCam_RailInsertAt( r, dcams[bestCam].origin );
+	if ( !DemoCam_RailLinksClear( r, bestAt, dcams[bestCam].origin ) ) {
+		CG_Printf( "Rail node blocked. No line of sight to the neighboring node.\n" );
+		return;
+	}
 	if ( !DemoCam_RailInsert( r, bestAt, dcams[bestCam].origin ) ) {
 		return;
 	}
