@@ -319,6 +319,47 @@ static void Cams_EnsureCarrier( void ) {
 	trap_LinkEntity( ent );
 }
 
+/*
+==================
+Cams_LimitRecipients
+
+Players never receive the carrier. Spectators always do, so they can see
+that a session is open. BROADCAST stays set because the entity lives at
+the origin and would otherwise be lost to PVS.
+==================
+*/
+static void Cams_LimitRecipients( gentity_t *ent ) {
+	int			i;
+	int			mask;
+	qboolean	safe;
+
+	safe = qtrue;
+	for ( i = 32; i < level.maxclients; i++ ) {
+		if ( level.clients[i].pers.connected != CON_DISCONNECTED ) {
+			safe = qfalse;
+			break;
+		}
+	}
+	ent->r.svFlags |= SVF_BROADCAST;
+	if ( !safe ) {
+		ent->r.svFlags &= ~SVF_CLIENTMASK;
+		ent->r.singleClient = 0;
+		return;
+	}
+	mask = 0;
+	for ( i = 0; i < level.maxclients && i < 32; i++ ) {
+		if ( level.clients[i].pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( level.clients[i].sess.sessionTeam != TEAM_SPECTATOR ) {
+			continue;
+		}
+		mask |= ( 1 << i );
+	}
+	ent->r.svFlags |= SVF_CLIENTMASK;
+	ent->r.singleClient = mask;
+}
+
 static int Cams_RailChunks( void ) {
 	int	i;
 	int	n;
@@ -358,6 +399,7 @@ static void Cams_Emit( void ) {
 
 	Cams_EnsureCarrier();
 	ent = &g_entities[camsEntNum];
+	Cams_LimitRecipients( ent );
 	ent->s.eType = ET_INVISIBLE;
 	ent->s.eFlags = 0;
 	ent->s.event = 0;

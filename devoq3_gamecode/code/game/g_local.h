@@ -1384,6 +1384,7 @@ void Cmd_CamUp_f( gentity_t *ent );
 //
 void ClientThink( int clientNum );
 void ClientEndFrame( gentity_t *ent );
+void Spec_UpdateMarkerSnapshotMask( void );
 void G_RunClient( gentity_t *ent );
 void ClientInactivityHeartBeat(gclient_t *client);
 int G_FreezeThawSound(void);

@@ -5648,6 +5648,7 @@ void G_RunFrame( int levelTime ) {
 
 	G_CheckBalanceAuto();
 	CamSession_Frame();
+	Spec_UpdateMarkerSnapshotMask();
 
 //unlagged - backward reconciliation #4
 	// record the time at the end of this frame - it should be about

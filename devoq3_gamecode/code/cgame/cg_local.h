@@ -1148,6 +1148,7 @@ typedef struct {
 	qhandle_t	connectionShader;
 
 	qhandle_t	selectShader;
+	qhandle_t	specEyeShader;
 	qhandle_t	viewBloodShader;
 	qhandle_t	tracerShader;
 	qhandle_t	crosshairShader[NUM_CROSSHAIRS];
@@ -2020,6 +2021,7 @@ void CG_DrawItemTimerPie( const centity_t *cent );
 qboolean CG_HudItemTimersAllowed( void );
 void CG_DrawSpecItemTimers( void );
 void CG_DrawSpecPlayerStatus( void );
+void CG_DrawSpectatorEyes( void );
 void CG_DemoPlayerStatusReset( int clientNum );
 int CG_ItemTimersCollect( cgItemTimer_t *out, int max, int sideFilter, int bitMask );
 int CG_ItemTimerFollowSideFilter( int itTeam );
