@@ -765,8 +765,8 @@ void G_AltRailShockwave( gentity_t *ent, vec3_t origin, qboolean altFire ) {
 	// origin, inflictor, attacker, damage, radius, ignore, MOD, altFire
 	// allow self-damage with shockwave (ignore = NULL)
 	if( G_RadiusDamage( origin, ent, ent, damage, radius, NULL, MOD_RAILGUN_SHOCKWAVE, altFire ) ) {
-		g_entities[ent->r.ownerNum].client->accuracy_hits++;
-		g_entities[ent->r.ownerNum].client->accuracy[ent->s.weapon][1]++;
+		ent->client->accuracy_hits++;
+		ent->client->accuracy[WP_RAILGUN][1]++;
 	}
 }
 
@@ -860,7 +860,7 @@ void weapon_railgun_fire (gentity_t *ent, qboolean altFire) {
 		}
 		
 		if ( trace.contents & CONTENTS_SOLID ) {
-			if (g_railJump.integer) {
+			if (g_railJump.integer && !altFire) {
 				G_RailJump( trace.endpos, ent );
 			}
 			break;		// we hit something solid enough to stop the beam

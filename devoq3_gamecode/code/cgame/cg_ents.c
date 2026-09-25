@@ -890,9 +890,9 @@ static void CG_Missile( centity_t *cent ) {
 			// can also be a grenade not spawned by a player, in
 			// that case use the default skin
 		}
-
-
 	}
+
+
 
 #ifdef MISSIONPACK
 	if ( cent->currentState.weapon == WP_PROX_LAUNCHER ) {
@@ -928,6 +928,23 @@ static void CG_Missile( centity_t *cent ) {
 
 	// add to refresh list, possibly with quad glow
 	if ( ent.hModel ) {
+		//mrd - vortex grenades get a special shell FX
+		if (s1->eFlags & EF_VORTEX && s1->weapon == WP_GRENADE_LAUNCHER) {
+			refEntity_t shell;
+			float scale = 1.08;
+
+			memset(&shell, 0, sizeof(shell));
+
+			shell = ent;
+			shell.customShader = cgs.media.vortexGrenadeShellShader;
+
+			//scale it up
+			VectorScale(shell.axis[0], scale, shell.axis[0]);
+			VectorScale(shell.axis[1], scale, shell.axis[1]);
+			VectorScale(shell.axis[2], scale, shell.axis[2]);
+			
+			trap_R_AddRefEntityToScene(&shell);
+		}
 		CG_AddRefEntityWithPowerups( &ent, s1, CG_MissileOutlineTeam( cent ), qtrue, NULL, 0, qfalse );
 	}
 }
