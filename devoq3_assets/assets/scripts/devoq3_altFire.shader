@@ -62,3 +62,22 @@ railAltExplosion
 		blendfunc blend
 	}
 }
+
+vortexShell
+{
+	//deformVertexes wave 100 sin 3 0 0 0
+	{
+		map textures/effects/vortexPurp.tga
+		blendfunc GL_ONE GL_ONE
+		tcGen environment
+                tcmod rotate 30
+		        tcmod scroll 1 .1
+	}
+	{
+		map textures/effects/vortexGold.tga
+		blendfunc GL_ONE GL_ONE
+		tcGen environment
+                tcmod rotate 45
+		        tcmod scroll 1 .15
+	}
+}
