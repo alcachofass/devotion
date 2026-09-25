@@ -2006,7 +2006,9 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 		}
 		return qtrue;
 	}
-	if ( down && Spec_KeyIsAttack( key ) && CG_Orbit_Active()
+	/* Mouse1 is a cursor click while the overlay is up, even when it is
+	   the only key bound to +attack. Other attack keys still leave. */
+	if ( down && key != K_MOUSE1 && Spec_KeyIsAttack( key ) && CG_Orbit_Active()
 			&& DemoCtrl_SpecFollowing() && !dc_specRig ) {
 		dc_specOrbitLook = qtrue;
 		dc_visible = qfalse;
@@ -2014,7 +2016,7 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 		DemoCtrl_SpecMenuClose();
 		return qtrue;
 	}
-	if ( down && ( Spec_KeyIsAttack( key ) || key == K_ESCAPE ) ) {
+	if ( down && key != K_MOUSE1 && ( Spec_KeyIsAttack( key ) || key == K_ESCAPE ) ) {
 		if ( DemoCtrl_SpecFollowing() || dc_specRig ) {
 			Overlay_Wake();
 		} else {
