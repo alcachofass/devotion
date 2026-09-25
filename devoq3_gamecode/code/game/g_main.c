@@ -793,6 +793,7 @@ void G_RegisterCvars( void ) {
 	G_EnsureVoteName( "bigheads" );
 	G_EnsureVoteName( "itemtimers" );
 	G_EnsureVoteName( "item_timers" );
+	G_EnsureVoteName( "movement" );
 }
 
 qboolean G_IsTeamGametype(void) {

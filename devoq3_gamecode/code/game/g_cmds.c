@@ -3810,6 +3810,71 @@ static const char *gameNames[] = {
 };
 
 
+static const char *VoteMovementName( movement_t movement ) {
+	switch ( movement ) {
+	case MOVEMENT_VQ3:
+		return "Q3";
+	case MOVEMENT_CPM_DEFRAG:
+		return "Defrag";
+	case MOVEMENT_RM:
+		return "RatMod";
+	case MOVEMENT_CPM_CPMA:
+		return "CPM";
+	case MOVEMENT_QL:
+		return "QL";
+	default:
+		return NULL;
+	}
+}
+
+/*
+==================
+VoteParseMovement
+
+Map a callvote argument to a g_movement id.
+Names: Q3, Defrag, QL, CPM, RatMod (plus the internal aliases).
+A bare number 0-4 is also accepted.
+==================
+*/
+static qboolean VoteParseMovement( const char *s, movement_t *out ) {
+	const char *c;
+	int id;
+
+	if ( !s || !s[0] || !out ) {
+		return qfalse;
+	}
+
+	for ( c = s; *c; ++c ) {
+		if ( *c < '0' || *c > '9' ) {
+			break;
+		}
+	}
+	if ( c != s && *c == '\0' ) {
+		id = atoi( s );
+		if ( id < MOVEMENT_VQ3 || id >= MOVEMENT_NUM_MOVEMENTS ) {
+			return qfalse;
+		}
+		*out = (movement_t)id;
+		return qtrue;
+	}
+
+	if ( !Q_stricmp( s, "q3" ) || !Q_stricmp( s, "vq3" ) ) {
+		*out = MOVEMENT_VQ3;
+	} else if ( !Q_stricmp( s, "defrag" ) || !Q_stricmp( s, "cpmd" ) ) {
+		*out = MOVEMENT_CPM_DEFRAG;
+	} else if ( !Q_stricmp( s, "ql" ) || !Q_stricmp( s, "quakelive" ) ) {
+		*out = MOVEMENT_QL;
+	} else if ( !Q_stricmp( s, "cpm" ) || !Q_stricmp( s, "cpma" ) || !Q_stricmp( s, "promode" ) ) {
+		*out = MOVEMENT_CPM_CPMA;
+	} else if ( !Q_stricmp( s, "rm" ) || !Q_stricmp( s, "ratmod" ) ) {
+		*out = MOVEMENT_RM;
+	} else {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
 void G_PrintVoteCommands(gentity_t *ent) {
         char    buffer[2048];
 	//trap_SendServerCommand( ent-g_entities, "print \"Vote commands are: map_restart, nextmap, map <mapname>, g_gametype <n>, kick <player>, clientkick <clientnum>, g_doWarmup, timelimit <time>, fraglimit <frags>.\n\"" );
@@ -3857,6 +3922,8 @@ void G_PrintVoteCommands(gentity_t *ent) {
 		strcat(buffer, " bigheads <0|1>\n");
 	if(allowedVote("itemtimers") || allowedVote("item_timers") || allowedVote("timers"))
 		strcat(buffer, " itemtimers <0|1>\n");
+	if(allowedVote("movement"))
+		strcat(buffer, " movement <Q3|Defrag|QL|CPM|RatMod>\n");
 	buffer[strlen(buffer)-1] = 0;
 	strcat(buffer, "\n\"");
 	trap_SendServerCommand( ent-g_entities, buffer);
@@ -3935,6 +4002,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 	} else if ( !Q_stricmp( arg1, "bigheads" ) ) {
 	} else if ( !Q_stricmp( arg1, "itemtimers" ) || !Q_stricmp( arg1, "item_timers" )
 			|| !Q_stricmp( arg1, "timers" ) ) {
+	} else if ( !Q_stricmp( arg1, "movement" ) ) {
 	} else {
 		trap_SendServerCommand( ent-g_entities, "print \"Invalid vote string.\n\"" );
 		G_PrintVoteCommands(ent);
@@ -4166,6 +4234,19 @@ void Cmd_CallVote_f( gentity_t *ent ) {
                     Com_sprintf( level.voteString, sizeof( level.voteString ), "g_itemTimers \"0\"" );
                     Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable item timers for players?" );
                 }
+        } else if ( !Q_stricmp( arg1, "movement" ) ) {
+                movement_t movement;
+
+                if ( !VoteParseMovement( arg2, &movement ) ) {
+                    trap_SendServerCommand( ent-g_entities, "print \"Invalid movement. Use Q3, Defrag, QL, CPM, or RatMod.\n\"" );
+                    return;
+                }
+                if ( movement == g_movement.integer ) {
+                    trap_SendServerCommand( ent-g_entities, "print \"This is the current movement.\n\"" );
+                    return;
+                }
+                Com_sprintf( level.voteString, sizeof( level.voteString ), "g_movement \"%d\"", (int)movement );
+                Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Change movement to %s?", VoteMovementName( movement ) );
         } else if ( !Q_stricmp( arg1, "clientkick" ) ) {
 		for( c = arg2; *c; ++c) {
 			if (!isdigit(*c)) {

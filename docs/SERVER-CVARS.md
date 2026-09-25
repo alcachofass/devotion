@@ -322,7 +322,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_voteMinCapturelimit` | RatMod | `0` | 0 or 1 | Minimum capturelimit players may vote for (`0` = no minimum). |
 | `g_voteMinFraglimit` | RatMod | `0` | 0 or 1 | Minimum fraglimit players may vote for (`0` = no minimum). |
 | `g_voteMinTimelimit` | RatMod | `0` | 0 or 1 | Minimum timelimit in minutes players may vote for. |
-| `g_voteNames` | RatMod | `/map_restart/nextmap/map/g_gametype/clientkick/g_doWarmup/timelimit/fraglimit/capturelimit/shuffle/bots/botskill/votenextmap/deathpit_mercy/bigheads/itemtimers/` | path list string | Slash-separated list of allowed callvote types. |
+| `g_voteNames` | RatMod | `/map_restart/nextmap/map/g_gametype/clientkick/g_doWarmup/timelimit/fraglimit/capturelimit/shuffle/bots/botskill/votenextmap/deathpit_mercy/bigheads/itemtimers/movement/` | path list string | Slash-separated list of allowed callvote types. |
 | `g_voteRepeatLimit` | RatMod | `0` | 0 or 1 | Failed votes per player before cooldown (`0` = off). |
 | `g_votecustomfile` | RatMod | `votecustom.cfg` | filename | Path to custom callvote definitions file. |
 | `g_votemapsfile` | RatMod | `votemaps.cfg` | filename | Path to the map list allowed for map callvotes. |
