@@ -1134,6 +1134,7 @@ void G_StoreViewVectorHistory ( gclient_t *client );
 void GibEntity( gentity_t *self, int killer );
 void G_SetRespawntime( gentity_t *self, int notBefore );
 void DamagePlum( gentity_t *ent, gentity_t *target, int mod, int damage );
+qboolean G_CanSplashDamage( gentity_t *targ, vec3_t origin );	//mrd
 
 // damage flags
 #define DAMAGE_RADIUS				0x00000001	// damage was indirect

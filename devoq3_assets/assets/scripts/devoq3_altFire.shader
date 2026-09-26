@@ -101,3 +101,20 @@ plasmaAltExplosion
                 rgbGen wave inversesawtooth 0 1 0.25 0.50
 	}
 }
+
+sprites/plasmaAltBall
+{
+	cull disable
+	{
+		clampmap sprites/plasmaBoltPurp.tga
+		blendfunc GL_ONE GL_ONE
+                tcMod rotate 987
+	}
+	{
+		clampmap sprites/plasmaBoltGold.tga
+		blendfunc GL_ONE GL_ONE
+                tcMod rotate 659
+                rgbGen wave sawtooth 0.5 0.5 0 3
+                tcMod stretch sin 1.0 0.1 0 2
+	}
+}

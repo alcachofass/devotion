@@ -432,7 +432,8 @@ void G_VortexThink( gentity_t *ent ) {
 
 	numTrapped = trap_EntitiesInBox( mins, maxs, entityList, MAX_GENTITIES );
 
-	//mrd ignore non-players and dead players, otherwise figure out distance and normalize it
+	//mrd ignore non-players and dead players, otherwise figure out distance
+	//check for LOS, then normalize it
 	for ( e = 0; e < numTrapped; e++ ) {
 		other = &g_entities[entityList[e]];
 
@@ -445,6 +446,12 @@ void G_VortexThink( gentity_t *ent ) {
 		}
 
 		VectorSubtract( ent->r.currentOrigin, other->r.currentOrigin, dir );
+
+		//only apply force if enemy in LOS
+		if (!G_CanSplashDamage( other, ent->r.currentOrigin ) ){
+			continue;
+		}
+
 		dist = VectorLength( dir );
 		if ( dist < 1.0 )
 		{
