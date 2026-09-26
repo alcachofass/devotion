@@ -4882,7 +4882,8 @@ void ClientCommand( int clientNum )
 
     if( ( cmds[ i ].cmdFlags & CMD_NOTEAM ||
         ( cmds[ i ].cmdFlags & CMD_CHEAT_TEAM && !g_cheats.integer ) ) &&
-        ent->client->sess.sessionTeam != TEAM_NONE )
+        ent->client->sess.sessionTeam != TEAM_SPECTATOR &&
+        ent->client->sess.sessionTeam != TEAM_FREE )
     {
         trap_SendServerCommand( clientNum,
             "print \"Cannot use this command when on a team\n\"" );

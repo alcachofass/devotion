@@ -696,6 +696,11 @@ void SpectatorThink( gentity_t *ent, usercmd_t *ucmd ) {
 		// save results of pmove
 		VectorCopy( client->ps.origin, ent->s.origin );
 
+		// match player think: use pmove bounds for trigger contact, not the
+		// small Spec_PublishMarker bbox left over from ClientEndFrame
+		VectorCopy( pm.mins, ent->r.mins );
+		VectorCopy( pm.maxs, ent->r.maxs );
+
 		G_TouchTriggers( ent );
 		trap_UnlinkEntity( ent );
 	}
@@ -1761,7 +1766,7 @@ Spec_PublishMarker
 
 Put a team spectator into the snapshot so other spectators can see them.
 Free cam is linked at the camera. Follow is linked on the player they
-watch. The entity stays non-solid and invisible to players.
+watch. The entity stays non-solid, non-damageable, and invisible to players.
 ==================
 */
 static void Spec_PublishMarker( gentity_t *ent ) {
@@ -1821,6 +1826,8 @@ static void Spec_PublishMarker( gentity_t *ent ) {
 	VectorCopy( org, ent->s.pos.trBase );
 	VectorCopy( org, ent->s.origin );
 	VectorCopy( org, ent->r.currentOrigin );
+	ent->takedamage = qfalse;
+	ent->die = NULL;
 	trap_LinkEntity( ent );
 }
 

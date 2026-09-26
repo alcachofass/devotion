@@ -211,40 +211,19 @@ void TeamMain_MenuInit( void ) {
 
 			      
 	// set initial states
-	switch( gametype ) {
-	case GT_SINGLE_PLAYER:
-	case GT_FFA:
-	case GT_LMS:
-	case GT_TOURNAMENT:
-#ifdef WITH_MULTITOURNAMENT
-	case GT_MULTITOURNAMENT:
-#endif
+	if ( BG_IsTeamGametype( gametype ) ) {
+		s_teammain.joingame.string = "AUTO JOIN GAME";
+	} else {
 		s_teammain.joinred.generic.flags  |= QMF_GRAYED;
 		s_teammain.joinblue.generic.flags |= QMF_GRAYED;
-		break;
-
-	default:
-	case GT_TEAM:
-	case GT_CTF:
-	case GT_ELIMINATION:
-	case GT_CTF_ELIMINATION:
-		//s_teammain.joingame.generic.flags |= QMF_GRAYED;
-		s_teammain.joingame.string           = "AUTO JOIN GAME";
-		break;
 	}
 
 	Menu_AddItem( &s_teammain.menu, (void*) &s_teammain.frame );
 	Menu_AddItem( &s_teammain.menu, (void*) &s_teammain.joinred );
 	Menu_AddItem( &s_teammain.menu, (void*) &s_teammain.joinblue );
 
-	switch ( gametype ){
-	case GT_SINGLE_PLAYER:
-	case GT_FFA:
-	case GT_TOURNAMENT:
+	if ( !BG_IsTeamGametype( gametype ) ) {
 		Menu_AddItem( &s_teammain.menu, (void*) &s_teammain.joingame );
-		break;
-	default:
-		break;
 	}
 
 	Menu_AddItem( &s_teammain.menu, (void*) &s_teammain.spectate );

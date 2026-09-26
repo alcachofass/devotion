@@ -979,6 +979,10 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		return;
 	}
 
+	if ( self->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+		return;
+	}
+
 	if ( level.intermissiontime
 #ifdef WITH_MULTITOURNAMENT
 		       	|| G_MtrnIntermissionTime(level.currentGameId)

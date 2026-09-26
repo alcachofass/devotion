@@ -83,10 +83,7 @@ static void Spec_DrawerLayout( int *bodyX, int *bodyY, int *bodyW, int *bodyH,
 		int *tabX, int *tabY, int *tabW, int *tabH );
 
 static qboolean Spec_KeyIsAttack( int key ) {
-	if ( key <= 0 ) {
-		return qfalse;
-	}
-	return ( key == trap_Key_GetKey( "+attack" ) ) ? qtrue : qfalse;
+	return CG_DemoControls_AttackKey( key );
 }
 
 static void Spec_DrawerLayout( int *bodyX, int *bodyY, int *bodyW, int *bodyH,
@@ -396,6 +393,9 @@ static qboolean DemoCtrl_SpecSession( void ) {
 	/* Follow copies the target playerState, so team and pm_type are theirs.
 	   The local client's team stays on clientinfo. */
 	if ( DemoCtrl_LocalIsSpectator() ) {
+		return qtrue;
+	}
+	if ( cg.snap->ps.pm_flags & PMF_FOLLOW ) {
 		return qtrue;
 	}
 	if ( cg.snap->ps.pm_type == PM_SPECTATOR ) {
