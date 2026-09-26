@@ -232,6 +232,7 @@ typedef struct {
 #define MF_TRAILFINISHED	64
 #define MF_EXPLOSIONCONFIRMED	128
 #define MF_HITBEEP		256
+#define MF_ALT_FIRE		512		//mrd
 
 typedef struct predictedMissileStatus_s {
 	int	missileFlags;
@@ -1298,6 +1299,7 @@ typedef struct {
 	qhandle_t	railExplosionShader;
 	qhandle_t	railAltExplosionShader;	//mrd
 	qhandle_t	plasmaExplosionShader;
+	qhandle_t	plasmaAltExplosionShader;	//mrd
 	qhandle_t	bulletExplosionShader;
 	qhandle_t	rocketExplosionShader;
 	qhandle_t	grenadeExplosionShader;

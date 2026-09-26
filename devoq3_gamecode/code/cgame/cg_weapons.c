@@ -1456,6 +1456,10 @@ void CG_RegisterWeapon( int weaponNum ) {
 		weaponInfo->flashSound[0] = trap_S_RegisterSound( "sound/weapons/plasma/hyprbf1a.wav", qfalse );
 		cgs.media.plasmaExplosionShader = trap_R_RegisterShader( "plasmaExplosion" );
 		cgs.media.railRingsShader = trap_R_RegisterShader( "railDisc" );
+
+		//mrd altFire PG
+		MAKERGB( weaponInfo->flashDlightAltColor, 0.9f, 0.25f, 1.0f );
+		cgs.media.plasmaAltExplosionShader = trap_R_RegisterShader( "plasmaAltExplosion" );
 		break;
 
 	case WP_RAILGUN:
@@ -2186,7 +2190,7 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 
 		//if ( weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2] ) {
 		//mrd - add a special altFire colour effect
-		if ( ( weaponNum == WP_LIGHTNING || weaponNum == WP_RAILGUN ) && cent->altFire 
+		if ( ( weaponNum == WP_LIGHTNING || weaponNum == WP_RAILGUN || weaponNum == WP_PLASMAGUN) && cent->altFire 
 			&& ( weapon->flashDlightAltColor[0] || weapon->flashDlightAltColor[1] || weapon->flashDlightAltColor[2] ) ) {
 				trap_R_AddLightToScene( flash.origin, 300 + (rand()&31), weapon->flashDlightAltColor[0],
 				weapon->flashDlightAltColor[1], weapon->flashDlightAltColor[2] );
@@ -4447,15 +4451,6 @@ static void CG_Explosionia ( centity_t *cent ) {
 
 */
 
-/*
-=================
-CG_AltRailImpact
-
-mrd - Helper functon for CG_MissileHitWall
-Triggered by altFire RG impact on the wall
-=================
-*/
-//void CG_AltRailImpact()
 
 /*
 =================
@@ -4658,10 +4653,29 @@ void CG_MissileHitWall( int weapon, int clientNum, vec3_t origin, vec3_t dir, im
 		break;
 	case WP_PLASMAGUN:
 		mod = cgs.media.ringFlashModel;
-		shader = cgs.media.plasmaExplosionShader;
 		sfx = cgs.media.sfx_plasmaexp;
 		mark = cgs.media.energyMarkShader;
-		radius = 16;
+
+		if (!altFire) {
+			shader = cgs.media.plasmaExplosionShader;
+			radius = 16;
+		} else {
+			shader = cgs.media.plasmaAltExplosionShader;
+			duration = 700;
+			radius = 32;
+			if ( rand() & 1){	//purple light
+				light = 150;
+				lightColor[0] = 0.9;
+				lightColor[1] = 0.25;
+				lightColor[2] = 1.0;
+			} else {
+				light = 125;
+				lightColor[0] = 1.0;
+				lightColor[1] = 0.75;
+				lightColor[2] = 0.2;
+			}
+
+		}
 		break;
 	case WP_BFG:
 		mod = cgs.media.dishFlashModel;

@@ -809,7 +809,7 @@ static void CG_Missile( centity_t *cent ) {
 			weapon->missileDlightColor[0], weapon->missileDlightColor[1], weapon->missileDlightColor[2] );
 	}
 	//mrd - 3-phase vortex light effect
-	if ( s1->weapon == WP_GRENADE_LAUNCHER && ( s1->eFlags & EF_VORTEX ) ){
+	if ( s1->weapon == WP_GRENADE_LAUNCHER && ( s1->eFlags & EF_ALT_FIRE ) ){
 		int i;
 		float phaseOffset[3] = {0.0f, 2.0f * M_PI / 3.0f, 4.0f * M_PI / 3.0f};
 		float colour[3][3] = {
@@ -929,7 +929,7 @@ static void CG_Missile( centity_t *cent ) {
 	// add to refresh list, possibly with quad glow
 	if ( ent.hModel ) {
 		//mrd - vortex grenades get a special shell FX
-		if (s1->eFlags & EF_VORTEX && s1->weapon == WP_GRENADE_LAUNCHER) {
+		if (s1->eFlags & EF_ALT_FIRE && s1->weapon == WP_GRENADE_LAUNCHER) {
 			refEntity_t shell;
 			float scale = 1.08;
 

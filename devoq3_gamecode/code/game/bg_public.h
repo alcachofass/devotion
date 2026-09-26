@@ -50,10 +50,14 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	MACHINEGUN_ALT_BURST_SHOTS	4
 #define MACHINEGUN_ALT_BURST_INTERVAL 40
 #define MACHINEGUN_ALT_COOLDOWN	840
-#define VORTEX_RELOAD	4000
+#define VORTEX_RELOAD	3500
 #define	RAILGUN_ALT_DAMAGE	20
 #define RAILGUN_ALT_SHOCKWAVE_DAMAGE 15
 #define RAILGUN_ALT_SHOCKWAVE_RADIUS 120	//mrd - same radius as a rocket explosion
+//altFire PG
+#define PLASMA_ALT_CORRODE_TIME 1000	//delay between corrosion damage
+#define PLASMA_ALT_CORRODE_DURATION ((3*PLASMA_ALT_CORRODE_TIME)+1)	//max corrosion time
+#define PLASMA_ALT_CORRODE_DAMAGE 5		
 
 #define	ITEM_RADIUS			15		// item sizes are needed for client side pickup detection
 
@@ -382,7 +386,7 @@ typedef enum {
 #define	EF_NODRAW			0x00000080		// may have an event, but no model (unspawned items)
 #define	EF_FIRING			0x00000100		// for lightning gun
 // #define	EF_KAMIKAZE			0x00000200
- #define	EF_VORTEX		0x00000200		// mrd - for alt-fire vortex grenade lighting
+ #define	EF_ALT_FIRE		0x00000200		// mrd - for altFire shots
 #define	EF_MOVER_STOP		0x00000400		// will push otherwise
 #define EF_AWARD_CAP		0x00000800		// draw the capture sprite
 #define	EF_TALK				0x00001000		// draw a talk balloon
@@ -394,6 +398,7 @@ typedef enum {
 #define EF_AWARD_DENIED		0x00040000		// denied
 #define EF_TEAMVOTED		0x00080000		// already cast a team vote
 #define EF_BOT_AIM_DEBUG	0x00100000		// bot_debugAim: origin2 = aim point
+
 
 // Additional awards (not visible to other players)
 /*
@@ -867,7 +872,8 @@ typedef enum {
 	MOD_JUICED,
 #endif
 	MOD_GRAPPLE,
-	MOD_RAILGUN_SHOCKWAVE	//mrd
+	MOD_RAILGUN_SHOCKWAVE,	//mrd
+	MOD_PLASMA_CORROSION	//mrd
 } meansOfDeath_t;
 
 
@@ -1008,6 +1014,7 @@ typedef enum {
 
 // projectile speeds (needed client-side for prediction)
 #define PLASMA_VELOCITY 2000
+#define PLASMA_ALT_VELOCITY 1000
 #define BFG_VELOCITY 2000
 #define GRENADE_VELOCITY 700
 #define PROXMINE_VELOCITY 700

@@ -63,6 +63,7 @@ railAltExplosion
 	}
 }
 
+//coloured shell around vortex grenade
 vortexShell
 {
 	//deformVertexes wave 100 sin 3 0 0 0
@@ -79,5 +80,24 @@ vortexShell
 		tcGen environment
                 tcmod rotate 45
 		        tcmod scroll 1 .15
+	}
+}
+
+plasmaAltExplosion
+{
+	cull disable
+	{
+		clampmap models/weaphits/plasmaPurp.tga
+		blendfunc add
+                tcMod stretch triangle .6 0.1 0 8
+                tcmod rotate 329
+                rgbGen wave inversesawtooth 0 1 0 0.75
+	}
+	{
+		clampmap models/weaphits/plasmaGold.tga
+		blendfunc add
+               	tcMod stretch triangle .6 0.1 0 8
+                tcmod rotate 494
+                rgbGen wave inversesawtooth 0 1 0.25 0.50
 	}
 }
