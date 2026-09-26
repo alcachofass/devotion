@@ -483,9 +483,9 @@ G_CVAR( g_battlesuitDamageSelf, "g_battleSuitDamageSelf", "0", CVAR_ARCHIVE, 0, 
 G_CVAR( g_altFireMode, "g_altFireMode", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse ) //mrd - include the cvar in CS_SERVERINFO
 
 //mrd - vortex grenades
-G_CVAR( g_vortexGrenadeRadius, "g_vortexGrenadeRadius", "800", CVAR_SYSTEMINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse )
-G_CVAR( g_vortexGrenadeForce, "g_vortexGrenadeForce", "900", CVAR_SYSTEMINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse )
-G_CVAR( g_vortexGrenadeDuration, "g_vortexGrenadeDuration", "8000", CVAR_SYSTEMINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse )
+G_CVAR( g_vortexGrenadeRadius, "g_vortexGrenadeRadius", "500", CVAR_SYSTEMINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse )
+G_CVAR( g_vortexGrenadeForce, "g_vortexGrenadeForce", "950", CVAR_SYSTEMINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse )
+G_CVAR( g_vortexGrenadeDuration, "g_vortexGrenadeDuration", "6500", CVAR_SYSTEMINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse )
 
 
 #undef G_CVAR

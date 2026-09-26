@@ -183,6 +183,14 @@ static void CG_Obituary( entityState_t *ent ) {
 			else
 				message = "melted himself";
 			break;
+		case MOD_PLASMA_CORROSION:	//mrd
+			if ( gender == GENDER_FEMALE )
+				message = "dissolved herself";
+			else if ( gender == GENDER_NEUTER )
+				message = "dissolved itself";
+			else
+				message = "dissolved himself";
+			break;
 		case MOD_BFG_SPLASH:
 			message = "should have used a smaller gun";
 			break;
@@ -306,6 +314,10 @@ static void CG_Obituary( entityState_t *ent ) {
 		case MOD_PLASMA_SPLASH:
 			message = "was melted by";
 			message2 = "'s plasmagun";
+			break;
+		case MOD_PLASMA_CORROSION:
+			message = "succumbed to";
+			message2 = "'s corrosive plasma";
 			break;
 		case MOD_RAILGUN:
 			message = "was railed by";
@@ -680,7 +692,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	const char		*s;
 	int				clientNum;
 	clientInfo_t	*ci;
-
+	qboolean 		altFire;	//mrd
+		
 	es = &cent->currentState;
 	event = es->event & ~EV_EVENT_BITS;
 
@@ -702,6 +715,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		clientNum = 0;
 	}
 	ci = &cgs.clientinfo[ clientNum ];
+
+	altFire = cent->currentState.eFlags & EF_ALT_FIRE;	//mrd
 
 	switch ( event ) {
 	//
@@ -1240,7 +1255,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		ByteToDir( es->eventParm, dir );
 		CG_MissileHitWall( es->weapon, es->otherEntityNum, position, dir, IMPACTSOUND_DEFAULT,
 			       //cent->currentState.eType == ET_MISSILE ? &cent->missileStatus : NULL);
-				   cent->currentState.eType == ET_MISSILE ? &cent->missileStatus : NULL, qfalse);	//mrd
+				   cent->currentState.eType == ET_MISSILE ? &cent->missileStatus : NULL, altFire);	//mrd
 		if (cent->currentState.eType == ET_MISSILE) {
 			CG_UpdateMissileStatus(&cent->missileStatus,
 					MF_EXPLOSIONCONFIRMED | MF_EXPLODED | MF_HITWALL,
@@ -1274,7 +1289,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		ByteToDir( es->eventParm, dir );
 		CG_MissileHitWall( es->weapon, es->otherEntityNum, position, dir, IMPACTSOUND_METAL,
 			       //cent->currentState.eType == ET_MISSILE ? &cent->missileStatus : NULL);
-				   cent->currentState.eType == ET_MISSILE ? &cent->missileStatus : NULL, qfalse);	//mrd
+				   cent->currentState.eType == ET_MISSILE ? &cent->missileStatus : NULL, cent->altFire);	//mrd
 		if (cent->currentState.eType == ET_MISSILE) {
 			CG_UpdateMissileStatus(&cent->missileStatus, 
 					MF_EXPLOSIONCONFIRMED | MF_EXPLODED | MF_HITWALLMETAL,

@@ -61,6 +61,7 @@ void DamagePlum( gentity_t *ent, gentity_t *target, int mod, int damage ) {
 			case MOD_ROCKET_SPLASH:
 			case MOD_PLASMA:
 			case MOD_PLASMA_SPLASH:
+			case MOD_PLASMA_CORROSION:	//mrd
 			case MOD_RAILGUN:
 			case MOD_RAILGUN_SHOCKWAVE:	//mrd
 			case MOD_BFG:
@@ -491,6 +492,7 @@ char	*modNames[] = {
 	"MOD_ROCKET_SPLASH",
 	"MOD_PLASMA",
 	"MOD_PLASMA_SPLASH",
+	"MOD_PLASMA_CORROSION",
 	"MOD_RAILGUN",
 	"MOD_LIGHTNING",
 	"MOD_BFG",

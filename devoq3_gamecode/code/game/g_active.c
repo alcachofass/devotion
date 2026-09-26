@@ -90,6 +90,37 @@ void P_DamageFeedback( gentity_t *player ) {
 }
 
 
+//mrd - apply corrosive altFire PG acid damage effect
+void P_PlasmaCorrosion( gentity_t *ent ){
+	
+	//acid damage has expired, clear the slate
+	if ( ent->client->acidExpireTime <= level.time){
+		ent->client->acidAttacker = ENTITYNUM_NONE;
+		ent->client->acidTickDamage = 0;
+		ent->client->acidNextDamageTime = 0;
+		ent->client->acidExpireTime = 0;
+		return;
+	}
+
+	//not time for next acid damage tick yet
+	if ( ent->client->acidNextDamageTime > level.time ) {		
+			return;
+	}
+
+	//DEBUG
+	//Com_Printf( "Inflicting altFire PG damage = %d on %d\n", ent->client->acidTickDamage, ent->s.number );
+	
+	//guard against an attacker who disconnects in the middle of a corrosion cycle
+	if ( ent->client->acidAttacker == ENTITYNUM_NONE ) {
+		return;
+	}
+
+	G_Damage( ent, NULL, &g_entities[ent->client->acidAttacker], NULL, ent->r.currentOrigin, ent->client->acidTickDamage, 
+		DAMAGE_NO_KNOCKBACK, MOD_PLASMA_CORROSION, qtrue );
+
+	ent->client->acidNextDamageTime = level.time + PLASMA_ALT_CORRODE_TIME;
+}
+
 
 /*
 =============
@@ -1494,7 +1525,6 @@ void ClientThink_real( gentity_t *ent ) {
 		( ucmd->buttons & BUTTON_ALT_ATTACK ) && client->ps.weaponTime <= 0
 		&& !G_GrappleOffhand() ) {
 		pm.gauntletHit = CheckGauntletAttack( ent, qtrue );	//mrd
-		//Com_Printf("Checking for alt fire gauntlet attack.\n");	//mrd debug
 	}
 
 	if ( ent->flags & FL_FORCE_GESTURE ) {
@@ -2081,6 +2111,9 @@ void ClientEndFrame( gentity_t *ent ) {
 
 	// burn from lava, etc
 	P_WorldEffects (ent);
+
+	// mrd - apply altFire PG corrosive effect
+	P_PlasmaCorrosion (ent);
 
 	// apply all the damage taken this frame
 	P_DamageFeedback (ent);

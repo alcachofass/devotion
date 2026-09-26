@@ -2323,13 +2323,13 @@ static void PM_Weapon( void ) {
 		&& pm->ps->weapon == WP_MACHINEGUN
 		&& burstShot > 0 ){
 		ammoCost = 0;
-	//mrd - MG burst shot consumes all 4 at once
+	//mrd - MG burst shot consumes all at once
 	} else if ( altFire 
 		&& pm->ps->weapon == WP_MACHINEGUN){
-		ammoCost = MACHINEGUN_ALT_BURST_SHOTS;
+		ammoCost = MACHINEGUN_ALT_BURST_SHOTS * 2;
 	//mrd - otherwise, other weapon alt shots take 2 ammo
-	} else if ( altFire ){
-		ammoCost = 2;
+	//} else if ( altFire ){
+	//	ammoCost = 2;
 	} else {
 		ammoCost = 1;
 	}
@@ -2477,7 +2477,11 @@ static void PM_Weapon( void ) {
 		addTime = 800;
 		break;
 	case WP_PLASMAGUN:
-		addTime = 100;
+		if (altFire){
+			addTime = 200;
+		} else {
+			addTime = 100;
+		}
 		break;
 	case WP_RAILGUN:
 		if (pm->pmove_ratflags & RAT_FASTWEAPONS) {
@@ -2525,9 +2529,7 @@ static void PM_Weapon( void ) {
 			addTime = MACHINEGUN_ALT_COOLDOWN;
 			pm->altFireBurstShots = 0;
 		}
-	}// else if (altFire) {
-		//addTime /= 2.0;	//mrd - alt-fire test, shorter cooldown. 
-	//}
+	}
 	
 		
 	pm->ps->weaponTime += addTime;

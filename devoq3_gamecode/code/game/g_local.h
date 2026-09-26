@@ -731,6 +731,12 @@ struct gclient_s {
 
 	// mrd - server-only cooldown gate for vortex (alt-fire) grenades
 	int	vortexReloadTime;
+
+	// mrd - altFire PG
+	int acidAttacker;
+	int acidTickDamage;
+	int acidExpireTime;
+	int acidNextDamageTime;
 };
 
 

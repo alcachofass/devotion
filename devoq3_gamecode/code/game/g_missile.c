@@ -24,8 +24,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define MISSILE_PRESTEP_TIME	50
 
-#define VORTEX_THINK_TIME	50
-#define VORTEX_TICK_TIME	666
+//altFire GL
+#define VORTEX_THINK_TIME	50		//for vortex physics effect
+#define VORTEX_TICK_TIME	666		//for sound FX
 
 void G_SetMissileLaunchTime (gentity_t *self, gentity_t *bolt) {
 	if (!self->client) {
@@ -466,7 +467,7 @@ void G_VortexThink( gentity_t *ent ) {
 		G_AddEvent ( ent, EV_GENERAL_SOUND, G_SoundIndex( "sound/world/button_zap.wav" ) );
 		ent->vortexNextTickTime = level.time + VORTEX_TICK_TIME;
 	}	
-	ent->nextthink = level.time + 50;
+	ent->nextthink = level.time + VORTEX_THINK_TIME;
 }
 
 /*
@@ -742,6 +743,86 @@ void ProximityMine_RemoveAll() {
 }
 #endif
 
+//mrd - on direct altFire PG hit, load the enemy client with corrosive plasma damage
+//applies 5 damage per second for 3 seconds
+//subsequent direct hits restart the timer but don't stack damage
+void G_PlasmaCorrode( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker ) {
+
+	if ( !targ->client || !inflictor || !attacker ) {
+		return;
+	}
+
+	if ( strcmp(inflictor->classname, "plasma") || !inflictor->altFire) {
+		return;
+	}
+
+	//if the enemy has already been hit and prior timer hasn't run out, just restart the timer
+	if ( targ->client->acidExpireTime > level.time ) {
+		targ->client->acidExpireTime = level.time + PLASMA_ALT_CORRODE_DURATION;
+		return;
+	}
+
+	targ->client->acidTickDamage = PLASMA_ALT_CORRODE_DAMAGE;
+	targ->client->acidExpireTime = level.time + PLASMA_ALT_CORRODE_DURATION;
+	targ->client->acidNextDamageTime = level.time + PLASMA_ALT_CORRODE_TIME;
+	targ->client->acidAttacker = attacker->s.number;
+
+	return;
+}
+
+//mrd - on indirect altFire PG hit, drop acidic plasma puddles
+//applies 5 damage per second for any player standing in them
+void G_PlasmaAcidBurst( gentity_t *inflictor, gentity_t *attacker, vec3_t origin ) {
+
+	vec3_t mins, maxs;
+	int burstRadius = 50;
+
+	int i, e;
+
+	gentity_t *other;
+
+	int entityList[MAX_GENTITIES];
+	int numTrapped;
+
+	if ( !inflictor || !attacker ) {
+		return;
+	}
+
+	if ( strcmp(inflictor->classname, "plasma") || !inflictor->altFire) {
+		return;
+	}
+	
+	//build a search box
+	for ( i = 0; i < 3; i++ ) {
+		mins[i] = origin[i] - burstRadius;
+		maxs[i] = origin[i] + burstRadius;
+	}
+
+	numTrapped = trap_EntitiesInBox( mins, maxs, entityList, MAX_GENTITIES );
+
+	//mrd ignore non-players and dead players, otherwise figure out distance and normalize it
+	for ( e = 0; e < numTrapped; e++ ) {
+		other = &g_entities[entityList[e]];
+
+		if ( !other->client || other->health <=0 ){
+			continue;
+		}
+
+		if ( other->client->ps.pm_type != PM_NORMAL ){
+			continue;
+		}
+
+		if ( !CanDamage( other, origin ) ){
+			continue;
+		}
+
+		G_PlasmaCorrode( other, inflictor, attacker );
+		//Com_Printf( "Corroding %s\n", other->client->pers.netname);
+	}
+
+	return;
+}
+
 /*
 ================
 G_MissileImpact
@@ -813,7 +894,6 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 
 	//mrd - two missiles collided!
 	if ( other->s.eType == ET_MISSILE && ent->s.eType == ET_MISSILE && g_vulnerableMissiles.integer == 1){
-		//Com_Printf("Two missiles collided in G_MissileImpact\n");	//mrd debug
 		other->think = G_ExplodeMissile;
 		ent->think = G_ExplodeMissile;
 
@@ -868,15 +948,19 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 			if( LogAccuracyHit( other, &g_entities[ent->r.ownerNum] ) ) {
 				g_entities[ent->r.ownerNum].client->accuracy_hits++;
 				hitClient = qtrue;
-                                g_entities[ent->r.ownerNum].client->accuracy[ent->s.weapon][1]++;
+                g_entities[ent->r.ownerNum].client->accuracy[ent->s.weapon][1]++;
 			}
 			BG_EvaluateTrajectoryDelta( &ent->s.pos, level.time, velocity );
 			if ( VectorLength( velocity ) == 0 ) {
 				velocity[2] = 1;	// stepped on a grenade
 			}
 			G_Damage (other, ent, &g_entities[ent->r.ownerNum], velocity, ent->s.origin, ent->damage, 0, ent->methodOfDeath, ent->altFire);	//mrd
+			//mrd - direct altFire PG hit applies corrosive damage over time
+			if (ent->altFire && !strcmp(ent->classname, "plasma") ) {
+				G_PlasmaCorrode (other, ent, &g_entities[ent->r.ownerNum]);
+			}
 		}
-	}
+	} 
 
 #ifdef MISSIONPACK
 	if( ent->s.weapon == WP_PROX_LAUNCHER ) {
@@ -966,8 +1050,14 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 		ent->s.otherEntityNum = other->s.number;
 	} else if( trace->surfaceFlags & SURF_METALSTEPS ) {
 		G_AddEvent( ent, EV_MISSILE_MISS_METAL, DirToByte( trace->plane.normal ) );
+		if (ent->altFire && !strcmp(ent->classname, "plasma") ) {
+			G_PlasmaAcidBurst(ent, &g_entities[ent->r.ownerNum], trace->endpos);
+		}
 	} else {
 		G_AddEvent( ent, EV_MISSILE_MISS, DirToByte( trace->plane.normal ) );
+		if (ent->altFire && !strcmp(ent->classname, "plasma") ) {
+			G_PlasmaAcidBurst(ent, &g_entities[ent->r.ownerNum], trace->endpos);
+		}
 	}
 
 	ent->freeAfterEvent = qtrue;
@@ -994,7 +1084,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 			other, ent->splashMethodOfDeath, qfalse ) ) {
 			if( !hitClient ) {
 				g_entities[ent->r.ownerNum].client->accuracy_hits++;
-                                g_entities[ent->r.ownerNum].client->accuracy[ent->s.weapon][1]++;
+                g_entities[ent->r.ownerNum].client->accuracy[ent->s.weapon][1]++;
 			}
 		}
 	}
@@ -1204,9 +1294,10 @@ gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t dir) {
 //unlagged - projectile nudge
 	bolt->parent = self;
 	if (bolt->altFire) {
-		bolt->damage = 10;
-		bolt->splashDamage = 5;
-		bolt->splashRadius = 110;
+		bolt->damage = 25;
+		bolt->splashDamage = 0;
+		bolt->splashRadius = 0;
+		bolt->s.eFlags |= EF_ALT_FIRE;
 	} else {
 		bolt->damage = 20;
 		bolt->splashDamage = 15;
@@ -1220,16 +1311,20 @@ gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t dir) {
 	//}
 	bolt->target_ent = NULL;
 
-	if (bolt->altFire) {
-		bolt->s.pos.trType = TR_GRAVITY;
-	} else {
+	//if (bolt->altFire) {
+	//	bolt->s.pos.trType = TR_GRAVITY;
+	//} else {
 		bolt->s.pos.trType = TR_LINEAR;
-	}
+	//}
 	bolt->s.pos.trTime = level.time;
 	//bolt->s.pos.trTime = level.time;
 	G_SetMissileLaunchTime(self, bolt);
 	VectorCopy( start, bolt->s.pos.trBase );
-	VectorScale( dir, PLASMA_VELOCITY, bolt->s.pos.trDelta );
+	//if (bolt->altFire){
+	//	VectorScale( dir, PLASMA_ALT_VELOCITY, bolt->s.pos.trDelta );
+	//} else {
+		VectorScale( dir, PLASMA_VELOCITY, bolt->s.pos.trDelta );
+	//}
 	//SnapVector( bolt->s.pos.trDelta );			// save net bandwidth	//mrd - nah
 
 	VectorCopy (start, bolt->r.currentOrigin);
@@ -1280,7 +1375,7 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->s.weapon = WP_GRENADE_LAUNCHER;
 	bolt->s.eFlags = EF_BOUNCE_HALF;
 	if (bolt->altFire){
-		bolt->s.eFlags |= EF_VORTEX;
+		bolt->s.eFlags |= EF_ALT_FIRE;
 	}
 	bolt->r.ownerNum = self->s.number;
 //unlagged - projectile nudge

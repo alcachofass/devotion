@@ -1036,6 +1036,7 @@ void CG_UpdateMissileStatus(predictedMissileStatus_t *pms, int addedFlags, vec3_
 void CG_PredictedExplosion(trace_t *tr, int weapon, predictedMissile_t *predMissile, centity_t *missileEnt)  {
 	centity_t *hitEnt;
 	predictedMissileStatus_t *pms;
+	qboolean	altFire;	//mrd
 
 	if (missileEnt) {
 		CG_RemovePredictedMissile(missileEnt);
@@ -1084,6 +1085,7 @@ void CG_PredictedExplosion(trace_t *tr, int weapon, predictedMissile_t *predMiss
 		return;
 	}
 
+	altFire = ( pms->missileFlags & MF_ALT_FIRE ) ? qtrue : qfalse;	//mrd
 
 	hitEnt = &cg_entities[tr->entityNum];
 	if (hitEnt->currentState.eType == ET_PLAYER ) {
@@ -1111,10 +1113,10 @@ void CG_PredictedExplosion(trace_t *tr, int weapon, predictedMissile_t *predMiss
 		CG_MissileHitPlayer( weapon, tr->endpos, tr->plane.normal, tr->entityNum, pms );
 		CG_UpdateMissileStatus(pms, MF_EXPLODED | MF_HITPLAYER, tr->endpos, tr->entityNum);
 	} else if (tr->surfaceFlags & SURF_METALSTEPS) {
-		CG_MissileHitWall(weapon, 0, tr->endpos, tr->plane.normal, IMPACTSOUND_METAL, pms, qfalse);	//mrd
+		CG_MissileHitWall(weapon, 0, tr->endpos, tr->plane.normal, IMPACTSOUND_METAL, pms, altFire);	//mrd
 		CG_UpdateMissileStatus(pms, MF_EXPLODED | MF_HITWALLMETAL, tr->endpos, tr->entityNum);
 	} else {
-		CG_MissileHitWall(weapon, 0, tr->endpos, tr->plane.normal, IMPACTSOUND_DEFAULT, pms, qfalse);	//mrd
+		CG_MissileHitWall(weapon, 0, tr->endpos, tr->plane.normal, IMPACTSOUND_DEFAULT, pms, altFire);	//mrd
 		CG_UpdateMissileStatus(pms, MF_EXPLODED | MF_HITWALL, tr->endpos, tr->entityNum);
 	}
 }
@@ -1727,17 +1729,21 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 
 		pm = CG_BasePredictMissile(ent, muzzlePoint);
 
+		//mrd - predicted missiles need to know altFire status for proper cgame rendering in predicted states
+		if ( cent->altFire ){
+			pm->status.missileFlags |= MF_ALT_FIRE;
+		}
 		bolt = &pm->refEntity;
 
 		switch (ent->weapon) {
 			case WP_PLASMAGUN:
 				VectorScale(forward, PLASMA_VELOCITY, pm->pos.trDelta);
 				SnapVector(pm->pos.trDelta);
-				if (cent->altFire) {
-					pm->pos.trType = TR_GRAVITY;
-				} else {
+				//if (cent->altFire) {
+				//	pm->pos.trType = TR_GRAVITY;
+				//} else {
 					pm->pos.trType = TR_LINEAR;
-				}
+				//}
 				bolt->reType = RT_SPRITE;
 				bolt->radius = PLASMABALL_RADIUS;
 				bolt->rotation = 0;
