@@ -2772,7 +2772,8 @@ static qboolean G_SplashPassesCorner( const vec3_t origin, gentity_t *targ, cons
 	return G_SplashTargetOnStep( targ, dest, nOut, nFloor );
 }
 
-static qboolean G_CanSplashDamage( gentity_t *targ, vec3_t origin ) {
+//static qboolean G_CanSplashDamage( gentity_t *targ, vec3_t origin ) {
+qboolean G_CanSplashDamage( gentity_t *targ, vec3_t origin ) {	//mrd
 	vec3_t	midpoint;
 	trace_t	tr;
 

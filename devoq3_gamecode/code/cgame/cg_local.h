@@ -113,6 +113,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define MAX_PREDICTED_MISSILES	32
 
 #define PLASMABALL_RADIUS 11
+#define PLASMABALL_ALT_RADIUS 15	//mrd
 
 #define MIN(a,b) (((a) < (b)) ? (a) : (b))
 #define MAX(a,b) (((a) > (b)) ? (a) : (b))
@@ -1197,6 +1198,7 @@ typedef struct {
 	qhandle_t	plasmaTrailShader;
 	qhandle_t	shotgunSmokePuffShader;
 	qhandle_t	plasmaBallShader;
+	qhandle_t	plasmaAltBallShader;	//mrd
 	qhandle_t	waterBubbleShader;
 	qhandle_t	bloodTrailShader;
 

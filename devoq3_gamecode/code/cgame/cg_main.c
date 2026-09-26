@@ -1351,6 +1351,7 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.blueProxMine = trap_R_RegisterModel( "models/weaphits/proxmineb.md3" );
 #endif
 	cgs.media.plasmaBallShader = trap_R_RegisterShader( "sprites/plasma1" );
+	cgs.media.plasmaAltBallShader = trap_R_RegisterShader( "sprites/plasmaAltBall" );	//mrd
 	cgs.media.bloodTrailShader = trap_R_RegisterShader( "bloodTrail" );
 	cgs.media.lagometerShader = trap_R_RegisterShader("lagometer" );
 	//cgs.media.lagometerShader = trap_R_RegisterShader("gfx/2d/lag.tga" );

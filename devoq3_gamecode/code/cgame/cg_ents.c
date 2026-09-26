@@ -865,7 +865,12 @@ static void CG_Missile( centity_t *cent ) {
 		ent.reType = RT_SPRITE;
 		ent.radius = PLASMABALL_RADIUS;
 		ent.rotation = 0;
-		ent.customShader = cgs.media.plasmaBallShader;
+		if ( s1->eFlags & EF_ALT_FIRE ) {
+			ent.customShader = cgs.media.plasmaAltBallShader;
+			ent.radius = PLASMABALL_ALT_RADIUS;
+			} else {
+			ent.customShader = cgs.media.plasmaBallShader;
+		}
 		trap_R_AddRefEntityToScene( &ent );
 		CG_AddDemoOccludedOutline( &ent, s1, CG_MissileOutlineTeam( cent ) );
 		return;

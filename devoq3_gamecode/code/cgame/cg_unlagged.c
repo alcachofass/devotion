@@ -1745,9 +1745,14 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 					pm->pos.trType = TR_LINEAR;
 				//}
 				bolt->reType = RT_SPRITE;
-				bolt->radius = PLASMABALL_RADIUS;
 				bolt->rotation = 0;
-				bolt->customShader = cgs.media.plasmaBallShader;
+				bolt->radius = PLASMABALL_RADIUS;
+				if ( cent->altFire ) {	//mrd
+					bolt->radius = PLASMABALL_ALT_RADIUS;
+					bolt->customShader = cgs.media.plasmaAltBallShader;
+				} else {
+					bolt->customShader = cgs.media.plasmaBallShader;
+				}
 				// NOTE RETURN!
 				return;
 			case WP_ROCKET_LAUNCHER:
