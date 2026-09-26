@@ -447,3 +447,33 @@ flags   =
 ```
 
 Save the file, restart the map or server, and run `!admintest` in-game to confirm.
+
+## Map/Level control
+
+### Rotation
+
+Map rotations can be defined via the 'standard' Quake 3 way of doing it, with `vstr` chaining. Add a block to your server configuration that looks like this:
+```text
+// Map rotation
+set m1 "map pro-q3dm6; set nextmap vstr m2"
+set m2 "map q3dm17; set nextmap vstr m3"
+set m3 "map q3tourney6; set nextmap vstr m4"
+set m4 "map q3dm7; set nextmap vstr m1"
+vstr m1
+```
+This loads `pro-q3dm6` as the current map and sets `nextmap` to run the next line of the script. When the server reaches intermission/end of match, it'll roll on to `q3dm17` and so forth. You can extend this to as long a list as you like.
+
+### Recommended maps
+You can define a list of 'recommended' maps by creating a text file and populating it with short map names:
+```recommendedmaps.cfg
+pro-q3tourney4
+ql_hektik
+q3dm17
+almostlost
+q3dm5
+q3tourney2
+```
+Then add this line to your server config file: `set g_recommendedMapsFile "recommendedmaps.cfg"`. After, when players use the map vote screen (`\mv` or via the menu) they will be shown this curated list instead of all available maps on the server.
+
+### Next Map Voting
+Add this to your server config file: `set g_nextmapVote 1`. At the end of each match, players will be prompted to vote for the next map. The pool of maps shown is pulled from `g_recommendedMapsFile`.
