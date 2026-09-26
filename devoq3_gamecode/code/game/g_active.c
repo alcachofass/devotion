@@ -696,6 +696,11 @@ void SpectatorThink( gentity_t *ent, usercmd_t *ucmd ) {
 		// save results of pmove
 		VectorCopy( client->ps.origin, ent->s.origin );
 
+		// match player think: use pmove bounds for trigger contact, not the
+		// small Spec_PublishMarker bbox left over from ClientEndFrame
+		VectorCopy( pm.mins, ent->r.mins );
+		VectorCopy( pm.maxs, ent->r.maxs );
+
 		G_TouchTriggers( ent );
 		trap_UnlinkEntity( ent );
 	}
