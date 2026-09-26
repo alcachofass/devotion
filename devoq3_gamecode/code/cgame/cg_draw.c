@@ -7017,32 +7017,6 @@ static float CG_SpecStatusBoxHeight( float scale ) {
 	return pad + charH + 2.0f + pip + 2.0f + barH + pad;
 }
 
-static float CG_SpecEyeSlotWidth( int clientNum, float h, float *nameHOut ) {
-	float	w;
-	float	nameH;
-	float	charW;
-	float	nameW;
-	int		len;
-
-	w = CG_HeightToWidth( h );
-	nameH = h * 0.22f;
-	if ( nameH < 6.0f ) {
-		nameH = 6.0f;
-	} else if ( nameH > 11.0f ) {
-		nameH = 11.0f;
-	}
-	charW = CG_HeightToWidth( nameH );
-	len = CG_DrawStrlen( cgs.clientinfo[clientNum].name );
-	nameW = (float)len * charW;
-	if ( nameW > w ) {
-		w = nameW;
-	}
-	if ( nameHOut ) {
-		*nameHOut = nameH;
-	}
-	return w;
-}
-
 static void CG_DrawSpecEyeIcon( float cx, float bottom, float h, int clientNum ) {
 	float		w;
 	float		nameH;
@@ -7072,27 +7046,74 @@ static void CG_DrawSpecEyeIcon( float cx, float bottom, float h, int clientNum )
 			name, color, qfalse, qtrue, charW, nameH, 0 );
 }
 
-static void CG_DrawSpecEyeRow( float cx, float bottom, const int *clients, int count, float h ) {
-	float	slot;
-	float	gap;
-	float	rowW;
-	float	x;
-	int		i;
+/*
+=================
+CG_DrawSpecEyeFollowBadge
 
-	if ( count < 1 || h <= 0.0f ) {
+Name and eye side by side, centered on cx. Used above a followed player's
+status box at reduced size with partial transparency.
+=================
+*/
+static void CG_DrawSpecEyeFollowBadge( float cx, float bottom, float h, int clientNum ) {
+	float		iconW;
+	float		nameH;
+	float		charW;
+	float		nameW;
+	float		totalW;
+	float		x;
+	float		y;
+	vec4_t		color;
+	vec4_t		picColor;
+	const char	*name;
+
+	if ( !cgs.media.specEyeShader || clientNum < 0 || clientNum >= MAX_CLIENTS ) {
 		return;
 	}
-	gap = 4.0f;
-	rowW = 0.0f;
-	for ( i = 0; i < count; i++ ) {
-		rowW += CG_SpecEyeSlotWidth( clients[i], h, NULL );
+
+	iconW = CG_HeightToWidth( h );
+	name = cgs.clientinfo[clientNum].name;
+	nameH = h * 0.85f;
+	if ( nameH < 4.0f ) {
+		nameH = 4.0f;
 	}
-	rowW += gap * (float)( count - 1 );
-	x = cx - rowW * 0.5f;
+	charW = CG_HeightToWidth( nameH );
+	nameW = (float)CG_DrawStrlen( name ) * charW;
+	totalW = nameW + 3.0f + iconW;
+	x = cx - totalW * 0.5f;
+	y = bottom - h + ( h - nameH ) * 0.5f;
+
+	Vector4Copy( colorWhite, color );
+	color[3] = 0.5f;
+	CG_DrawStringExtFloat( x, y, name, color, qfalse, qtrue, charW, nameH, 0 );
+
+	Vector4Copy( colorWhite, picColor );
+	picColor[3] = 0.5f;
+	trap_R_SetColor( picColor );
+	CG_DrawPic( x + nameW + 3.0f, bottom - h, iconW, h, cgs.media.specEyeShader );
+	trap_R_SetColor( NULL );
+}
+
+/*
+=================
+CG_DrawSpecEyeFollowStack
+
+Each following spectator gets its own row above the status box, stacked
+upward when several watch the same player.
+=================
+*/
+static void CG_DrawSpecEyeFollowStack( float cx, float bottom, const int *clients, int count, float baseH ) {
+	float	h;
+	float	rowGap;
+	int		i;
+
+	if ( count < 1 || baseH <= 0.0f ) {
+		return;
+	}
+
+	h = baseH * 0.25f;
+	rowGap = 2.0f;
 	for ( i = 0; i < count; i++ ) {
-		slot = CG_SpecEyeSlotWidth( clients[i], h, NULL );
-		CG_DrawSpecEyeIcon( x + slot * 0.5f, bottom, h, clients[i] );
-		x += slot + gap;
+		CG_DrawSpecEyeFollowBadge( cx, bottom - (float)i * ( h + rowGap ), h, clients[i] );
 	}
 }
 
@@ -7119,10 +7140,10 @@ static qboolean CG_SpecEyePlayerOrigin( int clientNum, vec3_t origin ) {
 =================
 CG_DrawSpectatorEyes
 
-Free spectators are an eye at their camera, with their name above it.
-Spectators following a player stack an eye above that player's status box.
-Other spectators always see them. Players see them only while the match
-is not being played: warmup, the wait before a round, timeout, or intermission.
+Free spectators are a half-size eye at their camera, with their name above it.
+Spectators following a player stack compact name+eye rows above that player's
+status box. Other spectators always see them. Players see them only while the
+match is not being played: warmup, the wait before a round, timeout, or intermission.
 =================
 */
 void CG_DrawSpectatorEyes( void ) {
@@ -7139,7 +7160,6 @@ void CG_DrawSpectatorEyes( void ) {
 	float			h;
 	float			bottom;
 	qboolean		localSpec;
-	int				one;
 
 	if ( !cg.snap || !cgs.media.specEyeShader ) {
 		return;
@@ -7178,9 +7198,8 @@ void CG_DrawSpectatorEyes( void ) {
 			if ( sx < -80.0f || sx > 720.0f || sy < -80.0f || sy > 560.0f ) {
 				continue;
 			}
-			h = CG_SpecEyeHeight( origin );
-			one = i;
-			CG_DrawSpecEyeRow( sx, sy + h * 0.5f, &one, 1, h );
+			h = CG_SpecEyeHeight( origin ) * 0.5f;
+			CG_DrawSpecEyeIcon( sx, sy + h * 0.5f, h, i );
 		} else if ( cent->currentState.generic1 == 2 ) {
 			target = cent->currentState.otherEntityNum;
 			if ( target < 0 || target >= MAX_CLIENTS ) {
@@ -7218,7 +7237,7 @@ void CG_DrawSpectatorEyes( void ) {
 		if ( CG_SpecPlayerStatusActive() && cgs.clientinfo[i].health > 0 ) {
 			bottom = sy - CG_SpecStatusBoxHeight( 1.0f ) - 3.0f;
 		}
-		CG_DrawSpecEyeRow( sx, bottom, followSpec[i], followCount[i], h );
+		CG_DrawSpecEyeFollowStack( sx, bottom, followSpec[i], followCount[i], h );
 	}
 }
 

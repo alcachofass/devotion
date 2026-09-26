@@ -1761,7 +1761,7 @@ Spec_PublishMarker
 
 Put a team spectator into the snapshot so other spectators can see them.
 Free cam is linked at the camera. Follow is linked on the player they
-watch. The entity stays non-solid and invisible to players.
+watch. The entity stays non-solid, non-damageable, and invisible to players.
 ==================
 */
 static void Spec_PublishMarker( gentity_t *ent ) {
@@ -1821,6 +1821,8 @@ static void Spec_PublishMarker( gentity_t *ent ) {
 	VectorCopy( org, ent->s.pos.trBase );
 	VectorCopy( org, ent->s.origin );
 	VectorCopy( org, ent->r.currentOrigin );
+	ent->takedamage = qfalse;
+	ent->die = NULL;
 	trap_LinkEntity( ent );
 }
 
