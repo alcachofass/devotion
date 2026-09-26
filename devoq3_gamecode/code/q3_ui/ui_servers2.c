@@ -1613,11 +1613,15 @@ static void ArenaServers_FlushListUI( qboolean force ) {
 static void ArenaServers_UpdateMainMenuList( void ) {
 	int				i;
 	int				j;
+	int				k;
 	int				count;
 	int				curvalue;
 	servernode_t	*servernodeptr;
+	servernode_t	*seen;
 	table_t			*tableptr;
 	menulist_s		*list;
+	char			hostA[MAX_HOSTNAMELENGTH + 3];
+	char			hostB[MAX_HOSTNAMELENGTH + 3];
 
 	list = g_mainmenu_list;
 	if( !list ) {
@@ -1634,6 +1638,26 @@ static void ArenaServers_UpdateMainMenuList( void ) {
 	count = g_numglobalservers;
 	for( i = 0, j = 0; i < count; i++, servernodeptr++ ) {
 		if( !MainMenuServers_IsDevotionMod( servernodeptr->gamename ) ) {
+			continue;
+		}
+
+		for( k = 0; k < j; k++ ) {
+			seen = g_arenaservers.table[k].servernode;
+			if( !ArenaServers_SameHost( servernodeptr->adrstr, seen->adrstr ) ) {
+				Q_strncpyz( hostA, servernodeptr->hostname, sizeof( hostA ) );
+				Q_strncpyz( hostB, seen->hostname, sizeof( hostB ) );
+				Q_CleanStr( hostA );
+				Q_CleanStr( hostB );
+				if( !hostA[0] || !hostB[0] || Q_stricmp( hostA, hostB ) ) {
+					continue;
+				}
+			}
+			if( MainMenuServers_HasPing( servernodeptr ) && !MainMenuServers_HasPing( seen ) ) {
+				g_arenaservers.table[k].servernode = servernodeptr;
+			}
+			break;
+		}
+		if( k < j ) {
 			continue;
 		}
 
