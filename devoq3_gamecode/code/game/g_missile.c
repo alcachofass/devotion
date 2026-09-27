@@ -229,6 +229,19 @@ void G_ImmediateRunClientMissiles(gentity_t *client) {
 	}
 }
 
+void G_SpawnAltRocketRicochetBeam( vec3_t start, vec3_t end ){
+	gentity_t *tent;
+
+	tent = G_TempEntity( end, EV_ALT_ROCKET_RICOCHET_BEAM );
+
+	tent->s.clientNum = 0;	//63
+	
+	VectorCopy( start, tent->s.origin2 );
+	VectorCopy( end, tent->s.pos.trBase );
+
+	return;
+}
+
 /*
 ================
 G_BounceMissile
@@ -259,6 +272,25 @@ void G_BounceMissile( gentity_t *ent, trace_t *trace ) {
 	VectorAdd( ent->r.currentOrigin, trace->plane.normal, ent->r.currentOrigin);
 	VectorCopy( ent->r.currentOrigin, ent->s.pos.trBase );
 	ent->s.pos.trTime = level.time;
+
+	//mrd - altFire rockets bounce 3 times with full speed but reduced damage
+	if( ent->s.eFlags & EF_ALT_FIRE && ent->s.weapon == WP_ROCKET_LAUNCHER ) {
+		ent->rocketBounceCount++;
+
+		ent->damage = (int)(ent->damage * 0.6f);
+
+		VectorCopy( trace->endpos, ent->lastTrailOrigin);
+
+		if (ent->rocketBounceCount >= 4) {
+			ent->damage = 20;
+			ent->splashDamage = 20;
+			ent->splashRadius = 120;
+
+			//G_ExplodeMissile(ent);
+			ent->s.eFlags &= ~EF_BOUNCE;
+			return;
+		}
+	}
 }
 
 /*
@@ -881,7 +913,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 	
 	// check for bounce or vortex grenade stick
 	//if ( !other->takedamage &&
-	if ( !ent->altFire && !other->takedamage &&
+	if ( !( !strcmp(ent->classname, "grenade") && ent->altFire ) && !other->takedamage &&
 		( ent->s.eFlags & ( EF_BOUNCE | EF_BOUNCE_HALF ) ) ) {
 		G_BounceMissile( ent, trace );
 		G_AddEvent( ent, EV_GRENADE_BOUNCE, 0 );
@@ -951,6 +983,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 		// FIXME: wrong damage direction?
 		if ( ent->damage ) {
 			vec3_t	velocity;
+			int damage;
 
 			if( LogAccuracyHit( other, &g_entities[ent->r.ownerNum] ) ) {
 				g_entities[ent->r.ownerNum].client->accuracy_hits++;
@@ -1218,6 +1251,12 @@ void G_RunMissile( gentity_t *ent ) {
 	}
 	trap_LinkEntity( ent );
 
+	//mrd - altFire rockets spawn a rail trail
+	if (ent->s.eFlags & EF_ALT_FIRE && ent->s.weapon == WP_ROCKET_LAUNCHER){ 
+		G_SpawnAltRocketRicochetBeam( ent->lastTrailOrigin, ent->r.currentOrigin );
+		VectorCopy( ent->r.currentOrigin, ent->lastTrailOrigin );
+	}
+
 	if ( tr.fraction != 1 ) {
 		// never explode or bounce on sky
 		if ( tr.surfaceFlags & SURF_NOIMPACT ) {
@@ -1291,9 +1330,6 @@ gentity_t *fire_plasma (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
 	bolt->s.weapon = WP_PLASMAGUN;
-	if (bolt->altFire)
-		bolt->s.eFlags = EF_BOUNCE_HALF;
-
 	bolt->r.ownerNum = self->s.number;
 //unlagged - projectile nudge
 	// we'll need this for nudging projectiles later
@@ -1535,9 +1571,11 @@ gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir) {
 //unlagged - projectile nudge
 	bolt->parent = self;
 	if (bolt->altFire) {
-		bolt->damage = 25;
-		bolt->splashDamage = 25;
-		bolt->splashRadius = 250;
+		bolt->damage = 160;
+		bolt->splashDamage = 0;
+		bolt->splashRadius = 0;
+		bolt->s.eFlags |= (EF_ALT_FIRE | EF_BOUNCE);
+		bolt->rocketBounceCount = 0;
 	} else {
 		bolt->damage = 100;
 		bolt->splashDamage = 100;
@@ -1558,9 +1596,14 @@ gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir) {
 	VectorCopy( start, bolt->s.pos.trBase );
 	//VectorScale( dir, 900, bolt->s.pos.trDelta );
 	//VectorScale( dir, 1000, bolt->s.pos.trDelta );
-	VectorScale( dir, g_rocketSpeed.integer, bolt->s.pos.trDelta );
+	if (bolt->altFire) {
+		VectorScale( dir, ROCKET_ALT_VELOCITY, bolt->s.pos.trDelta );	
+	} else {
+		VectorScale( dir, g_rocketSpeed.integer, bolt->s.pos.trDelta );
+	}
 	//SnapVector( bolt->s.pos.trDelta );			// save net bandwidth	//mrd - nah
 	VectorCopy (start, bolt->r.currentOrigin);
+	VectorCopy (bolt->r.currentOrigin, bolt->lastTrailOrigin);	//mrd
 
 	return bolt;
 }

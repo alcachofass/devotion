@@ -262,6 +262,10 @@ struct gentity_s {
 	int	vortexRadius;
 	int	vortexForce;
 	int vortexNextTickTime;
+
+	//mrd - for altFire rockets
+	int rocketBounceCount;
+	vec3_t lastTrailOrigin;
 };
 
 

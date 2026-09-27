@@ -914,7 +914,7 @@ void weapon_railgun_fire (gentity_t *ent, qboolean altFire) {
 	} else {
 		tent->s.eventParm = DirToByte( trace.plane.normal );
 	}
-	tent->s.clientNum = ent->s.clientNum;
+	//tent->s.clientNum = ent->s.clientNum;	//mrd this is already done above
 
 	// give the shooter a reward sound if they have made two railgun hits in a row
 	if ( hits == 0 ) {

@@ -2478,7 +2478,7 @@ static void PM_Weapon( void ) {
 		break;
 	case WP_PLASMAGUN:
 		if (altFire){
-			addTime = 200;
+			addTime = 175;
 		} else {
 			addTime = 100;
 		}

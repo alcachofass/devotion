@@ -1046,7 +1046,9 @@ void CG_PredictedExplosion(trace_t *tr, int weapon, predictedMissile_t *predMiss
 			|| cg_altPredictMissiles.integer <= 0
 			|| !(cgs.ratFlags & RAT_PREDICTMISSILES)
 			|| tr->surfaceFlags & SURF_NOIMPACT
-			|| !(predMissile || missileEnt)) {
+			|| !(predMissile || missileEnt)
+			//mrd - altFire rockets bounce, not explode - don't predict anything
+			|| predMissile->status.missileFlags & MF_ALT_FIRE_BOUNCE) {
 		return;
 	}
 
@@ -1432,10 +1434,10 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 
 			// draw a rail trail
 			if ( cent->altFire ){
-				CG_RailTrail( &cgs.clientinfo[cent->currentState.number], muzzlePoint, trace.endpos, qtrue );
+				CG_RailTrail( &cgs.clientinfo[cent->currentState.number], muzzlePoint, trace.endpos, qtrue, qfalse );
 
 			} else {
-				CG_RailTrail( &cgs.clientinfo[cent->currentState.number], muzzlePoint, trace.endpos, qfalse );
+				CG_RailTrail( &cgs.clientinfo[cent->currentState.number], muzzlePoint, trace.endpos, qfalse, qfalse );
 			}
 			//Com_Printf( "Predicted rail trail\n" );
 
@@ -1732,6 +1734,10 @@ void CG_PredictWeaponEffects( centity_t *cent ) {
 		//mrd - predicted missiles need to know altFire status for proper cgame rendering in predicted states
 		if ( cent->altFire ){
 			pm->status.missileFlags |= MF_ALT_FIRE;
+			//bouncing altFire rockets need a special flag so they can escape unlagged prediction code
+			if (ent->weapon == WP_ROCKET_LAUNCHER) {
+				pm->status.missileFlags |= MF_ALT_FIRE_BOUNCE;
+			}
 		}
 		bolt = &pm->refEntity;
 
