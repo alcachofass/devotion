@@ -1315,28 +1315,26 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	case EV_RAILTRAIL:
 		DEBUGNAME("EV_RAILTRAIL");
 		cent->currentState.weapon = WP_RAILGUN;
-//unlagged - attack prediction #2
+		//unlagged - attack prediction #2
 		// if the client is us, unlagged is on server-side, and we've got it client-side
-		if ( es->clientNum == cg.predictedPlayerState.clientNum && 
-				cgs.delagHitscan && (cg_delag.integer & 1 || cg_delag.integer & 16) ) {
+		if ( es->clientNum == cg.predictedPlayerState.clientNum 
+			&& cgs.delagHitscan && (cg_delag.integer & 1 || cg_delag.integer & 16) ) {
 			// do nothing, because it was already predicted
 			//Com_Printf("Ignoring rail trail event\n");
-		}
-		else {
-                        if(es->clientNum == cg.snap->ps.clientNum && !cg.renderingThirdPerson)
-                        {
-                           if(cg_drawGun.integer == 3 || (cg_drawZoomScope.integer && cg.zoomed))
-				VectorMA(es->origin2, 4, cg.refdef.viewaxis[1], es->origin2);
-			   else if(cg_drawGun.integer == 2)
-				VectorMA(es->origin2, 8, cg.refdef.viewaxis[1], es->origin2);
-                        }
-
+		} else {
+            if(es->clientNum == cg.snap->ps.clientNum && !cg.renderingThirdPerson) {
+                if(cg_drawGun.integer == 3 || (cg_drawZoomScope.integer && cg.zoomed)) {
+					VectorMA(es->origin2, 4, cg.refdef.viewaxis[1], es->origin2);
+				} else if (cg_drawGun.integer == 2) {
+					VectorMA(es->origin2, 8, cg.refdef.viewaxis[1], es->origin2);
+				}
+            }
 
 			// draw a rail trail, because it wasn't predicted
 			if ( cent->altFire ){	//mrd
-				CG_RailTrail( ci, es->origin2, es->pos.trBase, qtrue );
+				CG_RailTrail( ci, es->origin2, es->pos.trBase, qtrue, qfalse );
 			} else{
-				CG_RailTrail( ci, es->origin2, es->pos.trBase, qfalse );
+				CG_RailTrail( ci, es->origin2, es->pos.trBase, qfalse, qfalse );
 			}
 
 			// if the end was on a nomark surface, don't make an explosion
@@ -1353,6 +1351,12 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		}
 		CG_DemoControls_PovNoteAttack( es->clientNum, WP_RAILGUN );
 //unlagged - attack prediction #2
+		break;
+	
+	case EV_ALT_ROCKET_RICOCHET_BEAM:
+		DEBUGNAME("EV_ALT_ROCKET_RICOCHET_BEAM");
+		cent->currentState.weapon = WP_ROCKET_LAUNCHER;
+		CG_RailTrail( ci, es->origin2, es->pos.trBase, qtrue, qtrue );
 		break;
 
 	case EV_BULLET_HIT_WALL:

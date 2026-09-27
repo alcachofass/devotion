@@ -234,6 +234,7 @@ typedef struct {
 #define MF_EXPLOSIONCONFIRMED	128
 #define MF_HITBEEP		256
 #define MF_ALT_FIRE		512		//mrd
+#define MF_ALT_FIRE_BOUNCE 1024	//mrd
 
 typedef struct predictedMissileStatus_s {
 	int	missileFlags;
@@ -600,6 +601,7 @@ typedef struct weaponInfo_s {
 
 	qhandle_t		missileModel;
 	sfxHandle_t		missileSound;
+	sfxHandle_t		missileAltSound;	//mrd
 	void			(*missileTrailFunc)( centity_t *, const struct weaponInfo_s *wi );
 	float			missileDlight;
 	vec3_t			missileDlightColor;
@@ -1296,6 +1298,7 @@ typedef struct {
 	qhandle_t	grenadeBrightSkinShaderRed;
 	qhandle_t	grenadeBrightSkinShaderWhite;
 	qhandle_t	vortexGrenadeShellShader;	//mrd
+	qhandle_t	altRocketShellShader;		//mrd
 
 	// weapon effect shaders
 	qhandle_t	railExplosionShader;
@@ -2242,7 +2245,7 @@ void CG_MissileHitPlayer( int weapon, vec3_t origin, vec3_t dir, int entityNum, 
 void CG_ShotgunFire( entityState_t *es, qboolean altFire );
 void CG_Bullet( vec3_t origin, int sourceEntityNum, vec3_t normal, qboolean flesh, int fleshEntityNum );
 
-void CG_RailTrail( clientInfo_t *ci, vec3_t start, vec3_t end, qboolean altFire );	//mrd
+void CG_RailTrail( clientInfo_t *ci, vec3_t start, vec3_t end, qboolean altFire, qboolean altRicochet );	//mrd
 void CG_GrappleTrail( centity_t *ent, const weaponInfo_t *wi );
 void CG_AddViewWeapon (playerState_t *ps);
 void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent, int team );

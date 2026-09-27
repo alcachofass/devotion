@@ -1804,7 +1804,9 @@ const char *eventnames[] = {
 	"EV_DAMAGEPLUM",
 	"EV_PUSHNOTIFY",
 	"EV_ALTFIRE_WEAPON",		//mrd
-	"EV_ITEM_PICKUP_SPEC"
+	"EV_ITEM_PICKUP_SPEC",
+	"EV_VORTEX_GRENADE_STICK",	//mrd
+	"EV_ALT_ROCKET_RICOCHET_BEAM"	//mrd
 
 };
 

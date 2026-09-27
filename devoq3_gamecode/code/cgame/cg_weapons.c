@@ -547,14 +547,20 @@ CG_RailTrail
 ==========================
 */
 //void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end) {
-void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end, qboolean altFire) {
+void CG_RailTrail (clientInfo_t *ci, vec3_t start, vec3_t end, qboolean altFire, qboolean altRicochet) {
 	vec3_t axis[36], move, move2, vec, temp;
 	float  len;
 	int    i, j, skip;
  
 	localEntity_t *le;
 	refEntity_t   *re;
-	int railTrailTime = MAX(300,cg_railTrailTime.integer);
+	int railTrailTime;
+
+	if (!altRicochet){
+		 railTrailTime = MAX(300,cg_railTrailTime.integer);
+	} else {
+		railTrailTime = 875;
+	}
  
 	start[2] -= 4;
 	// add the spiral first
@@ -700,6 +706,11 @@ static void CG_RocketTrail( centity_t *ent, const weaponInfo_t *wi ) {
 	step = 50;
 
 	es = &ent->currentState;
+
+	if ( es->eFlags & EF_ALT_FIRE && es->weapon == WP_ROCKET_LAUNCHER) {
+		return;
+	}
+
 	startTime = ent->trailTime;
 	t = step * ( (startTime + step) / step );
 
@@ -1391,6 +1402,7 @@ void CG_RegisterWeapon( int weaponNum ) {
 	case WP_ROCKET_LAUNCHER:
 		weaponInfo->missileModel = trap_R_RegisterModel( "models/ammo/rocket/rocket.md3" );
 		weaponInfo->missileSound = trap_S_RegisterSound( "sound/weapons/rocket/rockfly.wav", qfalse );
+		weaponInfo->missileAltSound = trap_S_RegisterSound( "sound/weapons/rocket/altRockFly.wav", qfalse );
 		weaponInfo->missileTrailFunc = CG_RocketTrail;
 		weaponInfo->missileDlight = 200;
 		weaponInfo->wiTrailTime = 2000;
@@ -1401,6 +1413,7 @@ void CG_RegisterWeapon( int weaponNum ) {
 
 		weaponInfo->flashSound[0] = trap_S_RegisterSound( "sound/weapons/rocket/rocklf1a.wav", qfalse );
 		cgs.media.rocketExplosionShader = trap_R_RegisterShader( "rocketExplosion" );
+		cgs.media.altRocketShellShader = trap_R_RegisterShader( "vortexShell" );	//mrd
 		break;
 
 #ifdef MISSIONPACK
@@ -1917,7 +1930,7 @@ static void CG_SpawnRailTrail( centity_t *cent, vec3_t origin, qboolean altFire 
 	}
 	cent->pe.railgunFlash = qtrue;
 	ci = &cgs.clientinfo[ cent->currentState.clientNum ];
-	CG_RailTrail( ci, origin, cent->pe.railgunImpact, qfalse );
+	CG_RailTrail( ci, origin, cent->pe.railgunImpact, qfalse, qfalse );
 }
 
 

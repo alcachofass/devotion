@@ -691,7 +691,8 @@ typedef enum {
 	EV_PUSHNOTIFY,
 	EV_ALTFIRE_WEAPON,	//mrd
 	EV_ITEM_PICKUP_SPEC,	// spectator item-timer notification
-	EV_VORTEX_GRENADE_STICK,	//mrd - altFire vortex grenade stuck on a wall
+	EV_VORTEX_GRENADE_STICK,			//mrd - altFire vortex grenade stuck on a wall
+	EV_ALT_ROCKET_RICOCHET_BEAM,		//mrd - special altFire rocket railtrail
 } entity_event_t;
 
 
@@ -1018,6 +1019,7 @@ typedef enum {
 #define BFG_VELOCITY 2000
 #define GRENADE_VELOCITY 700
 #define PROXMINE_VELOCITY 700
+#define ROCKET_ALT_VELOCITY 1500
 
 #define NUM_NAILSHOTS 15
 #define NAILGUN_SPREAD 500

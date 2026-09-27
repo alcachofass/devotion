@@ -804,11 +804,13 @@ static void CG_Missile( centity_t *cent ) {
 	}
 */
 	// add dynamic light
-	if ( weapon->missileDlight ) {
+	if ( weapon->missileDlight && 
+		//mrd - altFire GL and RL have their own special lights
+		( ( !(s1->eFlags & EF_ALT_FIRE) && !(s1->weapon == WP_GRENADE_LAUNCHER || s1->weapon == WP_ROCKET_LAUNCHER)))) {
 		trap_R_AddLightToScene(cent->lerpOrigin, weapon->missileDlight, 
 			weapon->missileDlightColor[0], weapon->missileDlightColor[1], weapon->missileDlightColor[2] );
 	}
-	//mrd - 3-phase vortex light effect
+	//mrd - 3-phase vortex grenade light effect
 	if ( s1->weapon == WP_GRENADE_LAUNCHER && ( s1->eFlags & EF_ALT_FIRE ) ){
 		int i;
 		float phaseOffset[3] = {0.0f, 2.0f * M_PI / 3.0f, 4.0f * M_PI / 3.0f};
@@ -840,6 +842,44 @@ static void CG_Missile( centity_t *cent ) {
 				colour[i][0], colour[i][1], colour[i][2]);
 		}
 	}
+	//mrd - altFire RL light FX
+	if ( s1->weapon == WP_ROCKET_LAUNCHER && s1->eFlags & EF_ALT_FIRE ) {
+		float angle, orbitX, orbitY, orbitRadius, phase, pulse, msec;
+		vec3_t forward, right, up;
+		vec3_t lightOrigin;
+		int i;
+		
+		float colour[2][3] = {
+			{ 0.9f, 0.25f, 1.0f }, //violet
+			{ 1.0f, 0.75f, 0.2f } //gold
+		};
+
+		msec = 1428.0f;
+		orbitRadius = 24.0f;
+
+		angle = cg.time * (2.0f * M_PI / msec);
+		pulse = 0.5f + 0.5f * sin( angle + i * M_PI );
+
+		BG_EvaluateTrajectoryDelta( &cent->currentState.pos, cg.time, forward );
+		VectorNormalize(forward);
+		PerpendicularVector( right, forward );
+		CrossProduct( forward, right, up );
+		
+		for (i = 0; i < 2; i++ ) {
+			phase = angle + (i * M_PI);
+			
+			orbitX = cos(phase) * orbitRadius;
+			orbitY = sin(phase) * orbitRadius;
+
+			VectorCopy( cent->lerpOrigin, lightOrigin);
+
+			VectorMA( lightOrigin, orbitX, right, lightOrigin );
+			VectorMA( lightOrigin, orbitY, up, lightOrigin );
+
+			trap_R_AddLightToScene( lightOrigin, 100 + 250 * pulse, colour[i][0], colour[i][1], colour[i][2]);
+		}
+
+	}
 
 	// add missile sound
 	if ( weapon->missileSound ) {
@@ -848,6 +888,15 @@ static void CG_Missile( centity_t *cent ) {
 		BG_EvaluateTrajectoryDelta( &cent->currentState.pos, cg.time, velocity );
 
 		trap_S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin, velocity, weapon->missileSound );
+	}
+
+	//mrd - special altFire rocket sound
+	if ( weapon->missileAltSound && s1->eFlags & EF_ALT_FIRE && s1->weapon == WP_ROCKET_LAUNCHER) {
+		vec3_t	velocity;
+
+		BG_EvaluateTrajectoryDelta( &cent->currentState.pos, cg.time, velocity );
+
+		trap_S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin, velocity, weapon->missileAltSound );	
 	}
 
 	// create the render entity
@@ -926,29 +975,52 @@ static void CG_Missile( centity_t *cent ) {
 		if ( s1->weapon == WP_GRENADE_LAUNCHER ) {
 			AnglesToAxis( cent->lerpAngles, ent.axis );
 		}
-		{
+		else {
 			RotateAroundDirection( ent.axis, s1->time );
 		}
 	}
 
 	// add to refresh list, possibly with quad glow
 	if ( ent.hModel ) {
-		//mrd - vortex grenades get a special shell FX
-		if (s1->eFlags & EF_ALT_FIRE && s1->weapon == WP_GRENADE_LAUNCHER) {
-			refEntity_t shell;
-			float scale = 1.08;
+		//mrd - vortex grenades & altFire rockets get a special shell FX
+		if (s1->eFlags & EF_ALT_FIRE && (s1->weapon == WP_GRENADE_LAUNCHER || s1->weapon == WP_ROCKET_LAUNCHER) ) {
+			refEntity_t shell, shell2;
+			float scale, scale2;
 
 			memset(&shell, 0, sizeof(shell));
+			memset(&shell2, 0, sizeof(shell2));
 
 			shell = ent;
-			shell.customShader = cgs.media.vortexGrenadeShellShader;
+			shell2 = ent;
+			
+			if(s1->weapon == WP_GRENADE_LAUNCHER) {
+				shell.customShader = cgs.media.vortexGrenadeShellShader;
+				scale = 1.08;
+			} else {
+				shell.customShader = cgs.media.altRocketShellShader;
+				shell2.customShader = cgs.media.altRocketShellShader;
+				scale = 1.25;
+				scale2 = 2.5 + 0.25 * sin(cg.time * 0.01);
 
-			//scale it up
+				//extra glowing shell for altFire rockets
+				VectorScale(shell2.axis[0], scale2, shell2.axis[0]);
+				VectorScale(shell2.axis[1], scale2, shell2.axis[1]);
+				VectorScale(shell2.axis[2], scale2, shell2.axis[2]);
+
+				trap_R_AddRefEntityToScene(&shell2);
+			}
+			
+			//scale up the glowing shell
 			VectorScale(shell.axis[0], scale, shell.axis[0]);
 			VectorScale(shell.axis[1], scale, shell.axis[1]);
 			VectorScale(shell.axis[2], scale, shell.axis[2]);
 			
 			trap_R_AddRefEntityToScene(&shell);
+
+			//don't draw the actual rocket model if it's altFire rockets
+			if ( s1->weapon == WP_ROCKET_LAUNCHER && (s1->eFlags & EF_ALT_FIRE) && (s1->eFlags & EF_BOUNCE) ){
+				return;
+			}
 		}
 		CG_AddRefEntityWithPowerups( &ent, s1, CG_MissileOutlineTeam( cent ), qtrue, NULL, 0, qfalse );
 	}
