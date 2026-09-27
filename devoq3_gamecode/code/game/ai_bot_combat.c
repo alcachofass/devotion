@@ -1207,6 +1207,9 @@ int BotCombat_FindEnemy(bot_state_t *bs, int curenemy) {
 		if (i == bs->client) {
 			continue;
 		}
+		if (BotClientIsSpectator(i)) {
+			continue;
+		}
 		BotEntityInfo(i, &entinfo);
 		if (!entinfo.valid) {
 			continue;

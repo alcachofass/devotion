@@ -1574,6 +1574,11 @@ int BotAIStartFrame(int time) {
 				trap_BotLibUpdateEntity(i, NULL);
 				continue;
 			}
+			/* Spectator markers share the followed player's origin. */
+			if (i < MAX_CLIENTS && BotClientIsSpectator(i)) {
+				trap_BotLibUpdateEntity(i, NULL);
+				continue;
+			}
                         if ( !(((g_gametype.integer == GT_ELIMINATION || g_gametype.integer == GT_LMS || g_elimination_allgametypes.integer || g_gametype.integer==GT_CTF_ELIMINATION) && !g_elimination_spawnitems.integer )||g_instantgib.integer || g_rockets.integer )
                         && ent->r.svFlags & SVF_NOCLIENT) {
 				trap_BotLibUpdateEntity(i, NULL);

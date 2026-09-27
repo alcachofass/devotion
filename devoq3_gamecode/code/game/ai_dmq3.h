@@ -61,6 +61,8 @@ qboolean BotIntermission(bot_state_t *bs);
 qboolean BotInLavaOrSlime(bot_state_t *bs);
 //returns true if the client is dead (g_entities[clientNum].health < 1)
 qboolean EntityClientIsDead(int clientNum);
+/* True for a connected TEAM_SPECTATOR. Bots must not see these clients. */
+qboolean BotClientIsSpectator(int clientNum);
 //returns true if the entity is dead
 qboolean EntityIsDead(aas_entityinfo_t *entinfo);
 //returns true if bs->enemy is a dead player
