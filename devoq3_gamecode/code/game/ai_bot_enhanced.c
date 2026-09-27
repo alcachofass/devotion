@@ -240,6 +240,9 @@ int BotEnhanced_CanEngageClient(bot_state_t *bs, int clientnum) {
 	if (clientnum == bs->client) {
 		return 0;
 	}
+	if (BotClientIsSpectator(clientnum)) {
+		return 0;
+	}
 	if (BotSameTeam(bs, clientnum)) {
 		return 0;
 	}

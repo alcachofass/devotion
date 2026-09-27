@@ -256,6 +256,27 @@ qboolean EntityClientIsDead(int clientNum) {
 
 /*
 ==================
+BotClientIsSpectator
+
+Spectator markers are linked at the follow target, so botlib would
+otherwise see a living client standing on the player being watched.
+==================
+*/
+qboolean BotClientIsSpectator(int clientNum) {
+	gentity_t *ent;
+
+	if (clientNum < 0 || clientNum >= MAX_CLIENTS) {
+		return qfalse;
+	}
+	ent = &g_entities[clientNum];
+	if (!ent->inuse || !ent->client) {
+		return qfalse;
+	}
+	return ent->client->sess.sessionTeam == TEAM_SPECTATOR;
+}
+
+/*
+==================
 EntityIsDead
 ==================
 */
@@ -3246,7 +3267,8 @@ int BotFindEnemy(bot_state_t *bs, int curenemy) {
 	//remember the current health value
 	bs->lasthealth = bs->inventory[INVENTORY_HEALTH];
 	//
-	if (curenemy >= 0 && curenemy < MAX_CLIENTS && EntityClientIsDead(curenemy)) {
+	if (curenemy >= 0 && curenemy < MAX_CLIENTS &&
+			(EntityClientIsDead(curenemy) || BotClientIsSpectator(curenemy))) {
 		bs->enemy = -1;
 		curenemy = -1;
 	}
@@ -3302,6 +3324,7 @@ int BotFindEnemy(bot_state_t *bs, int curenemy) {
 		if (i == bs->client) continue;
 		//if it's the current enemy
 		if (i == curenemy) continue;
+		if (BotClientIsSpectator(i)) continue;
 		//
 		BotEntityInfo(i, &entinfo);
 		//
@@ -3604,6 +3627,10 @@ void BotAimAtEnemy(bot_state_t *bs) {
 
 	//if the bot has no enemy
 	if (bs->enemy < 0) {
+		return;
+	}
+	if (BotClientIsSpectator(bs->enemy)) {
+		bs->enemy = -1;
 		return;
 	}
 	if (BotTargetPlayerIsDead(bs)) {
@@ -3948,6 +3975,10 @@ void BotCheckAttack(bot_state_t *bs) {
 	vec3_t mins = {-8, -8, -8}, maxs = {8, 8, 8};
 
 	if (bs->enemy < 0) {
+		return;
+	}
+	if (BotClientIsSpectator(bs->enemy)) {
+		bs->enemy = -1;
 		return;
 	}
 	if (BotTargetPlayerIsDead(bs)) {
@@ -5467,6 +5498,10 @@ void BotCheckSnapshot(bot_state_t *bs) {
 	//
 	ent = 0;
 	while( ( ent = BotAI_GetSnapshotEntity( bs->client, ent, &state ) ) != -1 ) {
+		/* The marker's entity number is the spectator's client slot. */
+		if (BotClientIsSpectator(state.number)) {
+			continue;
+		}
 		//check the entity state for events
 		BotCheckEvents(bs, &state);
 		//check for grenades the bot should avoid
