@@ -853,7 +853,76 @@ static int CG_PlayerPmStrobeMode( int clientNum, clientInfo_t *ci ) {
 	return CG_PmColorStrobeMode( cg_enemyColor.string );
 }
 
-static void CG_ApplyPmColorStrobe( byte *rgba, int mode, int partOffset ) {
+static int CG_PmColorStrobeCyclePeriod( int mode ) {
+	switch ( mode ) {
+	case 1: return 360 * 24;
+	case 2: return 360 * 10;
+	case 3: return 360 * 4;
+	case 4: return (int)( 2.0 * M_PI / 0.003 );
+	case 5: return (int)( 2.0 * M_PI / 0.012 );
+	case 6: return 7 * 700;
+	case 7: return 7 * 220;
+	case 8: return 2 * 80;
+	case 9: return 360 * 3;
+	default: return 0;
+	}
+}
+
+/*
+Spread each strobing player's cycle across 1/N of a full period, where N is the
+number of non-spectator players other than the local client.
+*/
+static int CG_PmColorStrobePhaseOffset( int clientNum, int mode ) {
+	int activeClients[MAX_CLIENTS];
+	int count;
+	int i;
+	int index;
+	int period;
+	clientInfo_t *ci;
+
+	if ( mode < 1 || clientNum == cg.clientNum ) {
+		return 0;
+	}
+
+	count = 0;
+	for ( i = 0; i < cgs.maxclients; i++ ) {
+		if ( i == cg.clientNum ) {
+			continue;
+		}
+		ci = &cgs.clientinfo[i];
+		if ( !ci->infoValid || ci->team == TEAM_SPECTATOR ) {
+			continue;
+		}
+		if ( count >= MAX_CLIENTS ) {
+			break;
+		}
+		activeClients[count++] = i;
+	}
+
+	if ( count <= 1 ) {
+		return 0;
+	}
+
+	index = -1;
+	for ( i = 0; i < count; i++ ) {
+		if ( activeClients[i] == clientNum ) {
+			index = i;
+			break;
+		}
+	}
+	if ( index < 0 ) {
+		return 0;
+	}
+
+	period = CG_PmColorStrobeCyclePeriod( mode );
+	if ( period <= 0 ) {
+		return 0;
+	}
+
+	return ( index * period ) / count;
+}
+
+static void CG_ApplyPmColorStrobe( byte *rgba, int mode, int partOffset, int playerPhaseOffset ) {
 	float wave;
 	float rgb[4];
 	vec3_t q3color;
@@ -865,7 +934,7 @@ static void CG_ApplyPmColorStrobe( byte *rgba, int mode, int partOffset ) {
 		return;
 	}
 
-	t = (unsigned int)( cg.time + partOffset );
+	t = (unsigned int)( cg.time + partOffset + playerPhaseOffset );
 
 	switch ( mode ) {
 	case 1: /* slow hue cycle */
@@ -881,13 +950,13 @@ static void CG_ApplyPmColorStrobe( byte *rgba, int mode, int partOffset ) {
 		Q_HSV2RGB( (float)hue, 1.0f, 1.0f, rgb );
 		break;
 	case 4: /* slow pulse of baked PM color */
-		wave = 0.35f + 0.65f * ( 0.5f + 0.5f * (float)sin( cg.time * 0.003f + partOffset * 0.001f ) );
+		wave = 0.35f + 0.65f * ( 0.5f + 0.5f * (float)sin( ( cg.time + playerPhaseOffset ) * 0.003f + partOffset * 0.001f ) );
 		rgba[0] = (byte)( rgba[0] * wave );
 		rgba[1] = (byte)( rgba[1] * wave );
 		rgba[2] = (byte)( rgba[2] * wave );
 		return;
 	case 5: /* fast pulse */
-		wave = 0.25f + 0.75f * ( 0.5f + 0.5f * (float)sin( cg.time * 0.012f + partOffset * 0.001f ) );
+		wave = 0.25f + 0.75f * ( 0.5f + 0.5f * (float)sin( ( cg.time + playerPhaseOffset ) * 0.012f + partOffset * 0.001f ) );
 		rgba[0] = (byte)( rgba[0] * wave );
 		rgba[1] = (byte)( rgba[1] * wave );
 		rgba[2] = (byte)( rgba[2] * wave );
@@ -4310,6 +4379,7 @@ void CG_Player( centity_t *cent ) {
 	qboolean autoHeadColors = qfalse;
 	qboolean useDeadColors;
 	int strobeMode;
+	int strobePhaseOffset;
 
 	// the client number is stored in clientNum.  It can't be derived
 	// from the entity number, because a single client may have
@@ -4349,6 +4419,7 @@ void CG_Player( centity_t *cent ) {
 
 	useDeadColors = (cent->currentState.eFlags & EF_DEAD && !CG_IsFrozenPlayer(cent)) ? qtrue : qfalse;
 	strobeMode = useDeadColors ? 0 : CG_PlayerPmStrobeMode( clientNum, ci );
+	strobePhaseOffset = strobeMode ? CG_PmColorStrobePhaseOffset( clientNum, strobeMode ) : 0;
 	CG_PlayerGetColors(ci, useDeadColors, MCIDX_TORSO, torso.shaderRGBA);
 	CG_PlayerGetColors(ci, useDeadColors, MCIDX_LEGS, legs.shaderRGBA);
 	if ((ci->forcedBrightModel || (cgs.ratFlags & (RAT_BRIGHTSHELL | RAT_BRIGHTOUTLINE) 
@@ -4417,7 +4488,7 @@ void CG_Player( centity_t *cent ) {
 	}
 	legs.shaderRGBA[3] = 255;
 	if ( strobeMode ) {
-		CG_ApplyPmColorStrobe( legs.shaderRGBA, strobeMode, 0 );
+		CG_ApplyPmColorStrobe( legs.shaderRGBA, strobeMode, 0, strobePhaseOffset );
 	}
 
 	CG_AddRefEntityWithPowerups( &legs, &cent->currentState, ci->team, qfalse, ci, 3, qfalse );
@@ -4456,7 +4527,7 @@ void CG_Player( centity_t *cent ) {
 	}
 	torso.shaderRGBA[3] = 255;
 	if ( strobeMode ) {
-		CG_ApplyPmColorStrobe( torso.shaderRGBA, strobeMode, 400 );
+		CG_ApplyPmColorStrobe( torso.shaderRGBA, strobeMode, 400, strobePhaseOffset );
 	}
 
 	CG_AddRefEntityWithPowerups( &torso, &cent->currentState, ci->team, qfalse, ci, 2, qfalse );
@@ -4703,7 +4774,7 @@ void CG_Player( centity_t *cent ) {
 	}
 	head.shaderRGBA[3] = 255;
 	if ( strobeMode ) {
-		CG_ApplyPmColorStrobe( head.shaderRGBA, strobeMode, 800 );
+		CG_ApplyPmColorStrobe( head.shaderRGBA, strobeMode, 800, strobePhaseOffset );
 	}
 
 	CG_AddRefEntityWithPowerups( &head, &cent->currentState, ci->team, qfalse, ci, 1, autoHeadColors );
