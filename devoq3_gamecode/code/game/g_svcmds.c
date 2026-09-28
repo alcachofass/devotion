@@ -504,6 +504,28 @@ void DmflagToggle_f ( void ) {
 //KK-OAX Moved this Declaration to g_local.h
 //char	*ConcatArgs( int start );
 
+/*
+=================
+Svcmd_Freezetag_f
+
+Toggle Freeze Tag: elimination + freeze settings + map restart, or disable freeze.
+=================
+*/
+void Svcmd_Freezetag_f( void ) {
+	if ( g_freeze.integer ) {
+		trap_Cvar_Set( "g_freeze", "0" );
+	} else {
+		trap_Cvar_Set( "g_gametype", va( "%d", GT_ELIMINATION ) );
+		trap_Cvar_Set( "g_freeze", "1" );
+		trap_Cvar_Set( "g_autoThawTime", "0" );
+		trap_Cvar_Set( "elimination_respawn", "0" );
+	}
+
+	// Same delayed restart pattern as shuffle (reliable vs semicolon vote strings).
+	level.restartAt = level.realtime + 500;
+	level.restarted = qtrue;
+}
+
 /*KK-OAX
 ===============
 Server Command Table
@@ -553,6 +575,7 @@ struct
   { "dmflag_unset", qtrue, DmflagUnset_f },
   { "dmflag_toggle", qtrue, DmflagToggle_f },
   { "votenextmap", qtrue, VoteNextmap_f },
+  { "freezetag", qfalse, Svcmd_Freezetag_f },
 };
 
 /*
