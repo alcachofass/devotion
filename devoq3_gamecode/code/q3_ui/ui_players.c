@@ -40,8 +40,107 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define SPIN_SPEED				0.9f
 #define COAST_TIME				1000
 
+#define UI_FOOTSTEP_NORMAL		0
+#define UI_FOOTSTEP_BOOT		1
+#define UI_FOOTSTEP_FLESH		2
+#define UI_FOOTSTEP_MECH		3
+#define UI_FOOTSTEP_ENERGY		4
+#define UI_FOOTSTEP_METAL		5
+#define UI_FOOTSTEP_WOOD		6
+#define UI_FOOTSTEP_SNOW		7
+#define UI_FOOTSTEP_SPLASH		8
+#define UI_FOOTSTEP_TOTAL		9
+#define UI_FOOTSTEP_NONE		-1
+
+#define UI_PREVIEW_FOOTSTEP_INTERVAL	400
+
 static int			dp_realtime;
-static float		jumpHeight;
+
+static sfxHandle_t	ui_footsteps[UI_FOOTSTEP_TOTAL][4];
+static qboolean		ui_footstepsRegistered = qfalse;
+
+static void UI_RegisterPreviewFootsteps( void ) {
+	char		name[MAX_QPATH];
+	const char	*bases[UI_FOOTSTEP_TOTAL] = {
+		"sound/player/footsteps/step",
+		"sound/player/footsteps/boot",
+		"sound/player/footsteps/flesh",
+		"sound/player/footsteps/mech",
+		"sound/player/footsteps/energy",
+		"sound/player/footsteps/clank",
+		"sound/player/footsteps/wood",
+		"sound/player/footsteps/snow",
+		"sound/player/footsteps/splash"
+	};
+	int			i;
+	int			t;
+
+	if ( ui_footstepsRegistered ) {
+		return;
+	}
+
+	for ( i = 0; i < 4; i++ ) {
+		for ( t = 0; t < UI_FOOTSTEP_TOTAL; t++ ) {
+			Com_sprintf( name, sizeof( name ), "%s%i.wav", bases[t], i + 1 );
+			ui_footsteps[t][i] = trap_S_RegisterSound( name, qfalse );
+		}
+	}
+
+	ui_footstepsRegistered = qtrue;
+}
+
+static sfxHandle_t UI_RegisterPreviewCustomSound( playerInfo_t *pi, const char *soundName ) {
+	char		path[MAX_QPATH];
+	const char	*file;
+
+	file = soundName;
+	if ( file[0] == '*' ) {
+		file++;
+	}
+
+	if ( pi->previewSoundPack[0] ) {
+		Com_sprintf( path, sizeof( path ), "sound/player/%s/%s", pi->previewSoundPack, file );
+	} else if ( pi->previewModelDir[0] ) {
+		Com_sprintf( path, sizeof( path ), "sound/player/%s/%s", pi->previewModelDir, file );
+	} else {
+		Com_sprintf( path, sizeof( path ), "sound/player/sarge/%s", file );
+	}
+
+	return trap_S_RegisterSound( path, qfalse );
+}
+
+static void UI_PlayPreviewCustomSound( playerInfo_t *pi, const char *soundName ) {
+	sfxHandle_t	sfx;
+
+	if ( !pi->allowPreviewSounds ) {
+		return;
+	}
+
+	sfx = UI_RegisterPreviewCustomSound( pi, soundName );
+	if ( sfx ) {
+		trap_S_StartLocalSound( sfx, CHAN_VOICE );
+	}
+}
+
+static void UI_PlayPreviewFootstep( playerInfo_t *pi ) {
+	int			idx;
+	int			foot;
+
+	if ( !pi->allowPreviewSounds || pi->previewFootsteps == UI_FOOTSTEP_NONE ) {
+		return;
+	}
+
+	foot = pi->previewFootsteps;
+	if ( foot < 0 || foot >= UI_FOOTSTEP_TOTAL ) {
+		foot = UI_FOOTSTEP_NORMAL;
+	}
+
+	UI_RegisterPreviewFootsteps();
+	idx = ( uis.realtime >> 8 ) & 3;
+	if ( ui_footsteps[foot][idx] ) {
+		trap_S_StartLocalSound( ui_footsteps[foot][idx], CHAN_BODY );
+	}
+}
 
 static void UI_PmDigitColor( int digit, byte *out ) {
 	if ( digit < 0 || digit > 7 ) {
@@ -253,8 +352,11 @@ UI_ForceLegsAnim
 static void UI_ForceLegsAnim( playerInfo_t *pi, int anim ) {
 	pi->legsAnim = ( ( pi->legsAnim & ANIM_TOGGLEBIT ) ^ ANIM_TOGGLEBIT ) | anim;
 
-	if ( anim == LEGS_JUMP ) {
+	if ( anim == LEGS_JUMP || anim == LEGS_JUMPB ) {
 		pi->legsAnimationTimer = UI_TIMER_JUMP;
+		if ( pi->allowPreviewSounds ) {
+			UI_PlayPreviewCustomSound( pi, "*jump1.wav" );
+		}
 	}
 }
 
@@ -283,6 +385,9 @@ static void UI_ForceTorsoAnim( playerInfo_t *pi, int anim ) {
 
 	if ( anim == TORSO_GESTURE ) {
 		pi->torsoAnimationTimer = UI_TIMER_GESTURE;
+		if ( pi->allowPreviewSounds ) {
+			UI_PlayPreviewCustomSound( pi, "*taunt.wav" );
+		}
 	}
 
 	if ( anim == TORSO_ATTACK || anim == TORSO_ATTACK2 ) {
@@ -362,20 +467,33 @@ static void UI_LegsSequencing( playerInfo_t *pi ) {
 	currentAnim = pi->legsAnim & ~ANIM_TOGGLEBIT;
 
 	if ( pi->legsAnimationTimer > 0 ) {
-		if ( currentAnim == LEGS_JUMP ) {
-			jumpHeight = JUMP_HEIGHT * sin( M_PI * ( UI_TIMER_JUMP - pi->legsAnimationTimer ) / UI_TIMER_JUMP );
+		if ( currentAnim == LEGS_JUMP || currentAnim == LEGS_JUMPB ) {
+			pi->jumpHeight = JUMP_HEIGHT * sin( M_PI * ( UI_TIMER_JUMP - pi->legsAnimationTimer ) / UI_TIMER_JUMP );
 		}
 		return;
 	}
 
 	if ( currentAnim == LEGS_JUMP ) {
+		if ( pi->allowPreviewSounds ) {
+			UI_PlayPreviewCustomSound( pi, "*fall1.wav" );
+		}
 		UI_ForceLegsAnim( pi, LEGS_LAND );
 		pi->legsAnimationTimer = UI_TIMER_LAND;
-		jumpHeight = 0;
+		pi->jumpHeight = 0;
 		return;
 	}
 
-	if ( currentAnim == LEGS_LAND ) {
+	if ( currentAnim == LEGS_JUMPB ) {
+		if ( pi->allowPreviewSounds ) {
+			UI_PlayPreviewCustomSound( pi, "*fall1.wav" );
+		}
+		UI_ForceLegsAnim( pi, LEGS_LANDB );
+		pi->legsAnimationTimer = UI_TIMER_LAND;
+		pi->jumpHeight = 0;
+		return;
+	}
+
+	if ( currentAnim == LEGS_LAND || currentAnim == LEGS_LANDB ) {
 		UI_SetLegsAnim( pi, LEGS_IDLE );
 		return;
 	}
@@ -543,6 +661,21 @@ static void UI_PlayerAnimation( playerInfo_t *pi, int *legsOld, int *legs, float
 	*legsOld = pi->legs.oldFrame;
 	*legs = pi->legs.frame;
 	*legsBackLerp = pi->legs.backlerp;
+
+	if ( pi->allowPreviewSounds ) {
+		int	legsAnimOnly;
+
+		legsAnimOnly = pi->legsAnim & ~ANIM_TOGGLEBIT;
+		if ( legsAnimOnly == LEGS_WALK || legsAnimOnly == LEGS_RUN || legsAnimOnly == LEGS_BACKWALK ) {
+			pi->previewBobCycle += uis.frametime;
+			if ( pi->previewBobCycle >= UI_PREVIEW_FOOTSTEP_INTERVAL ) {
+				pi->previewBobCycle = 0;
+				UI_PlayPreviewFootstep( pi );
+			}
+		} else {
+			pi->previewBobCycle = 0;
+		}
+	}
 
 	// torso animation
 	pi->torsoAnimationTimer -= uis.frametime;
@@ -811,14 +944,14 @@ void UI_DrawPlayer( float x, float y, float w, float h, playerInfo_t *pi, int ti
 		pi->lastWeapon = pi->pendingWeapon;
 		pi->pendingWeapon = -1;
 		pi->weaponTimer = 0;
-		if( pi->currentWeapon != pi->weapon ) {
+		if( pi->currentWeapon != pi->weapon && !pi->muteWeaponChangeSound ) {
 			trap_S_StartLocalSound( weaponChangeSound, CHAN_LOCAL );
 		}
 	}
 
 	UI_AdjustFrom640( &x, &y, &w, &h );
 
-	y -= jumpHeight;
+	y -= pi->jumpHeight;
 
 	memset( &refdef, 0, sizeof( refdef ) );
 	memset( &legs, 0, sizeof(legs) );
@@ -1026,7 +1159,8 @@ static qboolean UI_RegisterClientSkin( playerInfo_t *pi, const char *modelName, 
 UI_ParseAnimationFile
 ======================
 */
-static qboolean UI_ParseAnimationFile( const char *filename, animation_t *animations ) {
+static qboolean UI_ParseAnimationFile( const char *filename, playerInfo_t *pi ) {
+	animation_t *animations = pi->animations;
 	char		*text_p, *prev;
 	int			len;
 	int			i;
@@ -1067,6 +1201,27 @@ static qboolean UI_ParseAnimationFile( const char *filename, animation_t *animat
 			token = COM_Parse( &text_p );
 			if ( !token ) {
 				break;
+			}
+			if ( !Q_stricmp( token, "none" ) ) {
+				pi->previewFootsteps = UI_FOOTSTEP_NONE;
+			} else if ( !Q_stricmp( token, "default" ) || !Q_stricmp( token, "normal" ) ) {
+				pi->previewFootsteps = UI_FOOTSTEP_NORMAL;
+			} else if ( !Q_stricmp( token, "boot" ) ) {
+				pi->previewFootsteps = UI_FOOTSTEP_BOOT;
+			} else if ( !Q_stricmp( token, "flesh" ) ) {
+				pi->previewFootsteps = UI_FOOTSTEP_FLESH;
+			} else if ( !Q_stricmp( token, "mech" ) ) {
+				pi->previewFootsteps = UI_FOOTSTEP_MECH;
+			} else if ( !Q_stricmp( token, "energy" ) ) {
+				pi->previewFootsteps = UI_FOOTSTEP_ENERGY;
+			} else if ( !Q_stricmp( token, "metal" ) ) {
+				pi->previewFootsteps = UI_FOOTSTEP_METAL;
+			} else if ( !Q_stricmp( token, "wood" ) ) {
+				pi->previewFootsteps = UI_FOOTSTEP_WOOD;
+			} else if ( !Q_stricmp( token, "snow" ) ) {
+				pi->previewFootsteps = UI_FOOTSTEP_SNOW;
+			} else if ( !Q_stricmp( token, "splash" ) ) {
+				pi->previewFootsteps = UI_FOOTSTEP_SPLASH;
 			}
 			continue;
 		} else if ( !Q_stricmp( token, "headoffset" ) ) {
@@ -1206,7 +1361,7 @@ qboolean UI_RegisterClientModelname( playerInfo_t *pi, const char *modelSkinName
 
 	// load the animations
 	Com_sprintf( filename, sizeof( filename ), "models/players/%s/animation.cfg", modelName );
-	if ( !UI_ParseAnimationFile( filename, pi->animations ) ) {
+	if ( !UI_ParseAnimationFile( filename, pi ) ) {
 		Com_Printf( "Failed to load animation file %s\n", filename );
 		return qfalse;
 	}
@@ -1222,6 +1377,7 @@ UI_PlayerInfo_SetModel
 */
 void UI_PlayerInfo_SetModel( playerInfo_t *pi, const char *model ) {
 	memset( pi, 0, sizeof(*pi) );
+	pi->previewFootsteps = UI_FOOTSTEP_NORMAL;
 	UI_RegisterClientModelname( pi, model );
 	pi->weapon = WP_MACHINEGUN;
 	pi->currentWeapon = pi->weapon;
@@ -1254,7 +1410,7 @@ void UI_PlayerInfo_SetInfo( playerInfo_t *pi, int legsAnim, int torsoAnim, vec3_
 	if ( pi->newModel ) {
 		pi->newModel = qfalse;
 
-		jumpHeight = 0;
+		pi->jumpHeight = 0;
 		pi->pendingLegsAnim = 0;
 		UI_ForceLegsAnim( pi, legsAnim );
 		pi->legs.yawAngle = viewAngles[YAW];
@@ -1294,7 +1450,7 @@ void UI_PlayerInfo_SetInfo( playerInfo_t *pi, int legsAnim, int torsoAnim, vec3_
 		pi->weapon = pi->currentWeapon = WP_NONE;
 		UI_PlayerInfo_SetWeapon( pi, pi->weapon );
 
-		jumpHeight = 0;
+		pi->jumpHeight = 0;
 		pi->pendingLegsAnim = 0;
 		UI_ForceLegsAnim( pi, legsAnim );
 
@@ -1310,7 +1466,7 @@ void UI_PlayerInfo_SetInfo( playerInfo_t *pi, int legsAnim, int torsoAnim, vec3_
 		pi->pendingLegsAnim = legsAnim;
 	}
 	else if ( legsAnim != currentAnim ) {
-		jumpHeight = 0;
+		pi->jumpHeight = 0;
 		pi->pendingLegsAnim = 0;
 		UI_ForceLegsAnim( pi, legsAnim );
 	}
@@ -1345,6 +1501,109 @@ void UI_PlayerInfo_SetInfo( playerInfo_t *pi, int legsAnim, int torsoAnim, vec3_
 		pi->pendingTorsoAnim = torsoAnim;
 	}
 	else if ( torsoAnim != currentAnim ) {
+		pi->pendingTorsoAnim = 0;
+		UI_ForceTorsoAnim( pi, torsoAnim );
+	}
+}
+
+
+/*
+===============
+UI_PlayerInfo_SetPreviewSounds
+===============
+*/
+void UI_PlayerInfo_SetPreviewSounds( playerInfo_t *pi, qboolean allow, const char *soundPack, const char *modelDir ) {
+	pi->allowPreviewSounds = allow;
+	if ( soundPack ) {
+		Q_strncpyz( pi->previewSoundPack, soundPack, sizeof( pi->previewSoundPack ) );
+	} else {
+		pi->previewSoundPack[0] = '\0';
+	}
+	if ( modelDir ) {
+		Q_strncpyz( pi->previewModelDir, modelDir, sizeof( pi->previewModelDir ) );
+	} else {
+		pi->previewModelDir[0] = '\0';
+	}
+	if ( !allow ) {
+		pi->previewBobCycle = 0;
+	}
+}
+
+
+/*
+===============
+UI_PlayerInfo_SetLegsState
+===============
+*/
+void UI_PlayerInfo_SetLegsState( playerInfo_t *pi, int legsAnim, vec3_t moveAngles ) {
+	int		currentAnim;
+
+	dp_realtime = uis.realtime;
+
+	if ( moveAngles ) {
+		VectorCopy( moveAngles, pi->moveAngles );
+	}
+
+	currentAnim = pi->legsAnim & ~ANIM_TOGGLEBIT;
+	if ( legsAnim != LEGS_JUMP && legsAnim != LEGS_JUMPB
+			&& ( currentAnim == LEGS_JUMP || currentAnim == LEGS_LAND
+				|| currentAnim == LEGS_JUMPB || currentAnim == LEGS_LANDB ) ) {
+		pi->pendingLegsAnim = legsAnim;
+	} else if ( legsAnim != currentAnim ) {
+		pi->jumpHeight = 0;
+		pi->pendingLegsAnim = 0;
+		UI_ForceLegsAnim( pi, legsAnim );
+	}
+}
+
+
+/*
+===============
+UI_PlayerInfo_SetTorsoState
+===============
+*/
+void UI_PlayerInfo_SetTorsoState( playerInfo_t *pi, int torsoAnim, weapon_t weaponNumber ) {
+	int			currentAnim;
+	weapon_t	weaponNum;
+
+	dp_realtime = uis.realtime;
+
+	if ( weaponNumber == -1 ) {
+		pi->pendingWeapon = -1;
+		pi->weaponTimer = 0;
+	} else if ( weaponNumber != WP_NONE ) {
+		pi->pendingWeapon = weaponNumber;
+		pi->weaponTimer = dp_realtime + UI_TIMER_WEAPON_DELAY;
+	}
+	weaponNum = pi->lastWeapon;
+	pi->weapon = weaponNum;
+
+	if ( torsoAnim == TORSO_STAND || torsoAnim == TORSO_STAND2 ) {
+		if ( weaponNum == WP_NONE || weaponNum == WP_GAUNTLET ) {
+			torsoAnim = TORSO_STAND2;
+		} else {
+			torsoAnim = TORSO_STAND;
+		}
+	}
+
+	if ( torsoAnim == TORSO_ATTACK || torsoAnim == TORSO_ATTACK2 ) {
+		if ( weaponNum == WP_NONE || weaponNum == WP_GAUNTLET ) {
+			torsoAnim = TORSO_ATTACK2;
+		} else {
+			torsoAnim = TORSO_ATTACK;
+		}
+		pi->muzzleFlashTime = dp_realtime + UI_TIMER_MUZZLE_FLASH;
+	}
+
+	currentAnim = pi->torsoAnim & ~ANIM_TOGGLEBIT;
+
+	if ( weaponNumber != -1 && weaponNumber != WP_NONE && weaponNum != pi->currentWeapon ) {
+		pi->pendingTorsoAnim = torsoAnim;
+	} else if ( currentAnim == TORSO_RAISE || currentAnim == TORSO_DROP ) {
+		pi->pendingTorsoAnim = torsoAnim;
+	} else if ( ( currentAnim == TORSO_GESTURE || currentAnim == TORSO_ATTACK ) && ( torsoAnim != currentAnim ) ) {
+		pi->pendingTorsoAnim = torsoAnim;
+	} else if ( torsoAnim != currentAnim ) {
 		pi->pendingTorsoAnim = 0;
 		UI_ForceTorsoAnim( pi, torsoAnim );
 	}

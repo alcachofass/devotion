@@ -59,6 +59,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define PS_MODEL_Y		108
 #define PS_MODEL_W		188
 #define PS_MODEL_H		118
+#define PS_MODEL_DRAW_EXTRA	( PS_MODEL_H / 2 )
+#define PS_MODEL_FRONT_YAW		150.0f
+#define PS_AWAY_YAW_THRESHOLD	90.0f
+#define PS_AWAY_RECOVER_DELAY	3000
+#define PS_YAW_RECOVER_SPEED	14.0f
 #define PS_SLIDER_Y		248
 #define PS_ROW_H		16
 #define PS_PALETTE_COLORS	8
@@ -67,6 +72,40 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define PS_PALETTE_W		( PS_PALETTE_COLORS * PS_SWATCH_SIZE + ( PS_PALETTE_COLORS - 1 ) * PS_SWATCH_GAP )
 #define PS_YOU_WHITE		361
 #define PS_YOU_BLACK		362
+
+#define PS_TIMER_ATTACK			500
+#define PS_TIMER_WEAPON_SWITCH	300
+#define PS_TIMER_WEAPON_DELAY	250
+#define PS_TIMER_JUMP			1000
+#define PS_TIMER_LAND			130
+#define PS_TIMER_GESTURE		2300
+
+typedef enum {
+	PS_LEGS_IDLE,
+	PS_LEGS_WALK,
+	PS_LEGS_RUN,
+	PS_LEGS_CROUCH,
+	PS_LEGS_JUMP,
+	PS_LEGS_BACKFLIP,
+	PS_LEGS_TURN_LEFT,
+	PS_LEGS_TURN_RIGHT
+} ps_legsAction_t;
+
+typedef enum {
+	PS_TORSO_IDLE,
+	PS_TORSO_ATTACK,
+	PS_TORSO_WEAPON_SWAP,
+	PS_TORSO_GESTURE
+} ps_torsoAction_t;
+
+typedef struct {
+	ps_legsAction_t	legsAction;
+	ps_torsoAction_t	torsoAction;
+	int				legsEndTime;
+	int				torsoEndTime;
+	weapon_t		weapon;
+	qboolean		initialized;
+} ps_animSlot_t;
 
 static qhandle_t whiteShader;
 
@@ -116,12 +155,29 @@ typedef struct {
 	char				enemyModelName[MAX_QPATH];
 	float				modelYaw[3];
 	float				modelPitch[3];
+	int					modelAwaySince[3];
 	menubitmap_s		*dragItem;
 	int					dragLastX;
 	int					dragLastY;
+
+	ps_animSlot_t		anim[3];
 } playersettings_t;
 
 static playersettings_t	s_playersettings;
+
+static const weapon_t ps_previewWeapons[] = {
+	WP_MACHINEGUN,
+	WP_SHOTGUN,
+	WP_GRENADE_LAUNCHER,
+	WP_ROCKET_LAUNCHER,
+	WP_LIGHTNING,
+	WP_RAILGUN,
+	WP_PLASMAGUN,
+	WP_BFG,
+	WP_GAUNTLET
+};
+
+#define PS_NUM_PREVIEW_WEAPONS	( sizeof( ps_previewWeapons ) / sizeof( ps_previewWeapons[0] ) )
 
 static const char *handicap_items[] = {
 	"100",
@@ -292,6 +348,100 @@ static void PlayerSettings_SetFxEnabled( menucommon_s *item, qboolean enabled ) 
 	}
 }
 
+static void PlayerSettings_ModelDirFromString( const char *model, char *out, int outSize ) {
+	char	buf[MAX_QPATH];
+	char	*slash;
+
+	if ( !model || !model[0] ) {
+		Q_strncpyz( out, "sarge", outSize );
+		return;
+	}
+
+	Q_strncpyz( buf, model, sizeof( buf ) );
+	slash = strchr( buf, '/' );
+	if ( slash ) {
+		*slash = '\0';
+	}
+	Q_strncpyz( out, buf, outSize );
+}
+
+static void PlayerSettings_GetPreviewModelDir( int slot, char *out, int outSize ) {
+	char	buf[MAX_QPATH];
+
+	switch ( slot ) {
+	case 0:
+		trap_Cvar_VariableStringBuffer( "model", buf, sizeof( buf ) );
+		break;
+	case 1:
+		trap_Cvar_VariableStringBuffer( "cg_teamModel", buf, sizeof( buf ) );
+		break;
+	case 2:
+		trap_Cvar_VariableStringBuffer( "cg_enemyModel", buf, sizeof( buf ) );
+		break;
+	default:
+		buf[0] = '\0';
+		break;
+	}
+
+	PlayerSettings_ModelDirFromString( buf, out, outSize );
+}
+
+static void PlayerSettings_GetSoundPackForSlot( int slot, char *out, int outSize ) {
+	menulist_s *list;
+
+	out[0] = '\0';
+
+	switch ( slot ) {
+	case 0:
+		list = &s_playersettings.mySound;
+		break;
+	case 1:
+		list = &s_playersettings.teamSound;
+		break;
+	case 2:
+		list = &s_playersettings.enemySound;
+		break;
+	default:
+		return;
+	}
+
+	if ( list->curvalue > 0 && list->curvalue <= ps_numSounds ) {
+		Q_strncpyz( out, ps_soundNames[list->curvalue - 1], outSize );
+	}
+}
+
+static qboolean PlayerSettings_IsVoiceHovered( int slot ) {
+	menucommon_s	*focus;
+	menulist_s		*list;
+
+	switch ( slot ) {
+	case 0:
+		list = &s_playersettings.mySound;
+		break;
+	case 1:
+		list = &s_playersettings.teamSound;
+		break;
+	case 2:
+		list = &s_playersettings.enemySound;
+		break;
+	default:
+		return qfalse;
+	}
+
+	focus = (menucommon_s *)Menu_ItemAtCursor( &s_playersettings.menu );
+	return ( focus == &list->generic );
+}
+
+static void PlayerSettings_UpdatePreviewSound( playerInfo_t *pi, int slot ) {
+	char	soundPack[MAX_QPATH];
+	char	modelDir[MAX_QPATH];
+
+	pi->muteWeaponChangeSound = qtrue;
+	PlayerSettings_GetSoundPackForSlot( slot, soundPack, sizeof( soundPack ) );
+	PlayerSettings_GetPreviewModelDir( slot, modelDir, sizeof( modelDir ) );
+	UI_PlayerInfo_SetPreviewSounds( pi, PlayerSettings_IsVoiceHovered( slot ), soundPack, modelDir );
+}
+
 static void PlayerSettings_ModelDir( const char *modelCvar, qboolean optional, char *out, int outSize ) {
 	char	buf[MAX_QPATH];
 	char	*slash;
@@ -370,9 +520,289 @@ static void PlayerSettings_WriteColorCvar( const char *cvarName, menuslider_s *s
 	trap_Cvar_Set( cvarName, buf );
 }
 
+static int PlayerSettings_SlotForPi( const playerInfo_t *pi ) {
+	if ( pi == &s_playersettings.playerinfo ) {
+		return 0;
+	}
+	if ( pi == &s_playersettings.teaminfo ) {
+		return 1;
+	}
+	if ( pi == &s_playersettings.enemyinfo ) {
+		return 2;
+	}
+	return -1;
+}
+
+static playerInfo_t *PlayerSettings_PiForSlot( int slot ) {
+	switch ( slot ) {
+	case 0:
+		return &s_playersettings.playerinfo;
+	case 1:
+		return &s_playersettings.teaminfo;
+	case 2:
+		return &s_playersettings.enemyinfo;
+	default:
+		return NULL;
+	}
+}
+
+static int PlayerSettings_LegsDuration( ps_legsAction_t action, int slot ) {
+	int jitter;
+
+	jitter = ( ( uis.realtime >> 3 ) ^ ( slot * 73 ) ) & 0x3ff;
+
+	switch ( action ) {
+	case PS_LEGS_IDLE:
+		return 1200 + ( jitter & 1200 );
+	case PS_LEGS_WALK:
+		return 1800 + ( jitter & 1800 );
+	case PS_LEGS_RUN:
+		return 1400 + ( jitter & 1400 );
+	case PS_LEGS_CROUCH:
+		return 1200 + ( jitter & 800 );
+	case PS_LEGS_TURN_LEFT:
+	case PS_LEGS_TURN_RIGHT:
+		return 900;
+	case PS_LEGS_JUMP:
+	case PS_LEGS_BACKFLIP:
+		return PS_TIMER_JUMP + PS_TIMER_LAND + 300;
+	default:
+		return 2000;
+	}
+}
+
+static int PlayerSettings_TorsoDuration( ps_torsoAction_t action, int slot ) {
+	int jitter;
+
+	jitter = ( ( uis.realtime >> 4 ) ^ ( slot * 97 ) ) & 0x3ff;
+
+	switch ( action ) {
+	case PS_TORSO_IDLE:
+		return 1000 + ( jitter & 1000 );
+	case PS_TORSO_ATTACK:
+		return PS_TIMER_ATTACK + 200;
+	case PS_TORSO_WEAPON_SWAP:
+		return PS_TIMER_WEAPON_SWITCH * 2 + PS_TIMER_WEAPON_DELAY;
+	case PS_TORSO_GESTURE:
+		return PS_TIMER_GESTURE;
+	default:
+		return 1500;
+	}
+}
+
+static ps_legsAction_t PlayerSettings_PickNextLegsAction( int slot ) {
+	int roll;
+
+	roll = ( ( uis.realtime >> 2 ) ^ ( slot * 131 ) ) % 100;
+
+	if ( roll < 10 ) {
+		return PS_LEGS_IDLE;
+	}
+	if ( roll < 50 ) {
+		return PS_LEGS_RUN;
+	}
+	if ( roll < 65 ) {
+		return PS_LEGS_WALK;
+	}
+	if ( roll < 75 ) {
+		return PS_LEGS_CROUCH;
+	}
+	if ( roll < 81 ) {
+		return PS_LEGS_TURN_LEFT;
+	}
+	if ( roll < 87 ) {
+		return PS_LEGS_TURN_RIGHT;
+	}
+	if ( roll < 94 ) {
+		return PS_LEGS_JUMP;
+	}
+	return PS_LEGS_BACKFLIP;
+}
+
+static ps_torsoAction_t PlayerSettings_PickNextTorsoAction( int slot ) {
+	int roll;
+
+	roll = ( ( uis.realtime >> 1 ) ^ ( slot * 211 ) ) % 100;
+
+	if ( roll < 40 ) {
+		return PS_TORSO_IDLE;
+	}
+	if ( roll < 73 ) {
+		return PS_TORSO_ATTACK;
+	}
+	if ( roll < 85 ) {
+		return PS_TORSO_WEAPON_SWAP;
+	}
+	return PS_TORSO_GESTURE;
+}
+
+static weapon_t PlayerSettings_PickNextWeapon( weapon_t current ) {
+	int index;
+	int tries;
+
+	index = ( ( uis.realtime >> 4 ) ^ (int)current ) % PS_NUM_PREVIEW_WEAPONS;
+	if ( ps_previewWeapons[index] != current ) {
+		return ps_previewWeapons[index];
+	}
+
+	for ( tries = 0; tries < PS_NUM_PREVIEW_WEAPONS; tries++ ) {
+		index = ( index + 1 ) % PS_NUM_PREVIEW_WEAPONS;
+		if ( ps_previewWeapons[index] != current ) {
+			return ps_previewWeapons[index];
+		}
+	}
+
+	return current;
+}
+
+static void PlayerSettings_InitAnimSlot( int slot ) {
+	ps_animSlot_t *animSlot;
+
+	animSlot = &s_playersettings.anim[slot];
+	animSlot->weapon = WP_MACHINEGUN;
+	animSlot->legsAction = PS_LEGS_IDLE;
+	animSlot->torsoAction = PS_TORSO_IDLE;
+	animSlot->initialized = qtrue;
+	animSlot->legsEndTime = 0;
+	animSlot->torsoEndTime = 0;
+}
+
+static void PlayerSettings_ApplyLegsAction( int slot, ps_legsAction_t action ) {
+	playerInfo_t	*pi;
+	ps_animSlot_t	*animSlot;
+	vec3_t			moveangles;
+	int				legsAnim;
+
+	pi = PlayerSettings_PiForSlot( slot );
+	animSlot = &s_playersettings.anim[slot];
+	if ( !pi ) {
+		return;
+	}
+
+	moveangles[YAW] = s_playersettings.modelYaw[slot];
+	moveangles[PITCH] = 0;
+	moveangles[ROLL] = 0;
+
+	switch ( action ) {
+	case PS_LEGS_IDLE:
+		legsAnim = LEGS_IDLE;
+		break;
+	case PS_LEGS_WALK:
+		legsAnim = LEGS_WALK;
+		break;
+	case PS_LEGS_RUN:
+		legsAnim = LEGS_RUN;
+		break;
+	case PS_LEGS_CROUCH:
+		legsAnim = LEGS_IDLECR;
+		break;
+	case PS_LEGS_JUMP:
+		legsAnim = LEGS_JUMP;
+		break;
+	case PS_LEGS_BACKFLIP:
+		legsAnim = LEGS_JUMPB;
+		break;
+	case PS_LEGS_TURN_LEFT:
+		s_playersettings.modelYaw[slot] = AngleMod( s_playersettings.modelYaw[slot] + 90.0f );
+		moveangles[YAW] = s_playersettings.modelYaw[slot];
+		legsAnim = LEGS_TURN;
+		break;
+	case PS_LEGS_TURN_RIGHT:
+		s_playersettings.modelYaw[slot] = AngleMod( s_playersettings.modelYaw[slot] - 90.0f );
+		moveangles[YAW] = s_playersettings.modelYaw[slot];
+		legsAnim = LEGS_TURN;
+		break;
+	default:
+		legsAnim = LEGS_IDLE;
+		break;
+	}
+
+	UI_PlayerInfo_SetLegsState( pi, legsAnim, moveangles );
+	animSlot->legsAction = action;
+	animSlot->legsEndTime = uis.realtime + PlayerSettings_LegsDuration( action, slot );
+}
+
+static void PlayerSettings_ApplyTorsoAction( int slot, ps_torsoAction_t action ) {
+	playerInfo_t	*pi;
+	ps_animSlot_t	*animSlot;
+	weapon_t		weapon;
+	int				torsoAnim;
+
+	pi = PlayerSettings_PiForSlot( slot );
+	animSlot = &s_playersettings.anim[slot];
+	if ( !pi ) {
+		return;
+	}
+
+	weapon = -1;
+	torsoAnim = TORSO_STAND;
+
+	switch ( action ) {
+	case PS_TORSO_IDLE:
+		break;
+	case PS_TORSO_ATTACK:
+		torsoAnim = TORSO_ATTACK;
+		break;
+	case PS_TORSO_WEAPON_SWAP:
+		weapon = PlayerSettings_PickNextWeapon( animSlot->weapon );
+		animSlot->weapon = weapon;
+		break;
+	case PS_TORSO_GESTURE:
+		torsoAnim = TORSO_GESTURE;
+		break;
+	default:
+		break;
+	}
+
+	UI_PlayerInfo_SetTorsoState( pi, torsoAnim, weapon );
+	animSlot->torsoAction = action;
+	animSlot->torsoEndTime = uis.realtime + PlayerSettings_TorsoDuration( action, slot );
+}
+
+static void PlayerSettings_StartAnimSlot( int slot ) {
+	PlayerSettings_InitAnimSlot( slot );
+	PlayerSettings_ApplyLegsAction( slot, PlayerSettings_PickNextLegsAction( slot ) );
+	PlayerSettings_ApplyTorsoAction( slot, PlayerSettings_PickNextTorsoAction( slot ) );
+}
+
+static int PlayerSettings_DragSlot( void ) {
+	if ( s_playersettings.dragItem == &s_playersettings.player ) {
+		return 0;
+	}
+	if ( s_playersettings.dragItem == &s_playersettings.teammate ) {
+		return 1;
+	}
+	if ( s_playersettings.dragItem == &s_playersettings.enemy ) {
+		return 2;
+	}
+	return -1;
+}
+
+static void PlayerSettings_UpdateAnimSlot( int slot ) {
+	ps_animSlot_t *animSlot;
+	int				dragSlot;
+
+	dragSlot = PlayerSettings_DragSlot();
+	if ( dragSlot >= 0 && dragSlot == slot ) {
+		return;
+	}
+
+	animSlot = &s_playersettings.anim[slot];
+	if ( !animSlot->initialized ) {
+		PlayerSettings_InitAnimSlot( slot );
+	}
+
+	if ( uis.realtime >= animSlot->legsEndTime ) {
+		PlayerSettings_ApplyLegsAction( slot, PlayerSettings_PickNextLegsAction( slot ) );
+	}
+
+	if ( uis.realtime >= animSlot->torsoEndTime ) {
+		PlayerSettings_ApplyTorsoAction( slot, PlayerSettings_PickNextTorsoAction( slot ) );
+	}
+}
+
 static void PlayerSettings_RefreshModel( playerInfo_t *pi, char *cached, const char *wanted ) {
-	vec3_t viewangles;
-	float yaw;
+	int slot;
 
 	if ( !wanted[0] ) {
 		wanted = "sarge";
@@ -380,19 +810,58 @@ static void PlayerSettings_RefreshModel( playerInfo_t *pi, char *cached, const c
 	if ( !Q_stricmp( cached, wanted ) && pi->legsModel ) {
 		return;
 	}
-	if ( pi == &s_playersettings.playerinfo ) {
-		yaw = s_playersettings.modelYaw[0];
-	} else if ( pi == &s_playersettings.teaminfo ) {
-		yaw = s_playersettings.modelYaw[1];
-	} else {
-		yaw = s_playersettings.modelYaw[2];
-	}
+
+	slot = PlayerSettings_SlotForPi( pi );
 	UI_PlayerInfo_SetModel( pi, wanted );
 	Q_strncpyz( cached, wanted, MAX_QPATH );
-	viewangles[YAW] = yaw;
-	viewangles[PITCH] = 0;
-	viewangles[ROLL] = 0;
-	UI_PlayerInfo_SetInfo( pi, LEGS_IDLE, TORSO_STAND, viewangles, vec3_origin, WP_MACHINEGUN, qfalse );
+	if ( slot >= 0 ) {
+		PlayerSettings_StartAnimSlot( slot );
+	}
+}
+
+static void PlayerSettings_UpdateYawRecovery( int slot ) {
+	float	delta;
+	float	step;
+	float	frontYaw;
+
+	if ( PlayerSettings_DragSlot() == slot ) {
+		s_playersettings.modelAwaySince[slot] = 0;
+		return;
+	}
+
+	frontYaw = PS_MODEL_FRONT_YAW;
+	delta = AngleDelta( frontYaw, s_playersettings.modelYaw[slot] );
+
+	if ( fabs( delta ) <= PS_AWAY_YAW_THRESHOLD ) {
+		s_playersettings.modelAwaySince[slot] = 0;
+		return;
+	}
+
+	if ( s_playersettings.modelAwaySince[slot] == 0 ) {
+		s_playersettings.modelAwaySince[slot] = uis.realtime;
+		return;
+	}
+
+	if ( uis.realtime - s_playersettings.modelAwaySince[slot] < PS_AWAY_RECOVER_DELAY ) {
+		return;
+	}
+
+	step = PS_YAW_RECOVER_SPEED * uis.frametime * 0.001f;
+	if ( step <= 0.0f ) {
+		return;
+	}
+
+	if ( fabs( delta ) <= step ) {
+		s_playersettings.modelYaw[slot] = frontYaw;
+		s_playersettings.modelAwaySince[slot] = 0;
+		return;
+	}
+
+	if ( delta > 0.0f ) {
+		s_playersettings.modelYaw[slot] = AngleMod( s_playersettings.modelYaw[slot] + step );
+	} else {
+		s_playersettings.modelYaw[slot] = AngleMod( s_playersettings.modelYaw[slot] - step );
+	}
 }
 
 static void PlayerSettings_UpdateDrag( menubitmap_s *b, int index ) {
@@ -404,6 +873,7 @@ static void PlayerSettings_UpdateDrag( menubitmap_s *b, int index ) {
 		s_playersettings.dragItem = b;
 		s_playersettings.dragLastX = uis.cursorx;
 		s_playersettings.dragLastY = uis.cursory;
+		s_playersettings.modelAwaySince[index] = 0;
 	}
 
 	if ( s_playersettings.dragItem != b ) {
@@ -429,13 +899,31 @@ static void PlayerSettings_UpdateDrag( menubitmap_s *b, int index ) {
 }
 
 static void PlayerSettings_ApplyAngles( playerInfo_t *pi, int index ) {
-	pi->viewAngles[YAW] = s_playersettings.modelYaw[index];
+	ps_animSlot_t	*animSlot;
+	float			baseYaw;
+	int				legsAnim;
+	int				torsoAnim;
+
+	animSlot = &s_playersettings.anim[index];
+	baseYaw = s_playersettings.modelYaw[index];
+
+	pi->viewAngles[YAW] = baseYaw;
 	pi->viewAngles[PITCH] = s_playersettings.modelPitch[index];
 	pi->viewAngles[ROLL] = 0;
-	pi->legs.yawAngle = pi->viewAngles[YAW];
-	pi->torso.yawAngle = pi->viewAngles[YAW];
-	pi->legs.yawing = qfalse;
-	pi->torso.yawing = qfalse;
+
+	if ( animSlot->legsAction == PS_LEGS_WALK || animSlot->legsAction == PS_LEGS_RUN ) {
+		pi->moveAngles[YAW] = baseYaw;
+	}
+
+	legsAnim = pi->legsAnim & ~ANIM_TOGGLEBIT;
+	torsoAnim = pi->torsoAnim & ~ANIM_TOGGLEBIT;
+
+	if ( legsAnim == LEGS_IDLE && ( torsoAnim == TORSO_STAND || torsoAnim == TORSO_STAND2 ) ) {
+		pi->legs.yawAngle = pi->viewAngles[YAW];
+		pi->torso.yawAngle = pi->viewAngles[YAW];
+		pi->legs.yawing = qfalse;
+		pi->torso.yawing = qfalse;
+	}
 }
 
 static void PlayerSettings_HueToColor( float hue, vec4_t color ) {
@@ -916,6 +1404,19 @@ static void PlayerSettings_DrawHandicap( void *self ) {
 
 /*
 =================
+PlayerSettings_DrawPlayerPreview
+=================
+*/
+static void PlayerSettings_DrawPlayerPreview( menubitmap_s *b, playerInfo_t *pi ) {
+	UI_DrawPlayer( b->generic.x,
+			b->generic.y - PS_MODEL_DRAW_EXTRA / 2,
+			b->width,
+			b->height + PS_MODEL_DRAW_EXTRA,
+			pi, uis.realtime );
+}
+
+/*
+=================
 PlayerSettings_DrawPlayer
 =================
 */
@@ -930,9 +1431,11 @@ static void PlayerSettings_DrawPlayer( void *self ) {
 		PlayerSettings_RefreshModel( &s_playersettings.playerinfo, s_playersettings.playerModel, buf );
 		PlayerSettings_ApplyYouColors( &s_playersettings.playerinfo );
 		PlayerSettings_UpdateDrag( b, 0 );
+		PlayerSettings_UpdatePreviewSound( &s_playersettings.playerinfo, 0 );
+		PlayerSettings_UpdateAnimSlot( 0 );
+		PlayerSettings_UpdateYawRecovery( 0 );
 		PlayerSettings_ApplyAngles( &s_playersettings.playerinfo, 0 );
-		UI_DrawPlayer( b->generic.x, b->generic.y, b->width, b->height,
-				&s_playersettings.playerinfo, uis.realtime / 2 );
+		PlayerSettings_DrawPlayerPreview( b, &s_playersettings.playerinfo );
 		PlayerSettings_ModelCaption( b->generic.x, b->generic.y + b->height + 2, b->width, "model", qfalse, "cg_mySound" );
 		return;
 	}
@@ -942,9 +1445,11 @@ static void PlayerSettings_DrawPlayer( void *self ) {
 		PlayerSettings_RefreshModel( &s_playersettings.teaminfo, s_playersettings.teamModelName, buf );
 		PlayerSettings_ApplyForceColors( &s_playersettings.teaminfo, s_playersettings.teamColor, &s_playersettings.teamFx );
 		PlayerSettings_UpdateDrag( b, 1 );
+		PlayerSettings_UpdatePreviewSound( &s_playersettings.teaminfo, 1 );
+		PlayerSettings_UpdateAnimSlot( 1 );
+		PlayerSettings_UpdateYawRecovery( 1 );
 		PlayerSettings_ApplyAngles( &s_playersettings.teaminfo, 1 );
-		UI_DrawPlayer( b->generic.x, b->generic.y, b->width, b->height,
-				&s_playersettings.teaminfo, uis.realtime / 2 );
+		PlayerSettings_DrawPlayerPreview( b, &s_playersettings.teaminfo );
 		PlayerSettings_ModelCaption( b->generic.x, b->generic.y + b->height + 2, b->width, "cg_teamModel", qtrue, "cg_teamSound" );
 		return;
 	}
@@ -953,9 +1458,11 @@ static void PlayerSettings_DrawPlayer( void *self ) {
 	PlayerSettings_RefreshModel( &s_playersettings.enemyinfo, s_playersettings.enemyModelName, buf );
 	PlayerSettings_ApplyForceColors( &s_playersettings.enemyinfo, s_playersettings.enemyColor, &s_playersettings.enemyFx );
 	PlayerSettings_UpdateDrag( b, 2 );
+	PlayerSettings_UpdatePreviewSound( &s_playersettings.enemyinfo, 2 );
+	PlayerSettings_UpdateAnimSlot( 2 );
+	PlayerSettings_UpdateYawRecovery( 2 );
 	PlayerSettings_ApplyAngles( &s_playersettings.enemyinfo, 2 );
-	UI_DrawPlayer( b->generic.x, b->generic.y, b->width, b->height,
-			&s_playersettings.enemyinfo, uis.realtime / 2 );
+	PlayerSettings_DrawPlayerPreview( b, &s_playersettings.enemyinfo );
 	PlayerSettings_ModelCaption( b->generic.x, b->generic.y + b->height + 2, b->width, "cg_enemyModel", qtrue, "cg_enemySound" );
 }
 
@@ -1071,7 +1578,7 @@ static void PlayerSettings_SetMenuItems( void ) {
 	s_playersettings.playerModel[0] = '\0';
 	s_playersettings.teamModelName[0] = '\0';
 	s_playersettings.enemyModelName[0] = '\0';
-	s_playersettings.modelYaw[0] = s_playersettings.modelYaw[1] = s_playersettings.modelYaw[2] = 150.0f;
+	s_playersettings.modelYaw[0] = s_playersettings.modelYaw[1] = s_playersettings.modelYaw[2] = PS_MODEL_FRONT_YAW;
 	s_playersettings.modelPitch[0] = s_playersettings.modelPitch[1] = s_playersettings.modelPitch[2] = 0.0f;
 
 	h = Com_Clamp( 5, 100, trap_Cvar_VariableValue("handicap") );
@@ -1566,6 +2073,10 @@ static void PlayerSettings_MenuInit( void ) {
 	Menu_AddItem( &s_playersettings.menu, &s_playersettings.item_null );
 
 	PlayerSettings_SetMenuItems();
+
+	for ( i = 0; i < 3; i++ ) {
+		s_playersettings.anim[i].initialized = qfalse;
+	}
 }
 
 
