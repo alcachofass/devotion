@@ -853,7 +853,76 @@ static int CG_PlayerPmStrobeMode( int clientNum, clientInfo_t *ci ) {
 	return CG_PmColorStrobeMode( cg_enemyColor.string );
 }
 
-static void CG_ApplyPmColorStrobe( byte *rgba, int mode, int partOffset ) {
+static int CG_PmColorStrobeCyclePeriod( int mode ) {
+	switch ( mode ) {
+	case 1: return 360 * 24;
+	case 2: return 360 * 10;
+	case 3: return 360 * 4;
+	case 4: return (int)( 2.0 * M_PI / 0.003 );
+	case 5: return (int)( 2.0 * M_PI / 0.012 );
+	case 6: return 7 * 700;
+	case 7: return 7 * 220;
+	case 8: return 2 * 80;
+	case 9: return 360 * 3;
+	default: return 0;
+	}
+}
+
+/*
+Spread each strobing player's cycle across 1/N of a full period, where N is the
+number of non-spectator players other than the local client.
+*/
+static int CG_PmColorStrobePhaseOffset( int clientNum, int mode ) {
+	int activeClients[MAX_CLIENTS];
+	int count;
+	int i;
+	int index;
+	int period;
+	clientInfo_t *ci;
+
+	if ( mode < 1 || clientNum == cg.clientNum ) {
+		return 0;
+	}
+
+	count = 0;
+	for ( i = 0; i < cgs.maxclients; i++ ) {
+		if ( i == cg.clientNum ) {
+			continue;
+		}
+		ci = &cgs.clientinfo[i];
+		if ( !ci->infoValid || ci->team == TEAM_SPECTATOR ) {
+			continue;
+		}
+		if ( count >= MAX_CLIENTS ) {
+			break;
+		}
+		activeClients[count++] = i;
+	}
+
+	if ( count <= 1 ) {
+		return 0;
+	}
+
+	index = -1;
+	for ( i = 0; i < count; i++ ) {
+		if ( activeClients[i] == clientNum ) {
+			index = i;
+			break;
+		}
+	}
+	if ( index < 0 ) {
+		return 0;
+	}
+
+	period = CG_PmColorStrobeCyclePeriod( mode );
+	if ( period <= 0 ) {
+		return 0;
+	}
+
+	return ( index * period ) / count;
+}
+
+static void CG_ApplyPmColorStrobe( byte *rgba, int mode, int partOffset, int playerPhaseOffset ) {
 	float wave;
 	float rgb[4];
 	vec3_t q3color;
@@ -865,7 +934,7 @@ static void CG_ApplyPmColorStrobe( byte *rgba, int mode, int partOffset ) {
 		return;
 	}
 
-	t = (unsigned int)( cg.time + partOffset );
+	t = (unsigned int)( cg.time + partOffset + playerPhaseOffset );
 
 	switch ( mode ) {
 	case 1: /* slow hue cycle */
@@ -881,13 +950,13 @@ static void CG_ApplyPmColorStrobe( byte *rgba, int mode, int partOffset ) {
 		Q_HSV2RGB( (float)hue, 1.0f, 1.0f, rgb );
 		break;
 	case 4: /* slow pulse of baked PM color */
-		wave = 0.35f + 0.65f * ( 0.5f + 0.5f * (float)sin( cg.time * 0.003f + partOffset * 0.001f ) );
+		wave = 0.35f + 0.65f * ( 0.5f + 0.5f * (float)sin( ( cg.time + playerPhaseOffset ) * 0.003f + partOffset * 0.001f ) );
 		rgba[0] = (byte)( rgba[0] * wave );
 		rgba[1] = (byte)( rgba[1] * wave );
 		rgba[2] = (byte)( rgba[2] * wave );
 		return;
 	case 5: /* fast pulse */
-		wave = 0.25f + 0.75f * ( 0.5f + 0.5f * (float)sin( cg.time * 0.012f + partOffset * 0.001f ) );
+		wave = 0.25f + 0.75f * ( 0.5f + 0.5f * (float)sin( ( cg.time + playerPhaseOffset ) * 0.012f + partOffset * 0.001f ) );
 		rgba[0] = (byte)( rgba[0] * wave );
 		rgba[1] = (byte)( rgba[1] * wave );
 		rgba[2] = (byte)( rgba[2] * wave );
@@ -1263,209 +1332,132 @@ static void CG_SetRailColors( const char *color, clientInfo_t *info )
 	CG_ColorFromChar( color[4], info->color2 );
 }
 
-static void CG_SetSkinAndModel( clientInfo_t *newInfo,
-		const char *infomodel,
-		qboolean allowNativeModel,
-		team_t viewerTeam,
-		int clientNum,
-		qboolean setColor,				 
-		char *modelName, int modelNameSize,
-		char *skinName, int skinNameSize ) 
-{
-	char modelStr[ MAX_QPATH ];
-	char newSkin[ MAX_QPATH ];
-	char *skin, *slash;
-	qboolean	pm_model_e, pm_model_t;
-	team_t		myTeam, currentTeam;
-	const char	*colors;
-	
-	/* Use newInfo.team from this player's config string, not stale ci->team (gametype swaps). */
+static void CG_ParseModelSkin( const char *src, char *modelName, int modelNameSize,
+		char *skinName, int skinNameSize ) {
+	char buffer[MAX_QPATH];
+	char *slash;
+
+	Q_strncpyz( buffer, src, sizeof( buffer ) );
+	slash = strchr( buffer, '/' );
+	if ( !slash ) {
+		Q_strncpyz( modelName, buffer, modelNameSize );
+		Q_strncpyz( skinName, "default", skinNameSize );
+	} else {
+		*slash = '\0';
+		Q_strncpyz( modelName, buffer, modelNameSize );
+		Q_strncpyz( skinName, slash + 1, skinNameSize );
+	}
+}
+
+static void CG_ApplyClientSkinColors( clientInfo_t *newInfo, team_t viewerTeam,
+		int clientNum, int local_team, qboolean enemy ) {
+	const char *colors;
+	team_t currentTeam;
+
+	if ( clientNum == cg.clientNum ) {
+		return;
+	}
+
 	currentTeam = newInfo->team;
-	/* Viewer team must match Info_ValueForKey(local_players_CS, "t"), with the same spectator
-	 * tweak as cg_players elsewhere. Snapshot PERS_TEAM can lag CS_PLAYERS on team swaps; using
-	 * it here misclassified enemies as teammates → cg_teamModel without cg_teamColor → black. */
-	myTeam = viewerTeam;
 
-	//Com_Printf( "CG_SetSkinAndModel: clientNum %d, currentTeam %d, myTeam %d\n", clientNum, currentTeam, myTeam );
-	
-	pm_model_e = ( Q_stricmp( cg_enemyModel.string, PM_SKIN ) == 0 ) ? qtrue : qfalse;
-	pm_model_t = ( Q_stricmp( cg_teamModel.string, PM_SKIN ) == 0 ) ? qtrue : qfalse;
-
-	if ( cg_forceModel.integer || cg_enemyModel.string[0] || cg_teamModel.string[0] )
-	{
-		if ( CG_IsTeamGametype() )
-		{
-			// enemy model
-			if( myTeam != TEAM_SPECTATOR ) {
-				if ( cg_enemyModel.string[0] && currentTeam != myTeam ) {
-					if ( cg_enemyColor.string[0] ){
-						colors = CG_GetTeamColorsOSP( cg_enemyColor.string );
-						CG_SetColorInfo( colors, newInfo );
-						newInfo->coloredSkin = qtrue;
-					}
-
-					if ( pm_model_e )
-						Q_strncpyz( modelName, infomodel, modelNameSize );
-					else
-						Q_strncpyz( modelName, cg_enemyModel.string, modelNameSize );
-					
-					skin = strchr( modelName, '/' );
-					// force skin
-					strcpy( newSkin, PM_SKIN );
-					if ( skin )
-						*skin = '\0';
-
-					if ( pm_model_e && !CG_IsKnownModel( modelName ) ) {
-						// revert to default model if specified skin is not known
-						Q_strncpyz( modelName, "sarge", modelNameSize );
-					}
-					Q_strncpyz( skinName, newSkin, skinNameSize );
-
-				} 
-				
-				if ( cg_teamModel.string[0] && currentTeam == myTeam && clientNum != cg.clientNum ) {
-					if ( cg_teamColor.string[0] ){
-						colors = CG_GetTeamColorsOSP( cg_teamColor.string );
-						CG_SetColorInfo( colors, newInfo );
-						newInfo->coloredSkin = qtrue;
-					}
-
-					if ( pm_model_t )
-						Q_strncpyz( modelName, infomodel, modelNameSize );
-					else
-						Q_strncpyz( modelName, cg_teamModel.string, modelNameSize );
-
-					skin = strchr( modelName, '/' );
-					// force skin
-					strcpy( newSkin, PM_SKIN );
-					if ( skin )
-						*skin = '\0';
-
-					if ( pm_model_t && !CG_IsKnownModel( modelName ) ) {
-						// revert to default model if specified skin is not known
-						Q_strncpyz( modelName, "sarge", modelNameSize );
-					}
-					Q_strncpyz( skinName, newSkin, skinNameSize );
-
-				} 
-				
-			} else if ( myTeam == TEAM_SPECTATOR ) {				
-
-				if (currentTeam == TEAM_BLUE){
-					if ( pm_model_t )
-						Q_strncpyz( modelName, infomodel, modelNameSize );
-					else
-						Q_strncpyz( modelName, cg_teamModel.string, modelNameSize );
-
-					skin = strchr( modelName, '/' );
-					// force skin
-					strcpy( newSkin, PM_SKIN );
-					if ( skin )
-						*skin = '\0';
-
-					if ( pm_model_t && !CG_IsKnownModel( modelName ) ) {
-						// revert to default model if specified skin is not known
-						Q_strncpyz( modelName, "sarge", modelNameSize );
-					}
-					Q_strncpyz( skinName, newSkin, skinNameSize );
-
-					if ( setColor ) {
-						// make blue team blue if player is spectator
-							colors = CG_GetTeamColorsOSP( "444" );
-							CG_SetColorInfo( colors, newInfo );
-							newInfo->coloredSkin = qtrue;						
-					} 
-
-				}
-
-				if (currentTeam == TEAM_RED){
-					if ( pm_model_t )
-						Q_strncpyz( modelName, infomodel, modelNameSize );
-					else
-						Q_strncpyz( modelName, cg_teamModel.string, modelNameSize );
-
-					skin = strchr( modelName, '/' );
-					// force skin
-					strcpy( newSkin, PM_SKIN );
-					if ( skin )
-						*skin = '\0';
-
-					if ( pm_model_t && !CG_IsKnownModel( modelName ) ) {
-						// revert to default model if specified skin is not known
-						Q_strncpyz( modelName, "sarge", modelNameSize );
-					}
-					Q_strncpyz( skinName, newSkin, skinNameSize );
-
-					if ( setColor ) {
-						// make red team red if player is spectator
-							colors = CG_GetTeamColorsOSP( "111" );
-							CG_SetColorInfo( colors, newInfo );
-							newInfo->coloredSkin = qtrue;						
-					} 
-
-				}	
-					
-
-			}  
-				// forcemodel etc runs last
-				if ( cg_forceModel.integer ) {
-					trap_Cvar_VariableStringBuffer( "model", modelStr, sizeof( modelStr ) );
-					if ( ( skin = strchr( modelStr, '/' ) ) == NULL) {
-						skin = "default";
-					} else {
-						*skin++ = '\0';
-					}
-
-					Q_strncpyz( skinName, skin, skinNameSize );
-					Q_strncpyz( modelName, modelStr, modelNameSize );
-
-				} 
-
-		} else { // not team game
-			if ( cg_enemyColor.string[0] && clientNum != cg.clientNum ){
-				colors = CG_GetTeamColorsOSP( cg_enemyColor.string );
+	if ( CG_IsTeamGametype() ) {
+		if ( viewerTeam == TEAM_SPECTATOR ) {
+			if ( currentTeam == TEAM_BLUE ) {
+				colors = CG_GetTeamColorsOSP( "444" );
+				CG_SetColorInfo( colors, newInfo );
+				newInfo->coloredSkin = qtrue;
+			} else if ( currentTeam == TEAM_RED ) {
+				colors = CG_GetTeamColorsOSP( "111" );
 				CG_SetColorInfo( colors, newInfo );
 				newInfo->coloredSkin = qtrue;
 			}
+			return;
+		}
 
-			if ( cg_forceModel.integer ) {
-
-				trap_Cvar_VariableStringBuffer( "model", modelStr, sizeof( modelStr ) );
-				if ( ( skin = strchr( modelStr, '/' ) ) == NULL ) {
-					skin = "default";
-				} else {
-					*skin++ = '\0';
-				}
-
-				Q_strncpyz( skinName, skin, skinNameSize );
-				Q_strncpyz( modelName, modelStr, modelNameSize );
-			} else {
-				Q_strncpyz( modelName, infomodel, modelNameSize );
-					slash = strchr( modelName, '/' );
-				if ( !slash ) {
-					// modelName didn not include a skin name
-					Q_strncpyz( skinName, "default", skinNameSize );
-				} else {
-					Q_strncpyz( skinName, slash + 1, skinNameSize );
-					// truncate modelName
-					*slash = '\0';
-				}
+		if ( local_team != TEAM_SPECTATOR ) {
+			if ( enemy && cg_enemyModel.string[0] && cg_enemyColor.string[0] ) {
+				colors = CG_GetTeamColorsOSP( cg_enemyColor.string );
+				CG_SetColorInfo( colors, newInfo );
+				newInfo->coloredSkin = qtrue;
+			} else if ( !enemy && cg_teamModel.string[0] && cg_teamColor.string[0] ) {
+				colors = CG_GetTeamColorsOSP( cg_teamColor.string );
+				CG_SetColorInfo( colors, newInfo );
+				newInfo->coloredSkin = qtrue;
 			}
 		}
-	}	
-	else // !cg_forcemodel && !cg_enemyModel && !cg_teamModel
-	{
-		Q_strncpyz( modelName, infomodel, modelNameSize );
-		slash = strchr( modelName, '/' );
+	} else if ( cg_enemyColor.string[0] ) {
+		colors = CG_GetTeamColorsOSP( cg_enemyColor.string );
+		CG_SetColorInfo( colors, newInfo );
+		newInfo->coloredSkin = qtrue;
+	}
+}
+
+static void CG_ResolvePlayerModel( int clientNum, const char *wireModel, qboolean isHead,
+		qboolean enemy, qboolean useForcedModel,
+		char *modelName, int modelNameSize, char *skinName, int skinNameSize,
+		qboolean *forcedModel, qboolean *forcedBrightModel ) {
+	char modelStr[MAX_QPATH];
+	const char *overrideModel;
+	char *slash;
+
+	*forcedModel = qfalse;
+	*forcedBrightModel = qfalse;
+
+	if ( clientNum == cg.clientNum ) {
+		if ( isHead ) {
+			trap_Cvar_VariableStringBuffer( "headmodel", modelStr, sizeof( modelStr ) );
+		} else {
+			trap_Cvar_VariableStringBuffer( "model", modelStr, sizeof( modelStr ) );
+		}
+		CG_ParseModelSkin( modelStr, modelName, modelNameSize, skinName, skinNameSize );
+		return;
+	}
+
+	if ( cg_forceModel.integer ) {
+		if ( isHead ) {
+			trap_Cvar_VariableStringBuffer( "headmodel", modelStr, sizeof( modelStr ) );
+		} else {
+			trap_Cvar_VariableStringBuffer( "model", modelStr, sizeof( modelStr ) );
+		}
+		if ( !( cgs.ratFlags & RAT_BRIGHTMODEL && cgs.ratFlags & RAT_ALLOWFORCEDMODELS )
+				&& Q_stristr( modelStr, "bright" ) != NULL ) {
+			Q_strncpyz( modelStr, "keel/default", sizeof( modelStr ) );
+		}
+		CG_ParseModelSkin( modelStr, modelName, modelNameSize, skinName, skinNameSize );
+		return;
+	}
+
+	if ( useForcedModel ) {
+		overrideModel = enemy ? cg_enemyModel.string : cg_teamModel.string;
+		if ( Q_stricmp( overrideModel, PM_SKIN ) == 0 ) {
+			CG_ParseModelSkin( wireModel, modelName, modelNameSize, skinName, skinNameSize );
+			Q_strncpyz( skinName, PM_SKIN, skinNameSize );
+			if ( !CG_IsKnownModel( modelName ) ) {
+				Q_strncpyz( modelName, "sarge", modelNameSize );
+			}
+			*forcedModel = qtrue;
+			return;
+		}
+
+		Q_strncpyz( modelStr, overrideModel, sizeof( modelStr ) );
+		slash = strchr( modelStr, '/' );
 		if ( !slash ) {
-			// modelName didn not include a skin name
+			Q_strncpyz( modelName, modelStr, modelNameSize );
 			Q_strncpyz( skinName, "default", skinNameSize );
 		} else {
-			Q_strncpyz( skinName, slash + 1, skinNameSize );
-			// truncate modelName
 			*slash = '\0';
+			Q_strncpyz( modelName, modelStr, modelNameSize );
+			Q_strncpyz( skinName, slash + 1, skinNameSize );
 		}
+		if ( !( cgs.ratFlags & RAT_BRIGHTMODEL ) && Q_stristr( skinName, "bright" ) != NULL ) {
+			Q_strncpyz( skinName, "default", skinNameSize );
+		}
+		*forcedBrightModel = ( Q_stricmp( skinName, "bright" ) == 0 );
+		*forcedModel = qtrue;
+		return;
 	}
+
+	CG_ParseModelSkin( wireModel, modelName, modelNameSize, skinName, skinNameSize );
 }
 
 
@@ -1481,14 +1473,11 @@ clientInfo_t *ci;
 	const char	*v;
 	const char	*modelConfig;
 	const char	*headModelConfig;
-	char		*slash;
 	const char	*local_config;
 	int 	local_team;
 	team_t	viewerTeam;
 	qboolean enemy = qfalse;
 	qboolean useForcedModel;
-
-	qboolean allowNativeModel;
 
 	ci = &cgs.clientinfo[clientNum];
 
@@ -1503,15 +1492,6 @@ clientInfo_t *ci;
 	local_team = atoi(v);
 
 	viewerTeam = (team_t)local_team;
-
-	allowNativeModel = qfalse;
-	if ( !CG_IsTeamGametype() ) {
-		if ( !cg.snap || ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_FREE && cg.snap->ps.clientNum == clientNum ) ) {
-			if ( cg.demoPlayback || ( cg.snap && cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
-				allowNativeModel = qtrue;
-			}
-		}
-	}
 
 	// build into a temp buffer so the defer checks can use
 	// the old value
@@ -1580,11 +1560,8 @@ clientInfo_t *ci;
 	v = Info_ValueForKey( configstring, "g_blueteam" );
 	Q_strncpyz(newInfo.blueTeam, v, MAX_TEAMNAME);
 
-	// model
 	modelConfig = Info_ValueForKey( configstring, "model" );
-
-	CG_SetSkinAndModel( &newInfo, modelConfig, allowNativeModel, viewerTeam, clientNum, qtrue,
-		newInfo.modelName, sizeof( newInfo.modelName ),	newInfo.skinName, sizeof( newInfo.skinName ) );
+	headModelConfig = Info_ValueForKey( configstring, "hmodel" );
 
 	if (CG_IsTeamGametype()) {
 		enemy = ( local_team != TEAM_SPECTATOR && local_team != newInfo.team );
@@ -1592,180 +1569,32 @@ clientInfo_t *ci;
 		enemy = ( cg.clientNum != clientNum );
 	}
 
-	/* Local player keeps userinfo color1/color2. Enemies/teammates use
-	 * cg_enemyColor / cg_teamColor digits 4-5 when present. Spectating a
-	 * team game leaves each player's own rail colors. */
-	if ( clientNum != cg.clientNum && local_team != TEAM_SPECTATOR ) {
-		if ( enemy && cg_enemyColor.string[0] ) {
-			CG_SetRailColors( cg_enemyColor.string, &newInfo );
-		} else if ( !enemy && CG_IsTeamGametype() && cg_teamColor.string[0] ) {
-			CG_SetRailColors( cg_teamColor.string, &newInfo );
-		}
-	}
-
-	/* Never force enemy/team models onto the local player. In FFA, team
-	 * model must not apply to self either. Spectating a team game keeps
-	 * native models (red/blue colors come from CG_SetSkinAndModel). */
+	/* Never force enemy/team models onto the local player. */
 	useForcedModel = (cgs.ratFlags & RAT_ALLOWFORCEDMODELS)
 		&& clientNum != cg.clientNum
 		&& !( CG_IsTeamGametype() && local_team == TEAM_SPECTATOR )
 		&& ( ( enemy && cg_enemyModel.string[0] )
 			|| ( !enemy && CG_IsTeamGametype() && cg_teamModel.string[0] ) );
 
-	if (useForcedModel) {
-		if (enemy) {
-			Q_strncpyz( newInfo.modelName, cg_enemyModel.string, sizeof( newInfo.modelName ) );
-		} else {
-			Q_strncpyz( newInfo.modelName, cg_teamModel.string, sizeof( newInfo.modelName ) );
-		}
+	CG_ResolvePlayerModel( clientNum, modelConfig, qfalse, enemy, useForcedModel,
+		newInfo.modelName, sizeof( newInfo.modelName ),
+		newInfo.skinName, sizeof( newInfo.skinName ),
+		&newInfo.forcedModel, &newInfo.forcedBrightModel );
 
-		slash = strchr( newInfo.modelName, '/' );
-		if ( !slash ) {
-			// modelName didn not include a skin name
-			Q_strncpyz( newInfo.skinName, "default", sizeof( newInfo.skinName ) );
-		} else {
-			Q_strncpyz( newInfo.skinName, slash + 1, sizeof( newInfo.skinName ) );
-			// truncate modelName
-			*slash = 0;
-		}
-		// replace "pm" with "bright" models for compatibility with
-		// configs from other mods
-		/*
-		if (strcmp(newInfo.skinName, "pm") == 0) {
-			Q_strncpyz( newInfo.skinName, "bright", sizeof( newInfo.skinName ) );
-		}
-		*/
-		if (!(cgs.ratFlags & RAT_BRIGHTMODEL) && Q_stristr(newInfo.skinName, "bright") != NULL) {
-			// use default skin (or red/blue) if bright skin is not available
-			Q_strncpyz( newInfo.skinName, "default", sizeof( newInfo.skinName ) );
-		}
+	CG_ResolvePlayerModel( clientNum, headModelConfig, qtrue, enemy, useForcedModel,
+		newInfo.headModelName, sizeof( newInfo.headModelName ),
+		newInfo.headSkinName, sizeof( newInfo.headSkinName ),
+		&newInfo.forcedModel, &newInfo.forcedBrightModel );
 
-		newInfo.forcedBrightModel = (strcmp(newInfo.skinName, "bright") == 0);
-		newInfo.forcedModel = qtrue;
-	} else if ( cg_forceModel.integer ) {
-		// forcemodel makes everyone use a single model
-		// to prevent load hitches
-		char modelStr[MAX_QPATH];
-		char *skin;
+	CG_ApplyClientSkinColors( &newInfo, viewerTeam, clientNum, local_team, enemy );
 
-		if(CG_IsTeamGametype()) {
-			Q_strncpyz( newInfo.modelName, DEFAULT_TEAM_MODEL, sizeof( newInfo.modelName ) );
-			Q_strncpyz( newInfo.skinName, "default", sizeof( newInfo.skinName ) );
-		} else {
-			trap_Cvar_VariableStringBuffer( "model", modelStr, sizeof( modelStr ) );
-			if (!(cgs.ratFlags & RAT_BRIGHTMODEL && cgs.ratFlags & RAT_ALLOWFORCEDMODELS) && Q_stristr(modelStr, "bright") != NULL) {
-				Q_strncpyz(modelStr, "keel/default", sizeof(modelStr));
-			}
-			if ( ( skin = strchr( modelStr, '/' ) ) == NULL) {
-				skin = "default";
-			} else {
-				*skin++ = 0;
-			}
-
-
-			Q_strncpyz( newInfo.skinName, skin, sizeof( newInfo.skinName ) );
-			Q_strncpyz( newInfo.modelName, modelStr, sizeof( newInfo.modelName ) );
-		}
-
-		if (CG_IsTeamGametype()) {
-			// keep skin name from this player's configstring model
-			slash = strchr( modelConfig, '/' );
-			if ( slash ) {
-				Q_strncpyz( newInfo.skinName, slash + 1, sizeof( newInfo.skinName ) );
-			}
-		}
-	} else {
-		Q_strncpyz( newInfo.modelName, modelConfig, sizeof( newInfo.modelName ) );
-
-		slash = strchr( newInfo.modelName, '/' );
-		if ( !slash ) {
-			// modelName didn not include a skin name
-			Q_strncpyz( newInfo.skinName, "default", sizeof( newInfo.skinName ) );
-		} else {
-			Q_strncpyz( newInfo.skinName, slash + 1, sizeof( newInfo.skinName ) );
-			// truncate modelName
-			*slash = 0;
-		}
-	}
-
-	// head model
-	headModelConfig = Info_ValueForKey( configstring, "hmodel" );
-
-	CG_SetSkinAndModel( &newInfo, headModelConfig, allowNativeModel, viewerTeam, clientNum, qtrue,
-		newInfo.headModelName, sizeof( newInfo.headModelName ),	newInfo.headSkinName, sizeof( newInfo.headSkinName ) );
-
-	if (useForcedModel) {
-		if (enemy) {
-			Q_strncpyz( newInfo.headModelName, cg_enemyModel.string, sizeof( newInfo.headModelName ) );
-		} else {
-			Q_strncpyz( newInfo.headModelName, cg_teamModel.string, sizeof( newInfo.headModelName ) );
-		}
-
-		slash = strchr( newInfo.headModelName, '/' );
-		if ( !slash ) {
-			// headModelName didn not include a skin name
-			Q_strncpyz( newInfo.headSkinName, "default", sizeof( newInfo.headSkinName ) );
-		} else {
-			Q_strncpyz( newInfo.headSkinName, slash + 1, sizeof( newInfo.headSkinName ) );
-			// truncate headModelName
-			*slash = 0;
-		}
-		// replace "pm" with "bright" models for compatibility with
-		// configs from other mods
-		/*
-		if (strcmp(newInfo.headSkinName, "pm") == 0) {
-			Q_strncpyz( newInfo.headSkinName, "bright", sizeof( newInfo.headSkinName ) );
-		}
-		*/
-		if (!(cgs.ratFlags & RAT_BRIGHTMODEL) && Q_stristr(newInfo.headSkinName, "bright") != NULL) {
-			// use default skin (or red/blue) if bright skin is not available
-			Q_strncpyz( newInfo.headSkinName, "default", sizeof( newInfo.headSkinName ) );
-		}
-
-		newInfo.forcedBrightModel = (strcmp(newInfo.skinName, "bright") == 0);
-		newInfo.forcedModel = qtrue;
-	} else if ( cg_forceModel.integer ) {
-		// forcemodel makes everyone use a single model
-		// to prevent load hitches
-		char modelStr[MAX_QPATH];
-		char *skin;
-
-		if(CG_IsTeamGametype()) {
-			Q_strncpyz( newInfo.headModelName, DEFAULT_TEAM_MODEL, sizeof( newInfo.headModelName ) );
-			Q_strncpyz( newInfo.headSkinName, "default", sizeof( newInfo.headSkinName ) );
-		} else {
-			trap_Cvar_VariableStringBuffer( "headmodel", modelStr, sizeof( modelStr ) );
-			if (!(cgs.ratFlags & RAT_BRIGHTMODEL && cgs.ratFlags & RAT_ALLOWFORCEDMODELS) && Q_stristr(modelStr, "bright") != NULL) {
-				Q_strncpyz(modelStr, "keel/default", sizeof(modelStr));
-			}
-			if ( ( skin = strchr( modelStr, '/' ) ) == NULL) {
-				skin = "default";
-			} else {
-				*skin++ = 0;
-			}
-
-			Q_strncpyz( newInfo.headSkinName, skin, sizeof( newInfo.headSkinName ) );
-			Q_strncpyz( newInfo.headModelName, modelStr, sizeof( newInfo.headModelName ) );
-		}
-
-		if (CG_IsTeamGametype()) {
-			// keep skin name from this player's configstring head model
-			slash = strchr( headModelConfig, '/' );
-			if ( slash ) {
-				Q_strncpyz( newInfo.headSkinName, slash + 1, sizeof( newInfo.headSkinName ) );
-			}
-		}
-	} else {
-		Q_strncpyz( newInfo.headModelName, headModelConfig, sizeof( newInfo.headModelName ) );
-
-		slash = strchr( newInfo.headModelName, '/' );
-		if ( !slash ) {
-			// modelName didn not include a skin name
-			Q_strncpyz( newInfo.headSkinName, "default", sizeof( newInfo.headSkinName ) );
-		} else {
-			Q_strncpyz( newInfo.headSkinName, slash + 1, sizeof( newInfo.headSkinName ) );
-			// truncate modelName
-			*slash = 0;
+	/* Local player keeps userinfo color1/color2. Enemies/teammates use
+	 * cg_enemyColor / cg_teamColor digits 4-5 when present. */
+	if ( clientNum != cg.clientNum && local_team != TEAM_SPECTATOR ) {
+		if ( enemy && cg_enemyColor.string[0] ) {
+			CG_SetRailColors( cg_enemyColor.string, &newInfo );
+		} else if ( !enemy && CG_IsTeamGametype() && cg_teamColor.string[0] ) {
+			CG_SetRailColors( cg_teamColor.string, &newInfo );
 		}
 	}
 
@@ -4550,6 +4379,7 @@ void CG_Player( centity_t *cent ) {
 	qboolean autoHeadColors = qfalse;
 	qboolean useDeadColors;
 	int strobeMode;
+	int strobePhaseOffset;
 
 	// the client number is stored in clientNum.  It can't be derived
 	// from the entity number, because a single client may have
@@ -4589,6 +4419,7 @@ void CG_Player( centity_t *cent ) {
 
 	useDeadColors = (cent->currentState.eFlags & EF_DEAD && !CG_IsFrozenPlayer(cent)) ? qtrue : qfalse;
 	strobeMode = useDeadColors ? 0 : CG_PlayerPmStrobeMode( clientNum, ci );
+	strobePhaseOffset = strobeMode ? CG_PmColorStrobePhaseOffset( clientNum, strobeMode ) : 0;
 	CG_PlayerGetColors(ci, useDeadColors, MCIDX_TORSO, torso.shaderRGBA);
 	CG_PlayerGetColors(ci, useDeadColors, MCIDX_LEGS, legs.shaderRGBA);
 	if ((ci->forcedBrightModel || (cgs.ratFlags & (RAT_BRIGHTSHELL | RAT_BRIGHTOUTLINE) 
@@ -4657,7 +4488,7 @@ void CG_Player( centity_t *cent ) {
 	}
 	legs.shaderRGBA[3] = 255;
 	if ( strobeMode ) {
-		CG_ApplyPmColorStrobe( legs.shaderRGBA, strobeMode, 0 );
+		CG_ApplyPmColorStrobe( legs.shaderRGBA, strobeMode, 0, strobePhaseOffset );
 	}
 
 	CG_AddRefEntityWithPowerups( &legs, &cent->currentState, ci->team, qfalse, ci, 3, qfalse );
@@ -4696,7 +4527,7 @@ void CG_Player( centity_t *cent ) {
 	}
 	torso.shaderRGBA[3] = 255;
 	if ( strobeMode ) {
-		CG_ApplyPmColorStrobe( torso.shaderRGBA, strobeMode, 400 );
+		CG_ApplyPmColorStrobe( torso.shaderRGBA, strobeMode, 400, strobePhaseOffset );
 	}
 
 	CG_AddRefEntityWithPowerups( &torso, &cent->currentState, ci->team, qfalse, ci, 2, qfalse );
@@ -4943,7 +4774,7 @@ void CG_Player( centity_t *cent ) {
 	}
 	head.shaderRGBA[3] = 255;
 	if ( strobeMode ) {
-		CG_ApplyPmColorStrobe( head.shaderRGBA, strobeMode, 800 );
+		CG_ApplyPmColorStrobe( head.shaderRGBA, strobeMode, 800, strobePhaseOffset );
 	}
 
 	CG_AddRefEntityWithPowerups( &head, &cent->currentState, ci->team, qfalse, ci, 1, autoHeadColors );

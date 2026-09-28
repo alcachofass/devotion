@@ -31,6 +31,8 @@ displayContextDef_t cgDC;
 #endif
 
 int forceModelModificationCount = -1;
+int playerModelModificationCount = -1;
+int playerHeadModelModificationCount = -1;
 int enemyModelModificationCount  = -1;
 int	enemyColorModificationCount = -1;
 int enemyTeamModelModificationCounts = -1;
@@ -45,6 +47,9 @@ int hudMovementKeysModificationCount = -1;
 int brightShellsModificationCount = -1;
 int hitsoundModificationCount = -1;
 qboolean hudMovementKeysRegistered = qfalse;
+
+static vmCvar_t cg_playerModel;
+static vmCvar_t cg_playerHeadmodel;
 
 static void CG_RegisterMovementKeysShaders(void);
 static void CG_RegisterNumbers(void);
@@ -158,10 +163,10 @@ void CG_RegisterCvars( void ) {
 	enemyModelModificationCount = cg_enemyModel.modificationCount;
 	brightShellsModificationCount = cg_brightShells.modificationCount;
 
-	trap_Cvar_Register(NULL, "model", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
-	trap_Cvar_Register(NULL, "headmodel", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
-	trap_Cvar_Register(NULL, "team_model", DEFAULT_TEAM_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
-	trap_Cvar_Register(NULL, "team_headmodel", DEFAULT_TEAM_HEAD, CVAR_USERINFO | CVAR_ARCHIVE );
+	trap_Cvar_Register( &cg_playerModel, "model", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
+	trap_Cvar_Register( &cg_playerHeadmodel, "headmodel", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
+	playerModelModificationCount = cg_playerModel.modificationCount;
+	playerHeadModelModificationCount = cg_playerHeadmodel.modificationCount;
 	trap_Cvar_Register(NULL, "color3", "H0", CVAR_USERINFO | CVAR_ARCHIVE );
 	trap_Cvar_Register(NULL, "color4", "H0", CVAR_USERINFO | CVAR_ARCHIVE );
 	trap_Cvar_Register(NULL, "color5", "H0", CVAR_USERINFO | CVAR_ARCHIVE );
@@ -484,6 +489,16 @@ void CG_UpdateCvars( void ) {
 	if ( forceModelModificationCount != cg_forceModel.modificationCount ) {
 		forceModelModificationCount = cg_forceModel.modificationCount;
 		CG_ForceModelChange();
+	}
+	trap_Cvar_Update( &cg_playerModel );
+	trap_Cvar_Update( &cg_playerHeadmodel );
+	if ( playerModelModificationCount != cg_playerModel.modificationCount
+			|| playerHeadModelModificationCount != cg_playerHeadmodel.modificationCount ) {
+		playerModelModificationCount = cg_playerModel.modificationCount;
+		playerHeadModelModificationCount = cg_playerHeadmodel.modificationCount;
+		if ( cg.clientNum >= 0 && cg.clientNum < MAX_CLIENTS ) {
+			CG_NewClientInfo( cg.clientNum );
+		}
 	}
 	i = cg_enemyModel.modificationCount + cg_teamModel.modificationCount;
 	if ( enemyTeamModelModificationCounts != i ) {

@@ -794,6 +794,7 @@ void G_RegisterCvars( void ) {
 	G_EnsureVoteName( "itemtimers" );
 	G_EnsureVoteName( "item_timers" );
 	G_EnsureVoteName( "movement" );
+	G_EnsureVoteName( "freezetag" );
 }
 
 qboolean G_IsTeamGametype(void) {

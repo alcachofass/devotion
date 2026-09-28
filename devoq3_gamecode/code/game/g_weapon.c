@@ -72,6 +72,10 @@ qboolean CheckGauntletAttack( gentity_t *ent, qboolean altFire ) {	//mrd
 	gentity_t	*traceEnt;
 	int			damage;
 
+	if ( altFire && !g_altFireMode.integer ) {
+		altFire = qfalse;
+	}
+
 	// set aiming directions
 	AngleVectors (ent->client->ps.viewangles, forward, right, up);
 

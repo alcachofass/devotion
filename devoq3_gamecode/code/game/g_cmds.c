@@ -3924,6 +3924,8 @@ void G_PrintVoteCommands(gentity_t *ent) {
 		strcat(buffer, " itemtimers <0|1>\n");
 	if(allowedVote("movement"))
 		strcat(buffer, " movement <Q3|Defrag|QL|CPM|RatMod>\n");
+	if(allowedVote("freezetag"))
+		strcat(buffer, " freezetag\n");
 	buffer[strlen(buffer)-1] = 0;
 	strcat(buffer, "\n\"");
 	trap_SendServerCommand( ent-g_entities, buffer);
@@ -4003,6 +4005,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 	} else if ( !Q_stricmp( arg1, "itemtimers" ) || !Q_stricmp( arg1, "item_timers" )
 			|| !Q_stricmp( arg1, "timers" ) ) {
 	} else if ( !Q_stricmp( arg1, "movement" ) ) {
+	} else if ( !Q_stricmp( arg1, "freezetag" ) ) {
 	} else {
 		trap_SendServerCommand( ent-g_entities, "print \"Invalid vote string.\n\"" );
 		G_PrintVoteCommands(ent);
@@ -4247,6 +4250,13 @@ void Cmd_CallVote_f( gentity_t *ent ) {
                 }
                 Com_sprintf( level.voteString, sizeof( level.voteString ), "g_movement \"%d\"", (int)movement );
                 Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Change movement to %s?", VoteMovementName( movement ) );
+        } else if ( !Q_stricmp( arg1, "freezetag" ) ) {
+		Q_strncpyz( level.voteString, "freezetag", sizeof( level.voteString ) );
+		if ( g_freeze.integer ) {
+			Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable Freeze Tag?" );
+		} else {
+			Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Enable Freeze Tag?" );
+		}
         } else if ( !Q_stricmp( arg1, "clientkick" ) ) {
 		for( c = arg2; *c; ++c) {
 			if (!isdigit(*c)) {

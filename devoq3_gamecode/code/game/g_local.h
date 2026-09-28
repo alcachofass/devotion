@@ -1808,6 +1808,7 @@ void Svcmd_Chat_f( void );
 void Svcmd_ListIP_f( void );
 void Svcmd_MessageWrapper( void );
 void Svcmd_BalanceTeams_f( void );
+void Svcmd_Freezetag_f( void );
 
 // g_stats.c
 void G_WriteStatsJSON(const char *exitreason, int game_id);
