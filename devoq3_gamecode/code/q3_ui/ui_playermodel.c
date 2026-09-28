@@ -197,8 +197,6 @@ static void PlayerModel_SaveChanges( void )
 	trap_Cvar_Set( s_playermodel_cvar, s_playermodel.modelskin );
 	if ( !Q_stricmp( s_playermodel_cvar, "model" ) ) {
 		trap_Cvar_Set( "headmodel", s_playermodel.modelskin );
-		trap_Cvar_Set( "team_model", s_playermodel.modelskin );
-		trap_Cvar_Set( "team_headmodel", s_playermodel.modelskin );
 	}
 }
 

@@ -2344,30 +2344,16 @@ void ClientUserinfoChanged( int clientNum ) {
 	client->ps.stats[STAT_MAX_HEALTH] = client->pers.maxHealth;
 
 	// set model
-	if(G_IsTeamGametype()) {
-		Q_strncpyz( model, Info_ValueForKey (userinfo, "team_model"), sizeof( model ) );
-		Q_strncpyz( headModel, Info_ValueForKey (userinfo, "team_headmodel"), sizeof( headModel ) );
-	} else {
-		Q_strncpyz( model, Info_ValueForKey (userinfo, "model"), sizeof( model ) );
-		Q_strncpyz( headModel, Info_ValueForKey (userinfo, "headmodel"), sizeof( headModel ) );
-	}
+	Q_strncpyz( model, Info_ValueForKey (userinfo, "model"), sizeof( model ) );
+	Q_strncpyz( headModel, Info_ValueForKey (userinfo, "headmodel"), sizeof( headModel ) );
 
-	//if (!g_brightModels.integer || !g_allowForcedModels.integer) {
-	// prevent people from setting the bright/gray model model as their model
-	// They are supposed to be used only with cg_{enemy,team}Model (if allowed)
+	// prevent people from setting the bright/gray model as their model
 	if (Q_stristr(model, "bright") != NULL || Q_stristr(headModel, "bright") != NULL
 			|| Q_stristr(model, "/gray") != NULL || Q_stristr(headModel, "/gray") != NULL) {
-		if(G_IsTeamGametype()) {
-			Info_SetValueForKey( userinfo, "team_model", "smarine" );
-			Info_SetValueForKey( userinfo, "team_headmodel", "smarine" );
-			Q_strncpyz( model, "smarine", sizeof( model ) );
-			Q_strncpyz( headModel, "smarine", sizeof( headModel ) );
-		} else {
-			Info_SetValueForKey( userinfo, "model", "smarine/orange" );
-			Info_SetValueForKey( userinfo, "headmodel", "smarine/orange" );
-			Q_strncpyz( model, "smarine/orange", sizeof( model ) );
-			Q_strncpyz( headModel, "smarine/orange", sizeof( headModel ) );
-		}
+		Info_SetValueForKey( userinfo, "model", "smarine/orange" );
+		Info_SetValueForKey( userinfo, "headmodel", "smarine/orange" );
+		Q_strncpyz( model, "smarine/orange", sizeof( model ) );
+		Q_strncpyz( headModel, "smarine/orange", sizeof( headModel ) );
 		trap_SetUserinfo( clientNum, userinfo );
 	}
 	//}

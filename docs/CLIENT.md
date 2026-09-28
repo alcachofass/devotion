@@ -11,9 +11,8 @@ pro 1                            // Sets enemy model to green keel/pm, teamModel
 ## Configuring Player Models
 
 ```
-set model "visor/pm"             // Sets visor/pm as you player model
-set team_model "visor/pm"        // Sets visor/pm as your player model during team games
-set cg_enemyModel "keel/pm"      // Sets _all_ enemies as keel/pm
+set model "visor/pm"             // Sets visor/pm as your player model (all game modes)
+set cg_enemyModel "keel/pm"      // Sets _all_ enemies as keel/pm (local view only)
 set cg_enemyColor "22222"        // Sets _all_ enemies as the PM color green in head, body, legs, color 1, and color 2 without the need for bright shells
 set cg_teamModel "doom/pm"       // In team games, sets _all_ members as doom/pm
 set cg_teamColor "77777"         // Sets _all_ team members as the PM color white in head, body, legs, color 1, and color 2 without the need for bright shells
