@@ -113,6 +113,12 @@ typedef enum {
 typedef struct gentity_s gentity_t;
 typedef struct gclient_s gclient_t;
 
+typedef struct {
+	qboolean	complete;
+	qboolean	hitPlayer;
+	int		hitPlayerNum;
+} missileCatchupOutcome_t;
+
 struct gentity_s {
 	entityState_t	s;				// communicated by server to clients
 	entityShared_t	r;				// shared by both the server system and game
@@ -267,6 +273,10 @@ struct gentity_s {
 	int rocketBounceCount;
 	vec3_t lastTrailOrigin;
 };
+
+typedef struct {
+	gentity_t	ent;
+} missileDelagSnapshot_t;
 
 
 typedef enum {
@@ -967,6 +977,10 @@ typedef struct {
     qboolean		multiTrnReorder;	
     qboolean		multiTrnInit;	
 #endif
+
+	// projectile catchup comparison (g_delagMissileCatchupCompare)
+	qboolean		missileDelagShadow;
+	missileCatchupOutcome_t	missileDelagShadowOutcome;
 } level_locals_t;
 
 //KK-OAX These are some Print Shortcuts for KillingSprees and Admin
@@ -1220,6 +1234,8 @@ void G_DoTimeShiftFor( gentity_t *ent );
 void G_UndoTimeShiftFor( gentity_t *ent );
 void G_UnTimeShiftClient( gentity_t *client );
 void G_TimeShiftClient( gentity_t *ent, int time, qboolean debug, gentity_t *debugger );
+qboolean G_ClientHistoryHullAtTime( gentity_t *ent, int time, vec3_t origin, vec3_t mins, vec3_t maxs );
+int G_ClientHistoryTeleSplitsInRange( gentity_t *ent, int segStart, int segEnd, int *splits, int maxSplits );
 void G_PredictPlayerMove( gentity_t *ent, float frametime );
 void G_PrintDelagMaxTimeshift(void);
 //unlagged - g_unlagged.c

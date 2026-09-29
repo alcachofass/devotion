@@ -201,6 +201,11 @@ G_CVAR( g_delagMissileImmediateRun, "g_delagMissileImmediateRun", "2", CVAR_ARCH
 
 G_CVAR( g_predictMissiles, "g_predictMissiles", "1", CVAR_ARCHIVE, 0, qfalse, qfalse )
 G_CVAR( g_delagMissileBaseNudge, "g_delagMissileBaseNudge", "10", CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qfalse, qfalse )
+G_CVAR( g_delagMissileCatchupCompare, "g_delagMissileCatchupCompare", "0", 0, 0, qfalse, qfalse )
+G_CVAR( g_delagMissileCatchupFineStep, "g_delagMissileCatchupFineStep", "1", 0, 0, qfalse, qfalse )
+G_CVAR( g_delagMissileCatchupAdaptive, "g_delagMissileCatchupAdaptive", "1", CVAR_ARCHIVE, 0, qfalse, qfalse )
+G_CVAR( g_delagMissileCatchupSubstepMs, "g_delagMissileCatchupSubstepMs", "5", CVAR_ARCHIVE, 0, qfalse, qfalse )
+G_CVAR( g_delagMissileCatchupTeleSplit, "g_delagMissileCatchupTeleSplit", "1", CVAR_ARCHIVE, 0, qfalse, qfalse )
 
 
 G_CVAR( g_teleporterPrediction, "g_teleporterPrediction", "1", 0, 0, qfalse, qfalse )
