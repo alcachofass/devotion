@@ -1530,6 +1530,12 @@ void UI_DrawBackgroundPic( qhandle_t hShader ) {
 	trap_R_DrawStretchPic( 0.0, 0.0, uis.glconfig.vidWidth, uis.glconfig.vidHeight, 0, 0, 1, 1, hShader );
 }
 
+static void UI_FillScreen( const float *color ) {
+	trap_R_SetColor( color );
+	trap_R_DrawStretchPic( 0.0, 0.0, uis.glconfig.vidWidth, uis.glconfig.vidHeight, 0, 0, 0, 0, uis.whiteShader );
+	trap_R_SetColor( NULL );
+}
+
 /*
 ================
 UI_FillRect
@@ -1633,7 +1639,7 @@ void UI_Refresh( int realtime )
 			}
 			fadeColor[0] = fadeColor[1] = fadeColor[2] = 0.0f;
 			fadeColor[3] = 1.0f - (float)elapsed / (float)MENU_FADE_FROM_BLACK_TIME;
-			UI_FillRect( 0, 0, 640, 480, fadeColor );
+			UI_FillScreen( fadeColor );
 		}
 	}
 

@@ -567,6 +567,10 @@ typedef struct {
 	vec3_t      bodyColor;
 	vec3_t      legsColor;
 
+	byte		pmStrobeMode;
+	int			pmStrobeTimeOffset;
+	float		pmStrobeSinPhase;
+
 #ifdef WITH_MULTITOURNAMENT
 	// for GT_MULTITOURNAMENT
 	int		gameId;

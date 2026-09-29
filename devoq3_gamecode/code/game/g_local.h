@@ -268,7 +268,6 @@ struct gentity_s {
 	vec3_t lastTrailOrigin;
 };
 
-
 typedef enum {
 	CON_DISCONNECTED,
 	CON_CONNECTING,
@@ -967,6 +966,7 @@ typedef struct {
     qboolean		multiTrnReorder;	
     qboolean		multiTrnInit;	
 #endif
+
 } level_locals_t;
 
 //KK-OAX These are some Print Shortcuts for KillingSprees and Admin
@@ -1220,6 +1220,8 @@ void G_DoTimeShiftFor( gentity_t *ent );
 void G_UndoTimeShiftFor( gentity_t *ent );
 void G_UnTimeShiftClient( gentity_t *client );
 void G_TimeShiftClient( gentity_t *ent, int time, qboolean debug, gentity_t *debugger );
+qboolean G_ClientHistoryHullAtTime( gentity_t *ent, int time, vec3_t origin, vec3_t mins, vec3_t maxs );
+int G_ClientHistoryTeleSplitsInRange( gentity_t *ent, int segStart, int segEnd, int *splits, int maxSplits );
 void G_PredictPlayerMove( gentity_t *ent, float frametime );
 void G_PrintDelagMaxTimeshift(void);
 //unlagged - g_unlagged.c
