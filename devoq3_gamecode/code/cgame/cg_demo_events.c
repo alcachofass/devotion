@@ -29,7 +29,6 @@ cg_event / snapshot playback.
 #define DEMOEV_FLOAT_INT_BITS		13
 #define DEMOEV_FLOAT_INT_BIAS		( 1 << ( DEMOEV_FLOAT_INT_BITS - 1 ) )
 #define DEMOEV_MAX_AREA_BYTES		32
-#define DEMOEV_MARKER_W				1
 #define DEMOEV_HIT_SLOP				4
 #define DEMOEV_NO_CLIENT			255
 #define DEMOEV_TIP_ICON				12
@@ -1549,9 +1548,17 @@ void CG_DemoEvents_Frame( void ) {
 	}
 }
 
-static int DemoEv_MarkerX( int trackX, int trackW, int firstServerTime, int durationMs, int serverTime ) {
+static float DemoEv_MarkerW( void ) {
+	if ( cgs.screenXScale <= 0.0f ) {
+		return 1.0f;
+	}
+	return 1.0f / cgs.screenXScale;
+}
+
+static float DemoEv_MarkerX( int trackX, int trackW, int firstServerTime, int durationMs, int serverTime ) {
 	int		t;
-	int		mx;
+	float	mw;
+	float	mx;
 	float	frac;
 
 	t = serverTime - firstServerTime;
@@ -1561,13 +1568,14 @@ static int DemoEv_MarkerX( int trackX, int trackW, int firstServerTime, int dura
 	if ( t > durationMs ) {
 		t = durationMs;
 	}
+	mw = DemoEv_MarkerW();
 	frac = (float)t / (float)durationMs;
-	mx = trackX + (int)( frac * (float)( trackW - DEMOEV_MARKER_W ) );
-	if ( mx < trackX ) {
-		mx = trackX;
+	mx = (float)trackX + frac * ( (float)trackW - mw );
+	if ( mx < (float)trackX ) {
+		mx = (float)trackX;
 	}
-	if ( mx > trackX + trackW - DEMOEV_MARKER_W ) {
-		mx = trackX + trackW - DEMOEV_MARKER_W;
+	if ( mx > (float)trackX + (float)trackW - mw ) {
+		mx = (float)trackX + (float)trackW - mw;
 	}
 	return mx;
 }
@@ -2163,7 +2171,8 @@ void CG_DemoEvents_DrawPresence( int trackX, int trackY, int trackW, int trackH,
 static qboolean DemoEv_DrawMarkersEx( int trackX, int trackY, int trackW, int trackH,
 		int firstServerTime, int durationMs, int cursorX, int cursorY, qboolean metaOnly ) {
 	int		i;
-	int		mx;
+	float	mw;
+	float	mx;
 	int		my;
 	int		mh;
 	int		dx;
@@ -2189,6 +2198,7 @@ static qboolean DemoEv_DrawMarkersEx( int trackX, int trackY, int trackW, int tr
 	hoverY1 = trackY + trackH + 2;
 	best = -1;
 	bestDist = 9999;
+	mw = DemoEv_MarkerW();
 
 	for ( i = 0; i < ev_count; i++ ) {
 		kind = ev_events[i].kind;
@@ -2202,10 +2212,10 @@ static qboolean DemoEv_DrawMarkersEx( int trackX, int trackY, int trackW, int tr
 		}
 		mx = DemoEv_MarkerX( trackX, trackW, firstServerTime, durationMs, ev_events[i].serverTime );
 		DemoEv_KindColor( kind, color );
-		CG_FillRect( mx, my, DEMOEV_MARKER_W, mh, color );
+		CG_FillRect( mx, (float)my, mw, (float)mh, color );
 
 		if ( cursorY >= hoverY0 && cursorY < hoverY1 ) {
-			dx = cursorX - mx;
+			dx = (int)( cursorX - mx );
 			if ( dx < 0 ) {
 				dx = -dx;
 			}
@@ -2218,7 +2228,7 @@ static qboolean DemoEv_DrawMarkersEx( int trackX, int trackY, int trackW, int tr
 
 	if ( best >= 0 ) {
 		mx = DemoEv_MarkerX( trackX, trackW, firstServerTime, durationMs, ev_events[best].serverTime );
-		DemoEv_DrawHoverTip( &ev_events[best], mx, trackY );
+		DemoEv_DrawHoverTip( &ev_events[best], (int)mx, trackY );
 		return qtrue;
 	}
 	return qfalse;
