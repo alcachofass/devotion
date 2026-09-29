@@ -25,20 +25,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define MISSILE_PRESTEP_TIME	50
 #define MISSILE_CATCHUP_BROADPHASE_PAD	40
 #define MISSILE_CATCHUP_MAX_TELE_SPLITS	8
-
-typedef struct {
-	int		prevTimeSaved;
-	int		lvlTimeSaved;
-	int		baseShiftTime;
-	qboolean	latencyMode;
-	qboolean	shadow;
-} missileDelagCatchupCtx_t;
-
-// session totals for g_delagMissileCatchupCompare (persist across maps)
-static int missileCatchupSessionTotal;
-static int missileCatchupSessionMismatches;
-static int missileCatchupSessionFalseHits;
-static int missileCatchupSessionFalseMisses;
+#define MISSILE_CATCHUP_SUBSTEP_MS	5
 
 //altFire GL
 #define VORTEX_THINK_TIME	50		//for vortex physics effect
@@ -115,116 +102,33 @@ void G_SetMissileLaunchTime (gentity_t *self, gentity_t *bolt) {
 
 }
 
-static void G_MissileDelagSaveSnapshot( gentity_t *ent, missileDelagSnapshot_t *snap ) {
-	snap->ent = *ent;
-}
-
-static void G_MissileDelagRestoreSnapshot( gentity_t *ent, const missileDelagSnapshot_t *snap ) {
-	int entNum;
-
-	entNum = ent->s.number;
-	*ent = snap->ent;
-	ent->s.number = entNum;
-	trap_LinkEntity( ent );
-}
-
-static void G_MissileDelagClearOutcome( missileCatchupOutcome_t *outcome ) {
-	outcome->complete = qfalse;
-	outcome->hitPlayer = qfalse;
-	outcome->hitPlayerNum = -1;
-}
-
-static void G_MissileDelagRecordOutcome( gentity_t *ent, missileCatchupOutcome_t *outcome ) {
-	G_MissileDelagClearOutcome( outcome );
-
-	if ( !G_InUse( ent ) || ent->freeAfterEvent || ent->missileExploded ) {
-		outcome->complete = qtrue;
-		if ( ent->s.otherEntityNum >= 0 && ent->s.otherEntityNum < MAX_CLIENTS ) {
-			gentity_t *other = &g_entities[ent->s.otherEntityNum];
-
-			if ( G_InUse( other ) && other->client && other->takedamage
-					&& LogAccuracyHit( other, &g_entities[ent->r.ownerNum] ) ) {
-				outcome->hitPlayer = qtrue;
-				outcome->hitPlayerNum = other->s.number;
-			}
-		}
-	}
-}
-
-static int G_MissileDelagComputeShiftTime( gentity_t *ent, int segStart, int segEnd,
-		int baseShiftTime, qboolean latencyMode, int lvlTimeSaved ) {
-	int shiftTime;
-	int sampleTime;
-
-	sampleTime = ( segStart + segEnd ) / 2;
-
-	if ( latencyMode ) {
-		shiftTime = baseShiftTime + ( sampleTime - ent->launchTime );
-		if ( shiftTime < ent->launchTime ) {
-			shiftTime = ent->launchTime;
-		} else if ( shiftTime > lvlTimeSaved ) {
-			shiftTime = lvlTimeSaved;
-		}
-	} else {
-		shiftTime = sampleTime;
-	}
-
-	return shiftTime;
+static qboolean G_MissileDelagCatchupClient( gentity_t *client, gentity_t *skip ) {
+	return client->client
+		&& G_InUse( client )
+		&& client != skip
+		&& client->client->sess.sessionTeam < TEAM_SPECTATOR
+		&& !client->client->isEliminated;
 }
 
 static void G_MissileDelagAddHullBounds( const vec3_t origin, const vec3_t mins, const vec3_t maxs,
-		float pad, vec3_t boundsMins, vec3_t boundsMaxs ) {
-	vec3_t point;
-
-	VectorCopy( origin, point );
-	point[0] += mins[0] - pad;
-	point[1] += mins[1] - pad;
-	point[2] += mins[2] - pad;
-	AddPointToBounds( point, boundsMins, boundsMaxs );
-
-	VectorCopy( origin, point );
-	point[0] += maxs[0] + pad;
-	point[1] += maxs[1] + pad;
-	point[2] += maxs[2] + pad;
-	AddPointToBounds( point, boundsMins, boundsMaxs );
-}
-
-static qboolean G_MissileDelagBoundsOverlap( const vec3_t aMins, const vec3_t aMaxs,
-		const vec3_t bMins, const vec3_t bMaxs ) {
-	int i;
-
-	for ( i = 0; i < 3; i++ ) {
-		if ( aMins[i] > bMaxs[i] || aMaxs[i] < bMins[i] ) {
-			return qfalse;
-		}
-	}
-
-	return qtrue;
-}
-
-static void G_MissileDelagBuildMissileBounds( gentity_t *ent, int t0, int t1,
 		vec3_t boundsMins, vec3_t boundsMaxs ) {
-	vec3_t start, end;
+	vec3_t point;
+	const float pad = MISSILE_CATCHUP_BROADPHASE_PAD;
 
-	ClearBounds( boundsMins, boundsMaxs );
-	BG_EvaluateTrajectory( &ent->s.pos, t0, start );
-	BG_EvaluateTrajectory( &ent->s.pos, t1, end );
-	G_MissileDelagAddHullBounds( start, ent->r.mins, ent->r.maxs,
-			MISSILE_CATCHUP_BROADPHASE_PAD, boundsMins, boundsMaxs );
-	G_MissileDelagAddHullBounds( end, ent->r.mins, ent->r.maxs,
-			MISSILE_CATCHUP_BROADPHASE_PAD, boundsMins, boundsMaxs );
+	point[0] = origin[0] + mins[0] - pad;
+	point[1] = origin[1] + mins[1] - pad;
+	point[2] = origin[2] + mins[2] - pad;
+	AddPointToBounds( point, boundsMins, boundsMaxs );
+
+	point[0] = origin[0] + maxs[0] + pad;
+	point[1] = origin[1] + maxs[1] + pad;
+	point[2] = origin[2] + maxs[2] + pad;
+	AddPointToBounds( point, boundsMins, boundsMaxs );
 }
 
-static void G_MissileDelagMergeHullExtents( const vec3_t mins, const vec3_t maxs,
-		vec3_t hullMins, vec3_t hullMaxs, qboolean *haveHull ) {
+static void G_MissileDelagExpandHullExtents( const vec3_t mins, const vec3_t maxs,
+		vec3_t hullMins, vec3_t hullMaxs ) {
 	int i;
-
-	if ( !*haveHull ) {
-		VectorCopy( mins, hullMins );
-		VectorCopy( maxs, hullMaxs );
-		*haveHull = qtrue;
-		return;
-	}
 
 	for ( i = 0; i < 3; i++ ) {
 		if ( mins[i] < hullMins[i] ) {
@@ -238,89 +142,54 @@ static void G_MissileDelagMergeHullExtents( const vec3_t mins, const vec3_t maxs
 
 static void G_MissileDelagAddClientSweptBounds( gentity_t *client, int t0, int t1,
 		vec3_t boundsMins, vec3_t boundsMaxs ) {
-	vec3_t origin, mins, maxs;
-	vec3_t origin0, origin1;
-	vec3_t hullMins, hullMaxs;
-	int tMid;
-	int i, steps;
-	float frac;
-	qboolean have0, have1, haveHull;
+	vec3_t origin, origin0, origin1;
+	vec3_t mins0, maxs0, mins1, maxs1, mins, maxs, hullMins, hullMaxs;
+	int tMid, i;
 
-	have0 = G_ClientHistoryHullAtTime( client, t0, origin, mins, maxs );
-	if ( have0 ) {
-		G_MissileDelagAddHullBounds( origin, mins, maxs, MISSILE_CATCHUP_BROADPHASE_PAD,
-				boundsMins, boundsMaxs );
-		VectorCopy( origin, origin0 );
-	} else {
-		VectorClear( origin0 );
+	if ( !G_ClientHistoryHullAtTime( client, t0, origin0, mins0, maxs0 )
+			|| !G_ClientHistoryHullAtTime( client, t1, origin1, mins1, maxs1 ) ) {
+		return;
 	}
 
-	have1 = G_ClientHistoryHullAtTime( client, t1, origin, mins, maxs );
-	if ( have1 ) {
-		G_MissileDelagAddHullBounds( origin, mins, maxs, MISSILE_CATCHUP_BROADPHASE_PAD,
-				boundsMins, boundsMaxs );
-		VectorCopy( origin, origin1 );
-	} else {
-		VectorClear( origin1 );
-	}
+	G_MissileDelagAddHullBounds( origin0, mins0, maxs0, boundsMins, boundsMaxs );
+	G_MissileDelagAddHullBounds( origin1, mins1, maxs1, boundsMins, boundsMaxs );
+
+	VectorCopy( mins0, hullMins );
+	VectorCopy( maxs0, hullMaxs );
+	G_MissileDelagExpandHullExtents( mins1, maxs1, hullMins, hullMaxs );
 
 	tMid = ( t0 + t1 ) / 2;
-	if ( tMid > t0 && tMid < t1
-			&& G_ClientHistoryHullAtTime( client, tMid, origin, mins, maxs ) ) {
-		G_MissileDelagAddHullBounds( origin, mins, maxs, MISSILE_CATCHUP_BROADPHASE_PAD,
-				boundsMins, boundsMaxs );
+	if ( tMid > t0 && G_ClientHistoryHullAtTime( client, tMid, origin, mins, maxs ) ) {
+		G_MissileDelagAddHullBounds( origin, mins, maxs, boundsMins, boundsMaxs );
+		G_MissileDelagExpandHullExtents( mins, maxs, hullMins, hullMaxs );
 	}
 
-	if ( !have0 || !have1 ) {
-		return;
-	}
+	for ( i = 1; i < 4; i++ ) {
+		const float frac = i * 0.25f;
 
-	haveHull = qfalse;
-	if ( G_ClientHistoryHullAtTime( client, t0, origin, mins, maxs ) ) {
-		G_MissileDelagMergeHullExtents( mins, maxs, hullMins, hullMaxs, &haveHull );
-	}
-	if ( G_ClientHistoryHullAtTime( client, t1, origin, mins, maxs ) ) {
-		G_MissileDelagMergeHullExtents( mins, maxs, hullMins, hullMaxs, &haveHull );
-	}
-	if ( tMid > t0 && tMid < t1
-			&& G_ClientHistoryHullAtTime( client, tMid, origin, mins, maxs ) ) {
-		G_MissileDelagMergeHullExtents( mins, maxs, hullMins, hullMaxs, &haveHull );
-	}
-
-	if ( !haveHull ) {
-		return;
-	}
-
-	steps = 4;
-	for ( i = 1; i < steps; i++ ) {
-		frac = (float)i / (float)steps;
 		origin[0] = origin0[0] + frac * ( origin1[0] - origin0[0] );
 		origin[1] = origin0[1] + frac * ( origin1[1] - origin0[1] );
 		origin[2] = origin0[2] + frac * ( origin1[2] - origin0[2] );
-		G_MissileDelagAddHullBounds( origin, hullMins, hullMaxs, MISSILE_CATCHUP_BROADPHASE_PAD,
-				boundsMins, boundsMaxs );
+		G_MissileDelagAddHullBounds( origin, hullMins, hullMaxs, boundsMins, boundsMaxs );
 	}
 }
 
 static qboolean G_MissileDelagSegmentNearClients( gentity_t *ent, int t0, int t1, gentity_t *skip ) {
-	vec3_t missileMins, missileMaxs;
-	vec3_t clientMins, clientMaxs;
-	vec3_t origin, mins, maxs;
+	vec3_t missileMins, missileMaxs, clientMins, clientMaxs;
+	vec3_t start, end, origin, mins, maxs;
 	gentity_t *client;
 	int i;
 
-	G_MissileDelagBuildMissileBounds( ent, t0, t1, missileMins, missileMaxs );
+	ClearBounds( missileMins, missileMaxs );
+	BG_EvaluateTrajectory( &ent->s.pos, t0, start );
+	BG_EvaluateTrajectory( &ent->s.pos, t1, end );
+	G_MissileDelagAddHullBounds( start, ent->r.mins, ent->r.maxs, missileMins, missileMaxs );
+	G_MissileDelagAddHullBounds( end, ent->r.mins, ent->r.maxs, missileMins, missileMaxs );
 
-	client = &g_entities[0];
-	for ( i = 0; i < MAX_CLIENTS; i++, client++ ) {
-		if ( !client->client
-				|| !G_InUse( client )
-				|| client == skip
-				|| client->client->sess.sessionTeam >= TEAM_SPECTATOR
-				|| client->client->isEliminated ) {
+	for ( i = 0, client = &g_entities[0]; i < MAX_CLIENTS; i++, client++ ) {
+		if ( !G_MissileDelagCatchupClient( client, skip ) ) {
 			continue;
 		}
-
 		if ( !G_ClientHistoryHullAtTime( client, t0, origin, mins, maxs )
 				&& !G_ClientHistoryHullAtTime( client, t1, origin, mins, maxs ) ) {
 			continue;
@@ -329,26 +198,14 @@ static qboolean G_MissileDelagSegmentNearClients( gentity_t *ent, int t0, int t1
 		ClearBounds( clientMins, clientMaxs );
 		G_MissileDelagAddClientSweptBounds( client, t0, t1, clientMins, clientMaxs );
 
-		if ( G_MissileDelagBoundsOverlap( missileMins, missileMaxs, clientMins, clientMaxs ) ) {
+		if ( missileMins[0] <= clientMaxs[0] && missileMaxs[0] >= clientMins[0]
+				&& missileMins[1] <= clientMaxs[1] && missileMaxs[1] >= clientMins[1]
+				&& missileMins[2] <= clientMaxs[2] && missileMaxs[2] >= clientMins[2] ) {
 			return qtrue;
 		}
 	}
 
 	return qfalse;
-}
-
-static void G_MissileDelagSortSplits( int *splits, int count ) {
-	int i, j, tmp;
-
-	for ( i = 0; i < count - 1; i++ ) {
-		for ( j = i + 1; j < count; j++ ) {
-			if ( splits[j] < splits[i] ) {
-				tmp = splits[i];
-				splits[i] = splits[j];
-				splits[j] = tmp;
-			}
-		}
-	}
 }
 
 static int G_MissileDelagCollectTeleSplits( gentity_t *skip, int segStart, int segEnd,
@@ -357,18 +214,9 @@ static int G_MissileDelagCollectTeleSplits( gentity_t *skip, int segStart, int s
 	int clientSplits[MISSILE_CATCHUP_MAX_TELE_SPLITS];
 	int i, j, k, count, added;
 
-	if ( !g_delagMissileCatchupTeleSplit.integer || maxSplits <= 0 ) {
-		return 0;
-	}
-
 	count = 0;
-	client = &g_entities[0];
-	for ( i = 0; i < MAX_CLIENTS && count < maxSplits; i++, client++ ) {
-		if ( !client->client
-				|| !G_InUse( client )
-				|| client == skip
-				|| client->client->sess.sessionTeam >= TEAM_SPECTATOR
-				|| client->client->isEliminated ) {
+	for ( i = 0, client = &g_entities[0]; i < MAX_CLIENTS && count < maxSplits; i++, client++ ) {
+		if ( !G_MissileDelagCatchupClient( client, skip ) ) {
 			continue;
 		}
 
@@ -380,101 +228,75 @@ static int G_MissileDelagCollectTeleSplits( gentity_t *skip, int segStart, int s
 					break;
 				}
 			}
-			if ( k == count ) {
-				splits[count++] = clientSplits[j];
+			if ( k < count ) {
+				continue;
 			}
+			for ( k = count; k > 0 && clientSplits[j] < splits[k - 1]; k-- ) {
+				splits[k] = splits[k - 1];
+			}
+			splits[k] = clientSplits[j];
+			count++;
 		}
 	}
 
-	G_MissileDelagSortSplits( splits, count );
 	return count;
 }
 
-static qboolean G_MissileDelagRunCatchupStep( gentity_t *ent, int segStart, int segEnd,
-		const missileDelagCatchupCtx_t *ctx ) {
-	int shiftTime;
-
-	if ( !G_InUse( ent ) || ent->freeAfterEvent ) {
-		return qfalse;
-	}
-
-	shiftTime = G_MissileDelagComputeShiftTime( ent, segStart, segEnd,
-			ctx->baseShiftTime, ctx->latencyMode, ctx->lvlTimeSaved );
-
-	G_TimeShiftAllClients( shiftTime, ent->parent );
-
-	level.time = segEnd;
-	level.previousTime = segStart;
-
-	G_RunMissile( ent );
-
-	level.time = ctx->lvlTimeSaved;
-	level.previousTime = ctx->prevTimeSaved;
-	G_UnTimeShiftAllClients( ent->parent );
-
-	if ( ctx->shadow && level.missileDelagShadowOutcome.complete ) {
-		return qfalse;
-	}
-	if ( !G_InUse( ent ) || ent->freeAfterEvent ) {
-		return qfalse;
-	}
-
-	return qtrue;
-}
-
 static void G_MissileDelagRunCatchupRange( gentity_t *ent, int rangeStart, int rangeEnd,
-		int substepMs, const missileDelagCatchupCtx_t *ctx ) {
-	int t, tEnd;
+		int substepMs, int prevTimeSaved, int lvlTimeSaved, int baseShiftTime,
+		qboolean latencyMode ) {
+	int t, tEnd, shiftTime, sampleTime;
 
-	if ( substepMs <= 0 ) {
-		substepMs = 1;
-	}
+	for ( t = rangeStart; t < rangeEnd; t = tEnd ) {
+		if ( !G_InUse( ent ) || ent->freeAfterEvent ) {
+			return;
+		}
 
-	for ( t = rangeStart; t < rangeEnd; ) {
 		tEnd = t + substepMs;
 		if ( tEnd > rangeEnd ) {
 			tEnd = rangeEnd;
 		}
 		if ( tEnd <= ent->launchTime ) {
-			t = tEnd;
 			continue;
 		}
 		if ( t < ent->launchTime ) {
 			t = ent->launchTime;
 		}
 
-		if ( !G_MissileDelagRunCatchupStep( ent, t, tEnd, ctx ) ) {
-			return;
+		sampleTime = ( t + tEnd ) / 2;
+		if ( latencyMode ) {
+			shiftTime = baseShiftTime + ( sampleTime - ent->launchTime );
+			if ( shiftTime < ent->launchTime ) {
+				shiftTime = ent->launchTime;
+			} else if ( shiftTime > lvlTimeSaved ) {
+				shiftTime = lvlTimeSaved;
+			}
+		} else {
+			shiftTime = sampleTime;
 		}
 
-		t = tEnd;
+		G_TimeShiftAllClients( shiftTime, ent->parent );
+		level.time = tEnd;
+		level.previousTime = t;
+		G_RunMissile( ent );
+		level.time = lvlTimeSaved;
+		level.previousTime = prevTimeSaved;
+		G_UnTimeShiftAllClients( ent->parent );
 	}
 }
 
-static void G_MissileDelagRunAdaptiveSegment( gentity_t *ent, int segStart, int segEnd,
-		const missileDelagCatchupCtx_t *ctx ) {
+static void G_MissileDelagRunCatchupSegment( gentity_t *ent, int segStart, int segEnd,
+		int prevTimeSaved, int lvlTimeSaved, int baseShiftTime, qboolean latencyMode ) {
 	int splits[MISSILE_CATCHUP_MAX_TELE_SPLITS];
-	int numSplits;
-	int substepMs;
-	int rangeStart;
-	int i;
+	int numSplits, rangeStart, substepMs, i;
 
 	numSplits = G_MissileDelagCollectTeleSplits( ent->parent, segStart, segEnd,
 			splits, MISSILE_CATCHUP_MAX_TELE_SPLITS );
 
-	substepMs = g_delagMissileCatchupSubstepMs.integer;
-	if ( substepMs <= 0 ) {
-		substepMs = 5;
-	}
-
-	rangeStart = segStart;
-	for ( i = 0; i <= numSplits; i++ ) {
-		int rangeEnd;
+	for ( rangeStart = segStart, i = 0; i <= numSplits; i++ ) {
+		int rangeEnd, span;
 
 		if ( !G_InUse( ent ) || ent->freeAfterEvent ) {
-			return;
-		}
-		if ( ctx->shadow && level.missileDelagShadowOutcome.complete ) {
 			return;
 		}
 
@@ -483,42 +305,39 @@ static void G_MissileDelagRunAdaptiveSegment( gentity_t *ent, int segStart, int 
 			continue;
 		}
 
-		if ( G_MissileDelagSegmentNearClients( ent, rangeStart, rangeEnd, ent->parent ) ) {
-			G_MissileDelagRunCatchupRange( ent, rangeStart, rangeEnd, substepMs, ctx );
-		} else {
-			G_MissileDelagRunCatchupRange( ent, rangeStart, rangeEnd, rangeEnd - rangeStart, ctx );
-		}
-
+		span = rangeEnd - rangeStart;
+		substepMs = G_MissileDelagSegmentNearClients( ent, rangeStart, rangeEnd, ent->parent )
+				? MISSILE_CATCHUP_SUBSTEP_MS : span;
+		G_MissileDelagRunCatchupRange( ent, rangeStart, rangeEnd, substepMs,
+				prevTimeSaved, lvlTimeSaved, baseShiftTime, latencyMode );
 		rangeStart = rangeEnd;
 	}
 }
 
-static void G_MissileDelagRunCatchup( gentity_t *ent, int stepmsec, qboolean shadow ) {
-	int prevTimeSaved;
-	int lvlTimeSaved;
-	int projectileDelagTime;
-	missileDelagCatchupCtx_t ctx;
+void G_MissileRunDelag( gentity_t *ent, int stepmsec ) {
+	int prevTimeSaved, lvlTimeSaved, baseShiftTime, projectileDelagTime, frameEnd;
+	qboolean latencyMode;
+
+	if ( g_delagMissileNudgeOnly.integer
+			|| level.previousTime <= DELAG_MAX_BACKTRACK
+			|| stepmsec <= 0
+			|| !G_InUse( ent )
+			|| ent->freeAfterEvent
+			|| ent->s.eType != ET_MISSILE
+			|| !ent->needsDelag ) {
+		return;
+	}
 
 	prevTimeSaved = level.previousTime;
 	lvlTimeSaved = level.time;
-	ctx.prevTimeSaved = prevTimeSaved;
-	ctx.lvlTimeSaved = lvlTimeSaved;
-	ctx.latencyMode = ( g_delagMissileLatencyMode.integer != 0 ) ? qtrue : qfalse;
-	ctx.baseShiftTime = ent->delagShiftTime;
-	ctx.shadow = shadow;
-	if ( ctx.baseShiftTime <= 0 ) {
-		ctx.baseShiftTime = ent->launchTime;
-	}
-
-	if ( shadow ) {
-		G_MissileDelagClearOutcome( &level.missileDelagShadowOutcome );
-		level.missileDelagShadow = qtrue;
+	latencyMode = ( g_delagMissileLatencyMode.integer != 0 ) ? qtrue : qfalse;
+	baseShiftTime = ent->delagShiftTime;
+	if ( baseShiftTime <= 0 ) {
+		baseShiftTime = ent->launchTime;
 	}
 
 	projectileDelagTime = level.previousTime - ( DELAG_MAX_BACKTRACK / stepmsec ) * stepmsec;
 	while ( projectileDelagTime < prevTimeSaved ) {
-		int frameEnd;
-
 		if ( !G_InUse( ent ) || ent->freeAfterEvent ) {
 			break;
 		}
@@ -527,166 +346,14 @@ static void G_MissileDelagRunCatchup( gentity_t *ent, int stepmsec, qboolean sha
 		if ( frameEnd > prevTimeSaved ) {
 			frameEnd = prevTimeSaved;
 		}
-
 		if ( frameEnd > ent->launchTime ) {
-			if ( g_delagMissileCatchupAdaptive.integer && !shadow ) {
-				G_MissileDelagRunAdaptiveSegment( ent, projectileDelagTime, frameEnd, &ctx );
-			} else if ( projectileDelagTime >= ent->launchTime ) {
-				if ( !G_MissileDelagRunCatchupStep( ent, projectileDelagTime, frameEnd, &ctx ) ) {
-					break;
-				}
-			}
+			G_MissileDelagRunCatchupSegment( ent, projectileDelagTime, frameEnd,
+					prevTimeSaved, lvlTimeSaved, baseShiftTime, latencyMode );
 		}
-
-		if ( shadow && level.missileDelagShadowOutcome.complete ) {
-			break;
-		}
-
 		projectileDelagTime += stepmsec;
 	}
 
-	if ( shadow ) {
-		level.missileDelagShadow = qfalse;
-	} else {
-		ent->needsDelag = qfalse;
-	}
-}
-
-static void G_MissileDelagPrintSessionStats( void ) {
-	int falseHitPct100;
-	int falseMissPct100;
-	int mismatchPct100;
-
-	if ( missileCatchupSessionTotal <= 0 ) {
-		return;
-	}
-
-	falseHitPct100 = ( missileCatchupSessionFalseHits * 10000 ) / missileCatchupSessionTotal;
-	falseMissPct100 = ( missileCatchupSessionFalseMisses * 10000 ) / missileCatchupSessionTotal;
-	mismatchPct100 = ( missileCatchupSessionMismatches * 10000 ) / missileCatchupSessionTotal;
-
-	Com_Printf( S_COLOR_CYAN "MissileCatchupSession" S_COLOR_WHITE
-			": %i catchups, %i false hits (%.2f%%), %i false misses (%.2f%%),"
-			" %i total discrepancies (%.2f%%)\n",
-			missileCatchupSessionTotal,
-			missileCatchupSessionFalseHits, falseHitPct100 / 100.0f,
-			missileCatchupSessionFalseMisses, falseMissPct100 / 100.0f,
-			missileCatchupSessionMismatches, mismatchPct100 / 100.0f );
-}
-
-static void G_MissileDelagLogCompare( gentity_t *ent, const missileCatchupOutcome_t *stepped,
-		const missileCatchupOutcome_t *fine, int steppedMs, int fineMs ) {
-	const char *steppedResult;
-	const char *fineResult;
-	const char *mismatchType;
-	int ownerNum;
-
-	if ( stepped->hitPlayer == fine->hitPlayer
-			&& stepped->complete == fine->complete
-			&& ( !stepped->hitPlayer || stepped->hitPlayerNum == fine->hitPlayerNum ) ) {
-		return;
-	}
-
-	missileCatchupSessionMismatches++;
-
-	if ( stepped->hitPlayer && !fine->hitPlayer ) {
-		missileCatchupSessionFalseHits++;
-		mismatchType = "false hit";
-	} else if ( fine->hitPlayer && !stepped->hitPlayer ) {
-		missileCatchupSessionFalseMisses++;
-		mismatchType = "false miss";
-	} else {
-		mismatchType = "other";
-	}
-
-	ownerNum = ent->parent ? ent->parent->s.number : -1;
-
-	if ( stepped->hitPlayer ) {
-		steppedResult = va( "hit c%i", stepped->hitPlayerNum );
-	} else if ( stepped->complete ) {
-		steppedResult = "miss";
-	} else {
-		steppedResult = "flying";
-	}
-
-	if ( fine->hitPlayer ) {
-		fineResult = va( "hit c%i", fine->hitPlayerNum );
-	} else if ( fine->complete ) {
-		fineResult = "miss";
-	} else {
-		fineResult = "flying";
-	}
-
-	Com_Printf( S_COLOR_YELLOW "MissileCatchupMismatch" S_COLOR_WHITE
-			" #%i (%s): owner c%i weapon %i classname %s launch %i catchup %ims"
-			" stepped(%ims)=%s fine(%ims)=%s\n",
-			missileCatchupSessionMismatches,
-			mismatchType,
-			ownerNum,
-			ent->s.weapon,
-			ent->classname ? ent->classname : "?",
-			ent->launchTime,
-			level.previousTime - ent->launchTime,
-			steppedMs,
-			steppedResult,
-			fineMs,
-			fineResult );
-
-	G_MissileDelagPrintSessionStats();
-}
-
-void G_MissileRunDelag(gentity_t *ent, int stepmsec) {
-	missileDelagSnapshot_t snap;
-	missileCatchupOutcome_t steppedOutcome;
-	missileCatchupOutcome_t fineOutcome;
-	int fineStep;
-
-	if (g_delagMissileNudgeOnly.integer
-			|| level.previousTime <= DELAG_MAX_BACKTRACK
-			|| stepmsec <= 0) {
-		return;
-	}
-
-	// if we see the missile late due to lag & PRESTEP
-	// compute the flight since it was launched, 
-	// shifting clients back accordingly
-	if ( !G_InUse(ent)
-			|| ent->freeAfterEvent
-			|| ent->s.eType != ET_MISSILE
-			|| !ent->needsDelag ) {
-		return;
-	}
-
-	if ( g_delagMissileCatchupCompare.integer ) {
-		fineStep = g_delagMissileCatchupFineStep.integer;
-		if ( fineStep <= 0 ) {
-			fineStep = 1;
-		}
-
-		G_MissileDelagSaveSnapshot( ent, &snap );
-		G_MissileDelagRunCatchup( ent, fineStep, qtrue );
-		fineOutcome = level.missileDelagShadowOutcome;
-		G_MissileDelagRestoreSnapshot( ent, &snap );
-
-		missileCatchupSessionTotal++;
-	}
-
-	G_MissileDelagRunCatchup( ent, stepmsec, qfalse );
-	G_MissileDelagRecordOutcome( ent, &steppedOutcome );
-
-	if ( g_delagMissileCatchupCompare.integer ) {
-		int steppedLabelMs;
-
-		if ( g_delagMissileCatchupAdaptive.integer ) {
-			steppedLabelMs = g_delagMissileCatchupSubstepMs.integer;
-			if ( steppedLabelMs <= 0 ) {
-				steppedLabelMs = 5;
-			}
-		} else {
-			steppedLabelMs = stepmsec;
-		}
-		G_MissileDelagLogCompare( ent, &steppedOutcome, &fineOutcome, steppedLabelMs, fineStep );
-	}
+	ent->needsDelag = qfalse;
 }
 
 void G_ImmediateRunMissile(gentity_t *ent) {
@@ -910,11 +577,6 @@ void G_ExplodeMissile( gentity_t *ent ) {
 	vec3_t		origin;
 	
 	int ownerKills = 0, ownerDeaths = 0;
-
-	if ( level.missileDelagShadow ) {
-		level.missileDelagShadowOutcome.complete = qtrue;
-		return;
-	}
 
 	//ent->takedamage = qfalse;	//mrd - prevent "hit" sound when missile explodes with no impact - this apparently has no effect
 	
@@ -1437,9 +1099,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 	if ( !( !strcmp(ent->classname, "grenade") && ent->altFire ) && !other->takedamage &&
 		( ent->s.eFlags & ( EF_BOUNCE | EF_BOUNCE_HALF ) ) ) {
 		G_BounceMissile( ent, trace );
-		if ( !level.missileDelagShadow ) {
-			G_AddEvent( ent, EV_GRENADE_BOUNCE, 0 );
-		}
+		G_AddEvent( ent, EV_GRENADE_BOUNCE, 0 );
 		return;
 	//mrd - create the vortex event and enter vortex think
 	} else if ( !strcmp(ent->classname, "grenade") && ent->altFire && !other->takedamage &&
@@ -1448,9 +1108,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 				return;	//call it just once
 			}
 		G_VortexStick( ent, trace );
-		if ( !level.missileDelagShadow ) {
-			G_AddEvent( ent, EV_VORTEX_GRENADE_STICK, 0 );
-		}
+		G_AddEvent( ent, EV_VORTEX_GRENADE_STICK, 0 );
 		return;
 	}
 
@@ -1458,11 +1116,6 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 
 	//mrd - two missiles collided!
 	if ( other->s.eType == ET_MISSILE && ent->s.eType == ET_MISSILE && g_vulnerableMissiles.integer == 1){
-		if ( level.missileDelagShadow ) {
-			level.missileDelagShadowOutcome.complete = qtrue;
-			return;
-		}
-
 		other->think = G_ExplodeMissile;
 		ent->think = G_ExplodeMissile;
 
@@ -1516,26 +1169,18 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 			int damage;
 
 			if( LogAccuracyHit( other, &g_entities[ent->r.ownerNum] ) ) {
-				if ( level.missileDelagShadow ) {
-					level.missileDelagShadowOutcome.hitPlayer = qtrue;
-					level.missileDelagShadowOutcome.hitPlayerNum = other->s.number;
-					hitClient = qtrue;
-				} else {
-					g_entities[ent->r.ownerNum].client->accuracy_hits++;
-					hitClient = qtrue;
-					g_entities[ent->r.ownerNum].client->accuracy[ent->s.weapon][1]++;
-				}
+				g_entities[ent->r.ownerNum].client->accuracy_hits++;
+				hitClient = qtrue;
+                g_entities[ent->r.ownerNum].client->accuracy[ent->s.weapon][1]++;
 			}
-			if ( !level.missileDelagShadow ) {
-				BG_EvaluateTrajectoryDelta( &ent->s.pos, level.time, velocity );
-				if ( VectorLength( velocity ) == 0 ) {
-					velocity[2] = 1;	// stepped on a grenade
-				}
-				G_Damage (other, ent, &g_entities[ent->r.ownerNum], velocity, ent->s.origin, ent->damage, 0, ent->methodOfDeath, ent->altFire);	//mrd
-				//mrd - direct altFire PG hit applies corrosive damage over time
-				if (ent->altFire && !strcmp(ent->classname, "plasma") ) {
-					G_PlasmaCorrode (other, ent, &g_entities[ent->r.ownerNum]);
-				}
+			BG_EvaluateTrajectoryDelta( &ent->s.pos, level.time, velocity );
+			if ( VectorLength( velocity ) == 0 ) {
+				velocity[2] = 1;	// stepped on a grenade
+			}
+			G_Damage (other, ent, &g_entities[ent->r.ownerNum], velocity, ent->s.origin, ent->damage, 0, ent->methodOfDeath, ent->altFire);	//mrd
+			//mrd - direct altFire PG hit applies corrosive damage over time
+			if (ent->altFire && !strcmp(ent->classname, "plasma") ) {
+				G_PlasmaCorrode (other, ent, &g_entities[ent->r.ownerNum]);
 			}
 		}
 	} 
@@ -1622,11 +1267,6 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 	}
 	// is it cheaper in bandwidth to just remove this ent and create a new
 	// one, rather than changing the missile into the explosion?
-
-	if ( level.missileDelagShadow ) {
-		level.missileDelagShadowOutcome.complete = qtrue;
-		return;
-	}
 
 	if ( other->takedamage && other->client ) {
 		G_AddEvent( ent, EV_MISSILE_HIT, DirToByte( trace->plane.normal ) );
@@ -1795,8 +1435,7 @@ void G_RunMissile( gentity_t *ent ) {
 	trap_LinkEntity( ent );
 
 	//mrd - altFire rockets spawn a rail trail
-	if ( !level.missileDelagShadow
-			&& ent->s.eFlags & EF_ALT_FIRE && ent->s.weapon == WP_ROCKET_LAUNCHER ) { 
+	if (ent->s.eFlags & EF_ALT_FIRE && ent->s.weapon == WP_ROCKET_LAUNCHER){ 
 		G_SpawnAltRocketRicochetBeam( ent->lastTrailOrigin, ent->r.currentOrigin );
 		VectorCopy( ent->r.currentOrigin, ent->lastTrailOrigin );
 	}
@@ -1804,10 +1443,6 @@ void G_RunMissile( gentity_t *ent ) {
 	if ( tr.fraction != 1 ) {
 		// never explode or bounce on sky
 		if ( tr.surfaceFlags & SURF_NOIMPACT ) {
-			if ( level.missileDelagShadow ) {
-				level.missileDelagShadowOutcome.complete = qtrue;
-				return;
-			}
 			// If grapple, reset owner
 			if (ent->parent && ent->parent->client && ent->parent->client->hook == ent) {
 				ent->parent->client->hook = NULL;
@@ -1817,10 +1452,6 @@ void G_RunMissile( gentity_t *ent ) {
 		}
 		G_MissileImpact( ent, &tr );
 
-		if ( level.missileDelagShadow && level.missileDelagShadowOutcome.complete ) {
-			return;
-		}
-
 #ifdef MISSIONPACK
 		if ( ent->s.eType != ET_MISSILE || ent->missileExploded) {
 			G_CheckKamikazeAward(owner, ownerKills, ownerDeaths);
@@ -1829,9 +1460,6 @@ void G_RunMissile( gentity_t *ent ) {
 #endif
 	}
 
-	if ( level.missileDelagShadow && level.missileDelagShadowOutcome.complete ) {
-		return;
-	}
 
 #ifdef MISSIONPACK
 	// if the prox mine wasn't yet outside the player body

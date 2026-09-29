@@ -113,12 +113,6 @@ typedef enum {
 typedef struct gentity_s gentity_t;
 typedef struct gclient_s gclient_t;
 
-typedef struct {
-	qboolean	complete;
-	qboolean	hitPlayer;
-	int		hitPlayerNum;
-} missileCatchupOutcome_t;
-
 struct gentity_s {
 	entityState_t	s;				// communicated by server to clients
 	entityShared_t	r;				// shared by both the server system and game
@@ -273,11 +267,6 @@ struct gentity_s {
 	int rocketBounceCount;
 	vec3_t lastTrailOrigin;
 };
-
-typedef struct {
-	gentity_t	ent;
-} missileDelagSnapshot_t;
-
 
 typedef enum {
 	CON_DISCONNECTED,
@@ -978,9 +967,6 @@ typedef struct {
     qboolean		multiTrnInit;	
 #endif
 
-	// projectile catchup comparison (g_delagMissileCatchupCompare)
-	qboolean		missileDelagShadow;
-	missileCatchupOutcome_t	missileDelagShadowOutcome;
 } level_locals_t;
 
 //KK-OAX These are some Print Shortcuts for KillingSprees and Admin
