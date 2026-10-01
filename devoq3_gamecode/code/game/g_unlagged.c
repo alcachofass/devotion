@@ -132,6 +132,86 @@ static qboolean G_ClientHistoryFindBracket( gentity_t *ent, int time, int *outJ,
 
 /*
 =================
+G_ClientHistoryOpenFrameHullAtTime
+
+When attackTime falls inside the current open server frame, interpolate
+between the frame-start history sample (end of the previous tick) and the
+client's live collision hull at level.time.
+=================
+*/
+static qboolean G_ClientHistoryOpenFrameHullAtTime( gentity_t *ent, int time, vec3_t origin,
+		vec3_t mins, vec3_t maxs ) {
+	clientHistory_t *frameStart;
+	int frameStartTime;
+	int frameEndTime;
+	float frac;
+
+	if ( !ent->client ) {
+		return qfalse;
+	}
+
+	frameStartTime = ent->client->history[ent->client->historyHead].leveltime;
+	frameEndTime = level.time;
+
+	if ( time < frameStartTime ) {
+		return qfalse;
+	}
+
+	if ( time > frameEndTime ) {
+		time = frameEndTime;
+	}
+
+	if ( ent->client->lastTeleportTime > frameStartTime && time >= ent->client->lastTeleportTime ) {
+		VectorCopy( ent->r.currentOrigin, origin );
+		VectorCopy( ent->r.mins, mins );
+		VectorCopy( ent->r.maxs, maxs );
+		return qtrue;
+	}
+
+	if ( ent->health > 0
+			&& ent->client->respawnTime > frameStartTime
+			&& time >= ent->client->respawnTime ) {
+		VectorCopy( ent->r.currentOrigin, origin );
+		VectorCopy( ent->r.mins, mins );
+		VectorCopy( ent->r.maxs, maxs );
+		return qtrue;
+	}
+
+	if ( time == frameStartTime ) {
+		frameStart = &ent->client->history[ent->client->historyHead];
+		VectorCopy( frameStart->currentOrigin, origin );
+		VectorCopy( frameStart->mins, mins );
+		VectorCopy( frameStart->maxs, maxs );
+		return qtrue;
+	}
+
+	if ( frameEndTime <= frameStartTime ) {
+		VectorCopy( ent->r.currentOrigin, origin );
+		VectorCopy( ent->r.mins, mins );
+		VectorCopy( ent->r.maxs, maxs );
+		return qtrue;
+	}
+
+	frameStart = &ent->client->history[ent->client->historyHead];
+	frac = (float)( time - frameStartTime ) / (float)( frameEndTime - frameStartTime );
+
+	TimeShiftLerp( frac,
+		frameStart->currentOrigin, ent->r.currentOrigin,
+		origin );
+
+	TimeShiftLerp( frac,
+		frameStart->mins, ent->r.mins,
+		mins );
+
+	TimeShiftLerp( frac,
+		frameStart->maxs, ent->r.maxs,
+		maxs );
+
+	return qtrue;
+}
+
+/*
+=================
 G_ClientHistoryHullAtTime
 
 Returns interpolated origin and bbox for a client at the given time,
@@ -141,32 +221,32 @@ without relinking the entity.
 qboolean G_ClientHistoryHullAtTime( gentity_t *ent, int time, vec3_t origin, vec3_t mins, vec3_t maxs ) {
 	int j, k;
 
-	if ( !G_ClientHistoryFindBracket( ent, time, &j, &k ) ) {
-		return qfalse;
+	if ( G_ClientHistoryFindBracket( ent, time, &j, &k ) ) {
+		if ( j != ent->client->historyHead ) {
+			float frac = (float)( time - ent->client->history[j].leveltime ) /
+				(float)( ent->client->history[k].leveltime - ent->client->history[j].leveltime );
+
+			TimeShiftLerp( frac,
+				ent->client->history[j].currentOrigin, ent->client->history[k].currentOrigin,
+				origin );
+
+			TimeShiftLerp( frac,
+				ent->client->history[j].mins, ent->client->history[k].mins,
+				mins );
+
+			TimeShiftLerp( frac,
+				ent->client->history[j].maxs, ent->client->history[k].maxs,
+				maxs );
+		} else {
+			VectorCopy( ent->client->history[k].currentOrigin, origin );
+			VectorCopy( ent->client->history[k].mins, mins );
+			VectorCopy( ent->client->history[k].maxs, maxs );
+		}
+
+		return qtrue;
 	}
 
-	if ( j != ent->client->historyHead ) {
-		float frac = (float)( time - ent->client->history[j].leveltime ) /
-			(float)( ent->client->history[k].leveltime - ent->client->history[j].leveltime );
-
-		TimeShiftLerp( frac,
-			ent->client->history[j].currentOrigin, ent->client->history[k].currentOrigin,
-			origin );
-
-		TimeShiftLerp( frac,
-			ent->client->history[j].mins, ent->client->history[k].mins,
-			mins );
-
-		TimeShiftLerp( frac,
-			ent->client->history[j].maxs, ent->client->history[k].maxs,
-			maxs );
-	} else {
-		VectorCopy( ent->client->history[k].currentOrigin, origin );
-		VectorCopy( ent->client->history[k].mins, mins );
-		VectorCopy( ent->client->history[k].maxs, maxs );
-	}
-
-	return qtrue;
+	return G_ClientHistoryOpenFrameHullAtTime( ent, time, origin, mins, maxs );
 }
 
 /*
@@ -231,10 +311,7 @@ Move a client back to where he was at the specified "time"
 */
 void G_TimeShiftClient( gentity_t *ent, int time, qboolean debug, gentity_t *debugger ) {
 	int j, k;
-
-	if ( !G_ClientHistoryFindBracket( ent, time, &j, &k ) ) {
-		return;
-	}
+	qboolean usedHistoryBracket;
 
 	// make sure it doesn't get re-saved
 	if ( ent->client->saved.leveltime != level.time ) {
@@ -250,10 +327,15 @@ void G_TimeShiftClient( gentity_t *ent, int time, qboolean debug, gentity_t *deb
 
 	trap_LinkEntity( ent );
 
-	if ( j != ent->client->historyHead ) {
-		ent->client->timeshiftTime = ent->client->history[j].leveltime;
+	usedHistoryBracket = G_ClientHistoryFindBracket( ent, time, &j, &k );
+	if ( usedHistoryBracket ) {
+		if ( j != ent->client->historyHead ) {
+			ent->client->timeshiftTime = ent->client->history[j].leveltime;
+		} else {
+			ent->client->timeshiftTime = ent->client->history[k].leveltime;
+		}
 	} else {
-		ent->client->timeshiftTime = ent->client->history[k].leveltime;
+		ent->client->timeshiftTime = time;
 	}
 }
 
