@@ -234,6 +234,8 @@ struct gentity_s {
 	int		launchTime;
 	int		delagShiftTime;	// owner's attackTime at fire (player rewind during catch-up)
 	int		missileRan;
+	int		missileLastStepFrom;
+	int		missileLastStepTo;
 
 	int		pushed_at;
 
@@ -1149,8 +1151,15 @@ qboolean G_CanSplashDamage( gentity_t *targ, vec3_t origin );	//mrd
 #define DAMAGE_NO_SELF_PROTECTION	0x00000020  // self damage protection has no effect
 
 //
+// g_missile_ccd.c
+//
+qboolean G_MissileCcdTraceClients( int stepStart, int stepEnd, gentity_t *missile, int passent,
+		trace_t *tr );
+
+//
 // g_missile.c
 //
+void G_MissileRunStepInterval( gentity_t *ent, int stepStart, int stepEnd );
 void G_RunMissile( gentity_t *ent );
 int G_MissilePrestep( gclient_t *client);
 void G_MissileRunDelag( gentity_t *ent, int stepmsec);

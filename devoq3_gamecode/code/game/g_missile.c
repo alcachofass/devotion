@@ -23,9 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "g_local.h"
 
 #define MISSILE_PRESTEP_TIME	50
-#define MISSILE_CATCHUP_BROADPHASE_PAD	40
 #define MISSILE_CATCHUP_MAX_TELE_SPLITS	8
-#define MISSILE_CATCHUP_SUBSTEP_MS	5
 
 //altFire GL
 #define VORTEX_THINK_TIME	50		//for vortex physics effect
@@ -74,6 +72,8 @@ void G_SetMissileLaunchTime (gentity_t *self, gentity_t *bolt) {
 	// need to remember the true launch time for delag in case the missile gets bounced/teleported
 	bolt->launchTime = bolt->s.pos.trTime;
 	bolt->needsDelag = qtrue;
+	bolt->missileLastStepFrom = -1;
+	bolt->missileLastStepTo = -1;
 	// rewind players to the shot's command time (hitscan uses this same clock)
 	bolt->delagShiftTime = self->client->attackTime;
 
@@ -102,113 +102,7 @@ void G_SetMissileLaunchTime (gentity_t *self, gentity_t *bolt) {
 
 }
 
-static qboolean G_MissileDelagCatchupClient( gentity_t *client, gentity_t *skip ) {
-	return client->client
-		&& G_InUse( client )
-		&& client != skip
-		&& client->client->sess.sessionTeam < TEAM_SPECTATOR
-		&& !client->client->isEliminated;
-}
-
-static void G_MissileDelagAddHullBounds( const vec3_t origin, const vec3_t mins, const vec3_t maxs,
-		vec3_t boundsMins, vec3_t boundsMaxs ) {
-	vec3_t point;
-	const float pad = MISSILE_CATCHUP_BROADPHASE_PAD;
-
-	point[0] = origin[0] + mins[0] - pad;
-	point[1] = origin[1] + mins[1] - pad;
-	point[2] = origin[2] + mins[2] - pad;
-	AddPointToBounds( point, boundsMins, boundsMaxs );
-
-	point[0] = origin[0] + maxs[0] + pad;
-	point[1] = origin[1] + maxs[1] + pad;
-	point[2] = origin[2] + maxs[2] + pad;
-	AddPointToBounds( point, boundsMins, boundsMaxs );
-}
-
-static void G_MissileDelagExpandHullExtents( const vec3_t mins, const vec3_t maxs,
-		vec3_t hullMins, vec3_t hullMaxs ) {
-	int i;
-
-	for ( i = 0; i < 3; i++ ) {
-		if ( mins[i] < hullMins[i] ) {
-			hullMins[i] = mins[i];
-		}
-		if ( maxs[i] > hullMaxs[i] ) {
-			hullMaxs[i] = maxs[i];
-		}
-	}
-}
-
-static void G_MissileDelagAddClientSweptBounds( gentity_t *client, int t0, int t1,
-		vec3_t boundsMins, vec3_t boundsMaxs ) {
-	vec3_t origin, origin0, origin1;
-	vec3_t mins0, maxs0, mins1, maxs1, mins, maxs, hullMins, hullMaxs;
-	int tMid, i;
-
-	if ( !G_ClientHistoryHullAtTime( client, t0, origin0, mins0, maxs0 )
-			|| !G_ClientHistoryHullAtTime( client, t1, origin1, mins1, maxs1 ) ) {
-		return;
-	}
-
-	G_MissileDelagAddHullBounds( origin0, mins0, maxs0, boundsMins, boundsMaxs );
-	G_MissileDelagAddHullBounds( origin1, mins1, maxs1, boundsMins, boundsMaxs );
-
-	VectorCopy( mins0, hullMins );
-	VectorCopy( maxs0, hullMaxs );
-	G_MissileDelagExpandHullExtents( mins1, maxs1, hullMins, hullMaxs );
-
-	tMid = ( t0 + t1 ) / 2;
-	if ( tMid > t0 && G_ClientHistoryHullAtTime( client, tMid, origin, mins, maxs ) ) {
-		G_MissileDelagAddHullBounds( origin, mins, maxs, boundsMins, boundsMaxs );
-		G_MissileDelagExpandHullExtents( mins, maxs, hullMins, hullMaxs );
-	}
-
-	for ( i = 1; i < 4; i++ ) {
-		const float frac = i * 0.25f;
-
-		origin[0] = origin0[0] + frac * ( origin1[0] - origin0[0] );
-		origin[1] = origin0[1] + frac * ( origin1[1] - origin0[1] );
-		origin[2] = origin0[2] + frac * ( origin1[2] - origin0[2] );
-		G_MissileDelagAddHullBounds( origin, hullMins, hullMaxs, boundsMins, boundsMaxs );
-	}
-}
-
-static qboolean G_MissileDelagSegmentNearClients( gentity_t *ent, int t0, int t1, gentity_t *skip ) {
-	vec3_t missileMins, missileMaxs, clientMins, clientMaxs;
-	vec3_t start, end, origin, mins, maxs;
-	gentity_t *client;
-	int i;
-
-	ClearBounds( missileMins, missileMaxs );
-	BG_EvaluateTrajectory( &ent->s.pos, t0, start );
-	BG_EvaluateTrajectory( &ent->s.pos, t1, end );
-	G_MissileDelagAddHullBounds( start, ent->r.mins, ent->r.maxs, missileMins, missileMaxs );
-	G_MissileDelagAddHullBounds( end, ent->r.mins, ent->r.maxs, missileMins, missileMaxs );
-
-	for ( i = 0, client = &g_entities[0]; i < MAX_CLIENTS; i++, client++ ) {
-		if ( !G_MissileDelagCatchupClient( client, skip ) ) {
-			continue;
-		}
-		if ( !G_ClientHistoryHullAtTime( client, t0, origin, mins, maxs )
-				&& !G_ClientHistoryHullAtTime( client, t1, origin, mins, maxs ) ) {
-			continue;
-		}
-
-		ClearBounds( clientMins, clientMaxs );
-		G_MissileDelagAddClientSweptBounds( client, t0, t1, clientMins, clientMaxs );
-
-		if ( missileMins[0] <= clientMaxs[0] && missileMaxs[0] >= clientMins[0]
-				&& missileMins[1] <= clientMaxs[1] && missileMaxs[1] >= clientMins[1]
-				&& missileMins[2] <= clientMaxs[2] && missileMaxs[2] >= clientMins[2] ) {
-			return qtrue;
-		}
-	}
-
-	return qfalse;
-}
-
-static int G_MissileDelagCollectTeleSplits( gentity_t *skip, int segStart, int segEnd,
+static int G_MissileCollectTeleSplits( int segStart, int segEnd,
 		int *splits, int maxSplits ) {
 	gentity_t *client;
 	int clientSplits[MISSILE_CATCHUP_MAX_TELE_SPLITS];
@@ -216,7 +110,9 @@ static int G_MissileDelagCollectTeleSplits( gentity_t *skip, int segStart, int s
 
 	count = 0;
 	for ( i = 0, client = &g_entities[0]; i < MAX_CLIENTS && count < maxSplits; i++, client++ ) {
-		if ( !G_MissileDelagCatchupClient( client, skip ) ) {
+		if ( !client->client || !G_InUse( client )
+				|| client->client->sess.sessionTeam >= TEAM_SPECTATOR
+				|| client->client->isEliminated ) {
 			continue;
 		}
 
@@ -242,81 +138,55 @@ static int G_MissileDelagCollectTeleSplits( gentity_t *skip, int segStart, int s
 	return count;
 }
 
-static void G_MissileDelagRunCatchupRange( gentity_t *ent, int rangeStart, int rangeEnd,
-		int substepMs, int prevTimeSaved, int lvlTimeSaved, int baseShiftTime,
-		qboolean latencyMode ) {
-	int t, tEnd, shiftTime, sampleTime;
-
-	for ( t = rangeStart; t < rangeEnd; t = tEnd ) {
-		if ( !G_InUse( ent ) || ent->freeAfterEvent ) {
-			return;
-		}
-
-		tEnd = t + substepMs;
-		if ( tEnd > rangeEnd ) {
-			tEnd = rangeEnd;
-		}
-		if ( tEnd <= ent->launchTime ) {
-			continue;
-		}
-		if ( t < ent->launchTime ) {
-			t = ent->launchTime;
-		}
-
-		sampleTime = ( t + tEnd ) / 2;
-		if ( latencyMode ) {
-			shiftTime = baseShiftTime + ( sampleTime - ent->launchTime );
-			if ( shiftTime < ent->launchTime ) {
-				shiftTime = ent->launchTime;
-			} else if ( shiftTime > lvlTimeSaved ) {
-				shiftTime = lvlTimeSaved;
-			}
-		} else {
-			shiftTime = sampleTime;
-		}
-
-		G_TimeShiftAllClients( shiftTime, ent->parent );
-		level.time = tEnd;
-		level.previousTime = t;
-		G_RunMissile( ent );
-		level.time = lvlTimeSaved;
-		level.previousTime = prevTimeSaved;
-		G_UnTimeShiftAllClients( ent->parent );
-	}
-}
-
-static void G_MissileDelagRunCatchupSegment( gentity_t *ent, int segStart, int segEnd,
-		int prevTimeSaved, int lvlTimeSaved, int baseShiftTime, qboolean latencyMode ) {
+void G_MissileRunStepInterval( gentity_t *ent, int stepStart, int stepEnd ) {
 	int splits[MISSILE_CATCHUP_MAX_TELE_SPLITS];
-	int numSplits, rangeStart, substepMs, i;
+	int savedPrev;
+	int savedTime;
+	int numSplits;
+	int rangeStart;
+	int rangeEnd;
+	int i;
 
-	numSplits = G_MissileDelagCollectTeleSplits( ent->parent, segStart, segEnd,
+	if ( stepEnd <= stepStart ) {
+		return;
+	}
+
+	savedPrev = level.previousTime;
+	savedTime = level.time;
+
+	numSplits = G_MissileCollectTeleSplits( stepStart, stepEnd,
 			splits, MISSILE_CATCHUP_MAX_TELE_SPLITS );
 
-	for ( rangeStart = segStart, i = 0; i <= numSplits; i++ ) {
-		int rangeEnd, span;
-
+	for ( rangeStart = stepStart, i = 0; i <= numSplits; i++ ) {
 		if ( !G_InUse( ent ) || ent->freeAfterEvent ) {
-			return;
+			break;
 		}
 
-		rangeEnd = ( i < numSplits ) ? splits[i] : segEnd;
+		rangeEnd = ( i < numSplits ) ? splits[i] : stepEnd;
 		if ( rangeEnd <= rangeStart ) {
 			continue;
 		}
+		if ( rangeEnd <= ent->launchTime ) {
+			rangeStart = rangeEnd;
+			continue;
+		}
+		if ( rangeStart < ent->launchTime ) {
+			rangeStart = ent->launchTime;
+		}
 
-		span = rangeEnd - rangeStart;
-		substepMs = G_MissileDelagSegmentNearClients( ent, rangeStart, rangeEnd, ent->parent )
-				? MISSILE_CATCHUP_SUBSTEP_MS : span;
-		G_MissileDelagRunCatchupRange( ent, rangeStart, rangeEnd, substepMs,
-				prevTimeSaved, lvlTimeSaved, baseShiftTime, latencyMode );
+		level.previousTime = rangeStart;
+		level.time = rangeEnd;
+		G_RunMissile( ent );
+
 		rangeStart = rangeEnd;
 	}
+
+	level.previousTime = savedPrev;
+	level.time = savedTime;
 }
 
 void G_MissileRunDelag( gentity_t *ent, int stepmsec ) {
-	int prevTimeSaved, lvlTimeSaved, baseShiftTime, projectileDelagTime, frameEnd;
-	qboolean latencyMode;
+	int projectileDelagTime, frameEnd;
 
 	if ( g_delagMissileNudgeOnly.integer
 			|| level.previousTime <= DELAG_MAX_BACKTRACK
@@ -328,27 +198,18 @@ void G_MissileRunDelag( gentity_t *ent, int stepmsec ) {
 		return;
 	}
 
-	prevTimeSaved = level.previousTime;
-	lvlTimeSaved = level.time;
-	latencyMode = ( g_delagMissileLatencyMode.integer != 0 ) ? qtrue : qfalse;
-	baseShiftTime = ent->delagShiftTime;
-	if ( baseShiftTime <= 0 ) {
-		baseShiftTime = ent->launchTime;
-	}
-
 	projectileDelagTime = level.previousTime - ( DELAG_MAX_BACKTRACK / stepmsec ) * stepmsec;
-	while ( projectileDelagTime < prevTimeSaved ) {
+	while ( projectileDelagTime < level.previousTime ) {
 		if ( !G_InUse( ent ) || ent->freeAfterEvent ) {
 			break;
 		}
 
 		frameEnd = projectileDelagTime + stepmsec;
-		if ( frameEnd > prevTimeSaved ) {
-			frameEnd = prevTimeSaved;
+		if ( frameEnd > level.previousTime ) {
+			frameEnd = level.previousTime;
 		}
 		if ( frameEnd > ent->launchTime ) {
-			G_MissileDelagRunCatchupSegment( ent, projectileDelagTime, frameEnd,
-					prevTimeSaved, lvlTimeSaved, baseShiftTime, latencyMode );
+			G_MissileRunStepInterval( ent, projectileDelagTime, frameEnd );
 		}
 		projectileDelagTime += stepmsec;
 	}
@@ -377,7 +238,7 @@ void G_ImmediateRunMissile(gentity_t *ent) {
 	}
 
 	if ( ent->s.eType == ET_MISSILE ) {
-		G_RunMissile( ent );
+		G_MissileRunStepInterval( ent, level.previousTime, level.time );
 	}
 }
 
@@ -1055,7 +916,16 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 	qboolean		hitClient = qfalse;
 	vec3_t			forward, impactpoint, bouncedir;
 	int				eFlags;
+	int				hitTime;
 	other = &g_entities[trace->entityNum];
+
+	if ( ent->missileLastStepTo > ent->missileLastStepFrom && ent->missileLastStepFrom >= 0 ) {
+		hitTime = ent->missileLastStepFrom +
+			(int)( ( ent->missileLastStepTo - ent->missileLastStepFrom ) * trace->fraction );
+	} else {
+		hitTime = level.previousTime +
+			(int)( ( level.time - level.previousTime ) * trace->fraction );
+	}
 
 	//if (other->s.eType == ET_ITEM 
 	//		|| other->s.eType == ET_MISSILE) {
@@ -1140,7 +1010,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 #ifdef MISSIONPACK
 		if ( ent->s.weapon != WP_PROX_LAUNCHER ) {
 #endif
-			if ( other->client && other->client->invulnerabilityTime > level.time ) {
+			if ( other->client && other->client->invulnerabilityTime > hitTime ) {
               
 				//
 				VectorCopy( ent->s.pos.trDelta, forward );
@@ -1173,7 +1043,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 				hitClient = qtrue;
                 g_entities[ent->r.ownerNum].client->accuracy[ent->s.weapon][1]++;
 			}
-			BG_EvaluateTrajectoryDelta( &ent->s.pos, level.time, velocity );
+			BG_EvaluateTrajectoryDelta( &ent->s.pos, hitTime, velocity );
 			if ( VectorLength( velocity ) == 0 ) {
 				velocity[2] = 1;	// stepped on a grenade
 			}
@@ -1324,14 +1194,21 @@ G_RunMissile
 */
 void G_RunMissile( gentity_t *ent ) {
 	vec3_t		origin;
+	vec3_t		traceStart;
 	trace_t		tr;
 	trace_t		tr2;
+	trace_t		clientTr;
 	gentity_t	*stuckIn;
 	int			passent;
+	int			stepStart;
+	int			stepEnd;
+	int			effectiveStart;
 	gentity_t	*unlinkedEntities[TELEMISSILE_MAX_TRIGGERS];
+	gentity_t	*ccdVictim;
 	int		unlinked = 0;
 	int		i;
 	int		telepushed = 0;
+	qboolean	ccdPlayerHit;
 #ifdef MISSIONPACK
 	int ownerKills = 0, ownerDeaths = 0;	//mrd - don't seem to need this, seems to be related to TA Kamikaze powerup
 #endif
@@ -1343,8 +1220,32 @@ void G_RunMissile( gentity_t *ent ) {
 		return;
 	}
 
+	stepStart = level.previousTime;
+	stepEnd = level.time;
+	if ( stepEnd <= stepStart ) {
+		return;
+	}
+
+	effectiveStart = stepStart;
+	if ( ent->launchTime > effectiveStart && ent->launchTime < stepEnd ) {
+		effectiveStart = ent->launchTime;
+	}
+	if ( effectiveStart >= stepEnd ) {
+		return;
+	}
+
+	if ( ent->missileLastStepFrom == effectiveStart && ent->missileLastStepTo == stepEnd ) {
+		return;
+	}
+
+	if ( effectiveStart > stepStart ) {
+		BG_EvaluateTrajectory( &ent->s.pos, effectiveStart, traceStart );
+	} else {
+		VectorCopy( ent->r.currentOrigin, traceStart );
+	}
+
 	// get current position
-	BG_EvaluateTrajectory( &ent->s.pos, level.time, origin );
+	BG_EvaluateTrajectory( &ent->s.pos, stepEnd, origin );
 
 	// if this missile bounced off an invulnerability sphere
 	if ( ent->target_ent ) {
@@ -1370,11 +1271,13 @@ void G_RunMissile( gentity_t *ent ) {
 	}
 #endif
 
+	ccdPlayerHit = G_MissileCcdTraceClients( effectiveStart, stepEnd, ent, passent, &clientTr );
+
 	if (g_teleMissiles.integer == 1 || g_pushGrenades.integer == 1) {
 		do {
 			// trace a line from the previous position to the current position
-			trap_Trace( &tr, ent->r.currentOrigin, ent->r.mins, ent->r.maxs, origin, passent, ent->clipmask);
-			trap_Trace( &tr2, ent->r.currentOrigin, ent->r.mins, ent->r.maxs, origin, passent, ent->clipmask | CONTENTS_TRIGGER );
+			trap_Trace( &tr, traceStart, ent->r.mins, ent->r.maxs, origin, passent, ent->clipmask );
+			trap_Trace( &tr2, traceStart, ent->r.mins, ent->r.maxs, origin, passent, ent->clipmask | CONTENTS_TRIGGER );
 
 			if (tr2.fraction == 1) {
 				break;
@@ -1422,17 +1325,39 @@ void G_RunMissile( gentity_t *ent ) {
 		}
 	} else {
 		// trace a line from the previous position to the current position
-		trap_Trace( &tr, ent->r.currentOrigin, ent->r.mins, ent->r.maxs, origin, passent, ent->clipmask );
+		trap_Trace( &tr, traceStart, ent->r.mins, ent->r.maxs, origin, passent, ent->clipmask );
+	}
+	if ( !telepushed ) {
+		float worldFrac;
+		trace_t worldTr;
+
+		worldTr = tr;
+		worldFrac = tr.fraction;
+		if ( tr.entityNum >= 0 && tr.entityNum < MAX_CLIENTS
+				&& g_entities[tr.entityNum].client ) {
+			worldFrac = 1.0f;
+		}
+
+		if ( ccdPlayerHit && clientTr.fraction < worldFrac ) {
+			tr = clientTr;
+		} else if ( worldFrac < 1.0f ) {
+			tr = worldTr;
+		} else {
+			tr.fraction = 1.0f;
+		}
 	}
 	if ( tr.startsolid || tr.allsolid ) {
 		// make sure the tr.entityNum is set to the entity we're stuck in
-		trap_Trace( &tr, ent->r.currentOrigin, ent->r.mins, ent->r.maxs, ent->r.currentOrigin, passent, ent->clipmask );
+		trap_Trace( &tr, traceStart, ent->r.mins, ent->r.maxs, traceStart, passent, ent->clipmask );
 		tr.fraction = 0;
 	}
 	else if (!telepushed) {
 		VectorCopy( tr.endpos, ent->r.currentOrigin );
 	}
 	trap_LinkEntity( ent );
+
+	ent->missileLastStepFrom = effectiveStart;
+	ent->missileLastStepTo = stepEnd;
 
 	//mrd - altFire rockets spawn a rail trail
 	if (ent->s.eFlags & EF_ALT_FIRE && ent->s.weapon == WP_ROCKET_LAUNCHER){ 
@@ -1450,7 +1375,23 @@ void G_RunMissile( gentity_t *ent ) {
 			G_FreeEntity( ent );
 			return;
 		}
+		ccdVictim = NULL;
+		if ( tr.entityNum >= 0 && tr.entityNum < MAX_CLIENTS ) {
+			ccdVictim = &g_entities[tr.entityNum];
+			if ( ccdVictim->client ) {
+				int hitTime;
+
+				hitTime = effectiveStart +
+					(int)( ( stepEnd - effectiveStart ) * tr.fraction );
+				G_TimeShiftClient( ccdVictim, hitTime, qfalse, NULL );
+			} else {
+				ccdVictim = NULL;
+			}
+		}
 		G_MissileImpact( ent, &tr );
+		if ( ccdVictim ) {
+			G_UnTimeShiftClient( ccdVictim );
+		}
 
 #ifdef MISSIONPACK
 		if ( ent->s.eType != ET_MISSILE || ent->missileExploded) {
