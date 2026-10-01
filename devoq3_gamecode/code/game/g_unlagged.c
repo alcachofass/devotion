@@ -123,7 +123,11 @@ static qboolean G_ClientHistoryFindBracket( gentity_t *ent, int time, int *outJ,
 
 	*outJ = j;
 	*outK = k;
-	return (j != k);
+	if ( j != k ) {
+		return qtrue;
+	}
+
+	return ( ent->client->history[j].leveltime == time );
 }
 
 /*

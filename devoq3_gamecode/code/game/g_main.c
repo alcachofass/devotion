@@ -5544,12 +5544,6 @@ void G_RunFrame( int levelTime ) {
 			G_MissileRunDelag(ent, msec);
 		}
 
-		//unlagged - backward reconciliation #2
-		// NOW run the missiles, with all players backward-reconciled
-		// to the positions they were in exactly 50ms ago, at the end
-		// of the last server frame
-		G_TimeShiftAllClients( level.previousTime, NULL );
-
 		ent = &g_entities[0];
 		for (i=0 ; i<level.num_entities ; i++, ent++) {
 			if ( !G_InUse(ent) ) {
@@ -5562,12 +5556,9 @@ void G_RunFrame( int levelTime ) {
 			}
 
 			if ( ent->s.eType == ET_MISSILE ) {
-				G_RunMissile( ent );
+				G_MissileRunStepInterval( ent, level.previousTime, level.time );
 			}
 		}
-
-		G_UnTimeShiftAllClients( NULL );
-		//unlagged - backward reconciliation #2
 
 		//end = trap_Milliseconds();
 
