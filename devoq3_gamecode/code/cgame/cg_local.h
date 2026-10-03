@@ -1900,7 +1900,10 @@ void CG_DemoControls_PovAddViewWeapon( void );
 void CG_DemoControls_FreeCamView( vec3_t origin, vec3_t angles );
 
 void CG_Orbit_Set( qboolean on );
+void CG_Orbit_Chase_Set( qboolean on );
+void CG_Orbit_Clear( void );
 qboolean CG_Orbit_Active( void );
+qboolean CG_Orbit_ChaseActive( void );
 void CG_Orbit_Mouse( int dx, int dy );
 void CG_Orbit_Zoom( int notches );
 

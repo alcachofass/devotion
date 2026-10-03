@@ -171,7 +171,7 @@ static qboolean	dc_seekModeHold;
 static qboolean	dc_seekCamSaved;
 static int		dc_seekCamMode;
 static int		dc_seekPovClient;
-static int		dc_seekThirdPerson;
+static qboolean	dc_seekChaseCam;
 static vec3_t	dc_seekFreeOrigin;
 static vec3_t	dc_seekFreeAngles;
 static int		dc_shotHideFrames;
@@ -512,12 +512,12 @@ static qboolean DemoCtrl_ButtonActive( int btn ) {
 		if ( dc_seeking ) {
 			return qtrue;
 		}
-		return ( !dc_freeView && !dc_rigView && !CG_Orbit_Active() && !cg_thirdPerson.integer ) ? qtrue : qfalse;
+		return ( !dc_freeView && !dc_rigView && !CG_Orbit_Active() && !CG_Orbit_ChaseActive() ) ? qtrue : qfalse;
 	case DEMOCTRL_CAM_3RD:
 		if ( dc_seeking ) {
 			return qfalse;
 		}
-		return ( !dc_freeView && !dc_rigView && !CG_Orbit_Active() && cg_thirdPerson.integer ) ? qtrue : qfalse;
+		return ( !dc_freeView && !dc_rigView && !CG_Orbit_Active() && CG_Orbit_ChaseActive() ) ? qtrue : qfalse;
 	case DEMOCTRL_CAM_ORBIT:
 		if ( dc_seeking ) {
 			return qfalse;
@@ -1555,20 +1555,19 @@ static void DemoCtrl_Activate( int btn ) {
 		DemoCtrl_ExitReplay();
 		break;
 	case DEMOCTRL_CAM_1ST:
-		if ( !dc_freeView && !dc_rigView && !CG_Orbit_Active() && !cg_thirdPerson.integer ) {
+		if ( !dc_freeView && !dc_rigView && !CG_Orbit_Active() && !CG_Orbit_ChaseActive() ) {
 			break;
 		}
 		DemoCtrl_DisableFreeCam();
 		DemoCtrl_DisableRigCam();
 		dc_orbitLook = qfalse;
 		dc_orbitDemo = qfalse;
-		CG_Orbit_Set( qfalse );
+		CG_Orbit_Clear();
 		DemoCtrl_SyncCamHud();
 		trap_Cvar_Set( "cg_demoDynamicCam", "0" );
-		trap_Cvar_Set( "cg_thirdPerson", "0" );
 		break;
 	case DEMOCTRL_CAM_3RD:
-		if ( !dc_freeView && !dc_rigView && !CG_Orbit_Active() && cg_thirdPerson.integer ) {
+		if ( !dc_freeView && !dc_rigView && !CG_Orbit_Active() && CG_Orbit_ChaseActive() ) {
 			break;
 		}
 		DemoCtrl_DisableFreeCam();
@@ -1576,12 +1575,9 @@ static void DemoCtrl_Activate( int btn ) {
 		dc_orbitLook = qfalse;
 		dc_orbitDemo = qfalse;
 		CG_Orbit_Set( qfalse );
+		CG_Orbit_Chase_Set( qtrue );
 		DemoCtrl_SyncCamHud();
 		trap_Cvar_Set( "cg_demoDynamicCam", "0" );
-		trap_Cvar_Set( "cg_thirdPerson", "1" );
-		if ( cg_thirdPersonRange.value < 1.0f ) {
-			trap_Cvar_Set( "cg_thirdPersonRange", "100" );
-		}
 		break;
 	case DEMOCTRL_CAM_ORBIT:
 		if ( !dc_freeView && !dc_rigView && CG_Orbit_Active() && dc_orbitLook ) {
@@ -1591,7 +1587,7 @@ static void DemoCtrl_Activate( int btn ) {
 		DemoCtrl_DisableRigCam();
 		DemoCtrl_SyncCamHud();
 		trap_Cvar_Set( "cg_demoDynamicCam", "0" );
-		trap_Cvar_Set( "cg_thirdPerson", "0" );
+		CG_Orbit_Chase_Set( qfalse );
 		CG_Orbit_Set( qtrue );
 		DemoCtrl_RefreshAttackKeys();
 		dc_orbitDemo = qtrue;
@@ -1610,7 +1606,7 @@ static void DemoCtrl_Activate( int btn ) {
 		DemoCtrl_DisableRigCam();
 		dc_orbitLook = qfalse;
 		dc_orbitDemo = qfalse;
-		CG_Orbit_Set( qfalse );
+		CG_Orbit_Clear();
 		trap_Cvar_Set( "cg_demoDynamicCam", "0" );
 		DemoCtrl_EnterFreeCamLook();
 		break;
@@ -1625,7 +1621,7 @@ static void DemoCtrl_Activate( int btn ) {
 		DemoCtrl_DisableFreeCam();
 		dc_orbitLook = qfalse;
 		dc_orbitDemo = qfalse;
-		CG_Orbit_Set( qfalse );
+		CG_Orbit_Clear();
 		dc_rigView = qtrue;
 		DemoCtrl_SyncCamHud();
 		break;
@@ -1829,8 +1825,6 @@ static void DemoCtrl_ViewSaveIfNeeded( void ) {
 	if ( atoi( buf ) != 0 ) {
 		return;
 	}
-	DemoCtrl_CopyCvar( "cg_thirdPerson", "cg_demoViewThirdPerson" );
-	DemoCtrl_CopyCvar( "cg_thirdPersonRange", "cg_demoViewThirdPersonRange" );
 	DemoCtrl_CopyCvar( "cg_simpleItems", "cg_demoViewSimpleItems" );
 	DemoCtrl_CopyCvar( "cg_draw2D", "cg_demoViewDraw2D" );
 	DemoCtrl_CopyCvar( "cg_drawGun", "cg_demoViewDrawGun" );
@@ -1846,8 +1840,6 @@ static void DemoCtrl_ViewRestore( void ) {
 	if ( atoi( buf ) == 0 ) {
 		return;
 	}
-	DemoCtrl_CopyCvar( "cg_demoViewThirdPerson", "cg_thirdPerson" );
-	DemoCtrl_CopyCvar( "cg_demoViewThirdPersonRange", "cg_thirdPersonRange" );
 	DemoCtrl_CopyCvar( "cg_demoViewSimpleItems", "cg_simpleItems" );
 	DemoCtrl_CopyCvar( "cg_demoViewDraw2D", "cg_draw2D" );
 	DemoCtrl_CopyCvar( "cg_demoViewDrawGun", "cg_drawGun" );
@@ -2551,7 +2543,7 @@ qboolean CG_DemoControls_PovEyesActive( void ) {
 	if ( CG_DemoControls_RigCamActive() ) {
 		return ( CG_DemoCams_UsingPlayerView() && !CG_DemoCams_PlayerThird() ) ? qtrue : qfalse;
 	}
-	return cg_thirdPerson.integer ? qfalse : qtrue;
+	return CG_Orbit_ChaseActive() ? qfalse : qtrue;
 }
 
 /* Subject left the snapshot: hold the last camera pose until they return. */
@@ -3268,7 +3260,7 @@ static void DemoCtrl_SeekWriteCvars( void ) {
 	trap_Cvar_Set( "cg_demoSeekResume", va( "%f", dc_seekResumeTs ) );
 	trap_Cvar_Set( "cg_demoSeekCam", va( "%d", dc_seekCamMode ) );
 	trap_Cvar_Set( "cg_demoSeekPov", va( "%d", dc_seekPovClient ) );
-	trap_Cvar_Set( "cg_demoSeekThird", va( "%d", dc_seekThirdPerson ) );
+	trap_Cvar_Set( "cg_demoSeekThird", va( "%d", dc_seekChaseCam ) );
 	trap_Cvar_Set( "cg_demoSeekFree", va( "%.2f %.2f %.2f %.2f %.2f %.2f",
 			dc_seekFreeOrigin[0], dc_seekFreeOrigin[1], dc_seekFreeOrigin[2],
 			dc_seekFreeAngles[0], dc_seekFreeAngles[1], dc_seekFreeAngles[2] ) );
@@ -3283,12 +3275,12 @@ static void DemoCtrl_SeekSaveCam( void ) {
 		dc_seekCamMode = 2;
 	} else if ( dc_rigView ) {
 		dc_seekCamMode = 3;
-	} else if ( cg_thirdPerson.integer ) {
+	} else if ( CG_Orbit_ChaseActive() ) {
 		dc_seekCamMode = 1;
 	} else {
 		dc_seekCamMode = 0;
 	}
-	dc_seekThirdPerson = cg_thirdPerson.integer;
+	dc_seekChaseCam = CG_Orbit_ChaseActive();
 	VectorCopy( dc_freeOrigin, dc_seekFreeOrigin );
 	VectorCopy( dc_freeAngles, dc_seekFreeAngles );
 	dc_seekCamSaved = qtrue;
@@ -3298,18 +3290,20 @@ static void DemoCtrl_SeekRestoreCam( void ) {
 	if ( !dc_seekCamSaved ) {
 		return;
 	}
-	trap_Cvar_Set( "cg_thirdPerson", dc_seekThirdPerson ? "1" : "0" );
 	if ( dc_seekCamMode == 2 ) {
 		VectorCopy( dc_seekFreeOrigin, dc_freeOrigin );
 		VectorCopy( dc_seekFreeAngles, dc_freeAngles );
 		dc_freeView = qtrue;
 		dc_rigView = qfalse;
+		CG_Orbit_Clear();
 	} else if ( dc_seekCamMode == 3 ) {
 		DemoCtrl_DisableFreeCam();
 		dc_rigView = qtrue;
+		CG_Orbit_Clear();
 	} else {
 		DemoCtrl_DisableFreeCam();
 		DemoCtrl_DisableRigCam();
+		CG_Orbit_Chase_Set( dc_seekChaseCam );
 	}
 	DemoCtrl_DisablePov();
 	if ( dc_seekPovClient >= 0 && dc_seekPovClient < MAX_CLIENTS
@@ -3440,7 +3434,7 @@ static void DemoCtrl_SeekResumeFromCvars( void ) {
 	dc_seekPovClient = atoi( buf );
 	buf[0] = '\0';
 	trap_Cvar_VariableStringBuffer( "cg_demoSeekThird", buf, sizeof( buf ) );
-	dc_seekThirdPerson = atoi( buf );
+	dc_seekChaseCam = ( atoi( buf ) != 0 ) ? qtrue : qfalse;
 	{
 		char	*p;
 		const char	*token;
@@ -3460,7 +3454,7 @@ static void DemoCtrl_SeekResumeFromCvars( void ) {
 		}
 	}
 	dc_seekCamSaved = qtrue;
-	trap_Cvar_Set( "cg_thirdPerson", "0" );
+	CG_Orbit_Clear();
 	dc_seeking = qtrue;
 	dc_seekRestartPending = qfalse;
 	dc_seekAppliedTs = 0.0f;
@@ -3498,7 +3492,7 @@ static void DemoCtrl_SeekBegin( int targetMs ) {
 	if ( !dc_seeking ) {
 		dc_seekResumeTs = cg_timescale.value;
 		DemoCtrl_SeekSaveCam();
-		trap_Cvar_Set( "cg_thirdPerson", "0" );
+		CG_Orbit_Clear();
 	}
 	dc_seekTargetMs = targetMs;
 	dc_seeking = qtrue;
@@ -4257,7 +4251,9 @@ void CG_DemoControls_Frame( void ) {
 		if ( dc_orbitDemo ) {
 			dc_orbitDemo = qfalse;
 			dc_orbitLook = qfalse;
-			CG_Orbit_Set( qfalse );
+			CG_Orbit_Clear();
+		} else if ( CG_Orbit_ChaseActive() ) {
+			CG_Orbit_Clear();
 		}
 		dc_speedLabel[0] = '\0';
 		dc_timingReady = qfalse;
@@ -4492,7 +4488,8 @@ qboolean CG_DemoControls_KeyEvent( int key, qboolean down ) {
 		return qtrue;
 	}
 
-	if ( CG_Orbit_Active() && down && ( key == K_MWHEELUP || key == K_MWHEELDOWN ) ) {
+	if ( ( CG_Orbit_Active() || CG_Orbit_ChaseActive() ) && down
+			&& ( key == K_MWHEELUP || key == K_MWHEELDOWN ) ) {
 		CG_Orbit_Zoom( ( key == K_MWHEELUP ) ? -1 : 1 );
 		return qtrue;
 	}
