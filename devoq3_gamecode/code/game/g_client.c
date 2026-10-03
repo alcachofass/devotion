@@ -3120,6 +3120,18 @@ void ClientBegin( int clientNum ) {
 		client->pers.arenaNum = -1;
 	}
 
+	if ( client->sess.sessionTeam != TEAM_SPECTATOR ) {
+#ifdef WITH_MULTITOURNAMENT
+		if ( g_gametype.integer == GT_MULTITOURNAMENT ) {
+			G_SetGameIDMask( ent, ent->gameId );
+		} else
+#endif
+		{
+			ent->r.svFlags &= ~SVF_CLIENTMASK;
+			ent->r.singleClient = 0;
+		}
+	}
+
 	// locate ent at a spawn point
 	ClientSpawn( ent );
 
