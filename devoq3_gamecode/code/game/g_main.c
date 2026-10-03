@@ -3989,7 +3989,6 @@ void CheckLMS(void) {
 		}
 
 		if((level.roundNumber>level.roundNumberStarted)&&(level.time>=level.roundStartTime)) {
-			RespawnDead(qtrue);
 			StartLMSRound();
 		}
 	
@@ -4194,7 +4193,6 @@ void CheckElimination(void) {
 			
 
 		if((level.roundNumber>level.roundNumberStarted)&&(level.time>=level.roundStartTime)) {
-			RespawnDead(qtrue);
 			StartEliminationRound();
 		}
 	
