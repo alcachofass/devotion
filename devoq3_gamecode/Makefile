@@ -1998,6 +1998,7 @@ Q3UIOBJ_ = \
   $(B)/baseq3/ui/ui_options.o \
   $(B)/baseq3/ui/ui_password.o \
   $(B)/baseq3/ui/ui_playermodel.o \
+  $(B)/baseq3/ui/ui_modelpreview.o \
   $(B)/baseq3/ui/ui_players.o \
   $(B)/baseq3/ui/ui_playersettings.o \
   $(B)/baseq3/ui/ui_preferences.o \

@@ -218,7 +218,7 @@ CG_OffsetThirdPersonView
 ===============
 */
 #define	FOCUS_DISTANCE	512
-static void CG_ThirdPersonPullback( int skipNum );
+static void CG_ThirdPersonPullback( int skipNum, float range, float angle );
 
 static void CG_OffsetThirdPersonView( void ) {
 	cg.refdef.vieworg[2] += cg.predictedPlayerState.viewheight;
@@ -229,7 +229,8 @@ static void CG_OffsetThirdPersonView( void ) {
 		cg.refdefViewAngles[YAW] = cg.predictedPlayerState.stats[STAT_DEAD_YAW];
 	}
 
-	CG_ThirdPersonPullback( cg.predictedPlayerState.clientNum );
+	CG_ThirdPersonPullback( cg.predictedPlayerState.clientNum,
+			cg_thirdPersonRange.value, cg_thirdPersonAngle.value );
 }
 
 /*
@@ -237,9 +238,10 @@ static void CG_OffsetThirdPersonView( void ) {
 CG_ThirdPersonPullback
 
 Backs cg.refdef away from an eye position already in vieworg / refdefViewAngles.
+Looks toward the player's view direction, not directly at the player.
 ===============
 */
-static void CG_ThirdPersonPullback( int skipNum ) {
+static void CG_ThirdPersonPullback( int skipNum, float range, float angle ) {
 	vec3_t		forward, right, up;
 	vec3_t		view;
 	vec3_t		focusAngles;
@@ -267,10 +269,10 @@ static void CG_ThirdPersonPullback( int skipNum ) {
 
 	AngleVectors( cg.refdefViewAngles, forward, right, up );
 
-	forwardScale = cos( cg_thirdPersonAngle.value / 180 * M_PI );
-	sideScale = sin( cg_thirdPersonAngle.value / 180 * M_PI );
-	VectorMA( view, -cg_thirdPersonRange.value * forwardScale, forward, view );
-	VectorMA( view, -cg_thirdPersonRange.value * sideScale, right, view );
+	forwardScale = cos( angle / 180 * M_PI );
+	sideScale = sin( angle / 180 * M_PI );
+	VectorMA( view, -range * forwardScale, forward, view );
+	VectorMA( view, -range * sideScale, right, view );
 
 	// trace a ray from the origin to the viewpoint to make sure the view isn't
 	// in a solid block.  Use an 8 by 8 block to prevent the view from near clipping anything
@@ -299,35 +301,84 @@ static void CG_ThirdPersonPullback( int skipNum ) {
 		focusDist = 1;	// should never happen
 	}
 	cg.refdefViewAngles[PITCH] = -180 / M_PI * atan2( focusPoint[2], focusDist );
-	cg.refdefViewAngles[YAW] -= cg_thirdPersonAngle.value;
+	cg.refdefViewAngles[YAW] -= angle;
 }
 
 /*
 ===============
 CG_Orbit
 
-Fixed orbit around the followed player's eyes. Mouse owns yaw and pitch.
-Wheel owns distance. A solid trace pulls the camera in toward the player.
+Free orbit around the followed player's eyes. Mouse owns yaw and pitch.
+Wheel owns distance. Chase mode uses the same pullback as live third person,
+locked behind the subject. Spec and replay use chase; live play keeps cg_thirdPerson.
 ===============
 */
-static qboolean	orbitOn;
-static float	orbitYaw;
-static float	orbitPitch;
-static float	orbitDist;
-static qboolean	orbitSeeded;
+typedef enum {
+	ORBIT_OFF,
+	ORBIT_FREE,
+	ORBIT_CHASE
+} orbitMode_t;
 
-void CG_Orbit_Set( qboolean on ) {
-	if ( on && !orbitOn && !orbitSeeded ) {
+static orbitMode_t	orbitMode;
+static float		orbitYaw;
+static float		orbitPitch;
+static float		orbitDist;
+static qboolean		orbitSeeded;
+static float		chaseDist = 100.0f;
+
+#define CHASE_DIST_MIN	32.0f
+#define CHASE_DIST_MAX	800.0f
+#define CHASE_ANGLE	0.0f
+
+static void CG_Orbit_SetMode( orbitMode_t mode ) {
+	if ( mode == ORBIT_FREE && orbitMode != ORBIT_FREE && !orbitSeeded ) {
 		orbitYaw = cg.predictedPlayerState.viewangles[YAW] + 180.0f;
 		orbitPitch = 18.0f;
 		orbitDist = 140.0f;
 		orbitSeeded = qtrue;
 	}
-	orbitOn = on;
+	if ( mode == ORBIT_OFF ) {
+		orbitSeeded = qfalse;
+	}
+	orbitMode = mode;
+}
+
+void CG_Orbit_Set( qboolean on ) {
+	if ( on ) {
+		CG_Orbit_SetMode( ORBIT_FREE );
+	} else if ( orbitMode == ORBIT_FREE ) {
+		CG_Orbit_SetMode( ORBIT_OFF );
+	}
+}
+
+void CG_Orbit_Chase_Set( qboolean on ) {
+	if ( on ) {
+		if ( chaseDist < 1.0f ) {
+			chaseDist = 100.0f;
+		}
+		CG_Orbit_SetMode( ORBIT_CHASE );
+	} else if ( orbitMode == ORBIT_CHASE ) {
+		CG_Orbit_SetMode( ORBIT_OFF );
+	}
+}
+
+void CG_Orbit_Clear( void ) {
+	CG_Orbit_SetMode( ORBIT_OFF );
 }
 
 qboolean CG_Orbit_Active( void ) {
-	return orbitOn;
+	return ( orbitMode == ORBIT_FREE ) ? qtrue : qfalse;
+}
+
+qboolean CG_Orbit_ChaseActive( void ) {
+	return ( orbitMode == ORBIT_CHASE ) ? qtrue : qfalse;
+}
+
+static void CG_Chase_View( const playerState_t *ps, int skipNum ) {
+	VectorCopy( ps->origin, cg.refdef.vieworg );
+	VectorCopy( ps->viewangles, cg.refdefViewAngles );
+	cg.refdef.vieworg[2] += ps->viewheight;
+	CG_ThirdPersonPullback( skipNum, chaseDist, CHASE_ANGLE );
 }
 
 void CG_Orbit_Mouse( int dx, int dy ) {
@@ -341,11 +392,20 @@ void CG_Orbit_Mouse( int dx, int dy ) {
 }
 
 void CG_Orbit_Zoom( int notches ) {
-	orbitDist += notches * 28.0f;
-	if ( orbitDist < 32.0f ) {
-		orbitDist = 32.0f;
-	} else if ( orbitDist > 800.0f ) {
-		orbitDist = 800.0f;
+	if ( orbitMode == ORBIT_CHASE ) {
+		chaseDist += notches * 28.0f;
+		if ( chaseDist < CHASE_DIST_MIN ) {
+			chaseDist = CHASE_DIST_MIN;
+		} else if ( chaseDist > CHASE_DIST_MAX ) {
+			chaseDist = CHASE_DIST_MAX;
+		}
+	} else {
+		orbitDist += notches * 28.0f;
+		if ( orbitDist < CHASE_DIST_MIN ) {
+			orbitDist = CHASE_DIST_MIN;
+		} else if ( orbitDist > CHASE_DIST_MAX ) {
+			orbitDist = CHASE_DIST_MAX;
+		}
 	}
 }
 
@@ -850,6 +910,20 @@ static int CG_CalcViewValues( void ) {
 		return CG_CalcFov();
 	}
 
+	if ( CG_Orbit_ChaseActive() ) {
+		if ( cg.demoPlayback && CG_DemoControls_PovActive() ) {
+			CG_DemoControls_PovView( cg.refdef.vieworg, cg.refdefViewAngles );
+			CG_ThirdPersonPullback( CG_DemoControls_PovClient(), chaseDist, CHASE_ANGLE );
+		} else {
+			CG_Chase_View( ps, ps->clientNum );
+		}
+		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
+		if ( cg.hyperspace ) {
+			cg.refdef.rdflags |= RDF_NOWORLDMODEL | RDF_HYPERSPACE;
+		}
+		return CG_CalcFov();
+	}
+
 	if ( CG_Orbit_Active() ) {
 		vec3_t	focus;
 		int		skip;
@@ -877,7 +951,8 @@ static int CG_CalcViewValues( void ) {
 
 		CG_DemoControls_PovView( cg.refdef.vieworg, cg.refdefViewAngles );
 		if ( cg.renderingThirdPerson ) {
-			CG_ThirdPersonPullback( CG_DemoControls_PovClient() );
+			CG_ThirdPersonPullback( CG_DemoControls_PovClient(),
+					cg_thirdPersonRange.value, cg_thirdPersonAngle.value );
 		}
 		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
 		if ( cg.hyperspace ) {
@@ -1273,12 +1348,12 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 				cg.renderingThirdPerson = qtrue;
 			}
 		}
-		if ( CG_Orbit_Active() ) {
+		if ( CG_Orbit_ChaseActive() || CG_Orbit_Active() ) {
 			cg.renderingThirdPerson = qtrue;
 		}
 	}
 
-	if ( !freeCam && !rigCam && !povActive && !CG_Orbit_Active() ) {
+	if ( !freeCam && !rigCam && !povActive && !CG_Orbit_ChaseActive() && !CG_Orbit_Active() ) {
 		CG_SpecZooming();
 	}
 

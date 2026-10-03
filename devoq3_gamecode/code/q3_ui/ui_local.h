@@ -642,11 +642,30 @@ typedef struct {
 
 void UI_DrawPlayer( float x, float y, float w, float h, playerInfo_t *pi, int time );
 void UI_PlayerInfo_SetModel( playerInfo_t *pi, const char *model );
+void UI_PlayerInfo_SetModelPreserveState( playerInfo_t *pi, const char *model );
 void UI_PlayerInfo_SetInfo( playerInfo_t *pi, int legsAnim, int torsoAnim, vec3_t viewAngles, vec3_t moveAngles, weapon_t weaponNum, qboolean chat );
 void UI_PlayerInfo_SetLegsState( playerInfo_t *pi, int legsAnim, vec3_t moveAngles );
 void UI_PlayerInfo_SetTorsoState( playerInfo_t *pi, int torsoAnim, weapon_t weaponNum );
 void UI_PlayerInfo_SetPreviewSounds( playerInfo_t *pi, qboolean allow, const char *soundPack, const char *modelDir );
 qboolean UI_RegisterClientModelname( playerInfo_t *pi, const char *modelSkinName );
+
+//
+// ui_modelpreview.c
+//
+#define UI_MODELPREVIEW_SLOTS	3
+
+int UI_ModelPreview_SlotForCvar( const char *cvarName );
+playerInfo_t *UI_ModelPreview_GetPlayerInfo( int slot );
+void UI_ModelPreview_ClearCachedModels( void );
+void UI_ModelPreview_ResetViewAngles( void );
+void UI_ModelPreview_InvalidateModel( int slot );
+void UI_ModelPreview_SetModel( int slot, const char *model, qboolean preserveAnim );
+void UI_ModelPreview_Present( int slot, const char *model, int x, int y, int w, int h, qboolean preserveAnim );
+
+//
+// ui_playersettings.c
+//
+void PlayerSettings_ApplySlotColors( int slot, playerInfo_t *pi );
 
 //
 // ui_atoms.c

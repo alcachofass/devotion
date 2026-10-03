@@ -72,7 +72,7 @@ static int				dc_specTimersSaved;
 static int DemoCtrl_SpecActions( int *actions, int max );
 static int DemoCtrl_SpecRowShift( int action );
 static void DemoCtrl_SpecMenuClose( void );
-static void DemoCtrl_SpecClearThirdPerson( void );
+static void DemoCtrl_SpecCamClear( void );
 static int DemoCtrl_SpecDispHitTest( int mx, int my );
 static qboolean Spec_DispTabHit( int mx, int my );
 static qboolean Spec_EditTabHit( int mx, int my );
@@ -441,7 +441,7 @@ static void DemoCtrl_SpecEndSession( void ) {
 	dc_specRig = qfalse;
 	dc_specLook = qtrue;
 	dc_specOrbitLook = qfalse;
-	CG_Orbit_Set( qfalse );
+	DemoCtrl_SpecCamClear();
 	dc_specHover = -1;
 	dc_specBarHover = -1;
 	dc_specLockHover = qfalse;
@@ -479,8 +479,7 @@ static void Spec_EditToggle( void ) {
 	if ( specEditDrawer.open ) {
 		dc_specRig = qfalse;
 		dc_specOrbitLook = qfalse;
-		CG_Orbit_Set( qfalse );
-		DemoCtrl_SpecClearThirdPerson();
+		DemoCtrl_SpecCamClear();
 		if ( DemoCtrl_SpecFollowing() ) {
 			trap_SendConsoleCommand( "follow\n" );
 		}
@@ -725,10 +724,8 @@ static const char *DemoCtrl_SpecLabel( int action ) {
 	}
 }
 
-static void DemoCtrl_SpecClearThirdPerson( void ) {
-	if ( cg_thirdPerson.integer ) {
-		trap_Cvar_Set( "cg_thirdPerson", "0" );
-	}
+static void DemoCtrl_SpecCamClear( void ) {
+	CG_Orbit_Clear();
 }
 
 static void DemoCtrl_SpecActivate( int action ) {
@@ -736,8 +733,7 @@ static void DemoCtrl_SpecActivate( int action ) {
 	case SPEC_FREE:
 		dc_specRig = qfalse;
 		dc_specOrbitLook = qfalse;
-		CG_Orbit_Set( qfalse );
-		DemoCtrl_SpecClearThirdPerson();
+		DemoCtrl_SpecCamClear();
 		trap_SendConsoleCommand( "follow\n" );
 		break;
 	case SPEC_SHOT:
@@ -747,25 +743,21 @@ static void DemoCtrl_SpecActivate( int action ) {
 		trap_SendConsoleCommand( "wait 2; screenshotJPEG\n" );
 		break;
 	case SPEC_1ST:
-		if ( !dc_specRig && !CG_Orbit_Active() && !cg_thirdPerson.integer && DemoCtrl_SpecFollowing() ) {
+		if ( !dc_specRig && !CG_Orbit_Active() && !CG_Orbit_ChaseActive() && DemoCtrl_SpecFollowing() ) {
 			break;
 		}
 		dc_specRig = qfalse;
 		dc_specOrbitLook = qfalse;
-		CG_Orbit_Set( qfalse );
-		trap_Cvar_Set( "cg_thirdPerson", "0" );
+		DemoCtrl_SpecCamClear();
 		break;
 	case SPEC_3RD:
-		if ( !dc_specRig && !CG_Orbit_Active() && cg_thirdPerson.integer && DemoCtrl_SpecFollowing() ) {
+		if ( !dc_specRig && !CG_Orbit_Active() && CG_Orbit_ChaseActive() && DemoCtrl_SpecFollowing() ) {
 			break;
 		}
 		dc_specRig = qfalse;
 		dc_specOrbitLook = qfalse;
 		CG_Orbit_Set( qfalse );
-		trap_Cvar_Set( "cg_thirdPerson", "1" );
-		if ( cg_thirdPersonRange.value < 1.0f ) {
-			trap_Cvar_Set( "cg_thirdPersonRange", "100" );
-		}
+		CG_Orbit_Chase_Set( qtrue );
 		break;
 	case SPEC_ORBIT:
 		if ( !DemoCtrl_SpecFollowing() ) {
@@ -776,7 +768,7 @@ static void DemoCtrl_SpecActivate( int action ) {
 			break;
 		}
 		dc_specRig = qfalse;
-		DemoCtrl_SpecClearThirdPerson();
+		CG_Orbit_Chase_Set( qfalse );
 		CG_Orbit_Set( qtrue );
 		CG_DemoControls_RefreshAttackKeys();
 		dc_specOrbitLook = qtrue;
@@ -794,12 +786,13 @@ static void DemoCtrl_SpecActivate( int action ) {
 			break;
 		}
 		dc_specOrbitLook = qfalse;
-		CG_Orbit_Set( qfalse );
+		DemoCtrl_SpecCamClear();
 		dc_specRig = qtrue;
 		DemoCtrl_SpecEnterUi();
 		Overlay_Wake();
 		break;
 	case SPEC_QUEUE:
+		DemoCtrl_SpecCamClear();
 		if ( cg.spectatorGroup == SPECTATORGROUP_QUEUED ) {
 			trap_SendConsoleCommand( "team spectator\n" );
 		} else {
@@ -807,6 +800,7 @@ static void DemoCtrl_SpecActivate( int action ) {
 		}
 		break;
 	case SPEC_RED:
+		DemoCtrl_SpecCamClear();
 		if ( cg.spectatorGroup == SPECTATORGROUP_QUEUED_RED ) {
 			trap_SendConsoleCommand( "team spectator\n" );
 		} else {
@@ -814,6 +808,7 @@ static void DemoCtrl_SpecActivate( int action ) {
 		}
 		break;
 	case SPEC_BLUE:
+		DemoCtrl_SpecCamClear();
 		if ( cg.spectatorGroup == SPECTATORGROUP_QUEUED_BLUE ) {
 			trap_SendConsoleCommand( "team spectator\n" );
 		} else {
@@ -833,15 +828,15 @@ static qboolean DemoCtrl_SpecActionOn( int action ) {
 	case SPEC_PLAYERS:
 		return ( dc_specMenuOpen || DemoCtrl_SpecFollowing() ) ? qtrue : qfalse;
 	case SPEC_1ST:
-		if ( dc_specRig || CG_Orbit_Active() || !DemoCtrl_SpecFollowing() ) {
+		if ( dc_specRig || CG_Orbit_Active() || CG_Orbit_ChaseActive() || !DemoCtrl_SpecFollowing() ) {
 			return qfalse;
 		}
-		return cg_thirdPerson.integer ? qfalse : qtrue;
+		return qtrue;
 	case SPEC_3RD:
 		if ( dc_specRig || CG_Orbit_Active() || !DemoCtrl_SpecFollowing() ) {
 			return qfalse;
 		}
-		return cg_thirdPerson.integer ? qtrue : qfalse;
+		return CG_Orbit_ChaseActive();
 	case SPEC_ORBIT:
 		if ( dc_specRig || !DemoCtrl_SpecFollowing() ) {
 			return qfalse;
@@ -1895,7 +1890,7 @@ static void DemoCtrl_SpecFrame( void ) {
 
 	following = DemoCtrl_SpecFollowing();
 	if ( !following && !dc_specRig ) {
-		DemoCtrl_SpecClearThirdPerson();
+		CG_Orbit_Chase_Set( qfalse );
 	}
 	if ( dc_specOrbitLook && ( !CG_Orbit_Active() || !following ) ) {
 		dc_specOrbitLook = qfalse;
@@ -1994,7 +1989,8 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 	if ( trap_Key_GetCatcher() & ( KEYCATCH_UI | KEYCATCH_CONSOLE | KEYCATCH_MESSAGE ) ) {
 		return qfalse;
 	}
-	if ( CG_Orbit_Active() && down && ( key == K_MWHEELUP || key == K_MWHEELDOWN ) ) {
+	if ( ( CG_Orbit_Active() || CG_Orbit_ChaseActive() ) && down
+			&& ( key == K_MWHEELUP || key == K_MWHEELDOWN ) ) {
 		CG_Orbit_Zoom( ( key == K_MWHEELUP ) ? -1 : 1 );
 		return qtrue;
 	}

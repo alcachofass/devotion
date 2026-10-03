@@ -1372,6 +1372,30 @@ qboolean UI_RegisterClientModelname( playerInfo_t *pi, const char *modelSkinName
 
 /*
 ===============
+UI_PlayerInfo_RelinkLerpAnims
+===============
+*/
+static void UI_PlayerInfo_RelinkLerpAnims( playerInfo_t *pi ) {
+	int anim;
+
+	if ( pi->legs.animationNumber ) {
+		anim = pi->legs.animationNumber & ~ANIM_TOGGLEBIT;
+		if ( anim >= 0 && anim < MAX_ANIMATIONS ) {
+			pi->legs.animation = &pi->animations[anim];
+		}
+	}
+
+	if ( pi->torso.animationNumber ) {
+		anim = pi->torso.animationNumber & ~ANIM_TOGGLEBIT;
+		if ( anim >= 0 && anim < MAX_ANIMATIONS ) {
+			pi->torso.animation = &pi->animations[anim];
+		}
+	}
+}
+
+
+/*
+===============
 UI_PlayerInfo_SetModel
 ===============
 */
@@ -1387,6 +1411,21 @@ void UI_PlayerInfo_SetModel( playerInfo_t *pi, const char *model ) {
 	pi->chat = qfalse;
 	pi->newModel = qtrue;
 	UI_PlayerInfo_SetWeapon( pi, pi->weapon );
+}
+
+
+/*
+===============
+UI_PlayerInfo_SetModelPreserveState
+===============
+*/
+void UI_PlayerInfo_SetModelPreserveState( playerInfo_t *pi, const char *model ) {
+	if ( !UI_RegisterClientModelname( pi, model ) ) {
+		return;
+	}
+
+	pi->newModel = qfalse;
+	UI_PlayerInfo_RelinkLerpAnims( pi );
 }
 
 

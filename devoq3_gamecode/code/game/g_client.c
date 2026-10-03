@@ -1193,6 +1193,15 @@ respawnRound
 void respawnRound( gentity_t *ent ) {
 	gentity_t	*tent;
 
+	if ( G_IsElimGT()
+			&& level.roundNumber != level.roundNumberStarted
+			&& ent->client->sess.sessionTeam != TEAM_SPECTATOR
+			&& ent->client->pers.roundReached == level.roundNumber + 1
+			&& ent->client->ps.stats[STAT_HEALTH] > 0
+			&& !ent->client->isEliminated ) {
+		return;
+	}
+
 	//if(g_gametype.integer!=GT_ELIMINATION || !ent->client->isEliminated)
 	//{
 	//	ent->client->isEliminated  = qtrue;
@@ -3120,6 +3129,18 @@ void ClientBegin( int clientNum ) {
 		client->pers.arenaNum = -1;
 	}
 
+	if ( client->sess.sessionTeam != TEAM_SPECTATOR ) {
+#ifdef WITH_MULTITOURNAMENT
+		if ( g_gametype.integer == GT_MULTITOURNAMENT ) {
+			G_SetGameIDMask( ent, ent->gameId );
+		} else
+#endif
+		{
+			ent->r.svFlags &= ~SVF_CLIENTMASK;
+			ent->r.singleClient = 0;
+		}
+	}
+
 	// locate ent at a spawn point
 	ClientSpawn( ent );
 
@@ -3314,6 +3335,10 @@ void ClientSpawn(gentity_t *ent) {
                 client->isEliminated = qfalse;
                 CalculateRanks();
             }
+	    if ( G_IsElimGT() && client->sess.sessionTeam != TEAM_SPECTATOR
+			    && level.roundNumber != level.roundNumberStarted ) {
+		    client->pers.roundReached = level.roundNumber + 1;
+	    }
         }
 
 	if (client->pers.joinedByTeamQueue && client->ps.pm_type == PM_NORMAL) {

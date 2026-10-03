@@ -503,7 +503,6 @@ static const cvarDesc_t cgameCvarDescriptions[] = {
 	{ "cg_fontScale", "Global size scale for on-screen text." },
 	{ "cg_fontShadow", "When `1`, draws a drop shadow behind on-screen text." },
 	{ "cg_footsteps", "When `1`, plays footstep sounds." },
-	{ "cg_forceModel", "When `1`, forces every player to use your selected model/skin." },
 	{ "cg_fov", "Horizontal field of view (degrees)." },
 	{ "cg_fpsAlpha", "Opacity of the FPS counter." },
 	{ "cg_fpsScale", "Size of the FPS counter." },

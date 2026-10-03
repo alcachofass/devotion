@@ -242,7 +242,7 @@ G_CVAR( g_teleMissilesMaxTeleports, "g_teleMissilesMaxTeleports", "3", CVAR_ARCH
 
 G_CVAR( g_newShotgun, "g_newShotgun", "0", CVAR_ARCHIVE, 0, qtrue, qfalse )
 
-G_CVAR( g_movement,   "g_movement", "0", CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qtrue, qfalse )
+G_CVAR( g_movement,   "g_movement", "4", CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qtrue, qfalse )
 G_CVAR( g_crouchSlide,   "g_crouchSlide", "0", CVAR_ARCHIVE, 0, qtrue, qfalse )
 G_CVAR( g_slideMode,   "g_slideMode", "0", CVAR_ARCHIVE, 0, qtrue, qfalse )
 G_CVAR( g_rampJump,     "g_rampJump", "0", CVAR_ARCHIVE, 0, qtrue, qfalse )
@@ -321,7 +321,7 @@ G_CVAR( g_tauntAfterDeathTime, "g_tauntAfterDeathTime", "1500", CVAR_ARCHIVE, 0,
 G_CVAR( g_mgDamage,			"g_mgDamage", "7", 0, 0, qtrue, qfalse )
 G_CVAR( g_mgTeamDamage,		"g_mgTeamDamage", "5", 0, 0, qtrue, qfalse )
 G_CVAR( g_railgunDamage,		"g_railgunDamage", "100", 0, 0, qtrue, qfalse )
-G_CVAR( g_lgDamage, 			"g_lgDamage", "8", 0, 0, qtrue, qfalse )
+G_CVAR( g_lgDamage, 			"g_lgDamage", "6", 0, 0, qtrue, qfalse )
 G_CVAR( g_gauntDamage,		"g_gauntDamage", "50", 0, 0, qtrue, qfalse )
 
 G_CVAR( g_railJump, 			"g_railJump", "0", CVAR_ARCHIVE, 0, qtrue, qfalse )
