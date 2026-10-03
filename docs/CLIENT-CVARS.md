@@ -155,7 +155,6 @@ Client-side variables registered by the **cgame** module (`cg_*`, plus related n
 | `cg_fontScale` | RatMod | `1.0` | float | Global size scale for on-screen text. |
 | `cg_fontShadow` | RatMod | `1` | 0 or 1 | When `1`, draws a drop shadow behind on-screen text. |
 | `cg_footsteps` | Vanilla | `1` | 0 or 1 | When `1`, plays footstep sounds. |
-| `cg_forceModel` | Vanilla | `0` | 0 or 1 | When `1`, forces every player to use your selected model/skin. |
 | `cg_fov` | Vanilla | `115` | integer >= 0 (typical) | Horizontal field of view (degrees). |
 | `cg_fpsAlpha` | RatMod | `0.5` | float | Opacity of the FPS counter. |
 | `cg_fpsScale` | RatMod | `0.6` | float | Size of the FPS counter. |

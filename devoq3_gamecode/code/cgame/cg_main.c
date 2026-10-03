@@ -30,7 +30,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 displayContextDef_t cgDC;
 #endif
 
-int forceModelModificationCount = -1;
 int playerModelModificationCount = -1;
 int playerHeadModelModificationCount = -1;
 int enemyModelModificationCount  = -1;
@@ -157,7 +156,6 @@ void CG_RegisterCvars( void ) {
 	trap_Cvar_VariableStringBuffer( "sv_running", var, sizeof( var ) );
 	cgs.localServer = atoi( var );
 
-	forceModelModificationCount = cg_forceModel.modificationCount;
 	enemyTeamModelModificationCounts = cg_enemyModel.modificationCount + cg_teamModel.modificationCount;
 
 	enemyModelModificationCount = cg_enemyModel.modificationCount;
@@ -485,11 +483,6 @@ void CG_UpdateCvars( void ) {
 		}
 	}
 
-	// if force model changed
-	if ( forceModelModificationCount != cg_forceModel.modificationCount ) {
-		forceModelModificationCount = cg_forceModel.modificationCount;
-		CG_ForceModelChange();
-	}
 	trap_Cvar_Update( &cg_playerModel );
 	trap_Cvar_Update( &cg_playerHeadmodel );
 	if ( playerModelModificationCount != cg_playerModel.modificationCount

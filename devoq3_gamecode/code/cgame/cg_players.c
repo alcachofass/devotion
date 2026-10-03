@@ -1369,20 +1369,6 @@ static void CG_ResolvePlayerModel( int clientNum, const char *wireModel, qboolea
 		return;
 	}
 
-	if ( cg_forceModel.integer ) {
-		if ( isHead ) {
-			trap_Cvar_VariableStringBuffer( "headmodel", modelStr, sizeof( modelStr ) );
-		} else {
-			trap_Cvar_VariableStringBuffer( "model", modelStr, sizeof( modelStr ) );
-		}
-		if ( !( cgs.ratFlags & RAT_BRIGHTMODEL && cgs.ratFlags & RAT_ALLOWFORCEDMODELS )
-				&& Q_stristr( modelStr, "bright" ) != NULL ) {
-			Q_strncpyz( modelStr, "keel/default", sizeof( modelStr ) );
-		}
-		CG_ParseModelSkin( modelStr, modelName, modelNameSize, skinName, skinNameSize );
-		return;
-	}
-
 	if ( useForcedModel ) {
 		overrideModel = enemy ? cg_enemyModel.string : cg_teamModel.string;
 		if ( Q_stricmp( overrideModel, PM_SKIN ) == 0 ) {
