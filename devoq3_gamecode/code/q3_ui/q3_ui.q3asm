@@ -21,6 +21,7 @@ ui_sound
 ui_network
 ui_password
 ui_playermodel
+ui_modelpreview
 ui_players
 ui_playersettings
 ui_preferences
