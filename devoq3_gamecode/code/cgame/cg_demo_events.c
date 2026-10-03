@@ -113,12 +113,8 @@ static int				ev_presCount[MAX_CLIENTS];
 static qboolean			ev_presOpen[MAX_CLIENTS];
 static char				ev_currentMap[MAX_QPATH];
 
-static int DemoEv_PtrOff( const byte *base, const byte *member ) {
-	return (int)( member - base );
-}
-
 static void DemoEv_SetField( demoNetField_t *field, const void *base, const void *member, int bits ) {
-	field->offset = DemoEv_PtrOff( (const byte *)base, (const byte *)member );
+	field->offset = (int)( (const byte *)member - (const byte *)base );
 	field->bits = bits;
 }
 
@@ -433,42 +429,6 @@ static void DemoEv_Add( int serverTime, demoEventKind_t kind ) {
 	ev_count++;
 }
 
-static void DemoEv_AddMapLoad( int serverTime ) {
-	if ( ev_count >= DEMOEV_MAX_EVENTS ) {
-		return;
-	}
-	if ( serverTime < 0 ) {
-		return;
-	}
-	ev_events[ev_count].serverTime = serverTime;
-	ev_events[ev_count].kind = (byte)DEMOEV_MAP_LOAD;
-	ev_events[ev_count].victim = DEMOEV_NO_CLIENT;
-	ev_events[ev_count].attacker = DEMOEV_NO_CLIENT;
-	ev_events[ev_count].victimName[0] = '\0';
-	ev_events[ev_count].attackerName[0] = '\0';
-	Q_strncpyz( ev_events[ev_count].mapName, ev_currentMap, sizeof( ev_events[ev_count].mapName ) );
-	ev_count++;
-}
-
-static void DemoEv_SetCurrentMap( const char *raw ) {
-	const char	*p;
-	int			len;
-
-	ev_currentMap[0] = '\0';
-	if ( !raw || !raw[0] ) {
-		return;
-	}
-	p = raw;
-	if ( !Q_stricmpn( p, "maps/", 5 ) ) {
-		p += 5;
-	}
-	Q_strncpyz( ev_currentMap, p, sizeof( ev_currentMap ) );
-	len = (int)strlen( ev_currentMap );
-	if ( len > 4 && !Q_stricmp( ev_currentMap + len - 4, ".bsp" ) ) {
-		ev_currentMap[len - 4] = '\0';
-	}
-}
-
 static void DemoEv_AddDeath( int serverTime, int victim, int attacker ) {
 	demoEventKind_t	kind;
 	int				recorder;
@@ -509,82 +469,8 @@ static void DemoEv_AddDeath( int serverTime, int victim, int attacker ) {
 	ev_count++;
 }
 
-static qboolean DemoEv_CsActive( const char *value ) {
-	if ( !value ) {
-		return qfalse;
-	}
-	while ( *value == ' ' || *value == '\t' || *value == '"' ) {
-		value++;
-	}
-	if ( !value[0] || value[0] == '0' ) {
-		if ( value[0] == '0' && value[1] && value[1] >= '0' && value[1] <= '9' ) {
-			return qtrue;
-		}
-		return qfalse;
-	}
-	return qtrue;
-}
-
-static int DemoEv_ParseInts( const char *s, int *out, int max ) {
-	int	n;
-
-	n = 0;
-	if ( !s ) {
-		return 0;
-	}
-	while ( *s && n < max ) {
-		while ( *s == ' ' || *s == '\t' ) {
-			s++;
-		}
-		if ( !*s ) {
-			break;
-		}
-		out[n] = atoi( s );
-		n++;
-		while ( *s && *s != ' ' && *s != '\t' ) {
-			s++;
-		}
-	}
-	return n;
-}
-
 static void DemoEv_MaybeRoundStart( int serverTime );
 static void DemoEv_MaybeRoundEnd( int serverTime );
-
-static void DemoEv_ApplyElimination( const char *args ) {
-	int	vals[6];
-	int	n;
-	int	roundStartTime;
-	int	now;
-
-	n = DemoEv_ParseInts( args, vals, 6 );
-	if ( n < 6 ) {
-		return;
-	}
-	roundStartTime = vals[2];
-	now = ev_lastServerTime;
-	if ( now <= 0 ) {
-		now = roundStartTime;
-	}
-	if ( !ev_matchOn ) {
-		if ( roundStartTime > 0 ) {
-			ev_pendingRoundStart = roundStartTime;
-		}
-		return;
-	}
-	if ( roundStartTime > now + 400 ) {
-		DemoEv_MaybeRoundEnd( now );
-		if ( roundStartTime > 0 ) {
-			ev_pendingRoundStart = roundStartTime;
-		}
-	} else {
-		if ( roundStartTime > 0 ) {
-			DemoEv_MaybeRoundStart( roundStartTime );
-		} else {
-			DemoEv_MaybeRoundStart( now );
-		}
-	}
-}
 
 static void DemoEv_MaybeMatchStart( int serverTime ) {
 	if ( ev_matchOn ) {
@@ -642,61 +528,30 @@ static void DemoEv_MaybeMatchEnd( int serverTime ) {
 	DemoEv_Add( serverTime, DEMOEV_MATCH_END );
 }
 
-static void DemoEv_ApplyWarmupCs( const char *value, qboolean emit ) {
-	int	n;
-	int	startTime;
-
-	if ( !value ) {
-		value = "";
-	}
-	while ( *value == ' ' || *value == '\t' || *value == '"' ) {
-		value++;
-	}
-	n = atoi( value );
-
-	if ( n > 0 ) {
-		if ( emit && ev_matchOn ) {
-			DemoEv_MaybeMatchEnd( ev_lastServerTime );
-		}
-		ev_warmupDeadline = n;
-		ev_warmupOn = qtrue;
-		ev_matchOn = qfalse;
-		ev_intermissionOn = qfalse;
-		return;
-	}
-
-	if ( n < 0 ) {
-		if ( emit && ev_matchOn ) {
-			DemoEv_MaybeMatchEnd( ev_lastServerTime );
-		}
-		ev_warmupDeadline = 0;
-		ev_warmupOn = qtrue;
-		ev_matchOn = qfalse;
-		return;
-	}
-
-	if ( emit ) {
-		startTime = ev_warmupDeadline;
-		if ( startTime <= 0 ) {
-			startTime = ev_lastServerTime;
-		}
-		if ( ev_matchOn ) {
-			DemoEv_MaybeMatchEnd( startTime );
-			ev_intermissionOn = qfalse;
-		}
-		DemoEv_MaybeMatchStart( startTime );
-	}
-	ev_warmupOn = qfalse;
-	ev_warmupDeadline = 0;
-}
-
 static void DemoEv_ApplyConfigstring( int idx, const char *value, qboolean emit ) {
 	qboolean	on;
 	int			clientNum;
 	const char	*name;
+	const char	*raw;
+	const char	*p;
+	int			len;
+	int			n;
+	int			startTime;
 
 	if ( idx == CS_SERVERINFO ) {
-		DemoEv_SetCurrentMap( Info_ValueForKey( value, "mapname" ) );
+		raw = Info_ValueForKey( value, "mapname" );
+		ev_currentMap[0] = '\0';
+		if ( raw && raw[0] ) {
+			p = raw;
+			if ( !Q_stricmpn( p, "maps/", 5 ) ) {
+				p += 5;
+			}
+			Q_strncpyz( ev_currentMap, p, sizeof( ev_currentMap ) );
+			len = (int)strlen( ev_currentMap );
+			if ( len > 4 && !Q_stricmp( ev_currentMap + len - 4, ".bsp" ) ) {
+				ev_currentMap[len - 4] = '\0';
+			}
+		}
 		return;
 	}
 
@@ -711,12 +566,63 @@ static void DemoEv_ApplyConfigstring( int idx, const char *value, qboolean emit 
 	}
 
 	if ( idx == CS_WARMUP ) {
-		DemoEv_ApplyWarmupCs( value, emit );
+		if ( !value ) {
+			value = "";
+		}
+		while ( *value == ' ' || *value == '\t' || *value == '"' ) {
+			value++;
+		}
+		n = atoi( value );
+
+		if ( n > 0 ) {
+			if ( emit && ev_matchOn ) {
+				DemoEv_MaybeMatchEnd( ev_lastServerTime );
+			}
+			ev_warmupDeadline = n;
+			ev_warmupOn = qtrue;
+			ev_matchOn = qfalse;
+			ev_intermissionOn = qfalse;
+			return;
+		}
+
+		if ( n < 0 ) {
+			if ( emit && ev_matchOn ) {
+				DemoEv_MaybeMatchEnd( ev_lastServerTime );
+			}
+			ev_warmupDeadline = 0;
+			ev_warmupOn = qtrue;
+			ev_matchOn = qfalse;
+			return;
+		}
+
+		if ( emit ) {
+			startTime = ev_warmupDeadline;
+			if ( startTime <= 0 ) {
+				startTime = ev_lastServerTime;
+			}
+			if ( ev_matchOn ) {
+				DemoEv_MaybeMatchEnd( startTime );
+				ev_intermissionOn = qfalse;
+			}
+			DemoEv_MaybeMatchStart( startTime );
+		}
+		ev_warmupOn = qfalse;
+		ev_warmupDeadline = 0;
 		return;
 	}
 
 	if ( idx == CS_INTERMISSION ) {
-		on = DemoEv_CsActive( value );
+		on = qfalse;
+		if ( value ) {
+			while ( *value == ' ' || *value == '\t' || *value == '"' ) {
+				value++;
+			}
+			if ( value[0] && value[0] != '0' ) {
+				on = qtrue;
+			} else if ( value[0] == '0' && value[1] && value[1] >= '0' && value[1] <= '9' ) {
+				on = qtrue;
+			}
+		}
 		if ( emit && on ) {
 			DemoEv_MaybeMatchEnd( ev_lastServerTime );
 		} else {
@@ -751,23 +657,6 @@ static void DemoEv_CheckEntityEvents( const entityState_t *oldEs, const entitySt
 			DemoEv_AddDeath( serverTime, es->otherEntityNum, es->otherEntityNum2 );
 		}
 	}
-}
-
-static void DemoEv_CheckPlayerstateEvents( const playerState_t *ops, const playerState_t *ps, int serverTime ) {
-}
-
-static const entityState_t *DemoEv_FindOldEnt( int oldSlot, int number ) {
-	int	i;
-
-	if ( oldSlot < 0 ) {
-		return NULL;
-	}
-	for ( i = 0; i < ev_numEnts[oldSlot]; i++ ) {
-		if ( ev_ents[oldSlot][i].number == number ) {
-			return &ev_ents[oldSlot][i];
-		}
-	}
-	return NULL;
 }
 
 static qboolean DemoEv_ParsePacketEntities( msg_t *msg, int oldSlot, int newSlot, int serverTime ) {
@@ -842,7 +731,19 @@ static qboolean DemoEv_ParsePacketEntities( msg_t *msg, int oldSlot, int newSlot
 				return qfalse;
 			}
 			if ( state->number != MAX_GENTITIES - 1 ) {
-				DemoEv_CheckEntityEvents( DemoEv_FindOldEnt( oldSlot, newnum ), state, serverTime );
+				const entityState_t *prevEs;
+				int					fi;
+
+				prevEs = NULL;
+				if ( oldSlot >= 0 ) {
+					for ( fi = 0; fi < ev_numEnts[oldSlot]; fi++ ) {
+						if ( ev_ents[oldSlot][fi].number == newnum ) {
+							prevEs = &ev_ents[oldSlot][fi];
+							break;
+						}
+					}
+				}
+				DemoEv_CheckEntityEvents( prevEs, state, serverTime );
 				ev_numEnts[newSlot]++;
 			}
 		}
@@ -868,44 +769,17 @@ static qboolean DemoEv_ParsePacketEntities( msg_t *msg, int oldSlot, int newSlot
 	return qtrue;
 }
 
-static void DemoEv_PresMergeSmallestGap( int clientNum ) {
-	int	i;
-	int	best;
-	int	bestGap;
-	int	gap;
-	int	n;
-
-	n = ev_presCount[clientNum];
-	if ( n < 2 ) {
-		if ( n > 0 ) {
-			ev_presCount[clientNum] = n - 1;
-		}
-		return;
-	}
-	best = 0;
-	bestGap = ev_presStart[clientNum][1] - ev_presEnd[clientNum][0];
-	for ( i = 1; i < n - 1; i++ ) {
-		gap = ev_presStart[clientNum][i + 1] - ev_presEnd[clientNum][i];
-		if ( gap < bestGap ) {
-			bestGap = gap;
-			best = i;
-		}
-	}
-	ev_presEnd[clientNum][best] = ev_presEnd[clientNum][best + 1];
-	for ( i = best + 1; i < n - 1; i++ ) {
-		ev_presStart[clientNum][i] = ev_presStart[clientNum][i + 1];
-		ev_presEnd[clientNum][i] = ev_presEnd[clientNum][i + 1];
-	}
-	ev_presCount[clientNum] = n - 1;
-}
-
 static void DemoEv_NoteSnapshotPresence( int serverTime, int recClient, int entSlot ) {
 	byte				present[MAX_CLIENTS];
 	const entityState_t	*es;
 	int					i;
 	int					c;
 	int					n;
+	int					presN;
 	int					slot;
+	int					best;
+	int					bestGap;
+	int					gap;
 
 	Com_Memset( present, 0, sizeof( present ) );
 	if ( recClient >= 0 && recClient < MAX_CLIENTS ) {
@@ -929,7 +803,26 @@ static void DemoEv_NoteSnapshotPresence( int serverTime, int recClient, int entS
 		if ( present[c] ) {
 			if ( !ev_presOpen[c] ) {
 				if ( ev_presCount[c] >= DEMOEV_PRESENCE_SPANS ) {
-					DemoEv_PresMergeSmallestGap( c );
+					presN = ev_presCount[c];
+					if ( presN >= 2 ) {
+						best = 0;
+						bestGap = ev_presStart[c][1] - ev_presEnd[c][0];
+						for ( i = 1; i < presN - 1; i++ ) {
+							gap = ev_presStart[c][i + 1] - ev_presEnd[c][i];
+							if ( gap < bestGap ) {
+								bestGap = gap;
+								best = i;
+							}
+						}
+						ev_presEnd[c][best] = ev_presEnd[c][best + 1];
+						for ( i = best + 1; i < presN - 1; i++ ) {
+							ev_presStart[c][i] = ev_presStart[c][i + 1];
+							ev_presEnd[c][i] = ev_presEnd[c][i + 1];
+						}
+						ev_presCount[c] = presN - 1;
+					} else if ( presN > 0 ) {
+						ev_presCount[c] = presN - 1;
+					}
 				}
 				slot = ev_presCount[c];
 				if ( slot < DEMOEV_PRESENCE_SPANS ) {
@@ -1020,7 +913,6 @@ static qboolean DemoEv_ParseSnapshot( msg_t *msg, int messageNum ) {
 	}
 
 	DemoEv_NoteSnapshotPresence( serverTime, newPs.clientNum, newSlot );
-	DemoEv_CheckPlayerstateEvents( fromPs, &newPs, serverTime );
 
 	psIdx = messageNum & DEMOEV_PS_MASK;
 	ev_ps[psIdx] = newPs;
@@ -1102,7 +994,16 @@ static void DemoEv_ParseGamestate( msg_t *msg ) {
 	}
 
 	if ( isFollowup && ev_lastServerTime > 0 && !wasWarmup && !ev_matchOn ) {
-		DemoEv_AddMapLoad( ev_lastServerTime );
+		if ( ev_count < DEMOEV_MAX_EVENTS && ev_lastServerTime >= 0 ) {
+			ev_events[ev_count].serverTime = ev_lastServerTime;
+			ev_events[ev_count].kind = (byte)DEMOEV_MAP_LOAD;
+			ev_events[ev_count].victim = DEMOEV_NO_CLIENT;
+			ev_events[ev_count].attacker = DEMOEV_NO_CLIENT;
+			ev_events[ev_count].victimName[0] = '\0';
+			ev_events[ev_count].attackerName[0] = '\0';
+			Q_strncpyz( ev_events[ev_count].mapName, ev_currentMap, sizeof( ev_events[ev_count].mapName ) );
+			ev_count++;
+		}
 	}
 
 	if ( isFollowup && wasWarmup && !ev_warmupOn ) {
@@ -1124,71 +1025,6 @@ static void DemoEv_NoteClientPing( int clientNum, int ping ) {
 	}
 	if ( ev_playerPing[clientNum] < 1 || ping < ev_playerPing[clientNum] ) {
 		ev_playerPing[clientNum] = ping;
-	}
-}
-
-static void DemoEv_HarvestScorePings( const char *cmd ) {
-	char		buf[MAX_STRING_CHARS];
-	char		*p;
-	const char	*tok;
-	int			idx;
-	int			num;
-	int			numArg;
-	int			stride;
-	int			first;
-	int			rel;
-	int			field;
-	int			client;
-	int			val;
-
-	if ( !Q_stricmpn( cmd, "ratscores1", 10 ) && ( cmd[10] == ' ' || cmd[10] == '\t' ) ) {
-		numArg = 2;
-		stride = 17;
-		first = 7;
-	} else if ( !Q_stricmpn( cmd, "ratscores", 9 ) && ( cmd[9] == ' ' || cmd[9] == '\t' ) ) {
-		numArg = 1;
-		stride = 21;
-		first = 4;
-	} else if ( !Q_stricmpn( cmd, "scores", 6 ) && ( cmd[6] == ' ' || cmd[6] == '\t' ) ) {
-		numArg = 1;
-		stride = 15;
-		first = 4;
-	} else {
-		return;
-	}
-
-	Q_strncpyz( buf, cmd, sizeof( buf ) );
-	p = buf;
-	idx = 0;
-	num = 0;
-	client = -1;
-	while ( 1 ) {
-		tok = COM_Parse( &p );
-		if ( !tok || !tok[0] ) {
-			break;
-		}
-		val = atoi( tok );
-		if ( idx == numArg ) {
-			num = val;
-			if ( num < 0 ) {
-				num = 0;
-			}
-			if ( num > MAX_CLIENTS ) {
-				num = MAX_CLIENTS;
-			}
-		}
-		if ( idx > first && num > 0 ) {
-			rel = idx - ( first + 1 );
-			if ( rel >= 0 && rel < num * stride ) {
-				field = rel % stride;
-				if ( field == 0 ) {
-					client = val;
-				} else if ( field == 2 ) {
-					DemoEv_NoteClientPing( client, val );
-				}
-			}
-		}
-		idx++;
 	}
 }
 
@@ -1221,15 +1057,68 @@ const char *CG_DemoEvents_ClientName( int clientNum ) {
 }
 
 static void DemoEv_ParseServerCommand( const char *cmd ) {
-	char	buf[MAX_STRING_CHARS];
-	char	*p;
-	int		idx;
+	char		buf[MAX_STRING_CHARS];
+	char		*p;
+	const char	*tok;
+	int			idx;
+	int			num;
+	int			numArg;
+	int			stride;
+	int			first;
+	int			rel;
+	int			field;
+	int			client;
+	int			val;
+	int			vals[6];
+	int			parsed;
+	int			roundStartTime;
+	int			now;
 
 	if ( !cmd || !cmd[0] ) {
 		return;
 	}
 	if ( !Q_stricmpn( cmd, "elimination", 11 ) && ( cmd[11] == ' ' || cmd[11] == '\t' ) ) {
-		DemoEv_ApplyElimination( cmd + 11 );
+		parsed = 0;
+		p = (char *)( cmd + 11 );
+		while ( *p && parsed < 6 ) {
+			while ( *p == ' ' || *p == '\t' ) {
+				p++;
+			}
+			if ( !*p ) {
+				break;
+			}
+			vals[parsed] = atoi( p );
+			parsed++;
+			while ( *p && *p != ' ' && *p != '\t' ) {
+				p++;
+			}
+		}
+		if ( parsed < 6 ) {
+			return;
+		}
+		roundStartTime = vals[2];
+		now = ev_lastServerTime;
+		if ( now <= 0 ) {
+			now = roundStartTime;
+		}
+		if ( !ev_matchOn ) {
+			if ( roundStartTime > 0 ) {
+				ev_pendingRoundStart = roundStartTime;
+			}
+			return;
+		}
+		if ( roundStartTime > now + 400 ) {
+			DemoEv_MaybeRoundEnd( now );
+			if ( roundStartTime > 0 ) {
+				ev_pendingRoundStart = roundStartTime;
+			}
+		} else {
+			if ( roundStartTime > 0 ) {
+				DemoEv_MaybeRoundStart( roundStartTime );
+			} else {
+				DemoEv_MaybeRoundStart( now );
+			}
+		}
 		return;
 	}
 	if ( !strcmp( cmd, "map_restart" ) ) {
@@ -1258,7 +1147,56 @@ static void DemoEv_ParseServerCommand( const char *cmd ) {
 		Com_Memset( ev_psValid, 0, sizeof( ev_psValid ) );
 		return;
 	}
-	DemoEv_HarvestScorePings( cmd );
+	if ( !Q_stricmpn( cmd, "ratscores1", 10 ) && ( cmd[10] == ' ' || cmd[10] == '\t' ) ) {
+		numArg = 2;
+		stride = 17;
+		first = 7;
+	} else if ( !Q_stricmpn( cmd, "ratscores", 9 ) && ( cmd[9] == ' ' || cmd[9] == '\t' ) ) {
+		numArg = 1;
+		stride = 21;
+		first = 4;
+	} else if ( !Q_stricmpn( cmd, "scores", 6 ) && ( cmd[6] == ' ' || cmd[6] == '\t' ) ) {
+		numArg = 1;
+		stride = 15;
+		first = 4;
+	} else {
+		numArg = -1;
+	}
+	if ( numArg >= 0 ) {
+		Q_strncpyz( buf, cmd, sizeof( buf ) );
+		p = buf;
+		idx = 0;
+		num = 0;
+		client = -1;
+		while ( 1 ) {
+			tok = COM_Parse( &p );
+			if ( !tok || !tok[0] ) {
+				break;
+			}
+			val = atoi( tok );
+			if ( idx == numArg ) {
+				num = val;
+				if ( num < 0 ) {
+					num = 0;
+				}
+				if ( num > MAX_CLIENTS ) {
+					num = MAX_CLIENTS;
+				}
+			}
+			if ( idx > first && num > 0 ) {
+				rel = idx - ( first + 1 );
+				if ( rel >= 0 && rel < num * stride ) {
+					field = rel % stride;
+					if ( field == 0 ) {
+						client = val;
+					} else if ( field == 2 ) {
+						DemoEv_NoteClientPing( client, val );
+					}
+				}
+			}
+			idx++;
+		}
+	}
 	if ( cmd[0] != 'c' || cmd[1] != 's' || ( cmd[2] != ' ' && cmd[2] != '\t' ) ) {
 		return;
 	}
@@ -1619,48 +1557,6 @@ static float DemoEv_MarkerX( int trackX, int trackW, int firstServerTime, int du
 	return mx;
 }
 
-static void DemoEv_KindColor( byte kind, vec4_t color ) {
-	color[3] = 0.95f;
-	if ( kind == DEMOEV_DEATH_FRAG ) {
-		color[0] = 0.22f;
-		color[1] = 0.88f;
-		color[2] = 0.32f;
-	} else if ( kind == DEMOEV_DEATH_SELF ) {
-		color[0] = 0.92f;
-		color[1] = 0.20f;
-		color[2] = 0.16f;
-	} else if ( kind == DEMOEV_DEATH_OTHER ) {
-		color[0] = 0.58f;
-		color[1] = 0.58f;
-		color[2] = 0.62f;
-	} else if ( kind == DEMOEV_MATCH_START ) {
-		color[0] = 0.30f;
-		color[1] = 0.78f;
-		color[2] = 1.00f;
-	} else if ( kind == DEMOEV_MATCH_END ) {
-		color[0] = 0.95f;
-		color[1] = 0.78f;
-		color[2] = 0.18f;
-	} else {
-		color[0] = 0.78f;
-		color[1] = 0.42f;
-		color[2] = 0.95f;
-	}
-}
-
-static const char *DemoEv_KindTitle( const demoEvent_t *ev ) {
-	if ( ev->kind == DEMOEV_MATCH_START ) {
-		return "Match start";
-	}
-	if ( ev->kind == DEMOEV_MATCH_END ) {
-		return "Match end";
-	}
-	if ( ev->kind == DEMOEV_MAP_LOAD ) {
-		return "Map load";
-	}
-	return NULL;
-}
-
 static qboolean DemoEv_HasIcon( int clientNum ) {
 	clientInfo_t *ci;
 
@@ -1708,7 +1604,15 @@ static void DemoEv_DrawHoverTip( const demoEvent_t *ev, int markerX, int trackY 
 	ch = 10;
 	pad = 6;
 	icon = DEMOEV_TIP_ICON;
-	title = DemoEv_KindTitle( ev );
+	if ( ev->kind == DEMOEV_MATCH_START ) {
+		title = "Match start";
+	} else if ( ev->kind == DEMOEV_MATCH_END ) {
+		title = "Match end";
+	} else if ( ev->kind == DEMOEV_MAP_LOAD ) {
+		title = "Map load";
+	} else {
+		title = NULL;
+	}
 	titleLen = title ? CG_DrawStrlen( title ) : 0;
 	mapDetail = ( ev->kind == DEMOEV_MAP_LOAD && ev->mapName[0] ) ? ev->mapName : NULL;
 	killedWord = "killed";
@@ -2250,7 +2154,32 @@ static qboolean DemoEv_DrawMarkersEx( int trackX, int trackY, int trackW, int tr
 			continue;
 		}
 		mx = DemoEv_MarkerX( trackX, trackW, firstServerTime, durationMs, ev_events[i].serverTime );
-		DemoEv_KindColor( kind, color );
+		color[3] = 0.95f;
+		if ( kind == DEMOEV_DEATH_FRAG ) {
+			color[0] = 0.22f;
+			color[1] = 0.88f;
+			color[2] = 0.32f;
+		} else if ( kind == DEMOEV_DEATH_SELF ) {
+			color[0] = 0.92f;
+			color[1] = 0.20f;
+			color[2] = 0.16f;
+		} else if ( kind == DEMOEV_DEATH_OTHER ) {
+			color[0] = 0.58f;
+			color[1] = 0.58f;
+			color[2] = 0.62f;
+		} else if ( kind == DEMOEV_MATCH_START ) {
+			color[0] = 0.30f;
+			color[1] = 0.78f;
+			color[2] = 1.00f;
+		} else if ( kind == DEMOEV_MATCH_END ) {
+			color[0] = 0.95f;
+			color[1] = 0.78f;
+			color[2] = 0.18f;
+		} else {
+			color[0] = 0.78f;
+			color[1] = 0.42f;
+			color[2] = 0.95f;
+		}
 		CG_FillRect( mx, (float)my, mw, (float)mh, color );
 
 		if ( cursorY >= hoverY0 && cursorY < hoverY1 ) {
