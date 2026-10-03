@@ -165,7 +165,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_knockback` | Vanilla | `1000` | integer >= 0 (typical) | Global weapon knockback scale. |
 | `g_lagLightning` | RatMod | `1` | 0 or 1 | Lightning gun lag compensation (legacy; may not be active in all builds). |
 | `g_lavaDamage` | RatMod | `10` | integer >= 0 (typical) | Damage per second in lava. |
-| `g_lgDamage` | RatMod | `8` | integer >= 0 (typical) | Lightning gun damage per tick. |
+| `g_lgDamage` | RatMod | `6` | integer >= 0 (typical) | Lightning gun damage per tick. |
 | `g_listEntity` | Vanilla | `0` | 0 or 1 | Debug: list entity information. |
 | `g_lms_lives` | RatMod | `1` | 0 or 1 | Lives per player in Last Man Standing. |
 | `g_lms_mode` | RatMod | `0` | 0 or 1 | LMS scoring mode (survivor points vs kill points, with/without overtime). |
@@ -185,7 +185,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_mixedMode` | RatMod | `0` | 0 or 1 | When `1`, allows non-RatEngine clients with limited features. |
 | `g_motd` | Vanilla | `` | string or numeric (see default) | Message of the day string shown to joining players. |
 | `g_motdfile` | RatMod | `motd.cfg` | filename | Path to the MOTD text file. |
-| `g_movement` | RatMod | `0` | `0`-`4` | Movement physics preset. `0` Vanilla Quake 3, `1` CPMD (Defrag), `2` RM (Rat), `3` CPMA, `4` Quake Live. |
+| `g_movement` | RatMod | `4` | `0`-`4` | Movement physics preset. `0` Vanilla Quake 3, `1` CPMD (Defrag), `2` RM (Rat), `3` CPMA, `4` Quake Live. |
 | `g_multiTournamentAutoRePair` | RatMod | `1` | 0 or 1 | When `1`, re-pairs players between multi-tournament games. |
 | `g_multiTournamentEndgameRePair` | RatMod | `1` | 0 or 1 | When `1`, re-pairs players at the end of a multi-tournament bracket. |
 | `g_multiTournamentGames` | RatMod | `4` | integer >= 0 (typical) | Number of simultaneous tournament games in multi-tournament mode. |

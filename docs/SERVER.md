@@ -40,7 +40,7 @@ set sv_fps 20 //Higher values (40, 60, 125) are likely fine but not necessarily 
 set sv_dlurl "https://your.url.tld" //HTTP endpoint where required PK3 files can be found, as a faster alternative to downloading via the in-game server channel.
 
 // Weapon Damage
-set g_lgDamage 8 //Damage is per server tick so raising sv_fps necessitates lowering this proportionally
+set g_lgDamage 6 //Damage is per server tick so raising sv_fps necessitates lowering this proportionally
 set g_mgDamage 7
 set g_railgunDamage 100
 set g_newShotgun 0
@@ -57,7 +57,7 @@ map pro-q3dm6
 
 ### Movement Presets
 
-`\g_movement` controls player physics:
+`\g_movement` controls player physics (default: `4`, Quake Live):
 
 - `0` is Quake 3 style.
 - `1` is Defrag style.
