@@ -629,6 +629,9 @@ static void DemoEv_MaybeMatchEnd( int serverTime ) {
 	if ( ev_intermissionOn ) {
 		return;
 	}
+	if ( !ev_matchOn && !ev_roundOn ) {
+		return;
+	}
 	if ( serverTime <= 0 ) {
 		return;
 	}
@@ -652,6 +655,9 @@ static void DemoEv_ApplyWarmupCs( const char *value, qboolean emit ) {
 	n = atoi( value );
 
 	if ( n > 0 ) {
+		if ( emit && ev_matchOn ) {
+			DemoEv_MaybeMatchEnd( ev_lastServerTime );
+		}
 		ev_warmupDeadline = n;
 		ev_warmupOn = qtrue;
 		ev_matchOn = qfalse;
@@ -660,6 +666,9 @@ static void DemoEv_ApplyWarmupCs( const char *value, qboolean emit ) {
 	}
 
 	if ( n < 0 ) {
+		if ( emit && ev_matchOn ) {
+			DemoEv_MaybeMatchEnd( ev_lastServerTime );
+		}
 		ev_warmupDeadline = 0;
 		ev_warmupOn = qtrue;
 		ev_matchOn = qfalse;
@@ -670,6 +679,10 @@ static void DemoEv_ApplyWarmupCs( const char *value, qboolean emit ) {
 		startTime = ev_warmupDeadline;
 		if ( startTime <= 0 ) {
 			startTime = ev_lastServerTime;
+		}
+		if ( ev_matchOn ) {
+			DemoEv_MaybeMatchEnd( startTime );
+			ev_intermissionOn = qfalse;
 		}
 		DemoEv_MaybeMatchStart( startTime );
 	}
@@ -1217,6 +1230,32 @@ static void DemoEv_ParseServerCommand( const char *cmd ) {
 	}
 	if ( !Q_stricmpn( cmd, "elimination", 11 ) && ( cmd[11] == ' ' || cmd[11] == '\t' ) ) {
 		DemoEv_ApplyElimination( cmd + 11 );
+		return;
+	}
+	if ( !strcmp( cmd, "map_restart" ) ) {
+		int serverTime;
+
+		serverTime = ev_lastServerTime;
+		if ( serverTime <= 0 ) {
+			serverTime = 0;
+		}
+
+		if ( ev_matchOn ) {
+			DemoEv_MaybeMatchEnd( serverTime );
+		} else if ( ev_roundOn ) {
+			DemoEv_MaybeRoundEnd( serverTime );
+		}
+
+		ev_intermissionOn = qfalse;
+		ev_matchOn = qfalse;
+		ev_warmupOn = qfalse;
+		ev_warmupDeadline = 0;
+		ev_roundOn = qfalse;
+		ev_pendingRoundStart = 0;
+		ev_haveSnap = qfalse;
+		ev_numEnts[0] = 0;
+		ev_numEnts[1] = 0;
+		Com_Memset( ev_psValid, 0, sizeof( ev_psValid ) );
 		return;
 	}
 	DemoEv_HarvestScorePings( cmd );
