@@ -35,6 +35,8 @@ menuDef_t *menuScoreboard = NULL;
 
 int drawTeamOverlayModificationCount = -1;
 
+static qboolean CG_Overlay_FollowSubjectHudActive( void );
+
 int sortedTeamPlayers[TEAM_MAXOVERLAY];
 int	numSortedTeamPlayers;
 
@@ -5360,7 +5362,9 @@ static void CG_DrawCrosshair(void)
 		return;
 	}
 
-	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR && !CG_DemoControls_PovEyesActive() ) {
+	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR
+			&& !CG_DemoControls_PovEyesActive()
+			&& !( CG_Overlay_FollowSubjectHudActive() && !cg.renderingThirdPerson ) ) {
 		return;
 	}
 
@@ -7481,11 +7485,26 @@ void CG_DrawSpecPlayerStatus( void ) {
 
 /*
 =================
+CG_Overlay_FollowSubjectHudActive
+=================
+*/
+static qboolean CG_Overlay_FollowSubjectHudActive( void ) {
+	if ( cg.demoPlayback ) {
+		return CG_DemoControls_FollowSubjectHudActive();
+	}
+	return CG_SpecControls_FollowSubjectHudActive();
+}
+
+/*
+=================
 CG_Draw2D
 =================
 */
 static void CG_Draw2D(stereoFrame_t stereoFrame)
 { 
+	qboolean	followHud;
+	qboolean	povHudPush;
+
 #ifdef MISSIONPACK
 	if (cgs.orderPending && cg.time > cgs.orderTime) {
 		CG_CheckOrderPending();
@@ -7496,8 +7515,11 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		return;
 	}
 
-	if ( cg_draw2D.integer == 0 || CG_DemoControls_PovActive()
-			|| CG_SpecControls_DynamicCamActive() ) {
+	followHud = CG_Overlay_FollowSubjectHudActive();
+
+	if ( cg_draw2D.integer == 0
+			|| ( CG_DemoControls_PovActive() && !followHud )
+			|| ( CG_SpecControls_DynamicCamActive() && !followHud ) ) {
 		if ( !CG_DemoControls_PovActive() ) {
 			CG_DrawSpecPlayerStatus();
 			CG_DrawSpectatorEyes();
@@ -7532,7 +7554,12 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		return;
 	}
 */
-	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR /*|| cg.snap->ps.pm_type == PM_SPECTATOR*/ ) {
+	povHudPush = ( CG_DemoControls_PovRedirectHits() && followHud ) ? qtrue : qfalse;
+	if ( povHudPush ) {
+		CG_DemoControls_PovHudPush();
+	}
+
+	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR && !followHud /*|| cg.snap->ps.pm_type == PM_SPECTATOR*/ ) {
 		CG_DrawSpectator();
 
 		if(stereoFrame == STEREO_CENTER)
@@ -7695,8 +7722,12 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 
         cg.accBoardShowing = CG_DrawAccboard();
 
-	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR) {
+	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR && !followHud ) {
 		CG_ShowHelpMotdOverlay();
+	}
+
+	if ( povHudPush ) {
+		CG_DemoControls_PovHudPop();
 	}
 
 	CG_DrawMessagePromptBackground();
