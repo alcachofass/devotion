@@ -149,6 +149,13 @@ CG_CVAR( cg_obeliskRespawnDelay, "g_obeliskRespawnDelay", "10", CVAR_SERVERINFO 
 
 CG_CVAR( cg_cameraOrbit, "cg_cameraOrbit", "0", CVAR_CHEAT )
 CG_CVAR( cg_cameraOrbitDelay, "cg_cameraOrbitDelay", "50", CVAR_ARCHIVE )
+CG_CVAR( cg_deathOrbit, "cg_deathOrbit", "1", CVAR_ARCHIVE )
+CG_CVAR( cg_deathOrbitDelay, "cg_deathOrbitDelay", "1500", CVAR_ARCHIVE )
+CG_CVAR( cg_deathOrbitBlend, "cg_deathOrbitBlend", "900", CVAR_ARCHIVE )
+CG_CVAR( cg_deathOrbitDist, "cg_deathOrbitDist", "150", CVAR_ARCHIVE )
+CG_CVAR( cg_deathOrbitPitch, "cg_deathOrbitPitch", "22", CVAR_ARCHIVE )
+CG_CVAR( cg_deathOrbitSpeed, "cg_deathOrbitSpeed", "14", CVAR_ARCHIVE )
+CG_CVAR( cg_deathOrbitStillSpeed, "cg_deathOrbitStillSpeed", "24", CVAR_ARCHIVE )
 CG_CVAR( cg_timescaleFadeEnd, "cg_timescaleFadeEnd", "1", 0 )
 CG_CVAR( cg_timescaleFadeSpeed, "cg_timescaleFadeSpeed", "0", 0 )
 CG_CVAR( cg_timescale, "timescale", "1", 0 )

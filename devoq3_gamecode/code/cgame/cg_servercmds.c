@@ -82,6 +82,43 @@ static void CG_ParseOvertime( void ) {
 	cgs.timeoutOvertime = atoi(CG_Argv(1));
 }
 
+static void CG_ResetLevelTransition( void ) {
+	cgs.levelTransitionEnd = 0;
+	cgs.levelTransitionType = CG_LEVEL_TRANSITION_NONE;
+}
+
+static void CG_ParseLevelTransition( void ) {
+	int newType;
+
+	newType = Q_stricmp( CG_Argv( 1 ), "newmap" )
+		? CG_LEVEL_TRANSITION_RELOAD : CG_LEVEL_TRANSITION_NEWMAP;
+
+	/* A reload notification must not replace an in-flight map change. */
+	if ( newType == CG_LEVEL_TRANSITION_RELOAD
+		&& cgs.levelTransitionType == CG_LEVEL_TRANSITION_NEWMAP
+		&& cg.time < cgs.levelTransitionEnd ) {
+		return;
+	}
+
+	cgs.levelTransitionType = newType;
+	cgs.levelTransitionEnd = cg.time + CG_LEVEL_TRANSITION_TIMEOUT;
+	CG_BeginLevelTransition();
+}
+
+qboolean CG_LevelTransitionActive( void ) {
+	if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_NONE ) {
+		return qfalse;
+	}
+
+	/* Once the warmup countdown is running, the reload is done. */
+	if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_RELOAD && cg.warmup > 0 ) {
+		CG_ResetLevelTransition();
+		return qfalse;
+	}
+
+	return cg.time < cgs.levelTransitionEnd;
+}
+
 
 
 /*
@@ -1725,6 +1762,13 @@ static void CG_MapRestart( void ) {
 		CG_Printf( "CG_MapRestart\n" );
 	}
 
+	if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_NEWMAP ) {
+		CG_BeginLevelLoadFade();
+		CG_ResetLevelTransition();
+	} else if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_RELOAD && cg.warmup <= 0 ) {
+		CG_ResetLevelTransition();
+	}
+
 	CG_InitPMissilles();
 	CG_InitLocalEntities();
 	CG_InitMarkPolys();
@@ -2545,6 +2589,11 @@ static void CG_ServerCommand( void ) {
 
 	if ( !strcmp( cmd, "overtime" ) ) {
 		CG_ParseOvertime();
+		return;
+	}
+
+	if ( !strcmp( cmd, "levelTransition" ) ) {
+		CG_ParseLevelTransition();
 		return;
 	}
 

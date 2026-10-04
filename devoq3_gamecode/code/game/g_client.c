@@ -3973,6 +3973,7 @@ void ClientDisconnect( int clientNum ) {
 		ent->client->sess.sessionTeam == TEAM_FREE &&
 		level.intermissiontime ) {
 
+		G_BroadcastLevelTransition( LT_RELOAD );
 		trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\n" );
 		level.restarted = qtrue;
 		level.changemap = NULL;

@@ -1671,7 +1671,20 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		{
 			trap_S_StartSound( NULL, es->number, CHAN_BODY, cgs.media.gibSound );
 		}
-		CG_GibPlayer( cent->lerpOrigin );
+		{
+			vec3_t playerVelocity;
+			const qboolean usePredictedPs =
+				es->number == cg.snap->ps.clientNum &&
+				!cg.demoPlayback &&
+				!( cg.snap->ps.pm_flags & PMF_FOLLOW );
+
+			if ( usePredictedPs ) {
+				VectorCopy( cg.predictedPlayerState.velocity, playerVelocity );
+			} else {
+				VectorCopy( es->pos.trDelta, playerVelocity );
+			}
+			CG_GibPlayer( cent->lerpOrigin, cent->lerpAngles, playerVelocity );
+		}
 		break;
 
 	case EV_STOPLOOPINGSOUND:

@@ -1162,6 +1162,7 @@ typedef struct {
 	qhandle_t	crosshairShader[NUM_CROSSHAIRS];
 	qhandle_t	crosshairOutlineShader[NUM_CROSSHAIRS];
 	qhandle_t	lagometerShader;
+	qhandle_t	levelTransitionOkShader;
 	qhandle_t	backTileShader;
 	qhandle_t	noammoShader;
 	qhandle_t	vsExplosionIcon;
@@ -1793,8 +1794,15 @@ typedef struct {
     float	maxBrightshellAlpha;
     int		timeoutEnd;
     int		timeoutOvertime;
+    int		levelTransitionEnd;
+    int		levelTransitionType;
     char	sv_hostname[MAX_QPATH];
 } cgs_t;
+
+#define CG_LEVEL_TRANSITION_NONE	0
+#define CG_LEVEL_TRANSITION_RELOAD	1
+#define CG_LEVEL_TRANSITION_NEWMAP	2
+#define CG_LEVEL_TRANSITION_TIMEOUT	20000
 
 //==============================================================================
 
@@ -1865,6 +1873,7 @@ void CG_SpecControls_Frame( void );
 void CG_SpecControls_Shutdown( void );
 void CG_SpecControls_Draw( void );
 qboolean CG_SpecControls_DynamicCamActive( void );
+qboolean CG_SpecControls_FollowSubjectHudActive( void );
 qboolean CG_SpecControls_MouseEvent( int dx, int dy );
 qboolean CG_SpecControls_KeyEvent( int key, qboolean down );
 qboolean CG_DemoControls_IsSeeking( void );
@@ -1883,6 +1892,9 @@ qboolean CG_DemoControls_PovTrackingActive( void );
 qboolean CG_DemoControls_PovEyesActive( void );
 qboolean CG_DemoControls_PovParkedActive( void );
 qboolean CG_DemoControls_PovThirdActive( void );
+qboolean CG_DemoControls_FollowSubjectHudActive( void );
+void CG_DemoControls_PovHudPush( void );
+void CG_DemoControls_PovHudPop( void );
 void CG_DemoControls_PovSubjectOrigin( vec3_t origin );
 int CG_DemoControls_SubjectClient( void );
 qboolean CG_DemoControls_WorldPersistActive( void );
@@ -1906,6 +1918,7 @@ qboolean CG_Orbit_Active( void );
 qboolean CG_Orbit_ChaseActive( void );
 void CG_Orbit_Mouse( int dx, int dy );
 void CG_Orbit_Zoom( int notches );
+qboolean CG_DeathCam_Active( void );
 
 void CG_DemoControls_RefreshAttackKeys( void );
 qboolean CG_DemoControls_AttackKey( int key );
@@ -2120,6 +2133,9 @@ extern  char teamChat2[256];
 
 void CG_AddLagometerFrameInfo( void );
 void CG_AddLagometerSnapshotInfo( snapshot_t *snap );
+qboolean CG_LevelTransitionActive( void );
+void CG_BeginLevelTransition( void );
+void CG_DrawLevelTransition( void );
 void CG_CenterPrint( const char *str, int y, int charWidth );
 void CG_DrawHead( float x, float y, float w, float h, int clientNum, vec3_t headAngles );
 void CG_DrawActive( stereoFrame_t stereoView );
@@ -2329,7 +2345,8 @@ void CG_LightningBoltBeam( vec3_t start, vec3_t end );
 void CG_ScorePlum( int client, vec3_t org, int score );
 void CG_DamagePlum( int client, vec3_t org, int damage );
 
-void CG_GibPlayer( vec3_t playerOrigin );
+void CG_GibPlayer( const vec3_t playerOrigin, const vec3_t playerAngles,
+	const vec3_t playerVelocity );
 void CG_BigExplode( vec3_t playerOrigin );
 
 void CG_Bleed( vec3_t origin, int entityNum );
@@ -2375,6 +2392,9 @@ void CG_LoadingItem( int itemNum );
 void CG_LoadingClient( int clientNum );
 void CG_DrawInformation( void );
 void CG_DrawLoadFade( void );
+void CG_BeginLevelLoadFade( void );
+void CG_DrawLevelLoadFade( void );
+void CG_DrawViewFades( stereoFrame_t stereoView );
 void CG_BeginLeaveFade( void );
 void CG_DrawLeaveFade( stereoFrame_t stereoView );
 

@@ -699,6 +699,7 @@ void G_SetVoteExecTime(void) {
 			level.voteExecuteTime = level.realtime;
 		}
 	}
+	G_BroadcastLevelTransitionForVote( level.voteString );
 }
 
 #define VOTE_REJECTED_REPEAT_TIME (120*1000)

@@ -1930,6 +1930,7 @@ qboolean ReorderMultiTournament( void ) {
 	G_UpdateMultiTrnGames();
 	level.shuffling_teams = qfalse;
 
+	G_BroadcastLevelTransition( LT_RELOAD );
 	level.restartAt = level.realtime + 2000;
 	level.restarted = qtrue;
 
@@ -2818,6 +2819,7 @@ void ExitLevel (void) {
 		if ( !level.restarted ) {
 			RemoveTournamentLoser();
 			if( !g_autonextmap.integer ) {
+				G_BroadcastLevelTransition( LT_RELOAD );
 				trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\n" );	
 				level.restarted = qtrue;
 				level.changemap = NULL;
@@ -2831,6 +2833,7 @@ void ExitLevel (void) {
 	else if ( g_gametype.integer == GT_MULTITOURNAMENT  ) {
 		if ( !level.restarted ) {
 			if (!ReorderMultiTournament()) {
+				G_BroadcastLevelTransition( LT_RELOAD );
 				trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\n" );
 			}
 			level.restarted = qtrue;
@@ -2895,6 +2898,7 @@ void ExitLevel (void) {
             }
         }
 
+	G_BroadcastLevelTransition( LT_NEWMAP );
 	if( !Q_stricmp( nextmap, "map_restart 0" ) && Q_stricmp( d1, "" ) ) {
 		trap_Cvar_Set( "nextmap", "vstr d2" );
 		trap_SendConsoleCommand( EXEC_APPEND, "vstr d1\n" );
@@ -3145,6 +3149,7 @@ qboolean CheckNextmapVote( void ) {
 
 	Com_Printf("NextMapVote: switching to map %s\n", map);
 	trap_Cvar_VariableStringBuffer( "nextmap", nextmap, sizeof(nextmap) );
+	G_BroadcastLevelTransition( LT_NEWMAP );
 	if (*nextmap) {
 		trap_SendConsoleCommand( EXEC_APPEND, va("map \"%s\"; set nextmap \"%s\"\n", map, nextmap ));
 	} else {
@@ -4756,6 +4761,7 @@ void CheckTournament( void ) {
 		if ( level.time > level.warmupTime ) {
 			level.warmupTime += 10000;
 			trap_Cvar_Set( "g_restarted", "1" );
+			G_BroadcastLevelTransition( LT_RELOAD );
 			trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\n" );
 			level.restarted = qtrue;
 			return;
@@ -4868,6 +4874,7 @@ void CheckTournament( void ) {
 		if ( level.time > level.warmupTime ) {
 			level.warmupTime += 10000;
 			trap_Cvar_Set( "g_restarted", "1" );
+			G_BroadcastLevelTransition( LT_RELOAD );
 			trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\n" );
 			level.restarted = qtrue;
 			return;
@@ -5212,6 +5219,7 @@ void CheckMultiTournament( void ) {
 	if ( level.time > level.warmupTime ) {
 		level.warmupTime += 10000;
 		trap_Cvar_Set( "g_restarted", "1" );
+		G_BroadcastLevelTransition( LT_RELOAD );
 		trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\n" );
 		level.restarted = qtrue;
 		return;

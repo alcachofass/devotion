@@ -2177,6 +2177,19 @@ qboolean CG_SpecControls_DynamicCamActive( void ) {
 	return ( dc_specRig && DemoCtrl_SpecSession() ) ? qtrue : qfalse;
 }
 
+qboolean CG_SpecControls_FollowSubjectHudActive( void ) {
+	if ( cg.demoPlayback || !cg.snap || !cg_draw2D.integer ) {
+		return qfalse;
+	}
+	if ( DemoCtrl_SpecFollowing() ) {
+		return qtrue;
+	}
+	if ( dc_specRig && CG_DemoCams_UsingPlayerView() ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
 qboolean CG_SpecControls_MouseEvent( int dx, int dy ) {
 	return DemoCtrl_SpecMouse( dx, dy );
 }

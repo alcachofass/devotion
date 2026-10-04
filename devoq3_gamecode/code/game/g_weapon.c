@@ -498,6 +498,13 @@ qboolean ShotgunPellet( vec3_t start, vec3_t end, gentity_t *ent, struct hitShot
 				continue;
 			}
 			else {
+				// Gib corpses but let pellets pass through to players behind them.
+				if ( traceEnt->client && traceEnt->client->ps.pm_type == PM_DEAD ) {
+					G_Damage( traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_SHOTGUN, altFire );
+					passent = traceEnt->s.number;
+					VectorCopy( tr.endpos, tr_start );
+					continue;
+				}
 				if( LogAccuracyHit( traceEnt, ent ) ) {
 					logaccuracyhit = qtrue;
 				}
@@ -629,6 +636,28 @@ void ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, gentity_t *ent, qb
 	}
 
 	ShotgunDamagePlums(&hitTargets, ent);
+
+	{
+		int j;
+		gentity_t *ent2;
+
+		ent2 = &g_entities[0];
+		for ( j = 0; j < level.num_entities; j++, ent2++ ) {
+			if ( !ent2->inuse ) {
+				continue;
+			}
+
+			if ( ent2->gibScheduled ) {
+				GibEntity( ent2, ent->s.number );
+			}
+			ent2->gibScheduled = qfalse;
+
+			if ( ent2->client && ent2->client->ps.pm_type == PM_DEAD ) {
+				ent2->r.maxs[2] = -8;
+				ent2->flags |= FL_NO_KNOCKBACK;
+			}
+		}
+	}
 
 //unlagged - backward reconciliation #2
 	// put them back

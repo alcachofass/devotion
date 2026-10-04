@@ -226,6 +226,16 @@ static void CG_TransitionSnapshot( void ) {
 		}
 	}
 
+	if ( cg.mapRestart ) {
+		CG_Respawn();
+		cg.mapRestart = qfalse;
+		if ( oldFrame ) {
+			/* Warmup→match is a new server epoch. Drop persistant diffs so
+			 * reset-to-zero award counts cannot fire a ghost medal. */
+			oldFrame->ps = cg.snap->ps;
+		}
+	}
+
 	CG_DemoHistory_OnSnapshot( cg.snap );
 
 }
@@ -298,6 +308,10 @@ static void CG_SetNextSnap( snapshot_t *snap ) {
 
 	// sort out solid entities
 	CG_BuildSolidList();
+
+	// Run server commands immediately so UI notifications (levelTransition)
+	// appear without waiting for snapshot interpolation to catch up.
+	CG_ExecuteNewServerCommands( snap->serverCommandSequence );
 }
 
 

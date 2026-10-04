@@ -29,6 +29,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define LOAD_FADE_TIME			1000
 #define LEAVE_FADE_TIME			1000
 
+static int s_levelLoadFadeStart;
+
 static int			loadingPlayerIconCount;
 static int			loadingItemIconCount;
 static qhandle_t	loadingPlayerIcons[MAX_LOADING_PLAYER_ICONS];
@@ -381,6 +383,86 @@ void CG_DrawLoadFade( void ) {
 	trap_R_SetColor( color );
 	CG_DrawPic( 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, levelshot );
 	trap_R_SetColor( NULL );
+}
+
+/*
+====================
+CG_BeginLevelLoadFade
+
+Start the fade to black that precedes a server-driven level load.
+Survives CG_Init via static state.
+====================
+*/
+void CG_BeginLevelLoadFade( void ) {
+	if ( s_levelLoadFadeStart ) {
+		return;
+	}
+
+	s_levelLoadFadeStart = trap_Milliseconds();
+	if ( !s_levelLoadFadeStart ) {
+		s_levelLoadFadeStart = 1;
+	}
+}
+
+/*
+====================
+CG_DrawLevelLoadFade
+
+Fade out to black when the server returns, hold through loading, then
+hand off to CG_DrawLoadFade for the fade in.
+====================
+*/
+void CG_DrawLevelLoadFade( void ) {
+	int		elapsed;
+	float	color[4];
+
+	if ( !s_levelLoadFadeStart ) {
+		return;
+	}
+
+	elapsed = trap_Milliseconds() - s_levelLoadFadeStart;
+	if ( elapsed < 0 ) {
+		elapsed = 0;
+	}
+
+	color[0] = color[1] = color[2] = 0.0f;
+
+	if ( elapsed < LEAVE_FADE_TIME ) {
+		color[3] = (float)elapsed / (float)LEAVE_FADE_TIME;
+		CG_FillRect( 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, color );
+		return;
+	}
+
+	if ( cg.loadFadeStart ) {
+		elapsed = trap_Milliseconds() - cg.loadFadeStart;
+		if ( elapsed >= LOAD_FADE_TIME ) {
+			s_levelLoadFadeStart = 0;
+		}
+		return;
+	}
+
+	if ( !cg.snap || ( cg.snap->snapFlags & SNAPFLAG_NOT_ACTIVE ) ) {
+		color[3] = 1.0f;
+		CG_FillRect( 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, color );
+		return;
+	}
+
+	cg.loadFadeStart = trap_Milliseconds();
+	if ( !cg.loadFadeStart ) {
+		cg.loadFadeStart = 1;
+	}
+}
+
+/*
+====================
+CG_DrawViewFades
+
+Level-load and disconnect fades drawn at the end of a view pass.
+====================
+*/
+void CG_DrawViewFades( stereoFrame_t stereoView ) {
+	CG_DrawLevelLoadFade();
+	CG_DrawLeaveFade( stereoView );
 }
 
 /*

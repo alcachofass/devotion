@@ -636,15 +636,6 @@ void CG_TransitionPlayerState( playerState_t *ps, playerState_t *ops ) {
 		CG_Respawn();
 	}
 
-	if ( cg.mapRestart ) {
-		cg.altFireMGBurstShots = 0;	//mrd
-		CG_Respawn();
-		cg.mapRestart = qfalse;
-		/* Warmup→match is a new server epoch. Drop persistant diffs so
-		 * reset-to-zero award counts cannot fire a ghost medal. */
-		*ops = *ps;
-	}
-
 	if ( cg.snap->ps.pm_type != PM_INTERMISSION 
 		&& ps->persistant[PERS_TEAM] != TEAM_SPECTATOR ) {
 		CG_CheckLocalSounds( ps, ops );

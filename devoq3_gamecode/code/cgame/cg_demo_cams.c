@@ -55,6 +55,7 @@ Replay cameras: per-map poses, rails, director, and markers.
 #define DEMOCAM_CUT_MIN			0.16f
 #define DEMOCAM_PLAYER_BASE		0.20f
 #define DEMOCAM_THIRD_MINFRAC	0.42f
+#define DEMOCAM_CHASE_DIST		100.0f
 #define DEMOCAM_KIND_STILL		0
 #define DEMOCAM_KIND_RAIL		1
 #define DEMOCAM_KIND_FIRST		2
@@ -1130,10 +1131,7 @@ static void DemoCam_PlayerScores( qboolean haveRec, const vec3_t recOrg, float *
 	if ( !haveRec || !DemoCam_PlayerViewAngles( CG_DemoControls_SubjectClient(), ang ) ) {
 		return;
 	}
-	range = cg_thirdPersonRange.value;
-	if ( range < 40.0f ) {
-		range = 80.0f;
-	}
+	range = DEMOCAM_CHASE_DIST;
 	VectorCopy( recOrg, view );
 	view[2] += 8.0f;
 	AngleVectors( ang, forward, NULL, NULL );
@@ -2257,6 +2255,8 @@ static qboolean DemoCam_ShotsDiffer( int idx, int kind ) {
 	return ( idx != dcamCur ) ? qtrue : qfalse;
 }
 
+static void DemoCam_SyncOrbitChase( void );
+
 static void DemoCam_BeginCut( int idx, int kind, int now ) {
 	dcamHoldKind = dcamKind;
 	if ( dcamViewValid ) {
@@ -2535,6 +2535,7 @@ void CG_DemoCams_DirectorFrame( void ) {
 		dcamViewValid = qtrue;
 	}
 
+	DemoCam_SyncOrbitChase();
 	DemoCam_UpdateItemGhostGen();
 }
 
@@ -2548,6 +2549,17 @@ static int DemoCam_FadeKind( void ) {
 		}
 	}
 	return dcamKind;
+}
+
+static void DemoCam_SyncOrbitChase( void ) {
+	if ( !CG_DemoControls_RigCamActive() ) {
+		return;
+	}
+	if ( dcamHasShot && DemoCam_FadeKind() == DEMOCAM_KIND_THIRD ) {
+		CG_Orbit_Chase_Set( qtrue );
+	} else if ( CG_Orbit_ChaseActive() ) {
+		CG_Orbit_Chase_Set( qfalse );
+	}
 }
 
 qboolean CG_DemoCams_UsingPlayerView( void ) {
@@ -3160,10 +3172,6 @@ void CG_DemoCams_ShareActivate( void ) {
 	if ( dcamNetOpen ) {
 		dcamNetMode = 4;
 		trap_SendClientCommand( "camsession join" );
-		return;
-	}
-	if ( dcamCount <= 0 && drailCount <= 0 ) {
-		CG_Printf( "Place or load cameras before starting a session.\n" );
 		return;
 	}
 	dcamNetMode = 3;

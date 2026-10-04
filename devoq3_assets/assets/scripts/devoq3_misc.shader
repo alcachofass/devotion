@@ -551,3 +551,15 @@ gfx/2d/camrailactive
 		alphaGen vertex
 	}
 }
+
+gfx/misc/alles_klar
+{
+	nopicmip
+	nomipmaps
+	{
+		map gfx/misc/alles_klar.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}

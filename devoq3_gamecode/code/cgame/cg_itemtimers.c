@@ -76,6 +76,15 @@ qboolean CG_HudItemTimersAllowed( void ) {
 	if ( cg.demoPlayback ) {
 		return cg_demoItemTimers.integer ? qtrue : qfalse;
 	}
+	/* Follow copies the target playerState, so team/pm_type are theirs. */
+	if ( cg.snap->ps.pm_flags & PMF_FOLLOW ) {
+		return qtrue;
+	}
+	if ( cg.clientNum >= 0 && cg.clientNum < MAX_CLIENTS
+			&& cgs.clientinfo[cg.clientNum].infoValid
+			&& cgs.clientinfo[cg.clientNum].team == TEAM_SPECTATOR ) {
+		return qtrue;
+	}
 	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
 		return qtrue;
 	}

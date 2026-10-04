@@ -178,6 +178,10 @@ static int		dc_shotHideFrames;
 static int		dc_savedDraw2D;
 static int		dc_savedDrawGun;
 static qboolean	dc_hudSaved;
+static playerState_t	dc_povHudPs;
+static playerState_t	dc_povHudSavedSnapPs;
+static playerState_t	dc_povHudSavedPredPs;
+static qboolean		dc_povHudActive;
 
 static int		dc_clipInMs = -1;
 static int		dc_clipOutMs = -1;
@@ -1926,8 +1930,10 @@ static qboolean DemoCtrl_DemoRigActive( void ) {
 }
 
 static void DemoCtrl_SyncCamHud( void ) {
-	if ( ( CG_DemoControls_FreeCamActive() || DemoCtrl_DemoRigActive() )
-			&& !DemoCtrl_SnapIntermission() ) {
+	if ( CG_DemoControls_FreeCamActive() && !DemoCtrl_SnapIntermission() ) {
+		DemoCtrl_FreeCamHudOff();
+	} else if ( DemoCtrl_DemoRigActive() && !DemoCtrl_SnapIntermission()
+			&& !CG_DemoCams_UsingPlayerView() ) {
 		DemoCtrl_FreeCamHudOff();
 	} else {
 		DemoCtrl_FreeCamHudRestore();
@@ -2556,6 +2562,84 @@ qboolean CG_DemoControls_PovThirdActive( void ) {
 		return qfalse;
 	}
 	return CG_DemoControls_PovEyesActive() ? qfalse : qtrue;
+}
+
+qboolean CG_DemoControls_FollowSubjectHudActive( void ) {
+	if ( !cg.demoPlayback || !cg_draw2D.integer || dc_seeking || DemoCtrl_SnapIntermission() ) {
+		return qfalse;
+	}
+	if ( dc_freeView ) {
+		return qfalse;
+	}
+	if ( CG_DemoControls_PovTrackingActive() ) {
+		return DemoCtrl_PovSubjectAlive() ? qtrue : qfalse;
+	}
+	if ( DemoCtrl_DemoRigActive() && CG_DemoCams_UsingPlayerView() ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+void CG_DemoControls_PovHudPush( void ) {
+	int				client;
+	centity_t		*cent;
+	clientInfo_t	*ci;
+	team_t			team;
+
+	if ( !CG_DemoControls_PovRedirectHits() || dc_povHudActive || !cg.snap ) {
+		return;
+	}
+
+	client = dc_povClient;
+	if ( client < 0 || client >= MAX_CLIENTS ) {
+		return;
+	}
+
+	cent = &cg_entities[client];
+	ci = &cgs.clientinfo[client];
+
+	dc_povHudSavedSnapPs = cg.snap->ps;
+	dc_povHudSavedPredPs = cg.predictedPlayerState;
+
+	dc_povHudPs = dc_povHudSavedSnapPs;
+	dc_povHudPs.clientNum = client;
+	team = ci->team;
+	if ( team == TEAM_SPECTATOR ) {
+		team = TEAM_FREE;
+	}
+	dc_povHudPs.persistant[PERS_TEAM] = team;
+
+	if ( cent->currentValid ) {
+		dc_povHudPs.weapon = cent->currentState.weapon;
+		dc_povHudPs.eFlags = cent->currentState.eFlags;
+		dc_povHudPs.legsAnim = cent->currentState.legsAnim;
+		dc_povHudPs.torsoAnim = cent->currentState.torsoAnim;
+		if ( cent->currentState.eFlags & EF_DEAD ) {
+			dc_povHudPs.pm_type = PM_DEAD;
+			dc_povHudPs.stats[STAT_HEALTH] = 0;
+		} else {
+			if ( dc_povHudPs.pm_type == PM_DEAD ) {
+				dc_povHudPs.pm_type = PM_NORMAL;
+			}
+			if ( ci->specInfoValid || ci->health > 0 ) {
+				dc_povHudPs.stats[STAT_HEALTH] = ci->health;
+				dc_povHudPs.stats[STAT_ARMOR] = ci->armor;
+			}
+		}
+	}
+
+	cg.snap->ps = dc_povHudPs;
+	cg.predictedPlayerState = dc_povHudPs;
+	dc_povHudActive = qtrue;
+}
+
+void CG_DemoControls_PovHudPop( void ) {
+	if ( !dc_povHudActive || !cg.snap ) {
+		return;
+	}
+	cg.snap->ps = dc_povHudSavedSnapPs;
+	cg.predictedPlayerState = dc_povHudSavedPredPs;
+	dc_povHudActive = qfalse;
 }
 
 void CG_DemoControls_PovSubjectOrigin( vec3_t origin ) {
@@ -4251,8 +4335,6 @@ void CG_DemoControls_Frame( void ) {
 		if ( dc_orbitDemo ) {
 			dc_orbitDemo = qfalse;
 			dc_orbitLook = qfalse;
-			CG_Orbit_Clear();
-		} else if ( CG_Orbit_ChaseActive() ) {
 			CG_Orbit_Clear();
 		}
 		dc_speedLabel[0] = '\0';
