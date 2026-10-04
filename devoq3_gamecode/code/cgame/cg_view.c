@@ -409,7 +409,8 @@ void CG_Orbit_Zoom( int notches ) {
 	}
 }
 
-static void CG_Orbit_Place( const vec3_t focus, int skipNum ) {
+static void CG_Orbit_Compute( const vec3_t focus, int skipNum, float yaw, float pitch, float dist,
+		vec3_t outOrg, vec3_t outAng ) {
 	vec3_t		ang;
 	vec3_t		forward;
 	vec3_t		cam;
@@ -419,11 +420,11 @@ static void CG_Orbit_Place( const vec3_t focus, int skipNum ) {
 	static vec3_t	mins = { -4, -4, -4 };
 	static vec3_t	maxs = { 4, 4, 4 };
 
-	ang[PITCH] = -orbitPitch;
-	ang[YAW] = orbitYaw;
+	ang[PITCH] = -pitch;
+	ang[YAW] = yaw;
 	ang[ROLL] = 0.0f;
 	AngleVectors( ang, forward, NULL, NULL );
-	VectorMA( focus, orbitDist, forward, cam );
+	VectorMA( focus, dist, forward, cam );
 
 	CG_Trace( &tr, focus, mins, maxs, cam, skipNum, MASK_SOLID );
 	if ( tr.fraction < 1.0f ) {
@@ -435,10 +436,210 @@ static void CG_Orbit_Place( const vec3_t focus, int skipNum ) {
 		}
 	}
 
-	VectorCopy( cam, cg.refdef.vieworg );
-	VectorSubtract( focus, cam, back );
-	vectoangles( back, cg.refdefViewAngles );
-	cg.refdefViewAngles[ROLL] = 0.0f;
+	VectorCopy( cam, outOrg );
+	VectorSubtract( focus, outOrg, back );
+	vectoangles( back, outAng );
+	outAng[ROLL] = 0.0f;
+}
+
+static void CG_Orbit_Place( const vec3_t focus, int skipNum ) {
+	CG_Orbit_Compute( focus, skipNum, orbitYaw, orbitPitch, orbitDist,
+			cg.refdef.vieworg, cg.refdefViewAngles );
+}
+
+/*
+===============
+CG_DeathCam
+
+Classic third-person death view, then a smooth pullback into a slow orbit.
+===============
+*/
+typedef enum {
+	DEATHCAM_OFF,
+	DEATHCAM_CLASSIC,
+	DEATHCAM_BLEND,
+	DEATHCAM_ORBIT
+} deathCamMode_t;
+
+#define DEATHCAM_STILL_DEBOUNCE_MSEC	250
+
+static deathCamMode_t	deathCamMode = DEATHCAM_OFF;
+static int				deathCamDeathTime;
+static int				deathCamBlendStart;
+static int				deathCamStillMs;
+static float			deathOrbitYaw;
+static float			deathOrbitPitch;
+static float			deathOrbitDist;
+
+static float CG_DeathCam_SmoothStep( float t ) {
+	return t * t * ( 3.0f - 2.0f * t );
+}
+
+static void CG_DeathCam_Focus( const playerState_t *ps, vec3_t focus ) {
+	VectorCopy( ps->origin, focus );
+	focus[2] += ps->viewheight;
+}
+
+static qboolean CG_DeathCam_Wanted( void ) {
+	if ( !cg_deathOrbit.integer ) {
+		return qfalse;
+	}
+	if ( !cg.snap || cg.snap->ps.stats[STAT_HEALTH] > 0 ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.pm_type == PM_INTERMISSION ) {
+		return qfalse;
+	}
+	if ( cg.demoPlayback ) {
+		return qfalse;
+	}
+	if ( CG_DemoControls_FreeCamActive() || CG_DemoControls_RigCamActive()
+			|| CG_DemoControls_PovActive() || CG_DemoControls_PovParkedActive() ) {
+		return qfalse;
+	}
+	if ( CG_Orbit_Active() || CG_Orbit_ChaseActive() ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+qboolean CG_DeathCam_Active( void ) {
+	return ( deathCamMode == DEATHCAM_BLEND || deathCamMode == DEATHCAM_ORBIT ) ? qtrue : qfalse;
+}
+
+static void CG_DeathCam_ClassicView( const playerState_t *ps, vec3_t outOrg, vec3_t outAng ) {
+	VectorCopy( ps->origin, cg.refdef.vieworg );
+	VectorCopy( ps->viewangles, cg.refdefViewAngles );
+	CG_OffsetThirdPersonView();
+	VectorCopy( cg.refdef.vieworg, outOrg );
+	VectorCopy( cg.refdefViewAngles, outAng );
+}
+
+static void CG_DeathCam_OrbitFromCam( const vec3_t focus, const vec3_t cam ) {
+	vec3_t	dir;
+	float	len;
+	float	horiz;
+
+	VectorSubtract( cam, focus, dir );
+	len = VectorLength( dir );
+	if ( len < 1.0f ) {
+		len = 1.0f;
+		VectorSet( dir, 1.0f, 0.0f, 0.0f );
+	} else {
+		VectorScale( dir, 1.0f / len, dir );
+	}
+
+	deathOrbitDist = len;
+	deathOrbitYaw = RAD2DEG( atan2( dir[1], dir[0] ) );
+	horiz = sqrt( dir[0] * dir[0] + dir[1] * dir[1] );
+	if ( horiz < 0.001f ) {
+		deathOrbitPitch = ( dir[2] > 0.0f ) ? -80.0f : 80.0f;
+	} else {
+		deathOrbitPitch = RAD2DEG( atan2( dir[2], horiz ) );
+	}
+}
+
+static void CG_DeathCam_Frame( void ) {
+	playerState_t	*ps;
+	float			speed;
+	vec3_t			focus;
+	vec3_t			classicOrg;
+	vec3_t			classicAng;
+	float			blendT;
+	float			ramp;
+
+	if ( !CG_DeathCam_Wanted() ) {
+		deathCamMode = DEATHCAM_OFF;
+		return;
+	}
+
+	ps = &cg.predictedPlayerState;
+
+	if ( deathCamMode == DEATHCAM_OFF ) {
+		deathCamMode = DEATHCAM_CLASSIC;
+		deathCamDeathTime = cg.time;
+		deathCamStillMs = 0;
+		return;
+	}
+
+	if ( deathCamMode == DEATHCAM_CLASSIC ) {
+		speed = sqrt( ps->velocity[0] * ps->velocity[0] + ps->velocity[1] * ps->velocity[1] );
+		if ( speed < cg_deathOrbitStillSpeed.value ) {
+			deathCamStillMs += cg.frametime;
+		} else {
+			deathCamStillMs = 0;
+		}
+
+		if ( ( cg.time - deathCamDeathTime >= cg_deathOrbitDelay.integer )
+				|| deathCamStillMs >= DEATHCAM_STILL_DEBOUNCE_MSEC ) {
+			CG_DeathCam_Focus( ps, focus );
+			CG_DeathCam_ClassicView( ps, classicOrg, classicAng );
+			CG_DeathCam_OrbitFromCam( focus, classicOrg );
+			deathCamBlendStart = cg.time;
+			deathCamMode = DEATHCAM_BLEND;
+		}
+		return;
+	}
+
+	if ( deathCamMode == DEATHCAM_BLEND ) {
+		blendT = (float)( cg.time - deathCamBlendStart ) / (float)cg_deathOrbitBlend.integer;
+		if ( blendT > 1.0f ) {
+			blendT = 1.0f;
+			deathCamMode = DEATHCAM_ORBIT;
+		}
+		ramp = CG_DeathCam_SmoothStep( blendT );
+		deathOrbitYaw += cg_deathOrbitSpeed.value * ramp * cg.frametime / 1000.0f;
+		return;
+	}
+
+	if ( deathCamMode == DEATHCAM_ORBIT ) {
+		deathOrbitYaw += cg_deathOrbitSpeed.value * cg.frametime / 1000.0f;
+	}
+}
+
+static qboolean CG_DeathCam_ApplyView( const playerState_t *ps ) {
+	vec3_t	focus;
+	vec3_t	classicOrg;
+	vec3_t	classicAng;
+	vec3_t	orbitOrg;
+	vec3_t	orbitAng;
+	float	blendT;
+	float	smoothT;
+	float	dist;
+	float	pitch;
+	int		i;
+
+	if ( deathCamMode != DEATHCAM_BLEND && deathCamMode != DEATHCAM_ORBIT ) {
+		return qfalse;
+	}
+
+	CG_DeathCam_Focus( ps, focus );
+
+	if ( deathCamMode == DEATHCAM_BLEND ) {
+		blendT = (float)( cg.time - deathCamBlendStart ) / (float)cg_deathOrbitBlend.integer;
+		if ( blendT > 1.0f ) {
+			blendT = 1.0f;
+		}
+		smoothT = CG_DeathCam_SmoothStep( blendT );
+
+		CG_DeathCam_ClassicView( ps, classicOrg, classicAng );
+
+		dist = deathOrbitDist + ( cg_deathOrbitDist.value - deathOrbitDist ) * smoothT;
+		pitch = deathOrbitPitch + ( cg_deathOrbitPitch.value - deathOrbitPitch ) * smoothT;
+		CG_Orbit_Compute( focus, ps->clientNum, deathOrbitYaw, pitch, dist, orbitOrg, orbitAng );
+
+		for ( i = 0; i < 3; i++ ) {
+			cg.refdef.vieworg[i] = classicOrg[i] + smoothT * ( orbitOrg[i] - classicOrg[i] );
+		}
+		cg.refdefViewAngles[PITCH] = LerpAngle( classicAng[PITCH], orbitAng[PITCH], smoothT );
+		cg.refdefViewAngles[YAW] = LerpAngle( classicAng[YAW], orbitAng[YAW], smoothT );
+		cg.refdefViewAngles[ROLL] = LerpAngle( classicAng[ROLL], orbitAng[ROLL], smoothT );
+		return qtrue;
+	}
+
+	CG_Orbit_Compute( focus, ps->clientNum, deathOrbitYaw, cg_deathOrbitPitch.value,
+			cg_deathOrbitDist.value, cg.refdef.vieworg, cg.refdefViewAngles );
+	return qtrue;
 }
 
 
@@ -973,6 +1174,14 @@ static int CG_CalcViewValues( void ) {
 		return CG_CalcFov();
 	}
 
+	if ( ps->stats[STAT_HEALTH] <= 0 && CG_DeathCam_ApplyView( ps ) ) {
+		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
+		if ( cg.hyperspace ) {
+			cg.refdef.rdflags |= RDF_NOWORLDMODEL | RDF_HYPERSPACE;
+		}
+		return CG_CalcFov();
+	}
+
 	cg.bobcycle = ( ps->bobCycle & 128 ) >> 7;
 	cg.bobfracsin = fabs( sin( ( ps->bobCycle & 127 ) / 127.0 * M_PI ) );
 
@@ -1322,6 +1531,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	CG_BigHeadUpdateScores();
 
 	CG_DemoControls_PovFrame();
+	CG_DeathCam_Frame();
 
 	freeCam = CG_DemoControls_FreeCamActive();
 	rigCam = CG_DemoControls_RigCamActive();
@@ -1401,7 +1611,8 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 	cg.refdef.time = cg.time;
 	memcpy( cg.refdef.areamask, cg.snap->areamask, sizeof( cg.refdef.areamask ) );
-	if ( freeCam || povActive || CG_Orbit_Active() || ( rigCam && !CG_DemoCams_UsingPlayerView() ) ) {
+	if ( freeCam || povActive || CG_Orbit_Active() || CG_DeathCam_Active()
+			|| ( rigCam && !CG_DemoCams_UsingPlayerView() ) ) {
 		memset( cg.refdef.areamask, 0, sizeof( cg.refdef.areamask ) );
 	}
 
@@ -1411,7 +1622,8 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 
 	// update audio positions
-	trap_S_Respatialize( ( freeCam || povParked || CG_Orbit_Active() || ( rigCam && !CG_DemoCams_UsingPlayerView() ) )
+	trap_S_Respatialize( ( freeCam || povParked || CG_Orbit_Active() || CG_DeathCam_Active()
+			|| ( rigCam && !CG_DemoCams_UsingPlayerView() ) )
 			? ENTITYNUM_NONE
 			: ( povActive ? CG_DemoControls_PovClient() : cg.snap->ps.clientNum ),
 			cg.refdef.vieworg, cg.refdef.viewaxis, inwater );

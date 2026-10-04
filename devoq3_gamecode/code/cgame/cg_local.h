@@ -1906,6 +1906,7 @@ qboolean CG_Orbit_Active( void );
 qboolean CG_Orbit_ChaseActive( void );
 void CG_Orbit_Mouse( int dx, int dy );
 void CG_Orbit_Zoom( int notches );
+qboolean CG_DeathCam_Active( void );
 
 void CG_DemoControls_RefreshAttackKeys( void );
 qboolean CG_DemoControls_AttackKey( int key );
