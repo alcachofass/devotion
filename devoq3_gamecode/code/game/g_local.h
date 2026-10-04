@@ -197,6 +197,7 @@ struct gentity_s {
 	int			health;
 
 	qboolean	takedamage;
+	qboolean	gibScheduled;
 
 	int			damage;
 	int			splashDamage;	// quad will increase this without increasing radius
@@ -1132,6 +1133,7 @@ void G_SetGameIDMask(gentity_t *ent, int gameId);
 qboolean CanDamage (gentity_t *targ, vec3_t origin);
 //void G_Damage (gentity_t *targ, gentity_t *inflictor, gentity_t *attacker, vec3_t dir, vec3_t point, int damage, int dflags, int mod);
 void G_Damage (gentity_t *targ, gentity_t *inflictor, gentity_t *attacker, vec3_t dir, vec3_t point, int damage, int dflags, int mod, qboolean altFire);	//mrd
+#define ShouldPostponeGib( mod )	( mod == MOD_SHOTGUN )
 qboolean G_RadiusDamage (vec3_t origin, gentity_t *inflictor, gentity_t *attacker, float damage, float radius, gentity_t *ignore, int mod, qboolean altFire);	//mrd
 qboolean G_RailJump( vec3_t origin, gentity_t *attacker);
 int G_InvulnerabilityEffect( gentity_t *targ, vec3_t dir, vec3_t point, vec3_t impactpoint, vec3_t bouncedir );

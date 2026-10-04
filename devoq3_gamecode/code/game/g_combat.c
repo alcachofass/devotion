@@ -476,7 +476,11 @@ void body_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int d
 		}
 	}
 
-	GibEntity( self, 0 );
+	if ( ShouldPostponeGib( meansOfDeath ) ) {
+		self->gibScheduled = qtrue;
+	} else {
+		GibEntity( self, 0 );
+	}
 }
 
 
@@ -1393,7 +1397,9 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		self->s.angles[2] = 0;
 		LookAtKiller (self, inflictor, attacker);
 
-		self->r.maxs[2] = -8;
+		// Don't shrink the corpse hitbox here: it breaks shotgun gibs unless
+		// you aim at the feet (ioquake3 issue #794). PM_CheckDuck handles
+		// the lying-down bbox for live players.
 		VectorCopy( self->s.angles, self->client->ps.viewangles );
 	}
 
@@ -1415,7 +1421,11 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		if ( (self->health <= GIB_HEALTH && !(contents & CONTENTS_NODROP) && g_blood.integer) || meansOfDeath == MOD_SUICIDE
 				|| self->client->frozen) {
 			// gib death
-			GibEntity( self, killer );
+			if ( ShouldPostponeGib( meansOfDeath ) ) {
+				self->gibScheduled = qtrue;
+			} else {
+				GibEntity( self, killer );
+			}
 		} else {
 			// normal death
 			static int i;
@@ -2406,7 +2416,9 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 			
 		if ( targ->health <= 0 ) {
 			//G_CheckComboAwards(targ, attacker, mod, lastDmgGivenEntityNum, lastDmgGivenTime, lastDmgGivenMOD);
-			if ( client )
+			// Shotgun pellets need to keep applying knockback after the killing hit
+			// so gibs inherit the full blast momentum.
+			if ( client && !ShouldPostponeGib( mod ) )
 				targ->flags |= FL_NO_KNOCKBACK;
 
 			if (targ->health < -999)

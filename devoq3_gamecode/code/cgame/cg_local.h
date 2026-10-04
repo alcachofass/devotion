@@ -2341,7 +2341,8 @@ void CG_LightningBoltBeam( vec3_t start, vec3_t end );
 void CG_ScorePlum( int client, vec3_t org, int score );
 void CG_DamagePlum( int client, vec3_t org, int damage );
 
-void CG_GibPlayer( vec3_t playerOrigin );
+void CG_GibPlayer( const vec3_t playerOrigin, const vec3_t playerAngles,
+	const vec3_t playerVelocity );
 void CG_BigExplode( vec3_t playerOrigin );
 
 void CG_Bleed( vec3_t origin, int entityNum );

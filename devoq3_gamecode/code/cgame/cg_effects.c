@@ -674,7 +674,8 @@ void CG_InvulnerabilityImpact( vec3_t org, vec3_t angles ) {
 	CG_LaunchGib
 	==================
 	*/
-	void CG_LaunchGib( vec3_t origin, vec3_t velocity, qhandle_t hModel ) {
+	void CG_LaunchGib( vec3_t origin, const vec3_t angles,
+		vec3_t velocity, qhandle_t hModel ) {
 		localEntity_t	*le;
 		refEntity_t		*re;
 
@@ -686,7 +687,7 @@ void CG_InvulnerabilityImpact( vec3_t org, vec3_t angles ) {
 		le->endTime = le->startTime + 5000 + random() * 3000;
 
 		VectorCopy( origin, re->origin );
-		AxisCopy( axisDefault, re->axis );
+		AnglesToAxis( angles, re->axis );
 		re->hModel = hModel;
 
 		le->pos.trType = TR_GRAVITY;
@@ -706,34 +707,48 @@ void CG_InvulnerabilityImpact( vec3_t org, vec3_t angles ) {
 		
 	}
 
+#define GIB_RANDOM_VELOCITY		250
+#define GIB_VERTICAL_VELOCITY	100
 
-
-
+	static void CG_GibLaunchVelocity( const vec3_t playerVelocity, vec3_t velocity ) {
+		velocity[0] = crandom() * GIB_RANDOM_VELOCITY;
+		velocity[1] = crandom() * GIB_RANDOM_VELOCITY;
+		velocity[2] = GIB_VERTICAL_VELOCITY + crandom() * GIB_RANDOM_VELOCITY;
+		VectorAdd( velocity, playerVelocity, velocity );
+	}
 
 	/*
 	===================
 	CG_GibPlayer
 
-	Generated a bunch of gibs launching out from the bodies location
+	Generated a bunch of gibs launching out from the bodies location.
+	Directional gib physics adapted from quake3-better-gibs-mod (WofWca).
 	===================
 	*/
-#define	GIB_VELOCITY	250
-#define	GIB_JUMP		250
-	void CG_GibPlayer( vec3_t playerOrigin ) {
-		vec3_t	origin, velocity;
+	void CG_GibPlayer( const vec3_t playerOrigin, const vec3_t playerAngles,
+		const vec3_t playerVelocity ) {
+		vec3_t origin, velocity;
+		vec3_t bodyAngles, angles;
+		vec3_t forward, right, up;
+		float playerHeight = 32 - MINS_Z;
+		float bottom = playerOrigin[2] + MINS_Z;
+		float playerRadius = 15;
 
 		if ( !cg_blood.integer ) {
 			return;
 		}
 
+		VectorCopy( playerAngles, bodyAngles );
+		bodyAngles[PITCH] = 0;
+		AngleVectors( bodyAngles, forward, right, up );
+
 		VectorCopy( playerOrigin, origin );
-		velocity[0] = crandom()*GIB_VELOCITY;
-		velocity[1] = crandom()*GIB_VELOCITY;
-		velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
+		origin[2] = bottom + 0.95f * playerHeight;
+		CG_GibLaunchVelocity( playerVelocity, velocity );
 		if ( rand() & 1 ) {
-			CG_LaunchGib( origin, velocity, cgs.media.gibSkull );
+			CG_LaunchGib( origin, playerAngles, velocity, cgs.media.gibSkull );
 		} else {
-			CG_LaunchGib( origin, velocity, cgs.media.gibBrain );
+			CG_LaunchGib( origin, playerAngles, velocity, cgs.media.gibBrain );
 		}
 
 		// allow gibs to be turned off for speed
@@ -742,58 +757,75 @@ void CG_InvulnerabilityImpact( vec3_t org, vec3_t angles ) {
 		}
 
 		VectorCopy( playerOrigin, origin );
-		velocity[0] = crandom()*GIB_VELOCITY;
-		velocity[1] = crandom()*GIB_VELOCITY;
-		velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-		CG_LaunchGib( origin, velocity, cgs.media.gibAbdomen );
+		origin[2] = bottom + 0.65f * playerHeight;
+		CG_GibLaunchVelocity( playerVelocity, velocity );
+		CG_LaunchGib( origin, bodyAngles, velocity, cgs.media.gibAbdomen );
 
 		VectorCopy( playerOrigin, origin );
-		velocity[0] = crandom()*GIB_VELOCITY;
-		velocity[1] = crandom()*GIB_VELOCITY;
-		velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-		CG_LaunchGib( origin, velocity, cgs.media.gibArm );
+		origin[2] = bottom + 0.78f * playerHeight;
+		VectorMA( origin, 0.8f * playerRadius, right, origin );
+		VectorMA( origin, -0.3f * playerRadius, forward, origin );
+		CG_GibLaunchVelocity( playerVelocity, velocity );
+		VectorCopy( bodyAngles, angles );
+		angles[ROLL] += 70;
+		angles[PITCH] += 45;
+		CG_LaunchGib( origin, angles, velocity, cgs.media.gibArm );
 
 		VectorCopy( playerOrigin, origin );
-		velocity[0] = crandom()*GIB_VELOCITY;
-		velocity[1] = crandom()*GIB_VELOCITY;
-		velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-		CG_LaunchGib( origin, velocity, cgs.media.gibChest );
+		origin[2] = bottom + 0.80f * playerHeight;
+		CG_GibLaunchVelocity( playerVelocity, velocity );
+		CG_LaunchGib( origin, bodyAngles, velocity, cgs.media.gibChest );
 
 		VectorCopy( playerOrigin, origin );
-		velocity[0] = crandom()*GIB_VELOCITY;
-		velocity[1] = crandom()*GIB_VELOCITY;
-		velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-		CG_LaunchGib( origin, velocity, cgs.media.gibFist );
+		origin[2] = bottom + 0.66f * playerHeight;
+		VectorMA( origin, 0.8f * playerRadius, right, origin );
+		VectorMA( origin, 0.2f * playerRadius, forward, origin );
+		CG_GibLaunchVelocity( playerVelocity, velocity );
+		VectorCopy( bodyAngles, angles );
+		angles[PITCH] -= 80;
+		angles[YAW] += 50;
+		CG_LaunchGib( origin, angles, velocity, cgs.media.gibFist );
 
 		VectorCopy( playerOrigin, origin );
-		velocity[0] = crandom()*GIB_VELOCITY;
-		velocity[1] = crandom()*GIB_VELOCITY;
-		velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-		CG_LaunchGib( origin, velocity, cgs.media.gibFoot );
+		origin[2] = bottom + 0.05f * playerHeight;
+		VectorMA( origin, -0.5f * playerRadius, right, origin );
+		VectorMA( origin, -0.5f * playerRadius, forward, origin );
+		CG_GibLaunchVelocity( playerVelocity, velocity );
+		CG_LaunchGib( origin, bodyAngles, velocity, cgs.media.gibFoot );
 
 		VectorCopy( playerOrigin, origin );
-		velocity[0] = crandom()*GIB_VELOCITY;
-		velocity[1] = crandom()*GIB_VELOCITY;
-		velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-		CG_LaunchGib( origin, velocity, cgs.media.gibForearm );
+		origin[2] = bottom + 0.65f * playerHeight;
+		VectorMA( origin, -0.6f * playerRadius, right, origin );
+		VectorMA( origin, 0.2f * playerRadius, forward, origin );
+		CG_GibLaunchVelocity( playerVelocity, velocity );
+		VectorCopy( bodyAngles, angles );
+		angles[ROLL] -= 90;
+		angles[PITCH] -= 75;
+		CG_LaunchGib( origin, angles, velocity, cgs.media.gibForearm );
 
 		VectorCopy( playerOrigin, origin );
-		velocity[0] = crandom()*GIB_VELOCITY;
-		velocity[1] = crandom()*GIB_VELOCITY;
-		velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-		CG_LaunchGib( origin, velocity, cgs.media.gibIntestine );
+		origin[2] = bottom + 0.57f * playerHeight;
+		CG_GibLaunchVelocity( playerVelocity, velocity );
+		CG_LaunchGib( origin, bodyAngles, velocity, cgs.media.gibIntestine );
 
 		VectorCopy( playerOrigin, origin );
-		velocity[0] = crandom()*GIB_VELOCITY;
-		velocity[1] = crandom()*GIB_VELOCITY;
-		velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-		CG_LaunchGib( origin, velocity, cgs.media.gibLeg );
+		origin[2] = bottom + 0.42f * playerHeight;
+		VectorMA( origin, 0.5f * playerRadius, right, origin );
+		VectorMA( origin, 0.1f * playerRadius, forward, origin );
+		CG_GibLaunchVelocity( playerVelocity, velocity );
+		VectorCopy( bodyAngles, angles );
+		angles[ROLL] -= 30;
+		angles[PITCH] -= 15;
+		CG_LaunchGib( origin, angles, velocity, cgs.media.gibLeg );
 
 		VectorCopy( playerOrigin, origin );
-		velocity[0] = crandom()*GIB_VELOCITY;
-		velocity[1] = crandom()*GIB_VELOCITY;
-		velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-		CG_LaunchGib( origin, velocity, cgs.media.gibLeg );
+		origin[2] = bottom + 0.44f * playerHeight;
+		VectorMA( origin, -0.5f * playerRadius, right, origin );
+		VectorMA( origin, -0.2f * playerRadius, forward, origin );
+		CG_GibLaunchVelocity( playerVelocity, velocity );
+		VectorCopy( bodyAngles, angles );
+		angles[PITCH] += 15;
+		CG_LaunchGib( origin, angles, velocity, cgs.media.gibLeg );
 	}
 
 	/*
