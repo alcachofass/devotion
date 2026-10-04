@@ -1702,6 +1702,30 @@ static void CG_AddCEntity( centity_t *cent ) {
 
 /*
 ===============
+CG_ShouldDrawFollowPOVBody
+
+When following another player or playing back a demo, snap->ps is that
+subject's view and predictedPlayerEntity is their body. The same client
+can also appear in the snapshot entity list with older legs/torso anims;
+drawing both leaves a stale pose (often swim) on top of the live body
+after switching to third-person follow cameras.
+===============
+*/
+static qboolean CG_ShouldDrawFollowPOVBody( int entityNum ) {
+	if ( !cg.snap ) {
+		return qtrue;
+	}
+	if ( entityNum != cg.snap->ps.clientNum ) {
+		return qtrue;
+	}
+	if ( cg.demoPlayback || ( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+/*
+===============
 CG_AddPacketEntities
 
 ===============
@@ -1754,6 +1778,9 @@ void CG_AddPacketEntities( void ) {
 		// we have data for them and they don't need to interpolate
 		for ( num = 0 ; num < cg.nextSnap->numEntities ; num++ ) {
 			cent = &cg_entities[ cg.nextSnap->entities[ num ].number ];
+			if ( !CG_ShouldDrawFollowPOVBody( cent->currentState.number ) ) {
+				continue;
+			}
 			if ( cent->nextState.eType == ET_MISSILE 
 					|| cent->nextState.eType == ET_GENERAL
 			  		|| cent->nextState.eType == ET_ITEM ) {
@@ -1769,6 +1796,9 @@ void CG_AddPacketEntities( void ) {
 	// add each entity sent over by the server
 	for ( num = 0 ; num < cg.snap->numEntities ; num++ ) {
 		cent = &cg_entities[ cg.snap->entities[ num ].number ];
+		if ( !CG_ShouldDrawFollowPOVBody( cent->currentState.number ) ) {
+			continue;
+		}
 //unlagged - early transitioning
 		if ( !cg.nextSnap || 
 				(cent->nextState.eType != ET_MISSILE 
