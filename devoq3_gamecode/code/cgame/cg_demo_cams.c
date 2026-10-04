@@ -3174,10 +3174,6 @@ void CG_DemoCams_ShareActivate( void ) {
 		trap_SendClientCommand( "camsession join" );
 		return;
 	}
-	if ( dcamCount <= 0 && drailCount <= 0 ) {
-		CG_Printf( "Place or load cameras before starting a session.\n" );
-		return;
-	}
 	dcamNetMode = 3;
 	trap_SendClientCommand( "camsession start" );
 }

@@ -2,9 +2,10 @@
 ===========================================================================
 Spectator camera editing session.
 
-The cache lives only in this map session. Clients upload changes with
-reliable commands. The cache is trickled back out on one broadcast
-entity, which snapshots already deliver unreliably.
+Camera definitions persist in memory for the current map load. Clients
+upload changes with reliable commands. The cache is trickled back out
+on one broadcast entity, which snapshots already deliver unreliably.
+Editing sessions can open and close without clearing the map cache.
 ===========================================================================
 */
 
@@ -102,7 +103,7 @@ static int Cams_MemberCount( void ) {
 	return n;
 }
 
-static void Cams_Close( void ) {
+static void Cams_EndSession( void ) {
 	int	i;
 
 	for ( i = 0; i < MAX_CLIENTS; i++ ) {
@@ -113,12 +114,18 @@ static void Cams_Close( void ) {
 	}
 	camsOpen = qfalse;
 	camsCommitted = qfalse;
-	camsCamCount = 0;
-	camsRailCount = 0;
 	camsTombCount = 0;
 	camsGeneration++;
 	camsRevision++;
 	camsCursor = 0;
+	camsUploadStart = 0;
+}
+
+static void Cams_Close( void ) {
+	Cams_EndSession();
+	camsCamCount = 0;
+	camsRailCount = 0;
+	camsNextRailId = 1;
 }
 
 static void Cams_Drop( int clientNum ) {
@@ -131,7 +138,7 @@ static void Cams_Drop( int clientNum ) {
 	camsMember[clientNum] = qfalse;
 	Cams_Send( clientNum, "camsync end" );
 	if ( Cams_MemberCount() <= 0 ) {
-		Cams_Close();
+		Cams_EndSession();
 	}
 }
 
@@ -495,17 +502,12 @@ static void Cams_Emit( void ) {
 
 void CamSession_Init( void ) {
 	memset( camsMember, 0, sizeof( camsMember ) );
-	camsOpen = qfalse;
-	camsCommitted = qfalse;
-	camsCamCount = 0;
-	camsRailCount = 0;
-	camsTombCount = 0;
-	camsGeneration = 1;
-	camsRevision = 1;
-	camsNextRailId = 1;
 	camsEntNum = 0;
 	camsCursor = 0;
 	camsUploadStart = 0;
+	Cams_Close();
+	camsGeneration = 1;
+	camsRevision = 1;
 	Cams_EnsureCarrier();
 }
 
@@ -553,9 +555,10 @@ void Cmd_CamSession_f( gentity_t *ent ) {
 		}
 		camsOpen = qtrue;
 		camsCommitted = qfalse;
-		camsCamCount = 0;
-		camsRailCount = 0;
 		camsTombCount = 0;
+		if ( camsCamCount <= 0 && camsRailCount <= 0 ) {
+			camsNextRailId = 1;
+		}
 		camsGeneration++;
 		camsRevision++;
 		camsCursor = 0;
