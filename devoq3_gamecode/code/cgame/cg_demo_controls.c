@@ -4252,8 +4252,6 @@ void CG_DemoControls_Frame( void ) {
 			dc_orbitDemo = qfalse;
 			dc_orbitLook = qfalse;
 			CG_Orbit_Clear();
-		} else if ( CG_Orbit_ChaseActive() ) {
-			CG_Orbit_Clear();
 		}
 		dc_speedLabel[0] = '\0';
 		dc_timingReady = qfalse;

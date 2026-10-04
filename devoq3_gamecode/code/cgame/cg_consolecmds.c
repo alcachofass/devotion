@@ -691,7 +691,30 @@ static void CG_Viewpos_f (void) {
 }
 
 
-static void CG_ScoresDown_f( void ) {
+static qboolean cg_scoresKeyHeld;
+
+static qboolean CG_ScoresToggleMode( void ) {
+	if ( cg.demoPlayback ) {
+		return qtrue;
+	}
+	if ( !cg.snap ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.pm_type == PM_SPECTATOR ) {
+		return qtrue;
+	}
+	if ( cg.snap->ps.pm_flags & PMF_FOLLOW ) {
+		return qtrue;
+	}
+	if ( cg.clientNum >= 0 && cg.clientNum < MAX_CLIENTS
+			&& cgs.clientinfo[cg.clientNum].infoValid
+			&& cgs.clientinfo[cg.clientNum].team == TEAM_SPECTATOR ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+static void CG_ScoresShow_f( void ) {
 
 #ifdef MISSIONPACK
 		CG_BuildSpectatorString();
@@ -735,7 +758,7 @@ static void CG_ScoresDown_f( void ) {
 	CG_LoadDeferredPlayers();
 }
 
-static void CG_ScoresUp_f( void ) {
+static void CG_ScoresHide_f( void ) {
 	if ( cg.showScores ) {
 		cg.showScores = qfalse;
 		cg.scoreFadeTime = cg.time;
@@ -743,6 +766,39 @@ static void CG_ScoresUp_f( void ) {
 			cg.demoPovDisplayPingValid = qfalse;
 		}
 	}
+}
+
+static void CG_ScoresDown_f( void ) {
+	if ( CG_ScoresToggleMode() ) {
+		if ( !cg_scoresKeyHeld ) {
+			cg_scoresKeyHeld = qtrue;
+			if ( cg.showScores ) {
+				CG_ScoresHide_f();
+			} else {
+				CG_ScoresShow_f();
+			}
+		}
+		return;
+	}
+
+	CG_ScoresShow_f();
+}
+
+static void CG_ScoresUp_f( void ) {
+	int scoresKey;
+
+	if ( CG_ScoresToggleMode() ) {
+		cg_scoresKeyHeld = qfalse;
+		return;
+	}
+
+	/* KEYCATCH_CGAME changes can synthesize -scores while TAB is still held. */
+	scoresKey = trap_Key_GetKey( "+scores" );
+	if ( scoresKey > 0 && trap_Key_IsDown( scoresKey ) ) {
+		return;
+	}
+
+	CG_ScoresHide_f();
 }
 
 static void CG_AccDown_f( void ) {
