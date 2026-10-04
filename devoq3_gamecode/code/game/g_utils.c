@@ -799,3 +799,52 @@ void G_LinkGameId(int gameId) {
 	level.currentGameId = gameId;
 }
 #endif // WITH_MULTITOURNAMENT
+
+/*
+=========================================================================
+
+level transition notification
+
+=========================================================================
+*/
+
+void G_BroadcastLevelTransition( levelTransition_t type ) {
+	trap_SendServerCommand( -1, va( "levelTransition %s",
+		( type == LT_NEWMAP ) ? "newmap" : "reload" ) );
+}
+
+void G_BroadcastLevelTransitionForVote( const char *voteString ) {
+	char cmd[MAX_TOKEN_CHARS];
+	char arg[MAX_TOKEN_CHARS];
+	char work[MAX_STRING_CHARS];
+	char *s;
+
+	if ( !voteString || !voteString[0] ) {
+		return;
+	}
+
+	Q_strncpyz( work, voteString, sizeof( work ) );
+	s = work;
+	Q_strncpyz( cmd, COM_Parse( &s ), sizeof( cmd ) );
+
+	if ( !Q_stricmp( cmd, "map_restart" )
+		|| Q_stristr( voteString, "; map_restart" )
+		|| Q_stristr( voteString, "map_restart;" ) ) {
+		G_BroadcastLevelTransition( LT_RELOAD );
+		return;
+	}
+
+	if ( !Q_stricmp( cmd, "map" )
+		|| !Q_stricmp( cmd, "endgamenow" )
+		|| !Q_stricmp( cmd, "votenextmap" ) ) {
+		G_BroadcastLevelTransition( LT_NEWMAP );
+		return;
+	}
+
+	if ( !Q_stricmp( cmd, "vstr" ) ) {
+		Q_strncpyz( arg, COM_Parse( &s ), sizeof( arg ) );
+		if ( !Q_stricmp( arg, "nextmap" ) ) {
+			G_BroadcastLevelTransition( LT_NEWMAP );
+		}
+	}
+}

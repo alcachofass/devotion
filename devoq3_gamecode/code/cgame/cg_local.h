@@ -1162,6 +1162,7 @@ typedef struct {
 	qhandle_t	crosshairShader[NUM_CROSSHAIRS];
 	qhandle_t	crosshairOutlineShader[NUM_CROSSHAIRS];
 	qhandle_t	lagometerShader;
+	qhandle_t	levelTransitionOkShader;
 	qhandle_t	backTileShader;
 	qhandle_t	noammoShader;
 	qhandle_t	vsExplosionIcon;
@@ -1793,8 +1794,15 @@ typedef struct {
     float	maxBrightshellAlpha;
     int		timeoutEnd;
     int		timeoutOvertime;
+    int		levelTransitionEnd;
+    int		levelTransitionType;
     char	sv_hostname[MAX_QPATH];
 } cgs_t;
+
+#define CG_LEVEL_TRANSITION_NONE	0
+#define CG_LEVEL_TRANSITION_RELOAD	1
+#define CG_LEVEL_TRANSITION_NEWMAP	2
+#define CG_LEVEL_TRANSITION_TIMEOUT	20000
 
 //==============================================================================
 
@@ -2121,6 +2129,9 @@ extern  char teamChat2[256];
 
 void CG_AddLagometerFrameInfo( void );
 void CG_AddLagometerSnapshotInfo( snapshot_t *snap );
+qboolean CG_LevelTransitionActive( void );
+void CG_BeginLevelTransition( void );
+void CG_DrawLevelTransition( void );
 void CG_CenterPrint( const char *str, int y, int charWidth );
 void CG_DrawHead( float x, float y, float w, float h, int clientNum, vec3_t headAngles );
 void CG_DrawActive( stereoFrame_t stereoView );
@@ -2376,6 +2387,9 @@ void CG_LoadingItem( int itemNum );
 void CG_LoadingClient( int clientNum );
 void CG_DrawInformation( void );
 void CG_DrawLoadFade( void );
+void CG_BeginLevelLoadFade( void );
+void CG_DrawLevelLoadFade( void );
+void CG_DrawViewFades( stereoFrame_t stereoView );
 void CG_BeginLeaveFade( void );
 void CG_DrawLeaveFade( stereoFrame_t stereoView );
 

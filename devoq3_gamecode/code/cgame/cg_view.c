@@ -24,6 +24,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // for a 3D rendering
 #include "cg_local.h"
 
+static void CG_DrawLoadingScreen( stereoFrame_t stereoView ) {
+	CG_DrawInformation();
+	CG_DrawViewFades( stereoView );
+}
 
 /*
 =============================================================================
@@ -1468,8 +1472,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// if we are only updating the screen as a loading
 	// pacifier, don't even try to read snapshots
 	if ( cg.infoScreenText[0] != 0 ) {
-		CG_DrawInformation();
-		CG_DrawLeaveFade( stereoView );
+		CG_DrawLoadingScreen( stereoView );
 		return;
 	}
 
@@ -1493,8 +1496,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// if we haven't received any snapshots yet, all
 	// we can draw is the information screen
 	if ( !cg.snap || ( cg.snap->snapFlags & SNAPFLAG_NOT_ACTIVE ) ) {
-		CG_DrawInformation();
-		CG_DrawLeaveFade( stereoView );
+		CG_DrawLoadingScreen( stereoView );
 		return;
 	}
 
@@ -1522,7 +1524,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 			cg.oldTime = cg.time;
 		}
 		CG_DrawActive( stereoView );
-		CG_DrawLeaveFade( stereoView );
+		CG_DrawViewFades( stereoView );
 		return;
 	}
 
@@ -1656,7 +1658,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// actually issue the rendering calls
 	CG_DrawActive( stereoView );
 	CG_DemoCams_DrawCutFade();
-	CG_DrawLeaveFade( stereoView );
+	CG_DrawViewFades( stereoView );
 
 	if ( cg_stats.integer ) {
 		CG_Printf( "cg.clientFrame:%i\n", cg.clientFrame );

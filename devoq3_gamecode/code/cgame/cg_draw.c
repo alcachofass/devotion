@@ -4766,6 +4766,10 @@ Adds the current interpolate / extrapolate bar for this frame
 void CG_AddLagometerFrameInfo( void ) {
 	int			offset;
 
+	if ( CG_LevelTransitionActive() ) {
+		return;
+	}
+
 	offset = cg.time - cg.latestSnapshotTime;
 	lagometer.frameSamples[ lagometer.frameCount & ( LAG_SAMPLES - 1) ] = offset;
 	lagometer.frameCount++;
@@ -4782,6 +4786,10 @@ Pass NULL for a dropped packet.
 ==============
 */
 void CG_AddLagometerSnapshotInfo( snapshot_t *snap ) {
+	if ( CG_LevelTransitionActive() ) {
+		return;
+	}
+
 	// dropped packet
 	if ( !snap ) {
 		lagometer.snapshotSamples[ lagometer.snapshotCount & ( LAG_SAMPLES - 1) ] = -1;
@@ -4800,6 +4808,46 @@ void CG_AddLagometerSnapshotInfo( snapshot_t *snap ) {
 	lagometer.snapshotCount++;
 }
 
+void CG_BeginLevelTransition( void ) {
+	lagometer.frameCount = 0;
+	lagometer.snapshotCount = 0;
+	memset( lagometer.frameSamples, 0, sizeof( lagometer.frameSamples ) );
+	memset( lagometer.snapshotSamples, 0, sizeof( lagometer.snapshotSamples ) );
+	memset( lagometer.snapshotFlags, 0, sizeof( lagometer.snapshotFlags ) );
+}
+
+static void CG_DrawLevelTransitionLine( int y, const char *s ) {
+	int w = CG_DrawStrlen( s ) * BIGCHAR_WIDTH;
+	CG_DrawBigString( 320 - w / 2, y, s, 1.0F );
+}
+
+void CG_DrawLevelTransition( void ) {
+	char	message[80];
+	int	dotIndex;
+	int	y;
+	int	lineHeight;
+
+	if ( cg.demoPlayback || !cg.snap || !CG_LevelTransitionActive() ) {
+		return;
+	}
+
+	dotIndex = ( cg.time / 400 ) % 3;
+	y = 90;
+	lineHeight = BIGCHAR_HEIGHT + 6;
+
+	if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_NEWMAP ) {
+		CG_DrawLevelTransitionLine( y, "Server transitioning to" );
+		y += lineHeight;
+		Com_sprintf( message, sizeof( message ), "new level, please wait%s",
+			dotIndex == 0 ? ".  " : ( dotIndex == 1 ? ".. " : "..." ) );
+		CG_DrawLevelTransitionLine( y, message );
+	} else {
+		Com_sprintf( message, sizeof( message ), "Map re-initializing, please wait%s",
+			dotIndex == 0 ? ".  " : ( dotIndex == 1 ? ".. " : "..." ) );
+		CG_DrawLevelTransitionLine( y + lineHeight / 2, message );
+	}
+}
+
 /*
 ==============
 CG_DrawDisconnect
@@ -4816,6 +4864,14 @@ static void CG_DrawDisconnect( void ) {
 
 	/* Bypass this entirely during demo playback. Fixes false 'Connection Interrupted' message when using low timescale to slow down a replay. */
 	if ( cg.demoPlayback ) {
+		return;
+	}
+
+	if ( !cg.snap ) {
+		return;
+	}
+
+	if ( CG_LevelTransitionActive() ) {
 		return;
 	}
 
@@ -4910,6 +4966,28 @@ static void CG_DrawLagometer( void ) {
 	int		color;
 	float	vscale;
 
+	x = 640 - 48;
+	y = 480 - 48;
+
+	if ( CG_LevelTransitionActive() ) {
+		if ( cg_lagometer.integer && !cgs.localServer ) {
+			float	iconColor[4];
+			float	pulse;
+
+			trap_R_SetColor( NULL );
+			CG_DrawPic( x, y, 48, 48, cgs.media.lagometerShader );
+			if ( cgs.media.levelTransitionOkShader ) {
+				pulse = 0.5f + 0.5f * sin( cg.time * 0.004f );
+				iconColor[0] = iconColor[1] = iconColor[2] = 1.0f;
+				iconColor[3] = 0.45f + 0.55f * pulse;
+				trap_R_SetColor( iconColor );
+				CG_DrawPic( x, y, 48, 48, cgs.media.levelTransitionOkShader );
+				trap_R_SetColor( NULL );
+			}
+		}
+		return;
+	}
+
 	if ( !cg_lagometer.integer || cgs.localServer ) {
 		CG_DrawDisconnect();
 		return;
@@ -4924,8 +5002,6 @@ static void CG_DrawLagometer( void ) {
 	y = 480 - 144;
 #else
 */
-	x = 640 - 48;
-	y = 480 - 48;
 //#endif
 
 	trap_R_SetColor( NULL );
@@ -7559,6 +7635,7 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 	if ( !CG_SH_Active() || !CG_SH_HasNetGraph() ) {
 		CG_DrawLagometer();
 	}
+	CG_DrawLevelTransition();
 	if ( !CG_SH_Active() ) {
 		if (cg_drawFPS.integer == 2) {
 			CG_DrawFPS(0);

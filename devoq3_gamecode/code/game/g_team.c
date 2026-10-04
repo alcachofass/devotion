@@ -2875,6 +2875,7 @@ void ShuffleTeams(void) {
     // delay the map_restart so we don't cause a command overflow
     // we can't use map_restart <delay> directly because that only delays the
     // restart if g_doWarmup is 0
+    G_BroadcastLevelTransition( LT_RELOAD );
     level.restartAt = level.realtime + 2000;
     level.restarted = qtrue;
     //trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\n" );
@@ -3166,6 +3167,7 @@ qboolean BalanceTeams(qboolean dryrun) {
     // delay the map_restart so we don't cause a command overflow
     // we can't use map_restart <delay> directly because that only delays the
     // restart if g_doWarmup is 0
+    G_BroadcastLevelTransition( LT_RELOAD );
     level.restartAt = level.realtime + 2000;
     level.restarted = qtrue;
     //trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\n" );

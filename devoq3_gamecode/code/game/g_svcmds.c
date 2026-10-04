@@ -522,6 +522,7 @@ void Svcmd_Freezetag_f( void ) {
 	}
 
 	// Same delayed restart pattern as shuffle (reliable vs semicolon vote strings).
+	G_BroadcastLevelTransition( LT_RELOAD );
 	level.restartAt = level.realtime + 500;
 	level.restarted = qtrue;
 }

@@ -1098,6 +1098,14 @@ qboolean	G_EntitiesFree( void );
 void	G_TouchTriggers (gentity_t *ent);
 void	G_TouchSolids (gentity_t *ent);
 
+typedef enum {
+	LT_RELOAD,
+	LT_NEWMAP
+} levelTransition_t;
+
+void G_BroadcastLevelTransition( levelTransition_t type );
+void G_BroadcastLevelTransitionForVote( const char *voteString );
+
 float	*tv (float x, float y, float z);
 char	*vtos( const vec3_t v );
 

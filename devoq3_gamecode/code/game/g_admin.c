@@ -2866,6 +2866,7 @@ qboolean G_admin_map( gentity_t *ent, int skiparg )
     return qfalse;
   }
 
+  G_BroadcastLevelTransition( LT_NEWMAP );
   trap_SendConsoleCommand( EXEC_APPEND, va( "map %s\n", map ) );
   level.restarted = qtrue;
   AP( va( "print \"^3!map: ^7map '%s' started by %s\n\"", map,
@@ -3755,6 +3756,7 @@ qboolean G_admin_restart( gentity_t *ent, int skiparg )
 
   }
 
+  G_BroadcastLevelTransition( LT_RELOAD );
   trap_SendConsoleCommand( EXEC_APPEND, "map_restart\n" );
   AP( va( "print \"^3!restart: ^7map restarted by %s \n\"",
           ( ent ) ? ent->client->pers.netname : "console" ) );
