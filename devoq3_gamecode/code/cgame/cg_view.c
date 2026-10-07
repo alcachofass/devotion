@@ -1463,6 +1463,14 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	// update cvars
 	CG_UpdateCvars();
+	if ( cg_showcase.integer ) {
+		int catcher;
+
+		/* The engine clears KEYCATCH_UI when a demo starts. Put it back
+		 * before this frame returns so the menu draws over the load. */
+		catcher = trap_Key_GetCatcher();
+		trap_Key_SetCatcher( ( catcher | KEYCATCH_UI ) & ~KEYCATCH_CGAME );
+	}
 	CG_DemoControls_Frame();
 	CG_SpecControls_Frame();
 	if ( stereoView != STEREO_RIGHT ) {

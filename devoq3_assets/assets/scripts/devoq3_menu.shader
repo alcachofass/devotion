@@ -45,3 +45,26 @@ menuback_devoq3
 		tcMod scale 2 2
 	}
 }
+
+// Same art as menuback_devoq3, but the stages honor vertex alpha so the
+// main menu can dissolve into the showcase view.
+menuback_devoq3_fade
+{
+	nopicmip
+	nomipmaps
+	{
+		map textures/liquids/lavahell
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen const ( 0.45 0.12 1.0 )
+		alphaGen vertex
+		tcMod scroll 0.05 0.05
+	}
+	{
+		map textures/liquids/lavahell
+		blendFunc GL_SRC_ALPHA GL_ONE
+		rgbGen const ( 0.20 0.02 0.12 )
+		alphaGen vertex
+		tcMod scroll -0.02 0.05
+		tcMod scale -1.1 0.8
+	}
+}

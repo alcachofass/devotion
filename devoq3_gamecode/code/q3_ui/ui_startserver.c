@@ -1089,6 +1089,7 @@ static void ServerOptions_Start( void ) {
 
 	// the wait commands will allow the dedicated to take effect
 	info = UI_GetArenaInfoByNumber( s_startserver.maplist[ s_startserver.currentmap ]);
+	UI_Showcase_Stop();
 	trap_Cmd_ExecuteText( EXEC_APPEND, va( "wait ; wait ; map %s\n", Info_ValueForKey( info, "map" )));
 	
         // add bots

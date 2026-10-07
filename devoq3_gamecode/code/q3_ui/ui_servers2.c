@@ -872,8 +872,10 @@ static void ArenaServers_Go( void ) {
 		if(servernode->needPass) {
 			UI_SpecifyPasswordMenu( va( "connect %s\n", servernode->adrstr ), servernode->hostname );
 		}
-		else
+		else {
+			UI_Showcase_Stop();
 			trap_Cmd_ExecuteText( EXEC_APPEND, va( "connect %s\n", servernode->adrstr ) );
+		}
 	}
 }
 
@@ -3845,6 +3847,7 @@ void UI_MainMenuServers_Connect( menulist_s *list ) {
 	if( servernodeptr->needPass ) {
 		UI_SpecifyPasswordMenu( va( "connect %s\n", servernodeptr->adrstr ), servernodeptr->hostname );
 	} else {
+		UI_Showcase_Stop();
 		trap_Cmd_ExecuteText( EXEC_APPEND, va( "connect %s\n", servernodeptr->adrstr ) );
 	}
 }						  

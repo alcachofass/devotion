@@ -2369,8 +2369,10 @@ void CG_VisualSounds_Note( const vec3_t origin, int entityNum, sfxHandle_t sfx, 
 void CG_VisualSounds_NoteExplosion( const vec3_t origin, int clientNum, int weapon );
 void CG_DrawVisualSounds( void );
 void CG_WrappedStartSound( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx );
+void CG_WrappedStartLocalSound( sfxHandle_t sfx, int channelNum );
 void CG_WrappedAddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx );
 void CG_WrappedAddRealLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx );
+void CG_WrappedStartBackgroundTrack( const char *intro, const char *loop );
 
 //
 // cg_demo_history.c (declarations in cg_demo_history.h)
@@ -2392,6 +2394,7 @@ void CG_LoadingItem( int itemNum );
 void CG_LoadingClient( int clientNum );
 void CG_DrawInformation( void );
 void CG_DrawLoadFade( void );
+qboolean CG_ShowcaseActive( void );
 void CG_BeginLevelLoadFade( void );
 void CG_DrawLevelLoadFade( void );
 void CG_DrawViewFades( stereoFrame_t stereoView );
@@ -2536,14 +2539,6 @@ void		trap_S_StartLocalSound( sfxHandle_t sfx, int channelNum );
 void		trap_S_ClearLoopingSounds( qboolean killall );
 void		trap_S_AddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx );
 void		trap_S_AddRealLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx );
-#ifndef CG_SKIP_SOUND_WRAP
-#define trap_S_StartSound( origin, entityNum, entchannel, sfx ) \
-	CG_WrappedStartSound( (origin), (entityNum), (entchannel), (sfx) )
-#define trap_S_AddLoopingSound( entityNum, origin, velocity, sfx ) \
-	CG_WrappedAddLoopingSound( (entityNum), (origin), (velocity), (sfx) )
-#define trap_S_AddRealLoopingSound( entityNum, origin, velocity, sfx ) \
-	CG_WrappedAddRealLoopingSound( (entityNum), (origin), (velocity), (sfx) )
-#endif
 
 void		trap_S_UpdateEntityPosition( int entityNum, const vec3_t origin );
 
@@ -2553,6 +2548,19 @@ void		trap_S_Respatialize( int entityNum, const vec3_t origin, vec3_t axis[3], i
 sfxHandle_t	trap_S_RegisterSound( const char *sample, qboolean compressed );		// returns buzz if not found
 void		trap_S_StartBackgroundTrack( const char *intro, const char *loop );	// empty name stops music
 void	trap_S_StopBackgroundTrack( void );
+
+#ifndef CG_SKIP_SOUND_WRAP
+#define trap_S_StartSound( origin, entityNum, entchannel, sfx ) \
+	CG_WrappedStartSound( (origin), (entityNum), (entchannel), (sfx) )
+#define trap_S_StartLocalSound( sfx, channelNum ) \
+	CG_WrappedStartLocalSound( (sfx), (channelNum) )
+#define trap_S_AddLoopingSound( entityNum, origin, velocity, sfx ) \
+	CG_WrappedAddLoopingSound( (entityNum), (origin), (velocity), (sfx) )
+#define trap_S_AddRealLoopingSound( entityNum, origin, velocity, sfx ) \
+	CG_WrappedAddRealLoopingSound( (entityNum), (origin), (velocity), (sfx) )
+#define trap_S_StartBackgroundTrack( intro, loop ) \
+	CG_WrappedStartBackgroundTrack( (intro), (loop) )
+#endif
 
 
 void		trap_R_LoadWorldMap( const char *mapname );

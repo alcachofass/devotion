@@ -1099,6 +1099,9 @@ void UI_DrawChar( int x, int y, int ch, int style, vec4_t color )
 
 qboolean UI_IsFullscreen( void ) {
 	if ( uis.activemenu && ( trap_Key_GetCatcher() & KEYCATCH_UI ) ) {
+		if ( UI_Showcase_Playing() ) {
+			return qfalse;
+		}
 		return uis.activemenu->fullscreen;
 	}
 
@@ -1124,6 +1127,9 @@ void UI_SetActiveMenu( uiMenuCommand_t menu ) {
 
 	switch ( menu ) {
 	case UIMENU_NONE:
+		if ( UI_Showcase_RetainMenu() ) {
+			return;
+		}
 		UI_ForceMenuOff();
 		return;
 	case UIMENU_MAIN:
@@ -1471,6 +1477,9 @@ void UI_Init( void ) {
 
 	uis.activemenu = NULL;
 	uis.menusp     = 0;
+
+	/* Demo load restarts this VM. Put the main menu back if that load is the showcase. */
+	UI_Showcase_RetainMenu();
 }
 
 /*
@@ -1596,10 +1605,17 @@ void UI_Refresh( int realtime )
 
 	UI_UpdateCvars();
 
+	if ( !uis.activemenu ) {
+		UI_Showcase_RetainMenu();
+	}
+
 	if ( uis.activemenu )
 	{
-		if (uis.activemenu->fullscreen)
-		{
+		UI_Showcase_Frame();
+
+		if ( UI_Showcase_Playing() ) {
+			UI_Showcase_DrawBackdrop();
+		} else if ( uis.activemenu->fullscreen ) {
 			// draw the background
 			if( uis.activemenu->showlogo ) {
 				UI_DrawBackgroundPic( uis.menuBackShader );

@@ -88,6 +88,259 @@ typedef struct {
 
 static mainmenu_t s_main;
 
+#define SHOWCASE_FAIL_MS	3000
+#define SHOWCASE_FADE_MS	3000
+#define MAIN_MENU_MUSIC		"music/sad_synthwave.ogg"
+
+typedef enum {
+	SHOWCASE_IDLE,
+	SHOWCASE_STARTING,
+	SHOWCASE_PLAYING,
+	SHOWCASE_SUPPRESSED,
+	SHOWCASE_FAILED
+} showcaseState_t;
+
+static showcaseState_t	showcaseState;
+static int				showcaseStartTime;
+static int				showcaseFadeStart;
+static char				showcaseDemo[MAX_OSPATH];
+
+static void UI_Showcase_SetLatch( qboolean on ) {
+	trap_Cvar_Set( "cg_showcase", on ? "1" : "0" );
+}
+
+static qboolean UI_Showcase_Latched( void ) {
+	return ( trap_Cvar_VariableValue( "cg_showcase" ) != 0.0f ) ? qtrue : qfalse;
+}
+
+static void UI_MainMenu_StartMusic( void ) {
+	trap_S_StartBackgroundTrack( MAIN_MENU_MUSIC, NULL );
+}
+
+/*
+=================
+UI_Showcase_Adopt
+
+The UI VM is wiped when a demo loads. The engine cvar survives, so a
+fresh VM can tell that this connection is still the menu showcase.
+=================
+*/
+static void UI_Showcase_Adopt( void ) {
+	uiClientState_t	cs;
+
+	if ( !UI_Showcase_Latched() ) {
+		return;
+	}
+	if ( showcaseState == SHOWCASE_SUPPRESSED || showcaseState == SHOWCASE_FAILED ) {
+		return;
+	}
+
+	trap_GetClientState( &cs );
+	if ( cs.connState == CA_DISCONNECTED ) {
+		return;
+	}
+	if ( cs.connState == CA_ACTIVE ) {
+		if ( showcaseState != SHOWCASE_PLAYING ) {
+			UI_MainMenu_StartMusic();
+		}
+		showcaseState = SHOWCASE_PLAYING;
+	} else if ( showcaseState != SHOWCASE_PLAYING ) {
+		showcaseState = SHOWCASE_STARTING;
+	}
+}
+
+/*
+=================
+UI_Showcase_NoteMainMenu
+
+Called when the engine opens the main menu. A demo start disconnects
+first; that visit stays in STARTING so we do not queue a second demo.
+=================
+*/
+static void UI_Showcase_NoteMainMenu( void ) {
+	uiClientState_t	cs;
+
+	trap_GetClientState( &cs );
+	if ( cs.connState != CA_DISCONNECTED ) {
+		return;
+	}
+	if ( showcaseState == SHOWCASE_STARTING || showcaseState == SHOWCASE_FAILED ) {
+		return;
+	}
+	showcaseState = SHOWCASE_IDLE;
+}
+
+/*
+=================
+UI_Showcase_Stop
+
+Leave the showcase before a real connect, map, or user-started demo.
+The next disconnected main menu may start it again.
+=================
+*/
+void UI_Showcase_Stop( void ) {
+	showcaseState = SHOWCASE_SUPPRESSED;
+	UI_Showcase_SetLatch( qfalse );
+}
+
+/*
+=================
+UI_Showcase_RetainMenu
+
+Demo start asks the UI to close, and may restart the UI VM. Keep the
+main menu up for the whole showcase session.
+=================
+*/
+qboolean UI_Showcase_RetainMenu( void ) {
+	if ( !UI_Showcase_Latched() ) {
+		return qfalse;
+	}
+	if ( showcaseState == SHOWCASE_SUPPRESSED || showcaseState == SHOWCASE_FAILED ) {
+		return qfalse;
+	}
+
+	UI_Showcase_Adopt();
+	if ( !uis.activemenu ) {
+		UI_MainMenu();
+	} else {
+		trap_Key_SetCatcher( trap_Key_GetCatcher() | KEYCATCH_UI );
+	}
+	return qtrue;
+}
+
+/*
+=================
+UI_Showcase_Frame
+
+Start the showcase demo once the menu is up, and drop the 2D backdrop
+once that replay is actually rendering.
+=================
+*/
+void UI_Showcase_Frame( void ) {
+	uiClientState_t	cs;
+
+	UI_Showcase_Adopt();
+
+	if ( !uis.activemenu ) {
+		if ( UI_Showcase_Latched()
+				&& showcaseState != SHOWCASE_SUPPRESSED
+				&& showcaseState != SHOWCASE_FAILED ) {
+			UI_MainMenu();
+		}
+		if ( !uis.activemenu ) {
+			return;
+		}
+	}
+
+	trap_GetClientState( &cs );
+
+	if ( showcaseState == SHOWCASE_STARTING ) {
+		if ( cs.connState == CA_ACTIVE ) {
+			showcaseState = SHOWCASE_PLAYING;
+			UI_MainMenu_StartMusic();
+		} else if ( cs.connState == CA_DISCONNECTED
+				&& uis.realtime - showcaseStartTime > SHOWCASE_FAIL_MS ) {
+			showcaseState = SHOWCASE_FAILED;
+			UI_Showcase_SetLatch( qfalse );
+			UI_MainMenu_StartMusic();
+		}
+	}
+
+	if ( showcaseState == SHOWCASE_IDLE
+			&& cs.connState == CA_DISCONNECTED
+			&& uis.activemenu == &s_main.menu ) {
+		if ( !UI_Demo_PickRandomPlayable( showcaseDemo, sizeof( showcaseDemo ) ) ) {
+			showcaseState = SHOWCASE_FAILED;
+			UI_MainMenu_StartMusic();
+			return;
+		}
+		showcaseState = SHOWCASE_STARTING;
+		showcaseStartTime = uis.realtime;
+		UI_Showcase_SetLatch( qtrue );
+		trap_Cmd_ExecuteText( EXEC_APPEND, va( "demo \"%s\"\n", showcaseDemo ) );
+	}
+
+	if ( showcaseState == SHOWCASE_PLAYING && cs.connState == CA_ACTIVE ) {
+		if ( !showcaseFadeStart ) {
+			showcaseFadeStart = uis.realtime;
+			if ( !showcaseFadeStart ) {
+				showcaseFadeStart = 1;
+			}
+		}
+	}
+}
+
+/*
+=================
+UI_Showcase_Playing
+
+The showcase replay is live and should show through every menu screen.
+=================
+*/
+qboolean UI_Showcase_Playing( void ) {
+	uiClientState_t	cs;
+
+	if ( showcaseState != SHOWCASE_PLAYING || !UI_Showcase_Latched() ) {
+		return qfalse;
+	}
+
+	trap_GetClientState( &cs );
+	return ( cs.connState == CA_ACTIVE ) ? qtrue : qfalse;
+}
+
+static float UI_Showcase_BackdropAlpha( void ) {
+	int		elapsed;
+
+	if ( !showcaseFadeStart || showcaseState != SHOWCASE_PLAYING ) {
+		return 0.0f;
+	}
+
+	elapsed = uis.realtime - showcaseFadeStart;
+	if ( elapsed < 0 ) {
+		elapsed = 0;
+	}
+	if ( elapsed >= SHOWCASE_FADE_MS ) {
+		return 0.0f;
+	}
+	return 1.0f - (float)elapsed / (float)SHOWCASE_FADE_MS;
+}
+
+/*
+=================
+UI_Showcase_DrawBackdrop
+
+Fade the 2D menu art out once the showcase view is actually rendering.
+Menu widgets stay opaque.
+=================
+*/
+void UI_Showcase_DrawBackdrop( void ) {
+	float		alpha;
+	float		color[4];
+	qhandle_t	shader;
+
+	if ( !UI_Showcase_Playing() ) {
+		return;
+	}
+
+	alpha = UI_Showcase_BackdropAlpha();
+	if ( alpha <= 0.0f ) {
+		return;
+	}
+
+	if ( s_main.menu.showlogo ) {
+		shader = uis.menuBackFadeShader ? uis.menuBackFadeShader : uis.menuBackShader;
+		color[0] = color[1] = color[2] = 1.0f;
+	} else {
+		shader = uis.whiteShader;
+		color[0] = color[1] = color[2] = 0.0f;
+	}
+	color[3] = alpha;
+	trap_R_SetColor( color );
+	trap_R_DrawStretchPic( 0.0f, 0.0f, uis.glconfig.vidWidth, uis.glconfig.vidHeight,
+			0, 0, 1, 1, shader );
+	trap_R_SetColor( NULL );
+}
+
 static vec4_t main_menu_dim_red = { 0.7f, 0.0f, 0.0f, 1.0f };
 
 typedef struct {
@@ -237,6 +490,7 @@ void Main_MenuEvent (void* ptr, int event) {
 
 	switch( ((menucommon_s*)ptr)->id ) {
 	case ID_INTRODUCTION:
+		UI_Showcase_Stop();
 		trap_Cmd_ExecuteText( EXEC_APPEND, "map q3dm0;" );
 		break;
 
@@ -490,7 +744,11 @@ void UI_MainMenu( void ) {
 	qboolean teamArena = qfalse;
 	int		style = UI_LEFT | UI_DROPSHADOW;
 
-	trap_Cvar_Set( "sv_killserver", "1" );
+	UI_Showcase_Adopt();
+	UI_Showcase_NoteMainMenu();
+	if ( showcaseState != SHOWCASE_STARTING ) {
+		trap_Cvar_Set( "sv_killserver", "1" );
+	}
         trap_Cvar_SetValue( "handicap", 100 ); //Reset handicap during server change, it must be ser per game
 
 	memset( &s_main, 0 ,sizeof(mainmenu_t) );
@@ -631,5 +889,7 @@ void UI_MainMenu( void ) {
 	trap_Key_SetCatcher( KEYCATCH_UI );
 	uis.menusp = 0;
 	UI_PushMenu ( &s_main.menu );
-	trap_S_StartBackgroundTrack( "music/sad_synthwave.ogg", NULL );
+	if ( showcaseState != SHOWCASE_STARTING ) {
+		UI_MainMenu_StartMusic();
+	}
 }

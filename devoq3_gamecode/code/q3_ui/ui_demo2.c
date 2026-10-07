@@ -1578,6 +1578,7 @@ static void UI_Demo_StartPlayback( demoEntry_t *entry ) {
 	}
 
 	trap_Cvar_Set( "cg_currentDemo", entry->filename );
+	UI_Showcase_Stop();
 	UI_ForceMenuOff();
 	trap_Cmd_ExecuteText( EXEC_APPEND, va( "demo \"%s\"\n", entry->filename ) );
 }
@@ -1741,6 +1742,105 @@ static void UI_Demo_AddEntryFromFsName( const char *demoname ) {
 	}
 
 	s_demos.numAll++;
+}
+
+static char	s_pickDemoFileListBuf[DEMO_LIST_BUF_SIZE];
+
+static qboolean UI_Demo_FsNameIsPlayable( const char *demoname, char *filename, int filenameSize ) {
+	demoEntry_t	entry;
+	char		stripped[MAX_OSPATH];
+
+	if ( !UI_Demo_NameIsAutorecord( demoname ) ) {
+		return qfalse;
+	}
+
+	memset( &entry, 0, sizeof( entry ) );
+	Q_strncpyz( entry.fsName, demoname, sizeof( entry.fsName ) );
+	UI_Demo_LoadFileSize( demoname, &entry );
+	if ( entry.fileSize <= 0 ) {
+		return qfalse;
+	}
+
+	Q_strncpyz( stripped, demoname, sizeof( stripped ) );
+	UI_Demo_StripExtension( stripped );
+	Q_strncpyz( entry.filename, stripped, sizeof( entry.filename ) );
+	if ( !UI_Demo_ParseAutorecord( entry.filename, &entry ) ) {
+		return qfalse;
+	}
+	if ( UI_Demo_EntryCannotPlay( &entry ) ) {
+		return qfalse;
+	}
+
+	Q_strncpyz( filename, entry.filename, filenameSize );
+	return qtrue;
+}
+
+/*
+=================
+UI_Demo_PickRandomPlayable
+
+Choose a random autorecord-style demo whose map is installed, using the
+same naming and map checks as the replays menu. Falls back to the shipped
+showcase replay when no user demos qualify.
+=================
+*/
+qboolean UI_Demo_PickRandomPlayable( char *filename, int filenameSize ) {
+	char			extension[32];
+	char			stripped[MAX_OSPATH];
+	char			*demoname;
+	int				count;
+	int				fileCount;
+	int				i;
+	int				len;
+	int				pick;
+	int				seed;
+	int				seen;
+	fileHandle_t	f;
+
+	if ( !filename || filenameSize < 1 ) {
+		return qfalse;
+	}
+
+	count = 0;
+	Com_sprintf( extension, sizeof( extension ), "dm_%d",
+			(int)trap_Cvar_VariableValue( "protocol" ) );
+	fileCount = trap_FS_GetFileList( "demos", extension, s_pickDemoFileListBuf,
+			sizeof( s_pickDemoFileListBuf ) );
+
+	demoname = s_pickDemoFileListBuf;
+	for ( i = 0; i < fileCount; i++ ) {
+		len = strlen( demoname );
+		if ( UI_Demo_FsNameIsPlayable( demoname, stripped, sizeof( stripped ) ) ) {
+			count++;
+		}
+		demoname += len + 1;
+	}
+
+	if ( count > 0 ) {
+		seed = trap_Milliseconds();
+		pick = Q_rand( &seed ) % count;
+		seen = 0;
+		demoname = s_pickDemoFileListBuf;
+		for ( i = 0; i < fileCount; i++ ) {
+			len = strlen( demoname );
+			if ( UI_Demo_FsNameIsPlayable( demoname, stripped, sizeof( stripped ) ) ) {
+				if ( seen == pick ) {
+					Q_strncpyz( filename, stripped, filenameSize );
+					return qtrue;
+				}
+				seen++;
+			}
+			demoname += len + 1;
+		}
+	}
+
+	if ( trap_FS_FOpenFile( SHOWCASE_DEMO_FILE, &f, FS_READ ) > 0 ) {
+		trap_FS_FCloseFile( f );
+		Q_strncpyz( filename, SHOWCASE_DEMO, filenameSize );
+		return qtrue;
+	}
+
+	return qfalse;
 }
 
 static void UI_Demo_LoadAll( void ) {

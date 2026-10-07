@@ -65,6 +65,7 @@ UI_CVAR( ui_spVideos, "g_spVideos", "", CVAR_ARCHIVE | CVAR_ROM )
 UI_CVAR( ui_spSkill, "g_spSkill", "2", CVAR_ARCHIVE | CVAR_LATCH )
 
 UI_CVAR( ui_spSelection, "ui_spSelection", "", CVAR_ROM )
+UI_CVAR( ui_showcase, "cg_showcase", "0", CVAR_ROM )
 
 UI_CVAR( ui_browserMaster, "ui_browserMaster", "0", CVAR_ARCHIVE )
 UI_CVAR( ui_browserGameType, "ui_browserGameType", "0", CVAR_ARCHIVE )

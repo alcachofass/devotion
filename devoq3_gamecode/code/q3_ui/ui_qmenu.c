@@ -1779,6 +1779,7 @@ void Menu_Cache( void )
 	//uis.menuBackNoLogoShader = trap_R_RegisterShaderNoMip( "menubacknologo_blueish" );
 
 	uis.menuBackShader	= trap_R_RegisterShaderNoMip( "menuback_devoq3" );
+	uis.menuBackFadeShader = trap_R_RegisterShaderNoMip( "menuback_devoq3_fade" );
 	uis.menuBackNoLogoShader = trap_R_RegisterShaderNoMip( "menubacknologo_devoq3" );
 	
 	menu_in_sound	= trap_S_RegisterSound( "sound/misc/menu1.wav", qfalse );

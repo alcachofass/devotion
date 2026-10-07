@@ -80,6 +80,7 @@ static void SpecifyPassword_Event( void* ptr, int event )
 			if (s_specifypassword.password.field.buffer[0])
 			{
 				trap_Cvar_Set("password",s_specifypassword.password.field.buffer);
+				UI_Showcase_Stop();
 				trap_Cmd_ExecuteText( EXEC_APPEND, s_specifypassword.connectstring );
 			}
 			break;
