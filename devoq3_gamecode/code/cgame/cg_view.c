@@ -29,6 +29,37 @@ static void CG_DrawLoadingScreen( stereoFrame_t stereoView ) {
 	CG_DrawViewFades( stereoView );
 }
 
+static qboolean	s_showcaseDismissSent;
+
+/*
+=================
+CG_DismissShowcaseIfNeeded
+
+The menu showcase runs as demo playback with cg_showcase set. Console \map
+and other engine transitions can leave that latch active on a live level.
+=================
+*/
+static void CG_DismissShowcaseIfNeeded( qboolean demoPlayback ) {
+	if ( demoPlayback ) {
+		s_showcaseDismissSent = qfalse;
+		return;
+	}
+	if ( !cg_showcase.integer ) {
+		s_showcaseDismissSent = qfalse;
+		return;
+	}
+
+	trap_Cvar_Set( "cg_showcase", "0" );
+	if ( !s_showcaseDismissSent ) {
+		int		catcher;
+
+		s_showcaseDismissSent = qtrue;
+		trap_Cvar_Set( "ui_showcaseDismiss", "1" );
+		catcher = trap_Key_GetCatcher();
+		trap_Key_SetCatcher( catcher & ~KEYCATCH_UI );
+	}
+}
+
 /*
 =============================================================================
 
@@ -185,31 +216,44 @@ Sets the coordinates of the rendered window
 */
 static void CG_CalcVrect (void) {
 	int		size;
+	int		override;
 
 	// the intermission should allways be full screen
 	if ( cg.snap->ps.pm_type == PM_INTERMISSION ) {
 		size = 100;
+		override = -1;
 	} else {
-		// bound normal viewsize
-		if (cg_viewsize.integer < 30) {
-			trap_Cvar_Set ("cg_viewsize","30");
-			size = 30;
-		} else if (cg_viewsize.integer > 100) {
-			trap_Cvar_Set ("cg_viewsize","100");
-			size = 100;
+		override = CG_LoadFadeViewSizeOverride();
+		if ( override >= 0 ) {
+			size = override;
 		} else {
-			size = cg_viewsize.integer;
+			// bound normal viewsize
+			if (cg_viewsize.integer < 30) {
+				trap_Cvar_Set ("cg_viewsize","30");
+				size = 30;
+			} else if (cg_viewsize.integer > 100) {
+				trap_Cvar_Set ("cg_viewsize","100");
+				size = 100;
+			} else {
+				size = cg_viewsize.integer;
+			}
 		}
-
 	}
-	cg.refdef.width = cgs.glconfig.vidWidth*size/100;
+
+	cg.refdef.width = cgs.glconfig.vidWidth * size / 100;
+	if ( override >= 0 && cg.refdef.width < 2 ) {
+		cg.refdef.width = 2;
+	}
 	cg.refdef.width &= ~1;
 
-	cg.refdef.height = cgs.glconfig.vidHeight*size/100;
+	cg.refdef.height = cgs.glconfig.vidHeight * size / 100;
+	if ( override >= 0 && cg.refdef.height < 2 ) {
+		cg.refdef.height = 2;
+	}
 	cg.refdef.height &= ~1;
 
-	cg.refdef.x = (cgs.glconfig.vidWidth - cg.refdef.width)/2;
-	cg.refdef.y = (cgs.glconfig.vidHeight - cg.refdef.height)/2;
+	cg.refdef.x = (cgs.glconfig.vidWidth - cg.refdef.width) / 2;
+	cg.refdef.y = (cgs.glconfig.vidHeight - cg.refdef.height) / 2;
 }
 
 //==============================================================================
@@ -1463,6 +1507,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	// update cvars
 	CG_UpdateCvars();
+	CG_DismissShowcaseIfNeeded( demoPlayback );
 	if ( cg_showcase.integer ) {
 		int catcher;
 
@@ -1507,6 +1552,8 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		CG_DrawLoadingScreen( stereoView );
 		return;
 	}
+
+	CG_BeginLoadFadeIfNeeded();
 
 	if ( !CG_DemoControls_IsSeeking() ) {
 		CG_DemoHistory_Frame();

@@ -1360,6 +1360,14 @@ qboolean UI_ConsoleCommand( int realTime ) {
 	// ensure minimum menu data is available
 	Menu_Cache();
 
+	UI_Showcase_PollDismiss();
+
+	if ( !Q_stricmp( cmd, "map" ) || !Q_stricmp( cmd, "devmap" )
+			|| !Q_stricmp( cmd, "spmap" ) || !Q_stricmp( cmd, "connect" ) ) {
+		UI_Showcase_Stop();
+		return qfalse;
+	}
+
 	if ( Q_stricmp (cmd, "levelselect") == 0 ) {
 		UI_SPLevelMenu_f();
 		return qtrue;
@@ -1598,6 +1606,8 @@ void UI_Refresh( int realtime )
 {
 	uis.frametime = realtime - uis.realtime;
 	uis.realtime  = realtime;
+
+	UI_Showcase_PollDismiss();
 
 	if ( !( trap_Key_GetCatcher() & KEYCATCH_UI ) ) {
 		return;

@@ -572,6 +572,12 @@ static void CG_TileClearBox( int x, int y, int w, int h, qhandle_t hShader ) {
 	trap_R_DrawStretchPic( x, y, w, h, s1, t1, s2, t2, hShader );
 }
 
+static void CG_TileClearSolidBox( int x, int y, int w, int h ) {
+	trap_R_SetColor( colorBlack );
+	trap_R_DrawStretchPic( x, y, w, h, 0, 0, 0, 0, cgs.media.whiteShader );
+	trap_R_SetColor( NULL );
+}
+
 
 
 /*
@@ -597,6 +603,14 @@ void CG_TileClear( void ) {
 	bottom = top + cg.refdef.height-1;
 	left = cg.refdef.x;
 	right = left + cg.refdef.width-1;
+
+	if ( CG_LoadFadeViewSizeOverride() >= 0 ) {
+		CG_TileClearSolidBox( 0, 0, w, top );
+		CG_TileClearSolidBox( 0, bottom, w, h - bottom );
+		CG_TileClearSolidBox( 0, top, left, bottom - top + 1 );
+		CG_TileClearSolidBox( right, top, w - right, bottom - top + 1 );
+		return;
+	}
 
 	// clear above view screen
 	CG_TileClearBox( 0, 0, w, top, cgs.media.backTileShader );

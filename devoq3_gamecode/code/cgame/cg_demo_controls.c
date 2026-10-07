@@ -153,6 +153,7 @@ static int		dc_hoverBtn = -1;
 static int		dc_firstServerTime;
 static int		dc_durationMs;
 static qboolean	dc_timingReady;
+static qboolean	dc_endFadeStarted;
 static qboolean	dc_seeking;
 static qboolean	dc_seekKeepCvars;
 static qboolean	dc_keepViewCvars;
@@ -1800,6 +1801,60 @@ static int DemoCtrl_ElapsedMs( void ) {
 		elapsed = 0;
 	}
 	return elapsed;
+}
+
+static int DemoCtrl_EndFadeStartMs( void ) {
+	int lead;
+
+	if ( dc_durationMs <= 0 ) {
+		return 0;
+	}
+	lead = dc_durationMs - CG_LEAVE_FADE_MS;
+	if ( lead < 0 ) {
+		lead = 0;
+	}
+	return lead;
+}
+
+static int DemoCtrl_ClampPlaybackMs( int ms ) {
+	int maxMs;
+
+	maxMs = DemoCtrl_EndFadeStartMs();
+	if ( ms > maxMs ) {
+		ms = maxMs;
+	}
+	if ( ms < 0 ) {
+		ms = 0;
+	}
+	return ms;
+}
+
+static void DemoCtrl_BeginEndFade( void ) {
+	if ( dc_endFadeStarted || cg.leaveFadeStart ) {
+		return;
+	}
+	dc_endFadeStarted = qtrue;
+	if ( dc_seeking ) {
+		DemoCtrl_SeekFinish( qfalse );
+	}
+	DemoCtrl_SetTimescale( 0.0f );
+	DemoCtrl_ReleaseCatcher();
+	CG_BeginLeaveFade();
+}
+
+static void DemoCtrl_CheckEndFade( void ) {
+	int elapsed;
+
+	if ( !cg.demoPlayback || !dc_timingReady || dc_durationMs <= 0 ) {
+		return;
+	}
+	if ( cg_showcase.integer || dc_endFadeStarted || cg.leaveFadeStart ) {
+		return;
+	}
+	elapsed = DemoCtrl_ElapsedMs();
+	if ( elapsed >= DemoCtrl_EndFadeStartMs() ) {
+		DemoCtrl_BeginEndFade();
+	}
 }
 
 static void DemoCtrl_UpdateSpeedLabel( float ts ) {
@@ -3555,6 +3610,9 @@ static void DemoCtrl_SeekResumeFromCvars( void ) {
 static void DemoCtrl_SeekBegin( int targetMs ) {
 	int elapsed;
 
+	if ( cg.leaveFadeStart ) {
+		return;
+	}
 	if ( dc_durationMs <= 0 ) {
 		return;
 	}
@@ -3564,6 +3622,7 @@ static void DemoCtrl_SeekBegin( int targetMs ) {
 	if ( targetMs > dc_durationMs ) {
 		targetMs = dc_durationMs;
 	}
+	targetMs = DemoCtrl_ClampPlaybackMs( targetMs );
 
 	elapsed = DemoCtrl_ElapsedMs();
 	if ( !dc_seeking && targetMs >= elapsed && targetMs - elapsed < DEMOCTRL_SEEK_NOP_MS ) {
@@ -4339,6 +4398,7 @@ void CG_DemoControls_Frame( void ) {
 		}
 		dc_speedLabel[0] = '\0';
 		dc_timingReady = qfalse;
+		dc_endFadeStarted = qfalse;
 		dc_shotHideFrames = 0;
 		if ( dc_clipRecording || dc_clipPipeOn ) {
 			DemoCtrl_ClipStop( qfalse );
@@ -4365,6 +4425,7 @@ void CG_DemoControls_Frame( void ) {
 	if ( !dc_demoSession ) {
 		dc_demoSession = qtrue;
 		dc_dynamicCamCvarSeen = qfalse;
+		dc_endFadeStarted = qfalse;
 		DemoCtrl_DrawersReset();
 		DemoCtrl_ClipReadCvars();
 	}
@@ -4374,6 +4435,7 @@ void CG_DemoControls_Frame( void ) {
 	DemoCtrl_SyncCamHud();
 	CG_DemoEvents_Frame();
 	DemoCtrl_UpdateTiming();
+	DemoCtrl_CheckEndFade();
 	DemoCtrl_SeekFrame();
 	DemoCtrl_ClipFrame();
 	DemoCtrl_WatchPauseZero();

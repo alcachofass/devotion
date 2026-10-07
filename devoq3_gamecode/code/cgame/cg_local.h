@@ -42,6 +42,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define	POWERUP_BLINK_TIME	1000
 #define	FADE_TIME			200
+#define	CG_LEAVE_FADE_MS		1000
 #define	PULSE_TIME			200
 #define	DAMAGE_DEFLECT_TIME	100
 #define	DAMAGE_RETURN_TIME	400
@@ -2393,8 +2394,11 @@ void CG_LoadingString( const char *s );
 void CG_LoadingItem( int itemNum );
 void CG_LoadingClient( int clientNum );
 void CG_DrawInformation( void );
+void CG_BeginLoadFadeIfNeeded( void );
+int CG_LoadFadeViewSizeOverride( void );
 void CG_DrawLoadFade( void );
 qboolean CG_ShowcaseActive( void );
+qboolean CG_LevelLoadFadeActive( void );
 void CG_BeginLevelLoadFade( void );
 void CG_DrawLevelLoadFade( void );
 void CG_DrawViewFades( stereoFrame_t stereoView );

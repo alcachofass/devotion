@@ -7509,6 +7509,10 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		return;
 	}
 
+	if ( CG_LoadFadeViewSizeOverride() >= 0 ) {
+		return;
+	}
+
 #ifdef MISSIONPACK
 	if (cgs.orderPending && cg.time > cgs.orderTime) {
 		CG_CheckOrderPending();

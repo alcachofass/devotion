@@ -180,7 +180,27 @@ The next disconnected main menu may start it again.
 */
 void UI_Showcase_Stop( void ) {
 	showcaseState = SHOWCASE_SUPPRESSED;
+	showcaseFadeStart = 0;
 	UI_Showcase_SetLatch( qfalse );
+}
+
+/*
+=================
+UI_Showcase_PollDismiss
+
+Cgame requests a showcase teardown via ui_showcaseDismiss when leaving a
+menu replay for live gameplay. Never call trap_SendConsoleCommand from a
+render frame to reach this; poll the latch from normal UI entry points.
+=================
+*/
+void UI_Showcase_PollDismiss( void ) {
+	if ( !trap_Cvar_VariableValue( "ui_showcaseDismiss" ) ) {
+		return;
+	}
+
+	trap_Cvar_Set( "ui_showcaseDismiss", "0" );
+	UI_Showcase_Stop();
+	UI_ForceMenuOff();
 }
 
 /*
@@ -220,6 +240,14 @@ void UI_Showcase_Frame( void ) {
 	uiClientState_t	cs;
 
 	UI_Showcase_Adopt();
+
+	if ( ( showcaseState == SHOWCASE_PLAYING || showcaseState == SHOWCASE_STARTING )
+			&& !UI_Showcase_Latched() ) {
+		showcaseState = SHOWCASE_SUPPRESSED;
+		showcaseFadeStart = 0;
+		UI_ForceMenuOff();
+		return;
+	}
 
 	if ( !uis.activemenu ) {
 		if ( UI_Showcase_Latched()
@@ -309,14 +337,13 @@ static float UI_Showcase_BackdropAlpha( void ) {
 =================
 UI_Showcase_DrawBackdrop
 
-Fade the 2D menu art out once the showcase view is actually rendering.
+Hold a black backdrop while the showcase view fades in.
 Menu widgets stay opaque.
 =================
 */
 void UI_Showcase_DrawBackdrop( void ) {
 	float		alpha;
 	float		color[4];
-	qhandle_t	shader;
 
 	if ( !UI_Showcase_Playing() ) {
 		return;
@@ -327,17 +354,11 @@ void UI_Showcase_DrawBackdrop( void ) {
 		return;
 	}
 
-	if ( s_main.menu.showlogo ) {
-		shader = uis.menuBackFadeShader ? uis.menuBackFadeShader : uis.menuBackShader;
-		color[0] = color[1] = color[2] = 1.0f;
-	} else {
-		shader = uis.whiteShader;
-		color[0] = color[1] = color[2] = 0.0f;
-	}
+	color[0] = color[1] = color[2] = 0.0f;
 	color[3] = alpha;
 	trap_R_SetColor( color );
 	trap_R_DrawStretchPic( 0.0f, 0.0f, uis.glconfig.vidWidth, uis.glconfig.vidHeight,
-			0, 0, 1, 1, shader );
+			0, 0, 0, 0, uis.whiteShader );
 	trap_R_SetColor( NULL );
 }
 
@@ -764,7 +785,7 @@ void UI_MainMenu( void ) {
 		s_errorMessage.menu.key = ErrorMessage_Key;
 		s_errorMessage.menu.fullscreen = qtrue;
 		s_errorMessage.menu.wrapAround = qtrue;
-		s_errorMessage.menu.showlogo = qtrue;		
+		s_errorMessage.menu.showlogo = qfalse;		
 
 		trap_Key_SetCatcher( KEYCATCH_UI );
 		uis.menusp = 0;
@@ -777,7 +798,7 @@ void UI_MainMenu( void ) {
 	s_main.menu.key = Main_MenuKey;
 	s_main.menu.fullscreen = qtrue;
 	s_main.menu.wrapAround = qtrue;
-	s_main.menu.showlogo = qtrue;
+	s_main.menu.showlogo = qfalse;
 
 	y = MAIN_MENU_TOP_Y;
 
