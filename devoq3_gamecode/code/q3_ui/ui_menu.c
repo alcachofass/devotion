@@ -316,6 +316,17 @@ qboolean UI_Showcase_Playing( void ) {
 	return ( cs.connState == CA_ACTIVE ) ? qtrue : qfalse;
 }
 
+/*
+=================
+UI_Showcase_IsBusy
+
+True while the menu showcase demo is loading (defer work that hitch ping).
+=================
+*/
+qboolean UI_Showcase_IsBusy( void ) {
+	return showcaseState == SHOWCASE_STARTING;
+}
+
 static float UI_Showcase_BackdropAlpha( void ) {
 	int		elapsed;
 
