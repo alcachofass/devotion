@@ -7,6 +7,7 @@ ui_util
 ui_shared
 ui_gameinfo
 bg_misc
+bg_seasonal
 bg_lib
 q_math
 q_shared

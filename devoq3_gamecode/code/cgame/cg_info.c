@@ -26,10 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define MAX_LOADING_PLAYER_ICONS	16
 #define MAX_LOADING_ITEM_ICONS		26
-#define LOAD_FADE_TIME			1000
-#define LEAVE_FADE_TIME			1000
-
-static int s_levelLoadFadeStart;
+#define LOAD_FADE_TIME			CG_LEAVE_FADE_MS
 
 static int			loadingPlayerIconCount;
 static int			loadingItemIconCount;
@@ -159,6 +156,13 @@ void CG_DrawInformation( void ) {
 	qhandle_t	detail;
 	char		buf[1024];
 	float	color[4];
+
+	if ( cg_showcase.integer ) {
+		color[0] = color[1] = color[2] = 0.0f;
+		color[3] = 1.0f;
+		CG_FillRect( 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, color );
+		return;
+	}
 
 	info = CG_ConfigString( CS_SERVERINFO );
 	sysInfo = CG_ConfigString( CS_SYSTEMINFO );
@@ -339,10 +343,119 @@ void CG_DrawInformation( void ) {
 }
 
 /*
+===============================================================================
+
+  LOAD TRANSITIONS
+
+  Entering gameplay plays either a levelshot fade-out or an iris open from the
+  center (50/50).  CG_BeginLoadFadeIfNeeded() must run before the first
+  rendered frame; CG_LoadFadeViewSizeOverride() shrinks the 3D viewport during
+  the iris variant.
+
+===============================================================================
+*/
+
+typedef enum {
+	LOAD_XITION_FADE,
+	LOAD_XITION_IRIS
+} loadXition_t;
+
+static int			s_levelLoadFadeStart;
+static loadXition_t	s_loadXition;
+static qboolean		s_loadXitionPicked;
+
+static int CG_LoadFadeElapsed( void ) {
+	int elapsed;
+
+	if ( !cg.loadFadeStart ) {
+		return -1;
+	}
+
+	elapsed = trap_Milliseconds() - cg.loadFadeStart;
+	if ( elapsed < 0 ) {
+		return 0;
+	}
+	return elapsed;
+}
+
+/*
+====================
+CG_BeginLoadFadeIfNeeded
+
+Start the load transition before the first rendered gameplay frame.
+====================
+*/
+void CG_BeginLoadFadeIfNeeded( void ) {
+	int elapsed;
+	int seed;
+
+	if ( cg.loadFadeStart || cg.levelShot || cg_showcase.integer ) {
+		return;
+	}
+
+	if ( !cg.snap || ( cg.snap->snapFlags & SNAPFLAG_NOT_ACTIVE ) ) {
+		return;
+	}
+
+	if ( s_levelLoadFadeStart ) {
+		elapsed = trap_Milliseconds() - s_levelLoadFadeStart;
+		if ( elapsed < CG_LEAVE_FADE_MS ) {
+			return;
+		}
+	}
+
+	if ( !s_loadXitionPicked ) {
+		seed = trap_Milliseconds() ^ (int)( cg.time * 69069 );
+		s_loadXition = ( Q_random( &seed ) < 0.5f ) ? LOAD_XITION_FADE : LOAD_XITION_IRIS;
+		s_loadXitionPicked = qtrue;
+	}
+
+	cg.loadFadeStart = trap_Milliseconds();
+	if ( !cg.loadFadeStart ) {
+		cg.loadFadeStart = 1;
+	}
+}
+
+/*
+====================
+CG_LoadFadeViewSizeOverride
+
+Returns 0-100 while an iris load transition is shrinking the 3D viewport,
+or -1 to use normal cg_viewsize handling.
+====================
+*/
+int CG_LoadFadeViewSizeOverride( void ) {
+	int		elapsed;
+	float	progress;
+	float	t;
+
+	if ( s_loadXition != LOAD_XITION_IRIS ) {
+		return -1;
+	}
+
+	elapsed = CG_LoadFadeElapsed();
+	if ( elapsed < 0 || elapsed >= LOAD_FADE_TIME ) {
+		return -1;
+	}
+
+	progress = (float)elapsed / (float)LOAD_FADE_TIME;
+	if ( progress <= 0.0f ) {
+		t = 0.0f;
+	} else if ( progress >= 1.0f ) {
+		t = 1.0f;
+	} else {
+		t = progress * progress * ( 3.0f - 2.0f * progress );
+	}
+
+	return (int)( 100.0f * t + 0.5f );
+}
+
+/*
 ====================
 CG_DrawLoadFade
 
 Fullscreen levelshot overlay that fades out after the first playable frame.
+The iris variant is handled via CG_LoadFadeViewSizeOverride() instead.
 ====================
 */
 void CG_DrawLoadFade( void ) {
@@ -352,23 +465,17 @@ void CG_DrawLoadFade( void ) {
 	float		color[4];
 	qhandle_t	levelshot;
 
-	if ( cg.levelShot ) {
+	if ( cg.levelShot || cg_showcase.integer ) {
 		return;
 	}
 
-	if ( !cg.loadFadeStart ) {
-		cg.loadFadeStart = trap_Milliseconds();
-		if ( !cg.loadFadeStart ) {
-			cg.loadFadeStart = 1;
-		}
-	}
-
-	elapsed = trap_Milliseconds() - cg.loadFadeStart;
-	if ( elapsed >= LOAD_FADE_TIME ) {
+	elapsed = CG_LoadFadeElapsed();
+	if ( elapsed < 0 || elapsed >= LOAD_FADE_TIME ) {
 		return;
 	}
-	if ( elapsed < 0 ) {
-		elapsed = 0;
+
+	if ( s_loadXition == LOAD_XITION_IRIS ) {
+		return;
 	}
 
 	info = CG_ConfigString( CS_SERVERINFO );
@@ -393,11 +500,16 @@ Start the fade to black that precedes a server-driven level load.
 Survives CG_Init via static state.
 ====================
 */
+qboolean CG_LevelLoadFadeActive( void ) {
+	return s_levelLoadFadeStart ? qtrue : qfalse;
+}
+
 void CG_BeginLevelLoadFade( void ) {
 	if ( s_levelLoadFadeStart ) {
 		return;
 	}
 
+	s_loadXitionPicked = qfalse;
 	s_levelLoadFadeStart = trap_Milliseconds();
 	if ( !s_levelLoadFadeStart ) {
 		s_levelLoadFadeStart = 1;
@@ -427,16 +539,17 @@ void CG_DrawLevelLoadFade( void ) {
 
 	color[0] = color[1] = color[2] = 0.0f;
 
-	if ( elapsed < LEAVE_FADE_TIME ) {
-		color[3] = (float)elapsed / (float)LEAVE_FADE_TIME;
+	if ( elapsed < CG_LEAVE_FADE_MS ) {
+		color[3] = (float)elapsed / (float)CG_LEAVE_FADE_MS;
 		CG_FillRect( 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, color );
 		return;
 	}
 
 	if ( cg.loadFadeStart ) {
-		elapsed = trap_Milliseconds() - cg.loadFadeStart;
+		elapsed = CG_LoadFadeElapsed();
 		if ( elapsed >= LOAD_FADE_TIME ) {
 			s_levelLoadFadeStart = 0;
+			s_loadXitionPicked = qfalse;
 		}
 		return;
 	}
@@ -444,12 +557,6 @@ void CG_DrawLevelLoadFade( void ) {
 	if ( !cg.snap || ( cg.snap->snapFlags & SNAPFLAG_NOT_ACTIVE ) ) {
 		color[3] = 1.0f;
 		CG_FillRect( 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, color );
-		return;
-	}
-
-	cg.loadFadeStart = trap_Milliseconds();
-	if ( !cg.loadFadeStart ) {
-		cg.loadFadeStart = 1;
 	}
 }
 
@@ -505,17 +612,17 @@ void CG_DrawLeaveFade( stereoFrame_t stereoView ) {
 	}
 
 	color[0] = color[1] = color[2] = 0.0f;
-	if ( elapsed >= LEAVE_FADE_TIME ) {
+	if ( elapsed >= CG_LEAVE_FADE_MS ) {
 		color[3] = 1.0f;
 	} else {
-		color[3] = (float)elapsed / (float)LEAVE_FADE_TIME;
+		color[3] = (float)elapsed / (float)CG_LEAVE_FADE_MS;
 	}
 
 	if ( !cg.levelShot ) {
 		CG_FillRect( 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, color );
 	}
 
-	if ( elapsed >= LEAVE_FADE_TIME && !cg.leaveFadeDisconnect && stereoView != STEREO_LEFT ) {
+	if ( elapsed >= CG_LEAVE_FADE_MS && !cg.leaveFadeDisconnect && stereoView != STEREO_LEFT ) {
 		cg.leaveFadeDisconnect = qtrue;
 		trap_Cvar_Set( "ui_menuFadeFromBlack", "1" );
 		trap_SendConsoleCommand( "disconnect\n" );

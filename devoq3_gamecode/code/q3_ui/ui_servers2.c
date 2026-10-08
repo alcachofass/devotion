@@ -99,22 +99,16 @@ MULTIPLAYER MENU (SERVER BROWSER)
 #define AS_MASTER5			5
 #define AS_MASTER_MAX			5
 
-#define MM_REFRESH_MASTERS		0
-#define MM_REFRESH_PINGING		1
-
-#define MAINMENU_MAX_ADDRESSES		1024
+#define MAINMENU_SHOWCASE_MAX		3
 #define MAINMENU_CACHE_FILE			"devotion_servers.cache"
-#define MAINMENU_MASTER_STABLE_MS	2000
-#define MAINMENU_MASTER_TIMEOUT_MS	15000
-#define MAINMENU_MASTER_BOOT_MS		750
 #define MAINMENU_PINGS_PER_TICK		4
 #define MAINMENU_PING_INTERVAL_MS	50
-#define MAINMENU_MAX_CACHE_WRITTEN	128
-#define MAINMENU_SCAN_TIMEOUT_MS		90000
+#define MAINMENU_PING_DEFER_MS		4000
+#define MAINMENU_PING_CYCLE_MS		5000
 #define MAINMENU_PING_STALL_MS		10000
 #define MAINMENU_PING_UNKNOWN		(-1)
 #define MAINMENU_GAMETYPE_UNKNOWN	(-1)
-/* Rebuild/sort the visible list at most this often while a scan is running. */
+/* Rebuild the browser list at most this often while a scan is running. */
 #define SERVERLIST_UI_UPDATE_MS		250
 
 #define SORT_HOST			0
@@ -339,21 +333,15 @@ static int                              g_hideprivate;
 
 static menulist_s			*g_mainmenu_list = NULL;
 static menubitmap_s			*g_mainmenu_mappic = NULL;
-static qboolean				g_internet_scan;
-static int					g_mainmenu_refresh_phase;
+static servernode_t			g_mainmenu_showcase[MAINMENU_SHOWCASE_MAX];
+static int					g_mainmenu_showcase_count;
+static qboolean				g_mainmenu_showcase_loaded;
+static qboolean				g_mainmenu_refreshing;
 static int					g_mainmenu_scan_start_time;
 static int					g_mainmenu_last_ping_time;
-static int					g_mainmenu_master_last_count;
-static int					g_mainmenu_master_merged_idx;
-static int					g_mainmenu_master_stable_time;
-static int					g_mainmenu_master_query_time;
-static qboolean				g_mainmenu_master_query_sent;
-static qboolean				g_mainmenu_masters_done;
-static char					g_mainmenu_cache_written[MAINMENU_MAX_CACHE_WRITTEN][MAX_ADDRESSLENGTH];
-static int					g_mainmenu_cache_written_count;
-static char					g_mainmenu_addresses[MAINMENU_MAX_ADDRESSES][MAX_ADDRESSLENGTH];
-static int					g_mainmenu_numaddresses;
 static int					g_mainmenu_last_ping_activity;
+static int					g_mainmenu_next_ping_cycle;
+static qboolean				g_mainmenu_ping_waiting;
 static qboolean				g_serverlist_ui_dirty;
 static int					g_serverlist_last_ui_update;
 
@@ -796,7 +784,10 @@ static int QDECL ArenaServers_Compare( const void *arg1, const void *arg2 ) {
 		Q_strncpyz( host2, t2->hostname, sizeof( host2 ) );
 		Q_CleanStr( host1 );
 		Q_CleanStr( host2 );
-		return Q_stricmp( host1, host2 );
+		if( Q_stricmp( host1, host2 ) ) {
+			return Q_stricmp( host1, host2 );
+		}
+		return Q_stricmp( t1->adrstr, t2->adrstr );
 
 	case SORT_MAP:
 		return Q_stricmp( t1->mapname, t2->mapname );
@@ -852,7 +843,10 @@ static int QDECL ArenaServers_Compare( const void *arg1, const void *arg2 ) {
 		Q_strncpyz( host2, t2->hostname, sizeof( host2 ) );
 		Q_CleanStr( host1 );
 		Q_CleanStr( host2 );
-		return Q_stricmp( host1, host2 );
+		if( Q_stricmp( host1, host2 ) ) {
+			return Q_stricmp( host1, host2 );
+		}
+		return Q_stricmp( t1->adrstr, t2->adrstr );
 	}
 
 	return 0;
@@ -872,8 +866,10 @@ static void ArenaServers_Go( void ) {
 		if(servernode->needPass) {
 			UI_SpecifyPasswordMenu( va( "connect %s\n", servernode->adrstr ), servernode->hostname );
 		}
-		else
+		else {
+			UI_Showcase_Stop();
 			trap_Cmd_ExecuteText( EXEC_APPEND, va( "connect %s\n", servernode->adrstr ) );
+		}
 	}
 }
 
@@ -919,73 +915,37 @@ static qboolean ArenaServers_Filtered(servernode_t *servernodeptr) {
 
 }
 
-/*
-=================
-MainMenuServers_IsDevotionMod
-=================
-*/
-static qboolean MainMenuServers_IsDevotionMod( const char *gamename ) {
-	return gamename && gamename[0] && !Q_stricmp( gamename, "devotion" );
-}
+typedef struct {
+	const char	*adrstr;
+	const char	*hostname;
+	const char	*mapname;
+	int			pingtime;
+	int			gametype;
+	int			humanclients;
+	int			maxclients;
+} mainmenu_seed_t;
+
+static const mainmenu_seed_t g_mainmenu_seed_defaults[MAINMENU_SHOWCASE_MAX] = {
+	{ "107.174.253.227:27960", "nuegados.com^7", "PRO-Q3DM6", 155, GT_TOURNAMENT, 0, 8 },
+	{ "23.95.216.112:27960", "play.ur-face.com^7", "SINISTER", 190, GT_TOURNAMENT, 0, 16 },
+	{ "202.189.169.90:27960", "^1U^7ncle ^2T^7ouchy's ^3P^7uzzle ^4B^7aseme^7", "COUNTERMEASURE", 1, GT_ELIMINATION, 0, 8 }
+};
 
 /*
 =================
-MainMenuServers_AddressExists
+MainMenuServers_FindSeed
 =================
 */
-static qboolean MainMenuServers_AddressExists( const char *adrstr ) {
+static const mainmenu_seed_t *MainMenuServers_FindSeed( const char *adrstr ) {
 	int		i;
-	char	normalized[MAX_ADDRESSLENGTH];
 
-	if( !adrstr || !adrstr[0] ) {
-		return qfalse;
-	}
-
-	Q_strncpyz( normalized, adrstr, sizeof( normalized ) );
-	ArenaServers_NormalizeAddress( normalized );
-
-	for( i = 0; i < g_mainmenu_numaddresses; i++ ) {
-		if( ArenaServers_SameAddress( g_mainmenu_addresses[i], normalized ) ) {
-			return qtrue;
+	for( i = 0; i < MAINMENU_SHOWCASE_MAX; i++ ) {
+		if( ArenaServers_SameAddress( g_mainmenu_seed_defaults[i].adrstr, adrstr ) ) {
+			return &g_mainmenu_seed_defaults[i];
 		}
 	}
 
-	return qfalse;
-}
-
-/*
-=================
-MainMenuServers_AddAddress
-=================
-*/
-static void MainMenuServers_AddAddress( const char *adrstr ) {
-	char	normalized[MAX_ADDRESSLENGTH];
-
-	if( !adrstr || !adrstr[0] ) {
-		return;
-	}
-
-	Q_strncpyz( normalized, adrstr, sizeof( normalized ) );
-	ArenaServers_NormalizeAddress( normalized );
-	if( !normalized[0] || MainMenuServers_AddressExists( normalized ) ) {
-		return;
-	}
-
-	if( g_mainmenu_numaddresses >= MAINMENU_MAX_ADDRESSES ) {
-		return;
-	}
-
-	Q_strncpyz( g_mainmenu_addresses[g_mainmenu_numaddresses], normalized, MAX_ADDRESSLENGTH );
-	g_mainmenu_numaddresses++;
-}
-
-/*
-=================
-MainMenuServers_AddDiscoveryAddress
-=================
-*/
-static void MainMenuServers_AddDiscoveryAddress( const char *adrstr ) {
-	MainMenuServers_AddAddress( adrstr );
+	return NULL;
 }
 
 /*
@@ -1019,89 +979,174 @@ static qboolean MainMenuServers_AnyPendingPings( void ) {
 	return trap_LAN_GetPingQueueCount() > 0;
 }
 
+static void MainMenuServers_SaveCache( void );
+
 /*
 =================
-MainMenuServers_FinishRefreshIfDone
+MainMenuServers_CanIssuePings
 =================
 */
-static void MainMenuServers_FinishRefreshIfDone( void ) {
+static qboolean MainMenuServers_CanIssuePings( void ) {
+	if( uis.realtime - g_mainmenu_scan_start_time < MAINMENU_PING_DEFER_MS ) {
+		return qfalse;
+	}
+
+	if( UI_Showcase_IsBusy() ) {
+		return qfalse;
+	}
+
+	if( g_mainmenu_ping_waiting ) {
+		if( uis.realtime < g_mainmenu_next_ping_cycle ) {
+			return qfalse;
+		}
+		g_mainmenu_ping_waiting = qfalse;
+		g_arenaservers.currentping = 0;
+	}
+
+	return qtrue;
+}
+
+/*
+=================
+MainMenuServers_FinishCycleIfDone
+=================
+*/
+static void MainMenuServers_FinishCycleIfDone( void ) {
 	if( g_arenaservers.currentping < g_arenaservers.numqueriedservers ) {
 		return;
 	}
 
 	if( !MainMenuServers_AnyPendingPings() ) {
-		ArenaServers_StopRefresh();
+		MainMenuServers_SaveCache();
+		g_mainmenu_ping_waiting = qtrue;
+		g_mainmenu_next_ping_cycle = uis.realtime + MAINMENU_PING_CYCLE_MS;
 		return;
 	}
 
 	if( g_mainmenu_last_ping_activity &&
 		uis.realtime - g_mainmenu_last_ping_activity > MAINMENU_PING_STALL_MS ) {
 		MainMenuServers_ClearPendingPings();
-		ArenaServers_StopRefresh();
+		g_mainmenu_ping_waiting = qtrue;
+		g_mainmenu_next_ping_cycle = uis.realtime + MAINMENU_PING_CYCLE_MS;
+		g_arenaservers.currentping = g_arenaservers.numqueriedservers;
 	}
 }
 
 /*
 =================
-MainMenuServers_AddCachedAddresses
-=================
-*/
-static void MainMenuServers_AddCachedAddresses( void ) {
-	int		i;
-
-	for( i = 0; i < g_numglobalservers; i++ ) {
-		if( !MainMenuServers_IsDevotionMod( g_globalserverlist[i].gamename ) ) {
-			continue;
-		}
-		MainMenuServers_AddAddress( g_globalserverlist[i].adrstr );
-	}
-}
-
-/*
-=================
-MainMenuServers_InsertCachedServer
+MainMenuServers_HasPing
 =================
 */
 static qboolean MainMenuServers_HasPing( servernode_t *servernodeptr );
 
-static void MainMenuServers_InsertCachedServer( const char *adrstr, const char *hostname, const char *mapname, int pingtime ) {
-	servernode_t	*servernodeptr;
-	char			normalized[MAX_ADDRESSLENGTH];
-	int				i;
+/*
+=================
+MainMenuServers_ParseCacheInt
 
-	if( !adrstr || !adrstr[0] ) {
-		return;
+Return defaultValue when the field is missing or not numeric.
+=================
+*/
+static int MainMenuServers_ParseCacheInt( const char *str, int defaultValue ) {
+	if( !str || !str[0] ) {
+		return defaultValue;
 	}
+
+	return atoi( str );
+}
+
+/*
+=================
+MainMenuServers_NextCacheField
+
+Split tab-separated cache lines. Returns NULL when no more fields.
+=================
+*/
+static char *MainMenuServers_NextCacheField( char **cursor ) {
+	char	*field;
+	char	*tab;
+
+	if( !cursor || !*cursor || !**cursor ) {
+		return NULL;
+	}
+
+	field = *cursor;
+	tab = strchr( field, '\t' );
+	if( tab ) {
+		*tab = '\0';
+		*cursor = tab + 1;
+	} else {
+		*cursor = field + strlen( field );
+	}
+
+	return field;
+}
+
+/*
+=================
+MainMenuServers_InitSlot
+=================
+*/
+static void MainMenuServers_InitSlot( servernode_t *servernodeptr, const char *adrstr,
+	const char *hostname, const char *mapname, int pingtime, int gametype,
+	int humanclients, int maxclients ) {
+	char	normalized[MAX_ADDRESSLENGTH];
+
+	memset( servernodeptr, 0, sizeof( *servernodeptr ) );
 
 	Q_strncpyz( normalized, adrstr, sizeof( normalized ) );
 	ArenaServers_NormalizeAddress( normalized );
-	if( !normalized[0] ) {
-		return;
-	}
-
-	for( i = 0; i < g_numglobalservers; i++ ) {
-		if( ArenaServers_SameAddress( g_globalserverlist[i].adrstr, normalized ) ) {
-			return;
-		}
-	}
-
-	if( g_numglobalservers >= MAX_GLOBALSERVERS ) {
-		return;
-	}
-
-	servernodeptr = &g_globalserverlist[g_numglobalservers];
-	g_numglobalservers++;
-
-	Q_strncpyz( servernodeptr->adrstr, normalized, MAX_ADDRESSLENGTH );
+	Q_strncpyz( servernodeptr->adrstr, normalized, sizeof( servernodeptr->adrstr ) );
 	Q_strncpyz( servernodeptr->hostname, hostname, sizeof( servernodeptr->hostname ) );
 	ArenaServers_PrepareHostname( servernodeptr->hostname );
 	Q_strncpyz( servernodeptr->mapname, mapname, sizeof( servernodeptr->mapname ) );
 	Q_strncpyz( servernodeptr->gamename, "devotion", sizeof( servernodeptr->gamename ) );
 	servernodeptr->pingtime = pingtime;
-	servernodeptr->gametype = MAINMENU_GAMETYPE_UNKNOWN;
-	servernodeptr->maxclients = 0;
-	servernodeptr->numclients = 0;
-	servernodeptr->humanclients = 0;
+	servernodeptr->gametype = gametype;
+	servernodeptr->humanclients = humanclients;
+	servernodeptr->numclients = humanclients;
+	servernodeptr->maxclients = maxclients;
+}
+
+/*
+=================
+MainMenuServers_SeedDefaults
+=================
+*/
+static void MainMenuServers_SeedDefaults( void ) {
+	int		i;
+
+	g_mainmenu_showcase_count = 0;
+	for( i = 0; i < MAINMENU_SHOWCASE_MAX; i++ ) {
+		MainMenuServers_InitSlot( &g_mainmenu_showcase[g_mainmenu_showcase_count],
+			g_mainmenu_seed_defaults[i].adrstr,
+			g_mainmenu_seed_defaults[i].hostname,
+			g_mainmenu_seed_defaults[i].mapname,
+			g_mainmenu_seed_defaults[i].pingtime,
+			g_mainmenu_seed_defaults[i].gametype,
+			g_mainmenu_seed_defaults[i].humanclients,
+			g_mainmenu_seed_defaults[i].maxclients );
+		g_mainmenu_showcase_count++;
+	}
+}
+
+/*
+=================
+MainMenuServers_FindSlot
+=================
+*/
+static int MainMenuServers_FindSlot( const char *adrstr ) {
+	int		i;
+
+	for( i = 0; i < g_mainmenu_showcase_count; i++ ) {
+		if( ArenaServers_SameAddress( g_mainmenu_showcase[i].adrstr, adrstr ) ) {
+			return i;
+		}
+		if( ArenaServers_SameHost( g_mainmenu_showcase[i].adrstr, adrstr ) ) {
+			return i;
+		}
+	}
+
+	return -1;
 }
 
 /*
@@ -1115,134 +1160,91 @@ static void MainMenuServers_LoadCache( void ) {
 	char			buffer[4096];
 	char			*cursor;
 	char			*line;
+	char			*lineCursor;
 	char			*adr;
 	char			*host;
 	char			*map;
-	char			*pingstr;
+	char			*field;
 	int				pingtime;
+	int				gametype;
+	int				humanclients;
+	int				maxclients;
+
+	memset( g_mainmenu_showcase, 0, sizeof( g_mainmenu_showcase ) );
+	g_mainmenu_showcase_count = 0;
 
 	len = trap_FS_FOpenFile( MAINMENU_CACHE_FILE, &f, FS_READ );
-	if( len <= 0 ) {
-		return;
-	}
-
-	if( len >= (int)sizeof( buffer ) ) {
-		len = sizeof( buffer ) - 1;
-	}
-
-	trap_FS_Read( buffer, len, f );
-	trap_FS_FCloseFile( f );
-	buffer[len] = '\0';
-
-	cursor = buffer;
-	while( cursor && *cursor ) {
-		line = cursor;
-		cursor = strchr( cursor, '\n' );
-		if( cursor ) {
-			*cursor = '\0';
-			cursor++;
+	if( len > 0 ) {
+		if( len >= (int)sizeof( buffer ) ) {
+			len = sizeof( buffer ) - 1;
 		}
 
-		adr = line;
-		host = strchr( line, '\t' );
-		pingstr = NULL;
-		if( host ) {
-			*host = '\0';
-			host++;
-			map = strchr( host, '\t' );
-			if( map ) {
-				*map = '\0';
-				map++;
-				pingstr = strchr( map, '\t' );
-				if( pingstr ) {
-					*pingstr = '\0';
-					pingstr++;
-				}
-			} else {
+		trap_FS_Read( buffer, len, f );
+		trap_FS_FCloseFile( f );
+		buffer[len] = '\0';
+
+		cursor = buffer;
+		while( cursor && *cursor && g_mainmenu_showcase_count < MAINMENU_SHOWCASE_MAX ) {
+			line = cursor;
+			cursor = strchr( cursor, '\n' );
+			if( cursor ) {
+				*cursor = '\0';
+				cursor++;
+			}
+
+			lineCursor = line;
+			adr = MainMenuServers_NextCacheField( &lineCursor );
+			host = MainMenuServers_NextCacheField( &lineCursor );
+			map = MainMenuServers_NextCacheField( &lineCursor );
+			if( !adr || !adr[0] ) {
+				continue;
+			}
+			if( !host ) {
+				host = "";
+			}
+			if( !map ) {
 				map = "";
 			}
-		} else {
-			host = "";
-			map = "";
-		}
 
-		if( !adr[0] ) {
-			continue;
-		}
+			{
+				const mainmenu_seed_t	*seed;
 
-		pingtime = MAINMENU_PING_UNKNOWN;
-		if( pingstr && pingstr[0] ) {
-			pingtime = atoi( pingstr );
-			if( pingtime < 0 ) {
-				pingtime = MAINMENU_PING_UNKNOWN;
+				seed = MainMenuServers_FindSeed( adr );
+
+				field = MainMenuServers_NextCacheField( &lineCursor );
+				pingtime = MainMenuServers_ParseCacheInt( field,
+					seed ? seed->pingtime : 0 );
+				if( pingtime < 0 ) {
+					pingtime = seed ? seed->pingtime : 0;
+				}
+
+				field = MainMenuServers_NextCacheField( &lineCursor );
+				gametype = MainMenuServers_ParseCacheInt( field,
+					seed ? seed->gametype : GT_FFA );
+				if( gametype < 0 ) {
+					gametype = seed ? seed->gametype : GT_FFA;
+				}
+
+				field = MainMenuServers_NextCacheField( &lineCursor );
+				humanclients = MainMenuServers_ParseCacheInt( field,
+					seed ? seed->humanclients : 0 );
+
+				field = MainMenuServers_NextCacheField( &lineCursor );
+				maxclients = MainMenuServers_ParseCacheInt( field,
+					seed ? seed->maxclients : 0 );
 			}
-		}
 
-		MainMenuServers_InsertCachedServer( adr, host, map, pingtime );
-		MainMenuServers_AddAddress( adr );
-
-		if( g_mainmenu_cache_written_count < MAINMENU_MAX_CACHE_WRITTEN ) {
-			Q_strncpyz( g_mainmenu_cache_written[g_mainmenu_cache_written_count], adr, MAX_ADDRESSLENGTH );
-			g_mainmenu_cache_written_count++;
-		}
-	}
-}
-
-/*
-=================
-MainMenuServers_IsCacheWritten
-=================
-*/
-static qboolean MainMenuServers_IsCacheWritten( const char *adrstr ) {
-	int		i;
-
-	for( i = 0; i < g_mainmenu_cache_written_count; i++ ) {
-		if( !Q_stricmp( g_mainmenu_cache_written[i], adrstr ) ) {
-			return qtrue;
+			MainMenuServers_InitSlot( &g_mainmenu_showcase[g_mainmenu_showcase_count],
+				adr, host, map, pingtime, gametype, humanclients, maxclients );
+			g_mainmenu_showcase_count++;
 		}
 	}
 
-	return qfalse;
-}
-
-/*
-=================
-MainMenuServers_CacheServer
-=================
-*/
-static void MainMenuServers_CacheServer( servernode_t *servernodeptr ) {
-	fileHandle_t	f;
-	char			line[MAX_ADDRESSLENGTH + MAX_HOSTNAMELENGTH + MAX_MAPNAMELENGTH + 16];
-
-	if( !servernodeptr ) {
-		return;
+	if( !g_mainmenu_showcase_count ) {
+		MainMenuServers_SeedDefaults();
 	}
 
-	if( !MainMenuServers_IsDevotionMod( servernodeptr->gamename ) ) {
-		return;
-	}
-
-	if( MainMenuServers_IsCacheWritten( servernodeptr->adrstr ) ) {
-		return;
-	}
-
-	if( g_mainmenu_cache_written_count < MAINMENU_MAX_CACHE_WRITTEN ) {
-		Q_strncpyz( g_mainmenu_cache_written[g_mainmenu_cache_written_count],
-			servernodeptr->adrstr, MAX_ADDRESSLENGTH );
-		g_mainmenu_cache_written_count++;
-	}
-
-	if( MainMenuServers_HasPing( servernodeptr ) ) {
-		Com_sprintf( line, sizeof( line ), "%s\t%s\t%s\t%d\n",
-			servernodeptr->adrstr, servernodeptr->hostname, servernodeptr->mapname, servernodeptr->pingtime );
-	} else {
-		Com_sprintf( line, sizeof( line ), "%s\t%s\t%s\n",
-			servernodeptr->adrstr, servernodeptr->hostname, servernodeptr->mapname );
-	}
-
-	trap_FS_FOpenFile( MAINMENU_CACHE_FILE, &f, FS_APPEND );
-	trap_FS_Write( line, strlen( line ), f );
-	trap_FS_FCloseFile( f );
+	g_mainmenu_showcase_loaded = qtrue;
 }
 
 /*
@@ -1254,27 +1256,112 @@ static void MainMenuServers_SaveCache( void ) {
 	fileHandle_t	f;
 	int				i;
 	servernode_t	*servernodeptr;
-	char			line[MAX_ADDRESSLENGTH + MAX_HOSTNAMELENGTH + MAX_MAPNAMELENGTH + 16];
+	char			line[MAX_ADDRESSLENGTH + MAX_HOSTNAMELENGTH + MAX_MAPNAMELENGTH + 64];
 
 	trap_FS_FOpenFile( MAINMENU_CACHE_FILE, &f, FS_WRITE );
 
-	for( i = 0; i < g_numglobalservers; i++ ) {
-		servernodeptr = &g_globalserverlist[i];
-		if( !MainMenuServers_IsDevotionMod( servernodeptr->gamename ) ) {
-			continue;
-		}
+	for( i = 0; i < g_mainmenu_showcase_count; i++ ) {
+		servernodeptr = &g_mainmenu_showcase[i];
 
-		if( MainMenuServers_HasPing( servernodeptr ) ) {
-			Com_sprintf( line, sizeof( line ), "%s\t%s\t%s\t%d\n",
-				servernodeptr->adrstr, servernodeptr->hostname, servernodeptr->mapname, servernodeptr->pingtime );
-		} else {
-			Com_sprintf( line, sizeof( line ), "%s\t%s\t%s\n",
-				servernodeptr->adrstr, servernodeptr->hostname, servernodeptr->mapname );
-		}
+		Com_sprintf( line, sizeof( line ), "%s\t%s\t%s\t%d\t%d\t%d\t%d\n",
+			servernodeptr->adrstr,
+			servernodeptr->hostname,
+			servernodeptr->mapname,
+			servernodeptr->pingtime,
+			servernodeptr->gametype,
+			servernodeptr->humanclients,
+			servernodeptr->maxclients );
 		trap_FS_Write( line, strlen( line ), f );
 	}
 
 	trap_FS_FCloseFile( f );
+}
+
+/*
+=================
+MainMenuServers_ApplyPingResult
+=================
+*/
+static void MainMenuServers_ApplyPingResult( const char *adrstr, const char *info, int pingtime ) {
+	servernode_t	*servernodeptr;
+	char			hostname[MAX_HOSTNAMELENGTH + 3];
+	char			mapname[MAX_MAPNAMELENGTH];
+	char			gamename[16];
+	const char		*s;
+	int				index;
+	int				i;
+	int				gametype;
+
+	index = MainMenuServers_FindSlot( adrstr );
+	if( index < 0 ) {
+		return;
+	}
+
+	servernodeptr = &g_mainmenu_showcase[index];
+
+	if( !info || !info[0] ) {
+		/* Keep the last known snapshot when a ping times out. */
+		return;
+	}
+
+	Q_strncpyz( hostname, Info_ValueForKey( info, "hostname" ), sizeof( hostname ) );
+	ArenaServers_PrepareHostname( hostname );
+
+	Q_strncpyz( mapname, Info_ValueForKey( info, "mapname" ), sizeof( mapname ) );
+	Q_CleanStr( mapname );
+	Q_strupr( mapname );
+
+	gametype = atoi( Info_ValueForKey( info, "gametype" ) );
+	if( gametype < 0 ) {
+		gametype = 0;
+	}
+#ifdef WITH_MULTITOURNAMENT
+	else if( gametype > 13 ) {
+		gametype = 14;
+	}
+#else
+	else if( gametype > 12 ) {
+		gametype = 13;
+	}
+#endif
+
+	s = Info_ValueForKey( info, "game" );
+	if( s[0] && Q_stricmp( s, "devotion" ) ) {
+		return;
+	}
+
+	if( s[0] ) {
+		Q_strncpyz( gamename, s, sizeof( gamename ) );
+	} else {
+		Q_strncpyz( gamename, gamenames[gametype], sizeof( gamename ) );
+	}
+
+	Q_strncpyz( servernodeptr->adrstr, adrstr, sizeof( servernodeptr->adrstr ) );
+	ArenaServers_NormalizeAddress( servernodeptr->adrstr );
+	Q_strncpyz( servernodeptr->hostname, hostname, sizeof( servernodeptr->hostname ) );
+	Q_strncpyz( servernodeptr->mapname, mapname, sizeof( servernodeptr->mapname ) );
+	servernodeptr->numclients = atoi( Info_ValueForKey( info, "clients" ) );
+	servernodeptr->humanclients = atoi( Info_ValueForKey( info, "g_humanplayers" ) );
+	servernodeptr->needPass = atoi( Info_ValueForKey( info, "g_needpass" ) );
+	servernodeptr->maxclients = atoi( Info_ValueForKey( info, "sv_maxclients" ) );
+	servernodeptr->pingtime = pingtime;
+	servernodeptr->minPing = atoi( Info_ValueForKey( info, "minPing" ) );
+	servernodeptr->maxPing = atoi( Info_ValueForKey( info, "maxPing" ) );
+	servernodeptr->gametype = gametype;
+	Q_strncpyz( servernodeptr->gamename, gamename, sizeof( servernodeptr->gamename ) );
+
+	s = Info_ValueForKey( info, "nettype" );
+	for( i = 0; ; i++ ) {
+		if( !netnames[i] ) {
+			servernodeptr->nettype = 0;
+			break;
+		}
+		if( !Q_stricmp( netnames[i], s ) ) {
+			servernodeptr->nettype = i;
+			break;
+		}
+	}
+	servernodeptr->nettype = atoi( Info_ValueForKey( info, "nettype" ) );
 }
 
 /*
@@ -1612,16 +1699,9 @@ static void ArenaServers_FlushListUI( qboolean force ) {
 
 static void ArenaServers_UpdateMainMenuList( void ) {
 	int				i;
-	int				j;
-	int				k;
-	int				count;
 	int				curvalue;
-	servernode_t	*servernodeptr;
-	servernode_t	*seen;
 	table_t			*tableptr;
 	menulist_s		*list;
-	char			hostA[MAX_HOSTNAMELENGTH + 3];
-	char			hostB[MAX_HOSTNAMELENGTH + 3];
 
 	list = g_mainmenu_list;
 	if( !list ) {
@@ -1630,46 +1710,15 @@ static void ArenaServers_UpdateMainMenuList( void ) {
 
 	curvalue = list->curvalue;
 
-	if( g_numglobalservers > 0 ) {
-		qsort( g_globalserverlist, g_numglobalservers, sizeof( servernode_t ), ArenaServers_Compare );
-	}
-
-	servernodeptr = g_globalserverlist;
-	count = g_numglobalservers;
-	for( i = 0, j = 0; i < count; i++, servernodeptr++ ) {
-		if( !MainMenuServers_IsDevotionMod( servernodeptr->gamename ) ) {
-			continue;
-		}
-
-		for( k = 0; k < j; k++ ) {
-			seen = g_arenaservers.table[k].servernode;
-			if( !ArenaServers_SameHost( servernodeptr->adrstr, seen->adrstr ) ) {
-				Q_strncpyz( hostA, servernodeptr->hostname, sizeof( hostA ) );
-				Q_strncpyz( hostB, seen->hostname, sizeof( hostB ) );
-				Q_CleanStr( hostA );
-				Q_CleanStr( hostB );
-				if( !hostA[0] || !hostB[0] || Q_stricmp( hostA, hostB ) ) {
-					continue;
-				}
-			}
-			if( MainMenuServers_HasPing( servernodeptr ) && !MainMenuServers_HasPing( seen ) ) {
-				g_arenaservers.table[k].servernode = servernodeptr;
-			}
-			break;
-		}
-		if( k < j ) {
-			continue;
-		}
-
-		tableptr = &g_arenaservers.table[j];
-		tableptr->servernode = servernodeptr;
+	for( i = 0; i < g_mainmenu_showcase_count; i++ ) {
+		tableptr = &g_arenaservers.table[i];
+		tableptr->servernode = &g_mainmenu_showcase[i];
 		tableptr->buff[0] = '\0';
-		j++;
 	}
 
-	list->numitems = j;
-	if( curvalue >= j ) {
-		list->curvalue = j > 0 ? j - 1 : 0;
+	list->numitems = g_mainmenu_showcase_count;
+	if( curvalue >= g_mainmenu_showcase_count ) {
+		list->curvalue = g_mainmenu_showcase_count > 0 ? g_mainmenu_showcase_count - 1 : 0;
 	} else {
 		list->curvalue = curvalue;
 	}
@@ -2064,7 +2113,6 @@ static void ArenaServers_Insert( char* adrstr, char* info, int pingtime )
 	servernode_t*	servernodeptr;
 	servernode_t*	serverlist;
 	char*			s;
-	char			savedGamename[64];
 	char			normalized[MAX_ADDRESSLENGTH];
 	char			hostname[MAX_HOSTNAMELENGTH + 3];
 	char			mapname[MAX_MAPNAMELENGTH];
@@ -2079,7 +2127,6 @@ static void ArenaServers_Insert( char* adrstr, char* info, int pingtime )
 	existing = qfalse;
 	keepExistingAddress = qfalse;
 	servernodeptr = NULL;
-	savedGamename[0] = '\0';
 	hostname[0] = '\0';
 	mapname[0] = '\0';
 	gamename[0] = '\0';
@@ -2095,15 +2142,9 @@ static void ArenaServers_Insert( char* adrstr, char* info, int pingtime )
 		return;
 	}
 
-	if( g_internet_scan ) {
-		serverlist = g_globalserverlist;
-		numservers = &g_numglobalservers;
-		maxservers = MAX_GLOBALSERVERS;
-	} else {
-		serverlist = g_arenaservers.serverlist;
-		numservers = g_arenaservers.numservers;
-		maxservers = g_arenaservers.maxservers;
-	}
+	serverlist = g_arenaservers.serverlist;
+	numservers = g_arenaservers.numservers;
+	maxservers = g_arenaservers.maxservers;
 
 	for( i = 0; i < *numservers; i++ ) {
 		if( ArenaServers_SameAddress( serverlist[i].adrstr, normalized ) ) {
@@ -2154,28 +2195,22 @@ static void ArenaServers_Insert( char* adrstr, char* info, int pingtime )
 				}
 			}
 		}
+
 	}
 
 	if( !existing ) {
-		if( ( pingtime >= ArenaServers_MaxPing() ) && ( g_servertype != UIAS_FAVORITES ) && !g_internet_scan ) {
+		if( ( pingtime >= ArenaServers_MaxPing() ) && ( g_servertype != UIAS_FAVORITES ) ) {
 			/* slow local servers do not get entered */
 			return;
 		}
 
 		if( *numservers >= maxservers ) {
-			if( g_internet_scan ) {
-				return;
-			}
 			/* list full; overwrite last */
 			servernodeptr = serverlist + (*numservers) - 1;
 		} else {
 			servernodeptr = serverlist + (*numservers);
 			(*numservers)++;
 		}
-	}
-
-	if( g_internet_scan && existing ) {
-		Q_strncpyz( savedGamename, servernodeptr->gamename, sizeof( savedGamename ) );
 	}
 
 	if( existing && servernodeptr->hostname[0] &&
@@ -2188,18 +2223,6 @@ static void ArenaServers_Insert( char* adrstr, char* info, int pingtime )
 
 	if( !keepExistingAddress ) {
 		Q_strncpyz( servernodeptr->adrstr, normalized, MAX_ADDRESSLENGTH );
-	}
-
-	if( g_internet_scan && !info[0] ) {
-		if( existing ) {
-			if( pingtime < ArenaServers_MaxPing() ) {
-				servernodeptr->pingtime = pingtime;
-			}
-			ArenaServers_MarkListDirty();
-		} else {
-			(*numservers)--;
-		}
-		return;
 	}
 
 	Q_strncpyz( servernodeptr->hostname, hostname, sizeof( servernodeptr->hostname ) );
@@ -2237,19 +2260,11 @@ static void ArenaServers_Insert( char* adrstr, char* info, int pingtime )
 	if( gamename[0] ) {
 		Q_strncpyz( servernodeptr->gamename, gamename, sizeof(servernodeptr->gamename) );
 	}
-	else if( g_internet_scan && existing && savedGamename[0] ) {
-		Q_strncpyz( servernodeptr->gamename, savedGamename, sizeof(servernodeptr->gamename) );
-	}
 	else {
 		Q_strncpyz( servernodeptr->gamename, gamenames[gametype], sizeof(servernodeptr->gamename) );
 	}
 
-	if( g_internet_scan ) {
-		if( MainMenuServers_IsDevotionMod( servernodeptr->gamename ) ) {
-			MainMenuServers_CacheServer( servernodeptr );
-		}
-		ArenaServers_MarkListDirty();
-	}
+	ArenaServers_MarkListDirty();
 }
 
 
@@ -2376,198 +2391,35 @@ static void ArenaServers_StopRefresh( void )
 		return;
 
 	{
-		qboolean was_internet = g_internet_scan;
+		qboolean was_mainmenu = g_mainmenu_refreshing;
 
 		g_arenaservers.refreshservers = qfalse;
-		g_internet_scan = qfalse;
+		g_mainmenu_refreshing = qfalse;
 
-		if (g_servertype == UIAS_FAVORITES)
-		{
-			// nonresponsive favorites must be shown
-			ArenaServers_InsertFavorites();
-		}
+		if( !was_mainmenu ) {
+			if( g_servertype == UIAS_FAVORITES ) {
+				/* nonresponsive favorites must be shown */
+				ArenaServers_InsertFavorites();
+			}
 
-		// final tally
-		if (g_arenaservers.numqueriedservers >= 0)
-		{
-			g_arenaservers.currentping       = *g_arenaservers.numservers;
-			g_arenaservers.numqueriedservers = *g_arenaservers.numservers; 
-		}
+			/* final tally */
+			if( g_arenaservers.numqueriedservers >= 0 ) {
+				g_arenaservers.currentping       = *g_arenaservers.numservers;
+				g_arenaservers.numqueriedservers = *g_arenaservers.numservers;
+			}
 
-		if( was_internet ) {
-			ArenaServers_DedupeServerList( g_globalserverlist, &g_numglobalservers );
+			/* sort */
+			qsort( g_arenaservers.serverlist, *g_arenaservers.numservers, sizeof( servernode_t ), ArenaServers_Compare );
 		}
-	
-		// sort
-		qsort( g_arenaservers.serverlist, *g_arenaservers.numservers, sizeof( servernode_t ), ArenaServers_Compare);
 
 		ArenaServers_FlushListUI( qtrue );
 
-		if( was_internet ) {
+		if( was_mainmenu ) {
 			MainMenuServers_SaveCache();
 		}
 	}
 }
 
-
-/*
-=================
-MainMenuServers_IsMasterDefined
-=================
-*/
-static qboolean MainMenuServers_IsMasterDefined( int masterIndex ) {
-	char	masterstr[64];
-	char	cvarname[sizeof( "sv_master5" )];
-
-	if( masterIndex < AS_MASTER1 || masterIndex > AS_MASTER_MAX ) {
-		return qfalse;
-	}
-
-	Com_sprintf( cvarname, sizeof( cvarname ), "sv_master%d", masterIndex );
-	trap_Cvar_VariableStringBuffer( cvarname, masterstr, sizeof( masterstr ) );
-	return masterstr[0] != '\0';
-}
-
-/*
-=================
-MainMenuServers_AnyMasterDefined
-=================
-*/
-static qboolean MainMenuServers_AnyMasterDefined( void ) {
-	int		m;
-
-	for( m = AS_MASTER1; m <= AS_MASTER_MAX; m++ ) {
-		if( MainMenuServers_IsMasterDefined( m ) ) {
-			return qtrue;
-		}
-	}
-
-	return qfalse;
-}
-
-/*
-=================
-MainMenuServers_MergeFromGlobalIncremental
-
-Copy newly arrived addresses from the engine's combined AS_GLOBAL list.
-Masters often return overlapping servers; we always de-dupe by normalized
-address into g_mainmenu_addresses before pinging.
-=================
-*/
-static void MainMenuServers_MergeFromGlobalIncremental( void ) {
-	int		i;
-	int		count;
-	char	adrstr[MAX_ADDRESSLENGTH];
-
-	count = trap_LAN_GetServerCount( AS_GLOBAL );
-	if( count < 0 ) {
-		return;
-	}
-
-	if( count < g_mainmenu_master_merged_idx ) {
-		g_mainmenu_master_merged_idx = 0;
-	}
-
-	for( i = g_mainmenu_master_merged_idx; i < count; i++ ) {
-		trap_LAN_GetServerAddressString( AS_GLOBAL, i, adrstr, MAX_ADDRESSLENGTH );
-		if( adrstr[0] ) {
-			MainMenuServers_AddDiscoveryAddress( adrstr );
-		}
-	}
-
-	g_mainmenu_master_merged_idx = count;
-}
-
-/*
-=================
-MainMenuServers_IssueMasterQuery
-
-Ask the engine to query every configured master once (globalservers 0).
-=================
-*/
-static void MainMenuServers_IssueMasterQuery( void ) {
-	char	protocol[32];
-
-	g_mainmenu_master_query_time = uis.realtime;
-	g_mainmenu_master_query_sent = qtrue;
-	g_mainmenu_master_last_count = -1;
-	g_mainmenu_master_merged_idx = 0;
-	g_mainmenu_masters_done = qfalse;
-
-	protocol[0] = '\0';
-	trap_Cvar_VariableStringBuffer( "debug_protocol", protocol, sizeof( protocol ) );
-	if( strlen( protocol ) ) {
-		trap_Cmd_ExecuteText( EXEC_NOW, va( "globalservers 0 %s\n", protocol ) );
-	} else {
-		trap_Cmd_ExecuteText( EXEC_NOW, va( "globalservers 0 %d\n", (int)trap_Cvar_VariableValue( "protocol" ) ) );
-	}
-}
-
-/*
-=================
-MainMenuServers_BeginPingPhase
-=================
-*/
-static void MainMenuServers_BeginPingPhase( void ) {
-	ArenaServers_DedupeServerList( g_globalserverlist, &g_numglobalservers );
-	g_mainmenu_refresh_phase = MM_REFRESH_PINGING;
-	g_arenaservers.numqueriedservers = g_mainmenu_numaddresses;
-	g_arenaservers.currentping = 0;
-	g_mainmenu_last_ping_time = 0;
-	g_mainmenu_masters_done = qtrue;
-
-	if( !g_mainmenu_numaddresses ) {
-		ArenaServers_StopRefresh();
-	}
-}
-
-/*
-=================
-MainMenuServers_PollMasters
-=================
-*/
-static void MainMenuServers_PollMasters( void ) {
-	int		count;
-
-	if( g_mainmenu_masters_done ) {
-		return;
-	}
-
-	if( !g_mainmenu_master_query_sent &&
-		uis.realtime - g_mainmenu_scan_start_time > MAINMENU_MASTER_BOOT_MS ) {
-		if( !MainMenuServers_AnyMasterDefined() ) {
-			MainMenuServers_BeginPingPhase();
-			return;
-		}
-		MainMenuServers_IssueMasterQuery();
-		return;
-	}
-
-	if( !g_mainmenu_master_query_sent ) {
-		return;
-	}
-
-	count = trap_LAN_GetServerCount( AS_GLOBAL );
-
-	if( count < 0 ) {
-		if( uis.realtime - g_mainmenu_master_query_time > MAINMENU_MASTER_TIMEOUT_MS ) {
-			MainMenuServers_BeginPingPhase();
-		}
-		return;
-	}
-
-	MainMenuServers_MergeFromGlobalIncremental();
-
-	if( count != g_mainmenu_master_last_count ) {
-		g_mainmenu_master_last_count = count;
-		g_mainmenu_master_stable_time = uis.realtime;
-		return;
-	}
-
-	if( uis.realtime - g_mainmenu_master_stable_time >= MAINMENU_MASTER_STABLE_MS ) {
-		MainMenuServers_BeginPingPhase();
-	}
-}
 
 /*
 =================
@@ -2581,43 +2433,30 @@ static void MainMenuServers_StartRefresh( void ) {
 		return;
 	}
 
-	memset( g_mainmenu_addresses, 0, sizeof( g_mainmenu_addresses ) );
-	g_mainmenu_numaddresses = 0;
-	g_mainmenu_last_ping_activity = 0;
-	g_mainmenu_master_last_count = -1;
-	g_mainmenu_master_merged_idx = 0;
-	g_mainmenu_master_stable_time = 0;
-	g_mainmenu_master_query_time = 0;
-	g_mainmenu_master_query_sent = qfalse;
-	g_mainmenu_masters_done = qfalse;
-	g_mainmenu_cache_written_count = 0;
+	if( !g_mainmenu_showcase_loaded ) {
+		MainMenuServers_LoadCache();
+	}
+
+	if( !g_mainmenu_showcase_count ) {
+		return;
+	}
 
 	for( i = 0; i < MAX_PINGREQUESTS; i++ ) {
 		g_arenaservers.pinglist[i].adrstr[0] = '\0';
 		trap_LAN_ClearPing( i );
 	}
 
-	g_internet_scan = qtrue;
+	g_mainmenu_refreshing = qtrue;
 	g_arenaservers.refreshservers = qtrue;
 	g_arenaservers.currentping = 0;
-	g_arenaservers.nextpingtime = 0;
-	g_arenaservers.numqueriedservers = 0;
-	g_mainmenu_refresh_phase = MM_REFRESH_MASTERS;
+	g_arenaservers.numqueriedservers = g_mainmenu_showcase_count;
 	g_mainmenu_scan_start_time = uis.realtime;
 	g_mainmenu_last_ping_time = 0;
 	g_mainmenu_last_ping_activity = uis.realtime;
+	g_mainmenu_next_ping_cycle = 0;
+	g_mainmenu_ping_waiting = qfalse;
 
-	/* Drop previous scan results so master overlaps cannot accumulate across refreshes. */
-	memset( g_globalserverlist, 0, sizeof( g_globalserverlist ) );
-	g_numglobalservers = 0;
-	MainMenuServers_LoadCache();
-	MainMenuServers_AddCachedAddresses();
-	ArenaServers_MarkListDirty();
-	ArenaServers_FlushListUI( qtrue );
-
-	if( !MainMenuServers_AnyMasterDefined() ) {
-		MainMenuServers_BeginPingPhase();
-	}
+	ArenaServers_UpdateMainMenuList();
 }
 
 /*
@@ -2633,18 +2472,6 @@ static void MainMenuServers_DoRefresh( void ) {
 	int		pingsSent;
 	char	adrstr[MAX_ADDRESSLENGTH];
 	char	info[MAX_INFO_STRING];
-
-	if( g_mainmenu_refresh_phase == MM_REFRESH_MASTERS ) {
-		MainMenuServers_PollMasters();
-		ArenaServers_FlushListUI( qfalse );
-		return;
-	}
-
-	if( uis.realtime - g_mainmenu_scan_start_time > MAINMENU_SCAN_TIMEOUT_MS ) {
-		MainMenuServers_ClearPendingPings();
-		ArenaServers_StopRefresh();
-		return;
-	}
 
 	maxPing = ArenaServers_MaxPing();
 	for( i = 0; i < MAX_PINGREQUESTS; i++ ) {
@@ -2674,7 +2501,7 @@ static void MainMenuServers_DoRefresh( void ) {
 				trap_LAN_GetPingInfo( i, info, MAX_INFO_STRING );
 			}
 
-			ArenaServers_Insert( adrstr, info, time );
+			MainMenuServers_ApplyPingResult( adrstr, info, time );
 			g_arenaservers.pinglist[j].adrstr[0] = '\0';
 			g_mainmenu_last_ping_activity = uis.realtime;
 		}
@@ -2692,18 +2519,18 @@ static void MainMenuServers_DoRefresh( void ) {
 			continue;
 		}
 
-		ArenaServers_Insert( g_arenaservers.pinglist[j].adrstr, "", maxPing );
+		MainMenuServers_ApplyPingResult( g_arenaservers.pinglist[j].adrstr, "", maxPing );
 		g_arenaservers.pinglist[j].adrstr[0] = '\0';
 		g_mainmenu_last_ping_activity = uis.realtime;
 	}
 
-	MainMenuServers_FinishRefreshIfDone();
-	if( !g_arenaservers.refreshservers ) {
+	MainMenuServers_FinishCycleIfDone();
+
+	if( !MainMenuServers_CanIssuePings() ) {
 		return;
 	}
 
 	if( uis.realtime - g_mainmenu_last_ping_time < MAINMENU_PING_INTERVAL_MS ) {
-		ArenaServers_FlushListUI( qfalse );
 		return;
 	}
 
@@ -2726,8 +2553,7 @@ static void MainMenuServers_DoRefresh( void ) {
 			break;
 		}
 
-		/* skip any address we somehow queued twice */
-		Q_strncpyz( adrstr, g_mainmenu_addresses[g_arenaservers.currentping], MAX_ADDRESSLENGTH );
+		Q_strncpyz( adrstr, g_mainmenu_showcase[g_arenaservers.currentping].adrstr, MAX_ADDRESSLENGTH );
 		g_arenaservers.currentping++;
 		if( !adrstr[0] ) {
 			continue;
@@ -2749,8 +2575,6 @@ static void MainMenuServers_DoRefresh( void ) {
 		pingsSent++;
 		g_mainmenu_last_ping_activity = uis.realtime;
 	}
-
-	ArenaServers_FlushListUI( qfalse );
 }
 
 /*
@@ -2767,7 +2591,7 @@ static void ArenaServers_DoRefresh( void )
 	char	adrstr[MAX_ADDRESSLENGTH];
 	char	info[MAX_INFO_STRING];
 
-	if( g_internet_scan ) {
+	if( g_mainmenu_refreshing ) {
 		MainMenuServers_DoRefresh();
 		return;
 	}
@@ -2915,14 +2739,7 @@ ArenaServers_StartRefresh
 static void ArenaServers_StartRefresh( void )
 {
 	int		i;
-
-	if( g_servertype == UIAS_INTERNET ) {
-		if( g_arenaservers.refreshservers ) {
-			ArenaServers_StopRefresh();
-		}
-		MainMenuServers_StartRefresh();
-		return;
-	}
+	char	protocol[32];
 
 	memset( g_arenaservers.serverlist, 0, g_arenaservers.maxservers*sizeof(servernode_t) );
 
@@ -2932,7 +2749,7 @@ static void ArenaServers_StartRefresh( void )
 		trap_LAN_ClearPing( i );
 	}
 
-	g_internet_scan = qfalse;
+	g_mainmenu_refreshing = qfalse;
 	g_arenaservers.refreshservers    = qtrue;
 	g_arenaservers.currentping       = 0;
 	g_arenaservers.nextpingtime      = 0;
@@ -2946,6 +2763,14 @@ static void ArenaServers_StartRefresh( void )
 
 	if( g_servertype == UIAS_LOCAL ) {
 		trap_Cmd_ExecuteText( EXEC_APPEND, "localservers\n" );
+	} else if( g_servertype == UIAS_INTERNET ) {
+		protocol[0] = '\0';
+		trap_Cvar_VariableStringBuffer( "debug_protocol", protocol, sizeof( protocol ) );
+		if( strlen( protocol ) ) {
+			trap_Cmd_ExecuteText( EXEC_APPEND, va( "globalservers 0 %s\n", protocol ) );
+		} else {
+			trap_Cmd_ExecuteText( EXEC_APPEND, va( "globalservers 0 %d\n", (int)trap_Cvar_VariableValue( "protocol" ) ) );
+		}
 	}
 }
 
@@ -3024,7 +2849,8 @@ int ArenaServers_SetType( int type )
 	}
 
 	if( type == UIAS_INTERNET ) {
-		if( g_internet_scan ) {
+		if( g_mainmenu_refreshing ) {
+			/* Keep main-menu showcase refresh running; don't steal the ping queue. */
 			ArenaServers_UpdateMenu();
 		} else if( !*g_arenaservers.numservers ) {
 			ArenaServers_StartRefresh();
@@ -3034,8 +2860,8 @@ int ArenaServers_SetType( int type )
 			ArenaServers_UpdateMenu();
 			strcpy( g_arenaservers.status.string, "hit refresh to update" );
 		}
-	} else if( g_internet_scan ) {
-		/* Keep shared internet scan running; don't steal the ping queue. */
+	} else if( g_mainmenu_refreshing ) {
+		/* Keep main-menu showcase refresh running; don't steal the ping queue. */
 		ArenaServers_UpdateMenu();
 	} else if( !*g_arenaservers.numservers ) {
 		ArenaServers_StartRefresh();
@@ -3211,38 +3037,35 @@ static void ArenaServers_MenuInit( void ) {
 	int			y;
 	static char	statusbuffer[MAX_STATUSLENGTH];
 	qboolean	saved_refresh;
-	qboolean	saved_internet;
+	qboolean	saved_mainmenu;
 	int			saved_currentping;
 	int			saved_nextpingtime;
 	int			saved_numqueried;
 	int			saved_refreshtime;
-	int			saved_phase;
 	pinglist_t	saved_pinglist[MAX_PINGREQUESTS];
 
-	/* Preserve in-flight shared internet scan across menu rebuild. */
+	/* Preserve in-flight refresh across menu rebuild. */
 	saved_refresh = g_arenaservers.refreshservers;
-	saved_internet = g_internet_scan;
+	saved_mainmenu = g_mainmenu_refreshing;
 	saved_currentping = g_arenaservers.currentping;
 	saved_nextpingtime = g_arenaservers.nextpingtime;
 	saved_numqueried = g_arenaservers.numqueriedservers;
 	saved_refreshtime = g_arenaservers.refreshtime;
-	saved_phase = g_mainmenu_refresh_phase;
 	memcpy( saved_pinglist, g_arenaservers.pinglist, sizeof( saved_pinglist ) );
 
 	/* zero set all our globals */
 	memset( &g_arenaservers, 0 ,sizeof(arenaservers_t) );
 
-	if( saved_internet || saved_refresh ) {
+	if( saved_mainmenu || saved_refresh ) {
 		g_arenaservers.refreshservers = saved_refresh;
-		g_internet_scan = saved_internet;
+		g_mainmenu_refreshing = saved_mainmenu;
 		g_arenaservers.currentping = saved_currentping;
 		g_arenaservers.nextpingtime = saved_nextpingtime;
 		g_arenaservers.numqueriedservers = saved_numqueried;
 		g_arenaservers.refreshtime = saved_refreshtime;
-		g_mainmenu_refresh_phase = saved_phase;
 		memcpy( g_arenaservers.pinglist, saved_pinglist, sizeof( saved_pinglist ) );
 	} else {
-		g_internet_scan = qfalse;
+		g_mainmenu_refreshing = qfalse;
 	}
 
 	ArenaServers_Cache();
@@ -3586,21 +3409,11 @@ void UI_MainMenuServers_Begin( menulist_s *list, menubitmap_s *mappic ) {
 		g_arenaservers.items[i] = g_arenaservers.table[i].buff;
 	}
 
-	g_gametype = GAMES_DEVOTION;
-	g_sortkey = SORT_HOST;
-	g_emptyservers = 1;
-	g_fullservers = 1;
-	g_onlyhumans = 1;
-	g_hideprivate = 0;
+	if( !g_mainmenu_showcase_loaded ) {
+		MainMenuServers_LoadCache();
+	}
 
-	g_arenaservers.serverlist = g_globalserverlist;
-	g_arenaservers.numservers = &g_numglobalservers;
-	g_arenaservers.maxservers = MAX_GLOBALSERVERS;
-
-	if( !g_internet_scan ) {
-		if( g_numglobalservers == 0 ) {
-			MainMenuServers_LoadCache();
-		}
+	if( !g_mainmenu_refreshing && !g_arenaservers.refreshservers ) {
 		MainMenuServers_StartRefresh();
 	}
 
@@ -3626,17 +3439,6 @@ void UI_MainMenuServers_Resume( menulist_s *list, menubitmap_s *mappic ) {
 		g_arenaservers.items[i] = g_arenaservers.table[i].buff;
 	}
 
-	g_gametype = GAMES_DEVOTION;
-	g_sortkey = SORT_HOST;
-	g_emptyservers = 1;
-	g_fullservers = 1;
-	g_onlyhumans = 1;
-	g_hideprivate = 0;
-
-	g_arenaservers.serverlist = g_globalserverlist;
-	g_arenaservers.numservers = &g_numglobalservers;
-	g_arenaservers.maxservers = MAX_GLOBALSERVERS;
-
 	ArenaServers_UpdateMainMenuList();
 }
 
@@ -3646,10 +3448,10 @@ UI_MainMenuServers_Update
 =================
 */
 void UI_MainMenuServers_Update( void ) {
-	if( g_arenaservers.refreshservers ) {
+	if( g_mainmenu_refreshing && g_arenaservers.refreshservers ) {
 		ArenaServers_DoRefresh();
+		ArenaServers_UpdateMainMenuList();
 	}
-	ArenaServers_UpdateMainMenuList();
 }
 
 /*
@@ -3658,7 +3460,7 @@ UI_MainMenuServers_End
 =================
 */
 void UI_MainMenuServers_End( void ) {
-	/* Detach main-menu view only; keep the shared internet scan running. */
+	/* Detach main-menu view only; keep the showcase refresh running. */
 	g_mainmenu_list = NULL;
 	g_mainmenu_mappic = NULL;
 	g_mainmenu_server_column_focus = qfalse;
@@ -3670,7 +3472,7 @@ UI_MainMenuServers_IsRefreshing
 =================
 */
 qboolean UI_MainMenuServers_IsRefreshing( void ) {
-	return g_internet_scan || g_arenaservers.refreshservers;
+	return g_mainmenu_refreshing;
 }
 
 /*
@@ -3845,6 +3647,7 @@ void UI_MainMenuServers_Connect( menulist_s *list ) {
 	if( servernodeptr->needPass ) {
 		UI_SpecifyPasswordMenu( va( "connect %s\n", servernodeptr->adrstr ), servernodeptr->hostname );
 	} else {
+		UI_Showcase_Stop();
 		trap_Cmd_ExecuteText( EXEC_APPEND, va( "connect %s\n", servernodeptr->adrstr ) );
 	}
 }						  

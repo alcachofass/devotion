@@ -6,6 +6,7 @@ ui_atoms
 ui_players
 ui_shared
 bg_misc
+bg_seasonal
 bg_lib
 q_math
 q_shared

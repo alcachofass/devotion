@@ -266,7 +266,7 @@ static void Rankings_MenuEvent( void* ptr, int event ) {
 		break;
 		
 	case ID_LEAVE:
-		trap_Cmd_ExecuteText( EXEC_APPEND, "disconnect\n" );
+		trap_Cmd_ExecuteText( EXEC_APPEND, "fadeDisconnect\n" );
 		UI_ForceMenuOff();
 		break;
 

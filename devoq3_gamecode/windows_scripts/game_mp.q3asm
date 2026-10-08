@@ -2,6 +2,7 @@
 g_main
 ..\g_syscalls
 bg_misc
+bg_seasonal
 bg_lib
 bg_pmove
 bg_slidemove

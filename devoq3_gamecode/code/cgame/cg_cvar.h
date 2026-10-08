@@ -436,4 +436,5 @@ CG_CVAR( cg_chatBeep, "cg_chatBeep", "2", CVAR_ARCHIVE )
 CG_CVAR( cg_teamChatBeep, "cg_teamChatBeep", "2", CVAR_ARCHIVE )
 
 CG_CVAR( cg_ui_clientCommand, "cg_ui_clientCommand", "", CVAR_ROM )
+CG_CVAR( cg_showcase, "cg_showcase", "0", CVAR_ROM )
 #undef CG_CVAR

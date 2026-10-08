@@ -2037,7 +2037,7 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 			return qtrue;
 		}
 		if ( dc_specBarHover == 1 ) {
-			trap_SendConsoleCommand( "disconnect\n" );
+			trap_SendConsoleCommand( "fadeDisconnect\n" );
 			return qtrue;
 		}
 		if ( dc_specLockHover ) {

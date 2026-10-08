@@ -1962,6 +1962,10 @@ CG_StartMusic
 
 ======================
 */
+qboolean CG_ShowcaseActive( void ) {
+	return ( cg_showcase.integer && cg.demoPlayback ) ? qtrue : qfalse;
+}
+
 void CG_StartMusic( void ) {
 	char	*s;
 	char	parm1[MAX_QPATH], parm2[MAX_QPATH];
@@ -2738,7 +2742,9 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	// Make sure we have update values (scores)
 	CG_SetConfigValues();
 
-	CG_StartMusic();
+	if ( !cg_showcase.integer ) {
+		CG_StartMusic();
+	}
 
 	CG_LoadingString( "" );
 
