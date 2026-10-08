@@ -1129,4 +1129,6 @@ qboolean BG_IsElimGT(gametype_t gametype);
 
 qboolean replace1( const char match, const char replace, char *str );
 
+#include "bg_seasonal.h"
+
 #endif

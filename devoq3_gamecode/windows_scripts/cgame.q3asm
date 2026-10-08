@@ -36,6 +36,7 @@ bg_slidemove
 bg_pmove
 bg_lib
 bg_misc
+bg_seasonal
 q_math
 q_shared
 msg

@@ -1695,6 +1695,7 @@ $(B)/ioq3ded.$(ARCH)$(BINEXT): $(Q3DOBJ)
 Q3CGOBJ_ = \
   $(B)/baseq3/cgame/cg_main.o \
   $(B)/baseq3/cgame/bg_misc.o \
+  $(B)/baseq3/cgame/bg_seasonal.o \
   $(B)/baseq3/cgame/bg_lib.o \
   $(B)/baseq3/cgame/bg_pmove.o \
   $(B)/baseq3/cgame/bg_slidemove.o \
@@ -1756,6 +1757,7 @@ $(B)/baseq3/vm/cgame.qvm: $(Q3CGVMOBJ) $(CGDIR)/cg_syscalls.asm $(Q3ASM)
 MPCGOBJ_ = \
   $(B)/missionpack/cgame/cg_main.o \
   $(B)/missionpack/cgame/bg_misc.o \
+  $(B)/missionpack/cgame/bg_seasonal.o \
   $(B)/missionpack/cgame/bg_lib.o \
   $(B)/missionpack/cgame/bg_pmove.o \
   $(B)/missionpack/cgame/bg_slidemove.o \
@@ -1836,6 +1838,7 @@ Q3GOBJ_ = \
   $(B)/baseq3/game/ai_team.o \
   $(B)/baseq3/game/ai_vcmd.o \
   $(B)/baseq3/game/bg_misc.o \
+  $(B)/baseq3/game/bg_seasonal.o \
   $(B)/baseq3/game/bg_lib.o \
   $(B)/baseq3/game/bg_pmove.o \
   $(B)/baseq3/game/bg_slidemove.o \
@@ -1911,6 +1914,7 @@ MPGOBJ_ = \
   $(B)/missionpack/game/ai_team.o \
   $(B)/missionpack/game/ai_vcmd.o \
   $(B)/missionpack/game/bg_misc.o \
+  $(B)/missionpack/game/bg_seasonal.o \
   $(B)/missionpack/game/bg_lib.o \
   $(B)/missionpack/game/bg_pmove.o \
   $(B)/missionpack/game/bg_slidemove.o \
@@ -1970,6 +1974,7 @@ $(B)/missionpack/vm/qagame.qvm: $(MPGVMOBJ) $(GDIR)/g_syscalls.asm $(Q3ASM)
 Q3UIOBJ_ = \
   $(B)/baseq3/ui/ui_main.o \
   $(B)/baseq3/ui/bg_misc.o \
+  $(B)/baseq3/ui/bg_seasonal.o \
   $(B)/baseq3/ui/bg_lib.o \
   $(B)/baseq3/ui/bg_cvar_desc.o \
   $(B)/baseq3/ui/bg_trap_ext.o \
@@ -2055,6 +2060,7 @@ MPUIOBJ_ = \
   $(B)/missionpack/ui/ui_shared.o \
   \
   $(B)/missionpack/ui/bg_misc.o \
+  $(B)/missionpack/ui/bg_seasonal.o \
   $(B)/missionpack/ui/bg_lib.o \
   $(B)/missionpack/ui/bg_cvar_desc.o \
   $(B)/missionpack/ui/bg_trap_ext.o \
