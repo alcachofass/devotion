@@ -1727,6 +1727,7 @@ Q3CGOBJ_ = \
   $(B)/baseq3/cgame/cg_visualsounds.o \
   $(B)/baseq3/cgame/cg_superhud.o \
   $(B)/baseq3/cgame/cg_itemtimers.o \
+  $(B)/baseq3/cgame/cg_itemedit.o \
   $(B)/baseq3/cgame/cg_menuhud.o \
   $(B)/baseq3/cgame/cg_menuhud_draw.o \
   $(B)/baseq3/cgame/ui_shared.o \
@@ -1790,6 +1791,7 @@ MPCGOBJ_ = \
   $(B)/missionpack/cgame/cg_visualsounds.o \
   $(B)/missionpack/cgame/cg_superhud.o \
   $(B)/missionpack/cgame/cg_itemtimers.o \
+  $(B)/missionpack/cgame/cg_itemedit.o \
   $(B)/missionpack/cgame/cg_unlagged.o \
   $(B)/missionpack/cgame/cg_view.o \
   $(B)/missionpack/cgame/cg_weapons.o \
@@ -1851,6 +1853,7 @@ Q3GOBJ_ = \
   $(B)/baseq3/game/g_client.o \
   $(B)/baseq3/game/g_cmds.o \
   $(B)/baseq3/game/g_camsession.o \
+  $(B)/baseq3/game/g_itemedit.o \
   $(B)/baseq3/game/g_cmds_ext.o \
   $(B)/baseq3/game/g_combat.o \
   $(B)/baseq3/game/g_items.o \
@@ -1927,6 +1930,7 @@ MPGOBJ_ = \
   $(B)/missionpack/game/g_client.o \
   $(B)/missionpack/game/g_cmds.o \
   $(B)/missionpack/game/g_camsession.o \
+  $(B)/missionpack/game/g_itemedit.o \
   $(B)/missionpack/game/g_cmds_ext.o \
   $(B)/missionpack/game/g_combat.o \
   $(B)/missionpack/game/g_items.o \

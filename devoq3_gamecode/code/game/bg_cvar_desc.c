@@ -161,6 +161,7 @@ static const cvarDesc_t gameCvarDescriptions[] = {
 	{ "g_itemDrop", "Bitmask controlling which items players can drop." },
 	{ "g_itemPickup", "When `1`, enables extended item pickup behavior." },
 	{ "g_itemTimers", "When `1`, players see world-space respawn pies on major items (MH, YA, RA, powerups). Default `0`. Spectators are controlled separately by `g_specItemTimers`." },
+	{ "g_editMode", "When `1`, lets spectators edit map items." },
 	{ "g_killDisable", "When `1`, disables the kill/suicide command." },
 	{ "g_killDropsFlag", "When `1`, dying drops your carried flag." },
 	{ "g_killSafety", "Spawn protection in milliseconds after using kill." },

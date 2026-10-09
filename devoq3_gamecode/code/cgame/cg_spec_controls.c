@@ -18,6 +18,7 @@ Shared cursor, catcher, and drawer animation are in cg_overlay.c.
 #define SPEC_BTN_GAP			4
 #define SPEC_SUB_H				10
 #define SPEC_MENU_REFRESH_MSEC	1000
+#define SPEC_LEFT_TAB_GAP		4
 
 typedef enum {
 	SPEC_CAMADD = 0,
@@ -38,9 +39,11 @@ typedef enum {
 static overlayDrawer_t	specDrawer;
 static overlayDrawer_t	specDispDrawer;
 static overlayDrawer_t	specEditDrawer;
+static overlayDrawer_t	specItemEditDrawer;
 static qboolean			specTabHover;
 static qboolean			specDispTabHover;
 static qboolean			specEditTabHover;
+static qboolean			specItemTabHover;
 static qboolean			dc_specLook = qtrue;
 static qboolean			dc_specOrbitLook;
 static qboolean			dc_specRig;
@@ -78,12 +81,55 @@ static qboolean Spec_DispTabHit( int mx, int my );
 static qboolean Spec_EditTabHit( int mx, int my );
 static int DemoCtrl_SpecEditHitTest( int mx, int my );
 static qboolean Spec_EditContains( int mx, int my );
+static void Spec_ItemEditLayout( int *bodyX, int *bodyY, int *bodyW, int *bodyH,
+		int *tabX, int *tabY, int *tabW, int *tabH );
+static qboolean Spec_ItemEditTabHit( int mx, int my );
+static qboolean Spec_ItemEditContains( int mx, int my );
+static qboolean Spec_LeftPanelHeaderHit( int mx, int my, int bodyX, int bodyY, int bodyW,
+		float drawerFrac );
 static void Spec_EditBtnRect( int action, int *x, int *y, int *w, int *h );
 static void Spec_DrawerLayout( int *bodyX, int *bodyY, int *bodyW, int *bodyH,
 		int *tabX, int *tabY, int *tabW, int *tabH );
+static int Spec_CompactTabHeight( const char *label );
+static void Spec_LeftEditTabRect( int *tabY, int *tabH );
+static void Spec_LeftItemTabRect( int *tabY, int *tabH );
 
 static qboolean Spec_KeyIsAttack( int key ) {
 	return CG_DemoControls_AttackKey( key );
+}
+
+static int Spec_CompactTabHeight( const char *label ) {
+	int		n;
+	int		textH;
+	int		tabH;
+
+	n = ( label && label[0] ) ? CG_DrawStrlen( label ) : 0;
+	textH = n * OVERLAY_SIDE_CHAR_H;
+	tabH = textH + 2 * ( OVERLAY_SIDE_CHAR_H + 8 );
+	if ( tabH < OVERLAY_SIDE_CHAR_H * 3 + 16 ) {
+		tabH = OVERLAY_SIDE_CHAR_H * 3 + 16;
+	}
+	return tabH;
+}
+
+static void Spec_LeftEditTabRect( int *tabY, int *tabH ) {
+	if ( !tabY || !tabH ) {
+		return;
+	}
+	*tabY = OVERLAY_LEFT_STACK_Y - 4;
+	*tabH = Spec_CompactTabHeight( "EDIT CAMS" );
+}
+
+static void Spec_LeftItemTabRect( int *tabY, int *tabH ) {
+	int		editTabY;
+	int		editTabH;
+
+	if ( !tabY || !tabH ) {
+		return;
+	}
+	Spec_LeftEditTabRect( &editTabY, &editTabH );
+	*tabY = editTabY + editTabH + SPEC_LEFT_TAB_GAP;
+	*tabH = Spec_CompactTabHeight( "ITEMS" );
 }
 
 static void Spec_DrawerLayout( int *bodyX, int *bodyY, int *bodyW, int *bodyH,
@@ -139,7 +185,7 @@ static void Spec_DispLayout( int *bodyX, int *bodyY, int *bodyW, int *bodyH,
 static int Spec_EditRowY( int row ) {
 	int	y;
 
-	y = OVERLAY_SIDE_Y + OVERLAY_SIDE_HDR_H;
+	y = OVERLAY_LEFT_STACK_Y + OVERLAY_SIDE_HDR_H;
 	if ( row <= 0 ) {
 		return y;
 	}
@@ -167,14 +213,74 @@ static void Spec_EditLayout( int *bodyX, int *bodyY, int *bodyW, int *bodyH,
 	Overlay_DrawerTick( &specEditDrawer );
 	frac = specEditDrawer.frac;
 	*bodyW = SPEC_LEFT_BTN_W + 16;
-	*bodyY = OVERLAY_SIDE_Y - 4;
+	*bodyY = OVERLAY_LEFT_STACK_Y - 4;
 	*bodyH = ( Spec_EditRowY( 4 ) + SPEC_BTN_H + 6 ) - *bodyY;
 	*tabW = OVERLAY_TAB_W;
 	*tabX = 0;
-	*tabY = *bodyY;
-	*tabH = *bodyH;
+	Spec_LeftEditTabRect( tabY, tabH );
 	openX = *tabW;
 	*bodyX = openX + (int)( ( frac - 1.0f ) * (float)*bodyW );
+}
+
+static void Spec_ItemEditLayout( int *bodyX, int *bodyY, int *bodyW, int *bodyH,
+		int *tabX, int *tabY, int *tabW, int *tabH ) {
+	int		editX, editY, editW, editH;
+	int		editTabX, editTabY, editTabW, editTabH;
+	float	frac;
+
+	Spec_EditLayout( &editX, &editY, &editW, &editH,
+			&editTabX, &editTabY, &editTabW, &editTabH );
+	Overlay_DrawerTick( &specItemEditDrawer );
+	frac = specItemEditDrawer.frac;
+	*bodyW = editW;
+	*bodyH = CG_ItemEdit_SidebarBodyH();
+	*bodyY = OVERLAY_LEFT_STACK_Y - 4;
+	*tabW = OVERLAY_TAB_W;
+	*tabX = 0;
+	Spec_LeftItemTabRect( tabY, tabH );
+	*bodyX = *tabW + (int)( ( frac - 1.0f ) * (float)*bodyW );
+}
+
+static qboolean Spec_LeftPanelHeaderHit( int mx, int my, int bodyX, int bodyY, int bodyW,
+		float drawerFrac ) {
+	int	hdrY;
+	int	hdrH;
+
+	if ( drawerFrac < 0.35f ) {
+		return qfalse;
+	}
+	hdrY = bodyY;
+	hdrH = OVERLAY_SIDE_HDR_H + 4;
+	return ( mx >= bodyX && mx < bodyX + bodyW && my >= hdrY && my < hdrY + hdrH )
+			? qtrue : qfalse;
+}
+
+static qboolean Spec_ItemEditTabHit( int mx, int my ) {
+	int	bodyX, bodyY, bodyW, bodyH;
+	int	tabX, tabY, tabW, tabH;
+
+	Spec_ItemEditLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
+	if ( mx >= tabX && mx < tabX + tabW && my >= tabY && my < tabY + tabH ) {
+		return qtrue;
+	}
+	if ( Spec_LeftPanelHeaderHit( mx, my, bodyX, bodyY, bodyW, specItemEditDrawer.frac ) ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+static qboolean Spec_ItemEditContains( int mx, int my ) {
+	int	bodyX, bodyY, bodyW, bodyH;
+	int	tabX, tabY, tabW, tabH;
+
+	Spec_ItemEditLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
+	if ( mx >= tabX && mx < tabX + tabW && my >= tabY && my < tabY + tabH ) {
+		return qtrue;
+	}
+	if ( specItemEditDrawer.frac < 0.35f ) {
+		return qfalse;
+	}
+	return CG_ItemEdit_SidebarContains( mx, my, bodyX, bodyY, bodyW, bodyH );
 }
 
 static void Spec_EditBtnRectBase( int action, int *x, int *y, int *w, int *h ) {
@@ -238,18 +344,13 @@ static void Spec_EditBtnRect( int action, int *x, int *y, int *w, int *h ) {
 static qboolean Spec_EditTabHit( int mx, int my ) {
 	int	bodyX, bodyY, bodyW, bodyH;
 	int	tabX, tabY, tabW, tabH;
-	int	hdrY, hdrH;
 
 	Spec_EditLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
 	if ( mx >= tabX && mx < tabX + tabW && my >= tabY && my < tabY + tabH ) {
 		return qtrue;
 	}
-	if ( specEditDrawer.frac > 0.5f ) {
-		hdrY = bodyY;
-		hdrH = OVERLAY_SIDE_HDR_H + 4;
-		if ( mx >= bodyX && mx < bodyX + bodyW && my >= hdrY && my < hdrY + hdrH ) {
-			return qtrue;
-		}
+	if ( Spec_LeftPanelHeaderHit( mx, my, bodyX, bodyY, bodyW, specEditDrawer.frac ) ) {
+		return qtrue;
 	}
 	return qfalse;
 }
@@ -462,9 +563,12 @@ static void DemoCtrl_SpecEndSession( void ) {
 	specTabHover = qfalse;
 	specDispTabHover = qfalse;
 	specEditTabHover = qfalse;
+	specItemTabHover = qfalse;
 	Overlay_DrawerReset( &specDrawer );
 	Overlay_DrawerReset( &specDispDrawer );
 	Overlay_DrawerReset( &specEditDrawer );
+	Overlay_DrawerReset( &specItemEditDrawer );
+	CG_ItemEdit_SetSidebarOpen( qfalse );
 	CG_DemoCams_SetShow( qfalse );
 	Overlay_ReleaseCatcher();
 }
@@ -473,10 +577,21 @@ static qboolean DemoCtrl_SpecFollowing( void ) {
 	return ( cg.snap && ( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) ? qtrue : qfalse;
 }
 
+static void Spec_ItemEditToggle( void ) {
+	Overlay_DrawerToggle( &specItemEditDrawer );
+	if ( specItemEditDrawer.open && specEditDrawer.open ) {
+		Overlay_DrawerToggle( &specEditDrawer );
+		CG_DemoCams_SetShow( qfalse );
+	}
+}
+
 static void Spec_EditToggle( void ) {
 	Overlay_DrawerToggle( &specEditDrawer );
 	CG_DemoCams_SetShow( specEditDrawer.open );
 	if ( specEditDrawer.open ) {
+		if ( specItemEditDrawer.open ) {
+			Overlay_DrawerToggle( &specItemEditDrawer );
+		}
 		dc_specRig = qfalse;
 		dc_specOrbitLook = qfalse;
 		DemoCtrl_SpecCamClear();
@@ -1268,6 +1383,7 @@ static void DemoCtrl_SpecUpdateHover( void ) {
 	specTabHover = qfalse;
 	specDispTabHover = qfalse;
 	specEditTabHover = qfalse;
+	specItemTabHover = qfalse;
 	if ( cg.showScores ) {
 		return;
 	}
@@ -1289,6 +1405,10 @@ static void DemoCtrl_SpecUpdateHover( void ) {
 	}
 	if ( Spec_EditTabHit( dc_cursorX, dc_cursorY ) ) {
 		specEditTabHover = qtrue;
+		return;
+	}
+	if ( CG_ItemEdit_ModeEnabled() && Spec_ItemEditTabHit( dc_cursorX, dc_cursorY ) ) {
+		specItemTabHover = qtrue;
 		return;
 	}
 	if ( Spec_DispTabHit( dc_cursorX, dc_cursorY ) ) {
@@ -1744,6 +1864,18 @@ static void DemoCtrl_DrawSpec( void ) {
 	Spec_EditLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
 	Spec_DrawChrome( &specEditDrawer, "EDIT CAMS", specEditTabHover, qtrue, panel, btnHover, textColor, border,
 			bodyX, bodyY, bodyW, bodyH, tabX, tabY, tabW, tabH );
+	if ( CG_ItemEdit_ModeEnabled() ) {
+		Spec_ItemEditLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
+		Spec_DrawChrome( &specItemEditDrawer, "ITEMS", specItemTabHover, qtrue, panel, btnHover, textColor, border,
+				bodyX, bodyY, bodyW, bodyH, tabX, tabY, tabW, tabH );
+		if ( specItemEditDrawer.frac > 0.35f ) {
+			CG_ItemEdit_DrawSidebar( bodyX, bodyY, bodyW, bodyH );
+			CG_ItemEdit_DrawResetModal();
+		}
+		CG_ItemEdit_SetSidebarOpen( specItemEditDrawer.frac >= 0.35f ? qtrue : qfalse );
+	} else {
+		CG_ItemEdit_SetSidebarOpen( qfalse );
+	}
 	if ( specDrawer.frac > 0.45f ) {
 		Spec_DrawerLayout( &bodyX, &bodyY, &bodyW, &bodyH,
 				&tabX, &tabY, &tabW, &tabH );
@@ -1972,6 +2104,7 @@ static void DemoCtrl_SpecFrame( void ) {
 		specTabHover = qfalse;
 		specDispTabHover = qfalse;
 		specEditTabHover = qfalse;
+		specItemTabHover = qfalse;
 	}
 }
 
@@ -2021,8 +2154,25 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 		return qtrue;
 	}
 	if ( key == K_MOUSE1 && down && !cg.showScores ) {
+		int	itemBodyX, itemBodyY, itemBodyW, itemBodyH;
+		int	itemTabX, itemTabY, itemTabW, itemTabH;
+
 		Overlay_Wake();
 		DemoCtrl_SpecUpdateHover();
+		if ( CG_ItemEdit_ModeEnabled() && specItemEditDrawer.frac >= 0.35f ) {
+			Spec_ItemEditLayout( &itemBodyX, &itemBodyY, &itemBodyW, &itemBodyH,
+					&itemTabX, &itemTabY, &itemTabW, &itemTabH );
+			if ( Spec_LeftPanelHeaderHit( dc_cursorX, dc_cursorY,
+					itemBodyX, itemBodyY, itemBodyW, specItemEditDrawer.frac ) ) {
+				Spec_ItemEditToggle();
+				return qtrue;
+			}
+			if ( CG_ItemEdit_HandleClickSidebar( dc_cursorX, dc_cursorY,
+					itemBodyX, itemBodyY, itemBodyW, itemBodyH )
+					|| CG_ItemEdit_ModalOpen() ) {
+				return qtrue;
+			}
+		}
 		if ( dc_specMenuHover >= 0 && dc_specMenuHover < dc_specMenuCount ) {
 			trap_SendConsoleCommand( va( "follow %d\n", dc_specMenuList[dc_specMenuHover] ) );
 			DemoCtrl_SpecMenuClose();
@@ -2060,6 +2210,10 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 			Spec_EditToggle();
 			return qtrue;
 		}
+		if ( specItemTabHover ) {
+			Spec_ItemEditToggle();
+			return qtrue;
+		}
 		n = DemoCtrl_SpecActions( actions, SPEC_BTN_MAX );
 		hit = -1;
 		if ( specDrawer.frac >= 0.35f ) {
@@ -2083,6 +2237,8 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 		} else if ( dc_specEditHover >= 0 && dc_specEditHover < SPEC_CAM_NUM ) {
 			DemoCtrl_SpecEditActivate( dc_specEditHover );
 		} else if ( Spec_EditContains( dc_cursorX, dc_cursorY ) ) {
+			return qtrue;
+		} else if ( Spec_ItemEditContains( dc_cursorX, dc_cursorY ) ) {
 			return qtrue;
 		} else if ( CG_Orbit_Active() && DemoCtrl_SpecFollowing() ) {
 			dc_specOrbitLook = qtrue;
@@ -2143,6 +2299,15 @@ static qboolean DemoCtrl_SpecMouse( int dx, int dy ) {
 		Overlay_Wake();
 	}
 	DemoCtrl_SpecUpdateHover();
+	if ( CG_ItemEdit_ModeEnabled() && specItemEditDrawer.frac >= 0.35f ) {
+		int	itemBodyX, itemBodyY, itemBodyW, itemBodyH;
+		int	itemTabX, itemTabY, itemTabW, itemTabH;
+
+		Spec_ItemEditLayout( &itemBodyX, &itemBodyY, &itemBodyW, &itemBodyH,
+				&itemTabX, &itemTabY, &itemTabW, &itemTabH );
+		CG_ItemEdit_PointerMoveSidebar( dc_cursorX, dc_cursorY,
+				itemBodyX, itemBodyY, itemBodyW, itemBodyH );
+	}
 	cgs.cursorX = dc_cursorX;
 	cgs.cursorY = dc_cursorY;
 	return qtrue;

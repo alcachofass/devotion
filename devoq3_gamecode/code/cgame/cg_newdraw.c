@@ -1842,6 +1842,9 @@ void CG_EventHandling(int type) {
 
 void CG_KeyEvent(int key, qboolean down) {
 
+	if ( CG_ItemEdit_KeyEvent( key, down ) ) {
+		return;
+	}
 	if ( CG_SpecControls_KeyEvent( key, down ) ) {
 		return;
 	}

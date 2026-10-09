@@ -1399,6 +1399,10 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.thawingShader = trap_R_RegisterShader("playerThawingShell" );
 
 	cgs.media.spawnPointShader = trap_R_RegisterShader("spawnPoint" );
+	cgs.media.itemEditIconMove = trap_R_RegisterShaderNoMip( "gfx/2d/icon_move" );
+	cgs.media.itemEditIconCross = trap_R_RegisterShaderNoMip( "gfx/2d/icon_cross" );
+	cgs.media.itemEditIconTick = trap_R_RegisterShaderNoMip( "gfx/2d/icon_tick" );
+	cgs.media.itemEditIconHome = trap_R_RegisterShaderNoMip( "gfx/2d/icon_home" );
 
 
 	if ( cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION || 
@@ -2666,6 +2670,7 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 
 	CG_RegisterCvars();
 	CG_ItemTimersInit();
+	CG_ItemEdit_Init();
 
 	CG_RatInitDefaults();
 
@@ -2808,6 +2813,9 @@ void CG_EventHandling(int type) {
 }
 
 void CG_KeyEvent(int key, qboolean down) {
+	if ( CG_ItemEdit_KeyEvent( key, down ) ) {
+		return;
+	}
 	if ( CG_SpecControls_KeyEvent( key, down ) ) {
 		return;
 	}

@@ -1518,6 +1518,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 	CG_DemoControls_Frame();
 	CG_SpecControls_Frame();
+	CG_ItemTimersPeriodicSync();
 	if ( stereoView != STEREO_RIGHT ) {
 		CG_DemoControls_PrepareSeekDraw();
 	}
@@ -1627,6 +1628,8 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// build cg.refdef
 	inwater = CG_CalcViewValues();
 
+	CG_ItemEdit_Frame();
+
 	// first person blend blobs, done after AnglesToAxis
 	if ( !cg.renderingThirdPerson && !povActive ) {
 		CG_DamageBlendBlob();
@@ -1635,6 +1638,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// build the render lists
 	if ( !cg.hyperspace ) {
 		CG_AddPacketEntities();			// adter calcViewValues, so predicted player state is correct
+		CG_ItemEdit_AddSceneEntities();
 		CG_FreeCamAddAmbientMovers();
 		CG_DemoCams_AddMarkers();
 		if ( !freeCam && !rigCam && !povActive ) {

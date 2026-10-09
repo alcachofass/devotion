@@ -113,6 +113,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #endif
 
 #define CS_ITEMTIMERS			29		// map major-item timer roster for HUD / demos
+#define CS_ITEMEDIT				30		// g_editMode bitmask (client item-edit UI)
 
 #define	CS_MODELS				32
 #define	CS_SOUNDS				(CS_MODELS+MAX_MODELS)

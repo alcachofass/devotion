@@ -552,6 +552,50 @@ gfx/2d/camrailactive
 	}
 }
 
+gfx/2d/icon_move
+{
+	nopicmip
+	nomipmaps
+	{
+		clampmap gfx/2d/icon_move.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+	}
+}
+
+gfx/2d/icon_cross
+{
+	nopicmip
+	nomipmaps
+	{
+		clampmap gfx/2d/icon_cross.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+	}
+}
+
+gfx/2d/icon_tick
+{
+	nopicmip
+	nomipmaps
+	{
+		clampmap gfx/2d/icon_tick.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+	}
+}
+
+gfx/2d/icon_home
+{
+	nopicmip
+	nomipmaps
+	{
+		clampmap gfx/2d/icon_home.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+	}
+}
+
 gfx/misc/alles_klar
 {
 	nopicmip

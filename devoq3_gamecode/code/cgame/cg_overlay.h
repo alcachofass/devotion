@@ -18,6 +18,7 @@ so each overlay can own its own buttons without duplicating that machinery.
 #define OVERLAY_CURSOR_SIZE		32
 #define OVERLAY_SIDE_MARGIN		8
 #define OVERLAY_SIDE_Y			72
+#define OVERLAY_LEFT_STACK_Y	50
 #define OVERLAY_SIDE_HDR_H		12
 #define OVERLAY_SIDE_BTN_H		18
 #define OVERLAY_SIDE_CHAR_W		5

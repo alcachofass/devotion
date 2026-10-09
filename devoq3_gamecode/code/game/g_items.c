@@ -678,6 +678,44 @@ static void G_UpdateItemTimerConfigstring( void ) {
 
 /*
 ===============
+G_ItemTimerAfterMapEdit
+
+Refresh spectator item-timer roster after a map pickup was edited in place.
+===============
+*/
+void G_ItemTimerAfterMapEdit( gentity_t *ent ) {
+	if ( !ent || !ent->item ) {
+		return;
+	}
+
+	if ( ( ent->s.eFlags & EF_NODRAW ) && ent->think == RespawnItem
+			&& ent->nextthink > level.time ) {
+		G_UpdateItemTimerConfigstring();
+		return;
+	}
+
+	ent->s.time = 0;
+	ent->s.time2 = 0;
+	ent->s.generic1 = 0;
+	ent->flags &= ~FL_ITEM_TIMER;
+
+	if ( BG_ItemHasTimer( ent->item ) && !( ent->s.eFlags & EF_NODRAW ) ) {
+		ent->flags |= FL_ITEM_TIMER;
+		ent->s.otherEntityNum = Item_CtfSide( ent );
+		if ( g_itemTimers.integer ) {
+			ent->r.svFlags &= ~SVF_NOCLIENT;
+		}
+	}
+
+	G_UpdateItemTimerConfigstring();
+
+	if ( BG_ItemHasTimer( ent->item ) ) {
+		Item_NotifySpectators( ent, qtrue );
+	}
+}
+
+/*
+===============
 RespawnItem
 ===============
 */
@@ -1144,6 +1182,12 @@ void FinishSpawningItem( gentity_t *ent ) {
 		ent->s.groundEntityNum = tr.entityNum;
 
 		G_SetOrigin( ent, tr.endpos );
+	}
+
+	ItemEdit_CommitBspPickup( ent );
+
+	if ( ItemEdit_ApplyOverrideOnSpawn( ent ) ) {
+		ent->s.modelindex = ent->item - bg_itemlist;
 	}
 
 	// team slaves and targeted items aren't present at start

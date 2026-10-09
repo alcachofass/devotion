@@ -933,7 +933,7 @@ static int DemoCtrl_ButtonDrawer( int btn ) {
 static const char *DemoCtrl_DrawerLabel( int drawer ) {
 	switch ( drawer ) {
 	case DEMOCTRL_DRAWER_LEFT:
-		return "EDIT CAMS";
+		return "CAMERAS";
 	case DEMOCTRL_DRAWER_RIGHT_CAM:
 		return "VIEWS";
 	case DEMOCTRL_DRAWER_RIGHT_DISP:
