@@ -30,11 +30,29 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // increase to accomodate plasma trails / dense rocket trails (XXX: might cause problems, reduce again)
 // Predicted Missiles also need to be rendered, make sure they together don't exceed 512
 #define	MAX_LOCAL_ENTITIES	(512 - MAX_PREDICTED_MISSILES)
-localEntity_t	cg_localEntities[MAX_LOCAL_ENTITIES];
-localEntity_t	cg_activeLocalEntities;		// double linked list
-localEntity_t	*cg_freeLocalEntities;		// single linked list
+static localEntity_t	cg_localEntitiesCtx[CG_NUM_CONTEXTS][MAX_LOCAL_ENTITIES];
+static localEntity_t	cg_activeLocalEntitiesCtx[CG_NUM_CONTEXTS];
+static localEntity_t	*cg_freeLocalEntitiesCtx[CG_NUM_CONTEXTS];
+
+#define cg_localEntities		( cg_localEntitiesCtx[cg_contextNum] )
+#define cg_activeLocalEntities	( cg_activeLocalEntitiesCtx[cg_contextNum] )
+#define cg_freeLocalEntities	( cg_freeLocalEntitiesCtx[cg_contextNum] )
 
 static int cg_localentityId = 0;
+
+void	CG_InitLocalEntitiesCtx( int ctx ) {
+	int		i;
+	localEntity_t	*localEntities = cg_localEntitiesCtx[ctx];
+	localEntity_t	*active = &cg_activeLocalEntitiesCtx[ctx];
+
+	memset( localEntities, 0, sizeof( cg_localEntitiesCtx[ctx] ) );
+	active->next = active;
+	active->prev = active;
+	cg_freeLocalEntitiesCtx[ctx] = localEntities;
+	for ( i = 0 ; i < MAX_LOCAL_ENTITIES - 1 ; i++ ) {
+		localEntities[i].next = &localEntities[i+1];
+	}
+}
 
 /*
 ===================
@@ -44,16 +62,11 @@ This is called at startup and for tournement restarts
 ===================
 */
 void	CG_InitLocalEntities( void ) {
-	int		i;
+	int ctx;
 
-	memset( cg_localEntities, 0, sizeof( cg_localEntities ) );
-	cg_activeLocalEntities.next = &cg_activeLocalEntities;
-	cg_activeLocalEntities.prev = &cg_activeLocalEntities;
-	cg_freeLocalEntities = cg_localEntities;
-	for ( i = 0 ; i < MAX_LOCAL_ENTITIES - 1 ; i++ ) {
-		cg_localEntities[i].next = &cg_localEntities[i+1];
+	for ( ctx = 0 ; ctx < CG_NUM_CONTEXTS ; ctx++ ) {
+		CG_InitLocalEntitiesCtx( ctx );
 	}
-
 	cg_localentityId = 0;
 }
 

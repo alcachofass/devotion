@@ -19,6 +19,8 @@ cg_scoreboard
 cg_servercmds
 cg_snapshot
 cg_demo_history
+cg_killcam
+cg_killcam_view
 cg_demo_controls
 cg_overlay
 cg_spec_controls

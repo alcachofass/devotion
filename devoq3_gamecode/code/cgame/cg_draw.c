@@ -7545,6 +7545,24 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		return;
 	}
 
+	if ( cg_contextNum == CG_CONTEXT_KILLCAM && CG_KillcamMode() == KILLCAM_KILLER ) {
+		const char	*s = "KILLCAM";
+		vec4_t		color;
+		float		pulse;
+		int			charW;
+		int			charH;
+		int			w;
+
+		charW = BIGCHAR_WIDTH + BIGCHAR_WIDTH / 2;
+		charH = BIGCHAR_HEIGHT + BIGCHAR_HEIGHT / 2;
+		pulse = 0.5f + 0.5f * sin( (float)cg.time * ( 2.0f * M_PI / 800.0f ) );
+		Vector4Copy( colorWhite, color );
+		color[3] = 0.4f + 0.6f * pulse;
+		w = CG_DrawStrlen( s ) * charW;
+		CG_DrawStringExt( 320 - w / 2, 400, s, color,
+			qtrue, qtrue, charW, charH, 0 );
+	}
+
 	CG_DrawEngineSupport();
 
 	if (cg_newConsole.integer) {

@@ -484,7 +484,7 @@ void CG_Orbit_Zoom( int notches ) {
 	}
 }
 
-static void CG_Orbit_Compute( const vec3_t focus, int skipNum, float yaw, float pitch, float dist,
+void CG_Orbit_ComputeAt( const vec3_t focus, int skipNum, float yaw, float pitch, float dist,
 		vec3_t outOrg, vec3_t outAng ) {
 	vec3_t		ang;
 	vec3_t		forward;
@@ -518,7 +518,7 @@ static void CG_Orbit_Compute( const vec3_t focus, int skipNum, float yaw, float 
 }
 
 static void CG_Orbit_Place( const vec3_t focus, int skipNum ) {
-	CG_Orbit_Compute( focus, skipNum, orbitYaw, orbitPitch, orbitDist,
+	CG_Orbit_ComputeAt( focus, skipNum, orbitYaw, orbitPitch, orbitDist,
 			cg.refdef.vieworg, cg.refdefViewAngles );
 }
 
@@ -701,7 +701,7 @@ static qboolean CG_DeathCam_ApplyView( const playerState_t *ps ) {
 
 		dist = deathOrbitDist + ( cg_deathOrbitDist.value - deathOrbitDist ) * smoothT;
 		pitch = deathOrbitPitch + ( cg_deathOrbitPitch.value - deathOrbitPitch ) * smoothT;
-		CG_Orbit_Compute( focus, ps->clientNum, deathOrbitYaw, pitch, dist, orbitOrg, orbitAng );
+		CG_Orbit_ComputeAt( focus, ps->clientNum, deathOrbitYaw, pitch, dist, orbitOrg, orbitAng );
 
 		for ( i = 0; i < 3; i++ ) {
 			cg.refdef.vieworg[i] = classicOrg[i] + smoothT * ( orbitOrg[i] - classicOrg[i] );
@@ -712,7 +712,7 @@ static qboolean CG_DeathCam_ApplyView( const playerState_t *ps ) {
 		return qtrue;
 	}
 
-	CG_Orbit_Compute( focus, ps->clientNum, deathOrbitYaw, cg_deathOrbitPitch.value,
+	CG_Orbit_ComputeAt( focus, ps->clientNum, deathOrbitYaw, cg_deathOrbitPitch.value,
 			cg_deathOrbitDist.value, cg.refdef.vieworg, cg.refdefViewAngles );
 	return qtrue;
 }
@@ -1249,7 +1249,7 @@ static int CG_CalcViewValues( void ) {
 		return CG_CalcFov();
 	}
 
-	if ( ps->stats[STAT_HEALTH] <= 0 && CG_DeathCam_ApplyView( ps ) ) {
+	if ( cg_contextNum == CG_CONTEXT_LIVE && ps->stats[STAT_HEALTH] <= 0 && CG_DeathCam_ApplyView( ps ) ) {
 		AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
 		if ( cg.hyperspace ) {
 			cg.refdef.rdflags |= RDF_NOWORLDMODEL | RDF_HYPERSPACE;
@@ -1287,12 +1287,24 @@ static int CG_CalcViewValues( void ) {
 		}
 	}
 
-	if ( cg.renderingThirdPerson ) {
-		// back away from character
-		CG_OffsetThirdPersonView();
-	} else {
-		// offset for local bobbing and kicks
-		CG_OffsetFirstPersonView();
+	{
+		qboolean killcamCameraPlaced = qfalse;
+
+		if ( cg_contextNum == CG_CONTEXT_KILLCAM && CG_KillcamMode() == KILLCAM_KILLER ) {
+			if ( CG_Killcam_ApplyView() ) {
+				killcamCameraPlaced = qtrue;
+				cg.renderingThirdPerson = CG_KillcamViewIsFirstPersonKiller()
+					? qfalse : qtrue;
+			}
+		}
+
+		if ( killcamCameraPlaced ) {
+			/* vieworg already set */
+		} else if ( cg.renderingThirdPerson ) {
+			CG_OffsetThirdPersonView();
+		} else {
+			CG_OffsetFirstPersonView();
+		}
 	}
 
 	// position eye reletive to origin
@@ -1521,7 +1533,7 @@ CG_DrawActiveFrame
 Generates and draws a game scene and status information at the given time.
 =================
 */
-void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demoPlayback ) {
+static void CG_DrawActiveFrameCtx( int serverTime, stereoFrame_t stereoView, qboolean demoPlayback ) {
 	int		inwater;
 	qboolean	freeCam;
 	qboolean	rigCam;
@@ -1543,26 +1555,32 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		catcher = trap_Key_GetCatcher();
 		trap_Key_SetCatcher( ( catcher | KEYCATCH_UI ) & ~KEYCATCH_CGAME );
 	}
-	CG_DemoControls_Frame();
-	CG_SpecControls_Frame();
-	CG_ItemTimersPeriodicSync();
-	if ( stereoView != STEREO_RIGHT ) {
-		CG_DemoControls_PrepareSeekDraw();
+	if ( cg_contextNum == CG_CONTEXT_LIVE ) {
+		CG_DemoControls_Frame();
+		CG_SpecControls_Frame();
+		CG_ItemTimersPeriodicSync();
+		if ( stereoView != STEREO_RIGHT ) {
+			CG_DemoControls_PrepareSeekDraw();
+		}
 	}
 
 	// if we are only updating the screen as a loading
 	// pacifier, don't even try to read snapshots
 	if ( cg.infoScreenText[0] != 0 ) {
-		CG_DrawLoadingScreen( stereoView );
+		if ( !cg_passHidden ) {
+			CG_DrawLoadingScreen( stereoView );
+		}
 		return;
 	}
 
-	// any looped sounds will be respecified as entities
-	// are added to the render list
-	trap_S_ClearLoopingSounds(qfalse);
+	if ( !cg_passHidden ) {
+		// any looped sounds will be respecified as entities
+		// are added to the render list
+		trap_S_ClearLoopingSounds(qfalse);
 
-	// clear all the render lists
-	trap_R_ClearScene();
+		// clear all the render lists
+		trap_R_ClearScene();
+	}
 
 	if ( CG_DemoControls_SeekKeyframeHold() ) {
 		cg.time = CG_DemoControls_SeekHoldTime();
@@ -1577,24 +1595,26 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// if we haven't received any snapshots yet, all
 	// we can draw is the information screen
 	if ( !cg.snap || ( cg.snap->snapFlags & SNAPFLAG_NOT_ACTIVE ) ) {
-		CG_DrawLoadingScreen( stereoView );
+		if ( !cg_passHidden ) {
+			CG_DrawLoadingScreen( stereoView );
+		}
 		return;
 	}
 
-	CG_BeginLoadFadeIfNeeded();
+	if ( cg_contextNum == CG_CONTEXT_LIVE ) {
+		CG_BeginLoadFadeIfNeeded();
 
-	if ( !CG_DemoControls_IsSeeking() ) {
-		CG_DemoHistory_Frame();
+		if ( !CG_DemoControls_IsSeeking() ) {
+			CG_DemoHistory_Frame();
+		}
+
+		if ( cg.warmup > 0 ) {
+			CG_AutoRecordStart();
+		}
+
+		trap_SetUserCmdValue( cg.weaponSelect, cg.zoomSensitivity );
 	}
 
-	if ( cg.warmup > 0 ) {
-		CG_AutoRecordStart();
-	}
-
-	// let the client system know what our weapon and zoom settings are
-	trap_SetUserCmdValue( cg.weaponSelect, cg.zoomSensitivity );
-
-	// this counter will be bumped for every valid scene we generate
 	cg.clientFrame++;
 
 	if ( CG_DemoControls_IsSeeking() && !CG_DemoControls_SeekWantsKeyframe() ) {
@@ -1611,12 +1631,12 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		return;
 	}
 
-	// update cg.predictedPlayerState
 	CG_PredictPlayerState();
-	CG_BigHeadUpdateScores();
-
-	CG_DemoControls_PovFrame();
-	CG_DeathCam_Frame();
+	if ( cg_contextNum == CG_CONTEXT_LIVE ) {
+		CG_BigHeadUpdateScores();
+		CG_DemoControls_PovFrame();
+		CG_DeathCam_Frame();
+	}
 
 	freeCam = CG_DemoControls_FreeCamActive();
 	rigCam = CG_DemoControls_RigCamActive();
@@ -1655,47 +1675,48 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// build cg.refdef
 	inwater = CG_CalcViewValues();
 
-	CG_ItemEdit_Frame();
+	if ( !cg_passHidden ) {
+		CG_ItemEdit_Frame();
 
-	// first person blend blobs, done after AnglesToAxis
-	if ( !cg.renderingThirdPerson && !povActive ) {
-		CG_DamageBlendBlob();
+		if ( !cg.renderingThirdPerson && !povActive ) {
+			CG_DamageBlendBlob();
+		}
 	}
 
-	// build the render lists
 	if ( !cg.hyperspace ) {
-		CG_AddPacketEntities();			// adter calcViewValues, so predicted player state is correct
-		CG_ItemEdit_AddSceneEntities();
-		CG_FreeCamAddAmbientMovers();
-		CG_DemoCams_AddMarkers();
-		if ( !freeCam && !rigCam && !povActive ) {
-			CG_DrawBotAimFollowFirstPerson();
+		if ( !cg_passHidden ) {
+			CG_AddPacketEntities();
+			CG_ItemEdit_AddSceneEntities();
+			CG_FreeCamAddAmbientMovers();
+			CG_DemoCams_AddMarkers();
+			if ( !freeCam && !rigCam && !povActive ) {
+				CG_DrawBotAimFollowFirstPerson();
+			}
+			CG_AddPredictedMissiles();
+			CG_AddMarks();
+			CG_AddParticles();
+			if ( cg.warmup != 0 ) {
+				CG_AddSpawnpoints();
+			}
 		}
-		CG_AddPredictedMissiles();
-		CG_AddMarks();
-		CG_AddParticles ();
 		CG_AddLocalEntities();
-		if ( cg.warmup != 0 ) {
-			CG_AddSpawnpoints();
+	}
+	if ( !cg_passHidden ) {
+		if ( povEyes ) {
+			CG_DemoControls_PovAddViewWeapon();
+		} else if ( CG_KillcamViewIsFirstPersonKiller() ) {
+			CG_KillcamAddViewWeapon();
+		} else if ( !povActive ) {
+			CG_AddViewWeapon( &cg.predictedPlayerState );
 		}
-	}
-	if ( povEyes ) {
-		CG_DemoControls_PovAddViewWeapon();
-	} else if ( !povActive ) {
-		CG_AddViewWeapon( &cg.predictedPlayerState );
-	}
 
-	// add buffered sounds
-	CG_PlayBufferedSounds();
+		CG_PlayBufferedSounds();
+		CG_PlayBufferedRewardSounds();
+		CG_PlayBufferedVoiceChats();
 
-	CG_PlayBufferedRewardSounds();
-
-	// play buffered voice chats
-	CG_PlayBufferedVoiceChats();
-
-	// finish up the rest of the refdef
-	if ( cg.testModelEntity.hModel ) {
-		CG_AddTestModel();
+		if ( cg.testModelEntity.hModel ) {
+			CG_AddTestModel();
+		}
 	}
 	cg.refdef.time = cg.time;
 	memcpy( cg.refdef.areamask, cg.snap->areamask, sizeof( cg.refdef.areamask ) );
@@ -1709,12 +1730,21 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		CG_PowerupTimerSounds();
 	}
 
-	// update audio positions
-	trap_S_Respatialize( ( freeCam || povParked || CG_Orbit_Active() || CG_DeathCam_Active()
-			|| ( rigCam && !CG_DemoCams_UsingPlayerView() ) )
-			? ENTITYNUM_NONE
-			: ( povActive ? CG_DemoControls_PovClient() : cg.snap->ps.clientNum ),
-			cg.refdef.vieworg, cg.refdef.viewaxis, inwater );
+	{
+		int listenerNum;
+
+		if ( cg_contextNum == CG_CONTEXT_KILLCAM && CG_KillcamMode() == KILLCAM_KILLER
+			&& CG_KillcamKillerCent()
+			&& cg_killcamKillerIsSoundListener.integer ) {
+			listenerNum = CG_KillcamKillerNum();
+		} else if ( freeCam || povParked || CG_Orbit_Active() || CG_DeathCam_Active()
+			|| ( rigCam && !CG_DemoCams_UsingPlayerView() ) ) {
+			listenerNum = ENTITYNUM_NONE;
+		} else {
+			listenerNum = povActive ? CG_DemoControls_PovClient() : cg.snap->ps.clientNum;
+		}
+		trap_S_Respatialize( listenerNum, cg.refdef.vieworg, cg.refdef.viewaxis, inwater );
+	}
 
 	// make sure the lagometerSample and frame timing isn't done twice when in stereo
 	if ( stereoView != STEREO_RIGHT ) {
@@ -1723,9 +1753,11 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 			cg.frametime = 0;
 		}
 		cg.oldTime = cg.time;
-		CG_AddLagometerFrameInfo();
+		if ( cg_contextNum == CG_CONTEXT_LIVE ) {
+			CG_AddLagometerFrameInfo();
+		}
 	}
-	if (cg_timescale.value != cg_timescaleFadeEnd.value) {
+	if ( cg_contextNum == CG_CONTEXT_LIVE && cg_timescale.value != cg_timescaleFadeEnd.value ) {
 		if (cg_timescale.value < cg_timescaleFadeEnd.value) {
 			cg_timescale.value += cg_timescaleFadeSpeed.value * ((float)cg.frametime) / 1000;
 			if (cg_timescale.value > cg_timescaleFadeEnd.value)
@@ -1741,15 +1773,47 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		}
 	}
 
-	// actually issue the rendering calls
-	CG_DrawActive( stereoView );
-	CG_DemoCams_DrawCutFade();
-	CG_DrawViewFades( stereoView );
+	if ( !cg_passHidden ) {
+		CG_DrawActive( stereoView );
+		CG_DemoCams_DrawCutFade();
+		CG_DrawViewFades( stereoView );
+	}
 
 	if ( cg_stats.integer ) {
 		CG_Printf( "cg.clientFrame:%i\n", cg.clientFrame );
 	}
+}
 
+/*
+=================
+CG_DrawActiveFrame
+=================
+*/
+void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demoPlayback ) {
+	int			killcamDelay;
+	qboolean	killcamView;
 
+	CG_SetContext( CG_CONTEXT_LIVE );
+	CG_UpdateCvars();
+
+	if ( cg.infoScreenText[0] != 0 ) {
+		CG_DrawActiveFrameCtx( serverTime, stereoView, demoPlayback );
+		return;
+	}
+
+	killcamDelay = CG_KillcamUpdate( serverTime, demoPlayback );
+	killcamView = killcamDelay > 0;
+
+	cg_passHidden = killcamView && CG_KillcamTransitionShowKillcam();
+	cg_soundMuted = cg_passHidden;
+	CG_DrawActiveFrameCtx( serverTime, stereoView, demoPlayback );
+	cg_passHidden = qfalse;
+	cg_soundMuted = qfalse;
+
+	if ( killcamView && CG_KillcamTransitionShowKillcam() ) {
+		CG_SetContext( CG_CONTEXT_KILLCAM );
+		CG_DrawActiveFrameCtx( serverTime - killcamDelay, stereoView, qtrue );
+		CG_SetContext( CG_CONTEXT_LIVE );
+	}
 }
 

@@ -37,6 +37,8 @@ cd windows\build\cgame
 %cc%  ../../../code/cgame/cg_servercmds.c
 %cc%  ../../../code/cgame/cg_snapshot.c
 %cc%  ../../../code/cgame/cg_demo_history.c
+%cc%  ../../../code/cgame/cg_killcam.c
+%cc%  ../../../code/cgame/cg_killcam_view.c
 %cc%  ../../../code/cgame/cg_demo_controls.c
 %cc%  ../../../code/cgame/cg_overlay.c
 %cc%  ../../../code/cgame/cg_spec_controls.c

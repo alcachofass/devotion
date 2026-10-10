@@ -1731,16 +1731,10 @@ static qboolean CG_ShouldDrawFollowPOVBody( int entityNum ) {
 
 /*
 ===============
-CG_AddPacketEntities
-
+CG_SetFrameInterpolation
 ===============
 */
-void CG_AddPacketEntities( void ) {
-	int					num;
-	centity_t			*cent;
-	playerState_t		*ps;
-
-	// set cg.frameInterpolation
+void CG_SetFrameInterpolation( void ) {
 	if ( cg.nextSnap ) {
 		int		delta;
 
@@ -1751,9 +1745,22 @@ void CG_AddPacketEntities( void ) {
 			cg.frameInterpolation = (float)( cg.time - cg.snap->serverTime ) / delta;
 		}
 	} else {
-		cg.frameInterpolation = 0;	// actually, it should never be used, because 
-									// no entities should be marked as interpolating
+		cg.frameInterpolation = 0;
 	}
+}
+
+/*
+===============
+CG_AddPacketEntities
+
+===============
+*/
+void CG_AddPacketEntities( void ) {
+	int					num;
+	centity_t			*cent;
+	playerState_t		*ps;
+
+	CG_SetFrameInterpolation();
 
 	// the auto-rotating items will all have the same axis
 	cg.autoAngles[0] = 0;

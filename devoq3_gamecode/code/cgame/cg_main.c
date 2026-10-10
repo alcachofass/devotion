@@ -106,11 +106,23 @@ intptr_t vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, 
 }
 
 
-cg_t				cg;
+cgContext_t			cg_contexts[CG_NUM_CONTEXTS];
+cgContext_t			*cgc = &cg_contexts[CG_CONTEXT_LIVE];
+int					cg_contextNum = CG_CONTEXT_LIVE;
 cgs_t				cgs;
-centity_t			cg_entities[MAX_GENTITIES];
 weaponInfo_t		cg_weapons[MAX_WEAPONS];
 itemInfo_t			cg_items[MAX_ITEMS];
+
+qboolean			cg_soundMuted = qfalse;
+qboolean			cg_passHidden = qfalse;
+
+void CG_SetContext( int contextNum ) {
+	if ( contextNum < 0 || contextNum >= CG_NUM_CONTEXTS ) {
+		contextNum = CG_CONTEXT_LIVE;
+	}
+	cgc = &cg_contexts[contextNum];
+	cg_contextNum = contextNum;
+}
 
 
 // LegendGuard: single-line cvar declaration, from ec-/baseq3a (by Razor)

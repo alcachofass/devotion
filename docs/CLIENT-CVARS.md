@@ -192,12 +192,32 @@ Client-side variables registered by the **cgame** module (`cg_*`, plus related n
 | `cg_itemTimersOffset` | Devotion | `8` | float | Vertical offset of world-space item timer pies, in game units. |
 | `cg_itemTimersScale` | Devotion | `1.0` | float | Size of world-space item timer pies. |
 | `cg_specItemTimers` | Devotion | `15` | bitmask | Spectator HUD overlay: `0` off. Default `15` = RA+YA+MH+powerups. `7` is treated as `15`. |
-| `cg_specItemTimersSize` | Devotion | `0.24` | float | Overlay icon scale (QL default `0.24` ≈ 24px). |
+| `cg_specItemTimersSize` | Devotion | `0.24` | float | Overlay icon scale (QL default `0.24`, about 24px). |
 | `cg_specItemTimersX` | Devotion | `10` | float | Overlay X in 640-wide HUD coordinates. |
 | `cg_specItemTimersY` | Devotion | `200` | float | Overlay Y in 480-tall HUD coordinates. |
 | `cg_demoItemTimers` | Devotion | `1` | 0 or 1 | When `1`, shows the item-timer overlay while watching demos (replay sidebar Timers toggle). Old recordings reconstruct countdowns from pickups; unknown pads show `--`. |
 | `cg_specPlayerStatus` | Devotion | `1` | 0 or 1 | When `1`, spectators see a QL-style name / 4 health pips / armor bar above each player, including through walls. |
 | `cg_demoPlayerStatus` | Devotion | `1` | 0 or 1 | When `1` during demo playback, draws the same overhead status boxes for players in PVS (replay sidebar Status). Out-of-PVS boxes only appear if the recording has spectator status data. |
+| `cg_killcam` | Devotion | `1` | 0, 1, 2, or 3 | When 1, deaths show a killcam: a replay of the last few seconds with the camera on the killer (or on you for suicides and world deaths). Each replay randomly uses killer third-person, killer first-person, or missile chase when available. Ends shortly after the kill or when you respawn. Bit 1 (value 2): disable killcam while spectating. |
+| `cg_killcamHeight` | Devotion | `24` | float | Killcam third-person camera: vertical offset from the killer's head (also raises the aim point so the view stays level). |
+| `cg_killcamHitSounds` | Devotion | `0` | 0 or 1 | When 1, plays hit feedback sounds during the killcam replay. When 0, they are muted. |
+| `cg_killcamKillerIsSoundListener` | Devotion | `1` | 0 or 1 | When the camera follows the killer, use the killer as the sound listener instead of your corpse. |
+| `cg_killcamKillTimescale` | Devotion | `1` | float | Playback speed multiplier around the moment of the kill (1 = real time). Outside the before/after window the replay runs at normal speed. |
+| `cg_killcamKillTimescaleAfter` | Devotion | `20` | integer (ms) | How many milliseconds of replay after the kill run at cg_killcamKillTimescale. |
+| `cg_killcamKillTimescaleBefore` | Devotion | `20` | integer (ms) | How many milliseconds of replay before the kill run at cg_killcamKillTimescale. |
+| `cg_killcamKillTimescaleFadeIn` | Devotion | `50` | integer (ms) | Milliseconds to ease into cg_killcamKillTimescale before the before-window. 0 = instant. |
+| `cg_killcamKillTimescaleFadeOut` | Devotion | `400` | integer (ms) | Milliseconds to ease back to real-time speed after the after-window. 0 = instant. |
+| `cg_killcamMissileHeight` | Devotion | `` | float or empty | Missile-chase camera height offset. Empty = derived at chase start so the cut does not jump. |
+| `cg_killcamMissileLookAtTarget` | Devotion | `1` | 0, 1, or 2 | Missile-chase aim: 0 = along flight path; 1 = at the victim; 2 = at victim only after the missile explodes. |
+| `cg_killcamMissileMinDuration` | Devotion | `300` | integer (ms) | Skip missile chase if recorded flight time is shorter than this (e.g. point-blank rocket). |
+| `cg_killcamMissileRange` | Devotion | `` | float or empty | Missile-chase distance behind the missile. Empty = derived from the prior camera. |
+| `cg_killcamMissileSide` | Devotion | `` | float or empty | Missile-chase side offset (positive = right of flight direction, same convention as cg_killcamSide). Empty = derived at chase start. |
+| `cg_killcamRecordInterval` | Devotion | `20` | integer (ms) | Minimum time between recorded snapshots for killcam history. Smaller values use more memory for the same ring buffer. |
+| `cg_killcamSide` | Devotion | `-15` | float | Killcam third-person: lateral offset from the killer (negative = left). |
+| `cg_killcamSkipOnJumpDelay` | Devotion | `750` | integer (ms) | After the replay starts, ignore jump for this long (grace period); then jump skips the rest of the killcam. |
+| `cg_killcamSkipPreRespawn` | Devotion | `1` | 0 or 1 | When 1, if the fixed preroll would start before your last respawn, begin the replay at the respawn instead. |
+| `cg_killcamStartDelay` | Devotion | `1800` | integer (ms) | Milliseconds after death before the killcam view switches. Replay always covers 2500 ms before the kill and 2000 ms after (fixed). History is limited by the snapshot ring (512 slots times cg_killcamRecordInterval). |
+| `cg_killcamStartOnClickDelay` | Devotion | `9999999` | integer (ms) | Fresh attack press after death can start the replay early instead of waiting for cg_killcamStartDelay. Clicks within this many ms of death are ignored. -1 disables start-on-click. |
 | `cg_lagometer` | Vanilla | `1` | 0 or 1 | When `1`, shows the lagometer graph (ping, packet loss, and snapshot rate). |
 | `cg_latentCmds` | RatMod | `0` | 0 or 1 | Simulated delay on outgoing commands for network testing. Currently unused. |
 | `cg_latentSnaps` | RatMod | `0` | 0 or 1 | Simulated delay on incoming snapshots for network testing. Currently unused. |

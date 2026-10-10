@@ -43,6 +43,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	POWERUP_BLINK_TIME	1000
 #define	FADE_TIME			200
 #define	CG_LEAVE_FADE_MS		1000
+#define	CG_KILLCAM_XITION_MS		500
+#define	CG_KILLCAM_XITION_HALF_MS	( CG_KILLCAM_XITION_MS / 2 )
 #define	PULSE_TIME			200
 #define	DAMAGE_DEFLECT_TIME	100
 #define	DAMAGE_RETURN_TIME	400
@@ -1811,12 +1813,23 @@ typedef struct {
 
 //==============================================================================
 
+#include "cg_killcam.h"
+
+typedef struct {
+	cg_t			state;
+	centity_t		entities[MAX_GENTITIES];
+} cgContext_t;
+
+extern	cgContext_t		cg_contexts[CG_NUM_CONTEXTS];
+extern	cgContext_t		*cgc;
+extern	int				cg_contextNum;
+
+#define cg				(cgc->state)
+#define cg_entities		(cgc->entities)
+
 extern	cgs_t			cgs;
-extern	cg_t			cg;
-extern	centity_t		cg_entities[MAX_GENTITIES];
 extern	weaponInfo_t	cg_weapons[MAX_WEAPONS];
 extern	itemInfo_t		cg_items[MAX_ITEMS];
-extern	markPoly_t		cg_markPolys[MAX_MARK_POLYS];
 
 // LegendGuard: single-line cvar declaration, from ec-/baseq3a (by Razor)
 #define EXTERN_CG_CVAR
@@ -1923,6 +1936,8 @@ qboolean CG_Orbit_Active( void );
 qboolean CG_Orbit_ChaseActive( void );
 void CG_Orbit_Mouse( int dx, int dy );
 void CG_Orbit_Zoom( int notches );
+void CG_Orbit_ComputeAt( const vec3_t focus, int skipNum, float yaw, float pitch, float dist,
+		vec3_t outOrg, vec3_t outAng );
 qboolean CG_DeathCam_Active( void );
 
 void CG_DemoControls_RefreshAttackKeys( void );
@@ -2262,6 +2277,7 @@ void CG_PainEvent( centity_t *cent, int health );
 // cg_ents.c
 //
 void CG_SetEntitySoundPosition( centity_t *cent );
+void CG_SetFrameInterpolation( void );
 void CG_AddPacketEntities( void );
 void CG_Beam( centity_t *cent );
 void CG_AdjustPositionForMover( const vec3_t in, int moverNum, int fromTime, int toTime, vec3_t out );
@@ -2429,6 +2445,9 @@ void CG_DrawLevelLoadFade( void );
 void CG_DrawViewFades( stereoFrame_t stereoView );
 void CG_BeginLeaveFade( void );
 void CG_DrawLeaveFade( stereoFrame_t stereoView );
+void CG_BeginKillcamTransitionFade( void );
+void CG_ClearKillcamTransitionFade( void );
+qboolean CG_KillcamTransitionShowKillcam( void );
 
 //
 // cg_scoreboard.c
