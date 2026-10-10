@@ -797,6 +797,7 @@ static void CG_ItemEdit_ClampScroll( void ) {
 
 static void CG_ItemEdit_ActivateSel( void ) {
 	itemEditRow_t	*row;
+	int				i;
 
 	if ( cg_itemEditSel < 0 || cg_itemEditSel >= cg_itemEditRowCount ) {
 		return;
@@ -804,7 +805,15 @@ static void CG_ItemEdit_ActivateSel( void ) {
 	row = &cg_itemEditRows[cg_itemEditSel];
 	if ( row->kind == ITEMEDIT_ROW_GROUP ) {
 		if ( row->group >= 0 && row->group < ITEMEDIT_GRP_COUNT ) {
-			cg_itemEditGroupOpen[row->group] = !cg_itemEditGroupOpen[row->group];
+			qboolean	open;
+
+			open = !cg_itemEditGroupOpen[row->group];
+			for ( i = 0; i < ITEMEDIT_GRP_COUNT; i++ ) {
+				cg_itemEditGroupOpen[i] = qfalse;
+			}
+			if ( open ) {
+				cg_itemEditGroupOpen[row->group] = qtrue;
+			}
 			cg_itemEditRowsDirty = qtrue;
 			CG_ItemEdit_RebuildRows();
 			CG_ItemEdit_ClampScroll();

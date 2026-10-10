@@ -1958,6 +1958,7 @@ void CG_DemoCams_AddMarkers( void );
 int CG_DemoCams_ItemGhostGen( void );
 void CG_DemoEvents_Frame( void );
 void CG_DemoEvents_Shutdown( void );
+qboolean CG_DemoEvents_ScanDone( void );
 int CG_DemoEvents_FirstServerTime( void );
 int CG_DemoEvents_LastServerTime( void );
 void CG_DemoEvents_NotePing( int clientNum, int ping );
@@ -2395,7 +2396,9 @@ void CG_WrappedStartSound( vec3_t origin, int entityNum, int entchannel, sfxHand
 void CG_WrappedStartLocalSound( sfxHandle_t sfx, int channelNum );
 void CG_WrappedAddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx );
 void CG_WrappedAddRealLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx );
+qboolean CG_MenuMusicOwnsChannel( void );
 void CG_WrappedStartBackgroundTrack( const char *intro, const char *loop );
+void CG_WrappedStopBackgroundTrack( void );
 
 //
 // cg_demo_history.c (declarations in cg_demo_history.h)
@@ -2586,6 +2589,8 @@ void	trap_S_StopBackgroundTrack( void );
 	CG_WrappedAddRealLoopingSound( (entityNum), (origin), (velocity), (sfx) )
 #define trap_S_StartBackgroundTrack( intro, loop ) \
 	CG_WrappedStartBackgroundTrack( (intro), (loop) )
+#define trap_S_StopBackgroundTrack() \
+	CG_WrappedStopBackgroundTrack()
 #endif
 
 

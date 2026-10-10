@@ -1360,6 +1360,7 @@ qboolean UI_ConsoleCommand( int realTime ) {
 	// ensure minimum menu data is available
 	Menu_Cache();
 
+	UI_Showcase_PollRotate();
 	UI_Showcase_PollDismiss();
 
 	if ( !Q_stricmp( cmd, "map" ) || !Q_stricmp( cmd, "devmap" )
@@ -1486,8 +1487,7 @@ void UI_Init( void ) {
 	uis.activemenu = NULL;
 	uis.menusp     = 0;
 
-	/* Demo load restarts this VM. Put the main menu back if that load is the showcase. */
-	UI_Showcase_RetainMenu();
+	UI_Showcase_InitAfterVmReload();
 }
 
 /*
@@ -1607,7 +1607,10 @@ void UI_Refresh( int realtime )
 	uis.frametime = realtime - uis.realtime;
 	uis.realtime  = realtime;
 
+	UI_Showcase_PollRotate();
 	UI_Showcase_PollDismiss();
+	UI_Showcase_Watchdog();
+	UI_Showcase_Frame();
 
 	if ( !( trap_Key_GetCatcher() & KEYCATCH_UI ) ) {
 		return;
@@ -1621,8 +1624,6 @@ void UI_Refresh( int realtime )
 
 	if ( uis.activemenu )
 	{
-		UI_Showcase_Frame();
-
 		if ( UI_Showcase_Playing() ) {
 			UI_Showcase_DrawBackdrop();
 		} else if ( uis.activemenu->fullscreen ) {

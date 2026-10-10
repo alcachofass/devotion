@@ -1746,32 +1746,66 @@ static void UI_Demo_AddEntryFromFsName( const char *demoname ) {
 
 static char	s_pickDemoFileListBuf[DEMO_LIST_BUF_SIZE];
 
-static qboolean UI_Demo_FsNameIsPlayable( const char *demoname, char *filename, int filenameSize ) {
-	demoEntry_t	entry;
-	char		stripped[MAX_OSPATH];
+/*
+ * Shipped showcase basenames end with _<seconds> before the demo extension
+ * (e.g. showcase1_627).
+ */
+static int UI_Demo_ShowcaseDurationSeconds( const char *stripped ) {
+	const char	*underscore;
+	const char	*p;
+	int			seconds;
 
-	if ( !UI_Demo_NameIsAutorecord( demoname ) ) {
+	if ( !stripped || !stripped[0] ) {
+		return 0;
+	}
+
+	underscore = strrchr( stripped, '_' );
+	if ( !underscore || underscore == stripped ) {
+		return 0;
+	}
+
+	seconds = 0;
+	for ( p = underscore + 1; *p; p++ ) {
+		if ( *p < '0' || *p > '9' ) {
+			return 0;
+		}
+		seconds = seconds * 10 + ( *p - '0' );
+	}
+
+	return seconds > 0 ? seconds : 0;
+}
+
+static qboolean UI_Demo_ShowcaseListNameIsPlayable( const char *listName, char *demoName,
+		int demoNameSize, int *durationMsOut ) {
+	fileHandle_t	f;
+	char			path[MAX_OSPATH];
+	char			stripped[MAX_OSPATH];
+	int				seconds;
+	int				size;
+
+	if ( !listName || !listName[0] ) {
 		return qfalse;
 	}
 
-	memset( &entry, 0, sizeof( entry ) );
-	Q_strncpyz( entry.fsName, demoname, sizeof( entry.fsName ) );
-	UI_Demo_LoadFileSize( demoname, &entry );
-	if ( entry.fileSize <= 0 ) {
+	Com_sprintf( path, sizeof( path ), "%s/%s", SHOWCASE_DEMO_PATH, listName );
+	size = trap_FS_FOpenFile( path, &f, FS_READ );
+	if ( size <= 0 || !f ) {
 		return qfalse;
 	}
+	trap_FS_FCloseFile( f );
 
-	Q_strncpyz( stripped, demoname, sizeof( stripped ) );
+	Q_strncpyz( stripped, listName, sizeof( stripped ) );
 	UI_Demo_StripExtension( stripped );
-	Q_strncpyz( entry.filename, stripped, sizeof( entry.filename ) );
-	if ( !UI_Demo_ParseAutorecord( entry.filename, &entry ) ) {
-		return qfalse;
-	}
-	if ( UI_Demo_EntryCannotPlay( &entry ) ) {
+	seconds = UI_Demo_ShowcaseDurationSeconds( stripped );
+	if ( seconds <= 0 ) {
 		return qfalse;
 	}
 
-	Q_strncpyz( filename, entry.filename, filenameSize );
+	if ( durationMsOut ) {
+		*durationMsOut = seconds * 1000;
+	}
+
+	Com_sprintf( demoName, demoNameSize, "%s/%s", SHOWCASE_DEMO_DIR, stripped );
 	return qtrue;
 }
 
@@ -1779,23 +1813,22 @@ static qboolean UI_Demo_FsNameIsPlayable( const char *demoname, char *filename, 
 =================
 UI_Demo_PickRandomPlayable
 
-Choose a random autorecord-style demo whose map is installed, using the
-same naming and map checks as the replays menu. Falls back to the shipped
-showcase replay when no user demos qualify.
+Choose a random shipped replay from demos/showcase for the main-menu
+background. Files must be readable and use a _<seconds> duration suffix.
 =================
 */
 qboolean UI_Demo_PickRandomPlayable( char *filename, int filenameSize ) {
 	char			extension[32];
-	char			stripped[MAX_OSPATH];
+	char			demoName[MAX_OSPATH];
 	char			*demoname;
 	int				count;
+	int				durationMs;
 	int				fileCount;
 	int				i;
 	int				len;
 	int				pick;
 	int				seed;
 	int				seen;
-	fileHandle_t	f;
 
 	if ( !filename || filenameSize < 1 ) {
 		return qfalse;
@@ -1804,40 +1837,38 @@ qboolean UI_Demo_PickRandomPlayable( char *filename, int filenameSize ) {
 	count = 0;
 	Com_sprintf( extension, sizeof( extension ), "dm_%d",
 			(int)trap_Cvar_VariableValue( "protocol" ) );
-	fileCount = trap_FS_GetFileList( "demos", extension, s_pickDemoFileListBuf,
+	fileCount = trap_FS_GetFileList( SHOWCASE_DEMO_PATH, extension, s_pickDemoFileListBuf,
 			sizeof( s_pickDemoFileListBuf ) );
 
 	demoname = s_pickDemoFileListBuf;
 	for ( i = 0; i < fileCount; i++ ) {
 		len = strlen( demoname );
-		if ( UI_Demo_FsNameIsPlayable( demoname, stripped, sizeof( stripped ) ) ) {
+		if ( UI_Demo_ShowcaseListNameIsPlayable( demoname, demoName, sizeof( demoName ), NULL ) ) {
 			count++;
 		}
 		demoname += len + 1;
 	}
 
-	if ( count > 0 ) {
-		seed = trap_Milliseconds();
-		pick = Q_rand( &seed ) % count;
-		seen = 0;
-		demoname = s_pickDemoFileListBuf;
-		for ( i = 0; i < fileCount; i++ ) {
-			len = strlen( demoname );
-			if ( UI_Demo_FsNameIsPlayable( demoname, stripped, sizeof( stripped ) ) ) {
-				if ( seen == pick ) {
-					Q_strncpyz( filename, stripped, filenameSize );
-					return qtrue;
-				}
-				seen++;
-			}
-			demoname += len + 1;
-		}
+	if ( count <= 0 ) {
+		return qfalse;
 	}
 
-	if ( trap_FS_FOpenFile( SHOWCASE_DEMO_FILE, &f, FS_READ ) > 0 ) {
-		trap_FS_FCloseFile( f );
-		Q_strncpyz( filename, SHOWCASE_DEMO, filenameSize );
-		return qtrue;
+	seed = trap_Milliseconds();
+	pick = Q_rand( &seed ) % count;
+	seen = 0;
+	demoname = s_pickDemoFileListBuf;
+	for ( i = 0; i < fileCount; i++ ) {
+		len = strlen( demoname );
+		if ( UI_Demo_ShowcaseListNameIsPlayable( demoname, demoName, sizeof( demoName ),
+				&durationMs ) ) {
+			if ( seen == pick ) {
+				Q_strncpyz( filename, demoName, filenameSize );
+				trap_Cvar_Set( "ui_showcaseDemoMs", va( "%d", durationMs ) );
+				return qtrue;
+			}
+			seen++;
+		}
+		demoname += len + 1;
 	}
 
 	return qfalse;
