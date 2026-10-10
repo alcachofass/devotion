@@ -1455,9 +1455,26 @@ void CG_WrappedAddRealLoopingSound( int entityNum, const vec3_t origin, const ve
 	trap_S_AddRealLoopingSound( entityNum, origin, velocity, sfx );
 }
 
-void CG_WrappedStartBackgroundTrack( const char *intro, const char *loop ) {
+qboolean CG_MenuMusicOwnsChannel( void ) {
+	char	buf[8];
+
 	if ( cg_showcase.integer ) {
+		return qtrue;
+	}
+	trap_Cvar_VariableStringBuffer( "ui_mainMenuMusic", buf, sizeof( buf ) );
+	return ( buf[0] && atoi( buf ) ) ? qtrue : qfalse;
+}
+
+void CG_WrappedStartBackgroundTrack( const char *intro, const char *loop ) {
+	if ( CG_MenuMusicOwnsChannel() ) {
 		return;
 	}
 	trap_S_StartBackgroundTrack( intro, loop );
+}
+
+void CG_WrappedStopBackgroundTrack( void ) {
+	if ( CG_MenuMusicOwnsChannel() ) {
+		return;
+	}
+	trap_S_StopBackgroundTrack();
 }

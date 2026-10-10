@@ -66,6 +66,12 @@ UI_CVAR( ui_spSkill, "g_spSkill", "2", CVAR_ARCHIVE | CVAR_LATCH )
 
 UI_CVAR( ui_spSelection, "ui_spSelection", "", CVAR_ROM )
 UI_CVAR( ui_showcase, "cg_showcase", "0", CVAR_ROM )
+UI_CVAR( ui_showcasePendingReload, "ui_showcasePendingReload", "0", CVAR_ROM )
+UI_CVAR( ui_showcaseSuspend, "ui_showcaseSuspend", "0", CVAR_ROM )
+UI_CVAR( ui_mainMenuMusic, "ui_mainMenuMusic", "0", CVAR_ROM )
+UI_CVAR( ui_menuMusicStart, "ui_menuMusicStart", "0", CVAR_ROM )
+UI_CVAR( ui_menuMusicMs, "ui_menuMusicMs", "218150", CVAR_ROM )
+UI_CVAR( ui_showcaseDemoMs, "ui_showcaseDemoMs", "0", CVAR_ROM )
 
 UI_CVAR( ui_browserMaster, "ui_browserMaster", "0", CVAR_ARCHIVE )
 UI_CVAR( ui_browserGameType, "ui_browserGameType", "0", CVAR_ARCHIVE )

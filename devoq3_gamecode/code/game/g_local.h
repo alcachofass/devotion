@@ -1067,6 +1067,7 @@ void	Add_Ammo (gentity_t *ent, int weapon, int count);
 void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace);
 void Item_NotifySpectatorPending( gentity_t *clientEnt );
 void G_RefreshItemTimerBroadcast( void );
+void G_ItemTimerAfterMapEdit( gentity_t *ent );
 
 void ClearRegisteredItems( void );
 void RegisterItem( gitem_t *item );
@@ -1409,6 +1410,8 @@ void CamSession_Init( void );
 void CamSession_Frame( void );
 void CamSession_ClientDisconnect( int clientNum );
 void Cmd_CamSession_f( gentity_t *ent );
+
+#include "g_itemedit.h"
 void Cmd_CamUp_f( gentity_t *ent );
 
 //

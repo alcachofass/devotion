@@ -1274,8 +1274,12 @@ typedef struct {
 	qhandle_t	thawingShader;
 
 	qhandle_t	spawnPointShader;
-        
-        // player overlays 
+	qhandle_t	itemEditIconMove;
+	qhandle_t	itemEditIconCross;
+	qhandle_t	itemEditIconTick;
+	qhandle_t	itemEditIconHome;
+
+        // player overlays
         qhandle_t       neutralOverlay;
         qhandle_t       redOverlay;
         qhandle_t       blueOverlay;
@@ -1954,6 +1958,7 @@ void CG_DemoCams_AddMarkers( void );
 int CG_DemoCams_ItemGhostGen( void );
 void CG_DemoEvents_Frame( void );
 void CG_DemoEvents_Shutdown( void );
+qboolean CG_DemoEvents_ScanDone( void );
 int CG_DemoEvents_FirstServerTime( void );
 int CG_DemoEvents_LastServerTime( void );
 void CG_DemoEvents_NotePing( int clientNum, int ping );
@@ -2037,6 +2042,22 @@ typedef struct {
 	qboolean	unknown;
 } cgItemTimer_t;
 
+void CG_ItemEdit_Init( void );
+void CG_ItemEdit_Frame( void );
+qboolean CG_ItemEdit_ModeEnabled( void );
+int CG_ItemEdit_SidebarBodyH( void );
+void CG_ItemEdit_DrawSidebar( int bodyX, int bodyY, int bodyW, int bodyH );
+void CG_ItemEdit_SetSidebarOpen( qboolean open );
+qboolean CG_ItemEdit_KeyEvent( int key, qboolean down );
+qboolean CG_ItemEdit_SidebarContains( int mx, int my, int bodyX, int bodyY, int bodyW, int bodyH );
+void CG_ItemEdit_PointerMoveSidebar( int mx, int my, int bodyX, int bodyY, int bodyW, int bodyH );
+qboolean CG_ItemEdit_HandleClickSidebar( int mx, int my, int bodyX, int bodyY, int bodyW, int bodyH );
+void CG_ItemEdit_DrawResetModal( void );
+qboolean CG_ItemEdit_ModalOpen( void );
+int CG_ItemEdit_HighlightEntNum( void );
+void CG_ItemEdit_AddItemHighlight( int entNum, refEntity_t *ent );
+void CG_ItemEdit_AddSceneEntities( void );
+
 void CG_ItemTimersInit( void );
 void CG_ItemTimersReset( void );
 void CG_ItemTimersReadConfig( void );
@@ -2046,7 +2067,9 @@ void CG_ItemTimersTouchEntity( const centity_t *cent );
 void CG_ItemTimersNotePickup( int itemIndex, const vec3_t origin );
 void CG_ItemGhostsNotePickup( int itemIndex, const vec3_t origin );
 void CG_ItemTimersDemoFrame( void );
+void CG_ItemTimersPeriodicSync( void );
 void CG_DrawItemTimerPie( const centity_t *cent );
+qboolean CG_SpectatorView( void );
 qboolean CG_HudItemTimersAllowed( void );
 void CG_DrawSpecItemTimers( void );
 void CG_DrawSpecPlayerStatus( void );
@@ -2373,7 +2396,9 @@ void CG_WrappedStartSound( vec3_t origin, int entityNum, int entchannel, sfxHand
 void CG_WrappedStartLocalSound( sfxHandle_t sfx, int channelNum );
 void CG_WrappedAddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx );
 void CG_WrappedAddRealLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx );
+qboolean CG_MenuMusicOwnsChannel( void );
 void CG_WrappedStartBackgroundTrack( const char *intro, const char *loop );
+void CG_WrappedStopBackgroundTrack( void );
 
 //
 // cg_demo_history.c (declarations in cg_demo_history.h)
@@ -2564,6 +2589,8 @@ void	trap_S_StopBackgroundTrack( void );
 	CG_WrappedAddRealLoopingSound( (entityNum), (origin), (velocity), (sfx) )
 #define trap_S_StartBackgroundTrack( intro, loop ) \
 	CG_WrappedStartBackgroundTrack( (intro), (loop) )
+#define trap_S_StopBackgroundTrack() \
+	CG_WrappedStopBackgroundTrack()
 #endif
 
 

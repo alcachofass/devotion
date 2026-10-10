@@ -27,6 +27,7 @@ cg_demo_msg_stub
 cg_visualsounds
 cg_superhud
 cg_itemtimers
+cg_itemedit
 cg_unlagged
 cg_view
 cg_weapons

@@ -527,6 +527,10 @@ static void CG_Item( centity_t *cent ) {
 		CG_Error( "Bad item index %i on entity", es->modelindex );
 	}
 
+	if ( es->modelindex > 0 ) {
+		CG_RegisterItemVisuals( es->modelindex );
+	}
+
 	// if set to invisible, skip
 	if ( !es->modelindex || ( es->eFlags & EF_NODRAW ) ) {
 		if ( es->modelindex && ( es->eFlags & EF_NODRAW ) ) {
@@ -569,6 +573,7 @@ static void CG_Item( centity_t *cent ) {
 			ent.shaderRGBA[3] = 0;
 		}
 		trap_R_AddRefEntityToScene(&ent);
+		CG_ItemEdit_AddItemHighlight( cent->currentState.number, &ent );
 		return;
 	}
 #ifdef WITH_TREASURE_HUNTER_GAMETYPE
@@ -668,8 +673,8 @@ static void CG_Item( centity_t *cent ) {
 		ent.nonNormalizedAxes = qtrue;
 	}
 #endif
-	// add to refresh list
 	trap_R_AddRefEntityToScene(&ent);
+	CG_ItemEdit_AddItemHighlight( cent->currentState.number, &ent );
 
 	if ( item->giType == IT_WEAPON && wi->barrelModel ) {
 		refEntity_t	barrel;

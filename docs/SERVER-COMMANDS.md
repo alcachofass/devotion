@@ -47,6 +47,7 @@ Commands handled by the Devotion **game** (the server) module. Use them from the
 | `help` | In-game | RatMod | — | Show MOTD/help text (same as `motd`). |
 | `immaheadout` | In-game | Devotion | — | Shortcut: send a leave-game line. |
 | `intermission` | Server console | RatMod | — | Skip to intermission. |
+| `itemedit` | In-game | Devotion | `set <entNum> <itemIndex>`; `reset` | explicitly swaps an item entity in-game for a different one. Mostly used by the `g_editMode` spectator UI, but you can use it directly if you're savvy enough. |
 | `kill` | In-game | Vanilla | — | Suicide. |
 | `levelshot` | In-game | Vanilla | — | Capture levelshot (cheat). |
 | `listip` | Server console | RatMod | — | List banned IPs. |

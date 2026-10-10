@@ -72,7 +72,6 @@ static char				ev_openedName[MAX_OSPATH];
 static int				ev_budgetMs;
 static int				ev_adaptCooldown;
 static int				ev_lastFrameMs;
-
 static byte				ev_msgData[MAX_MSGLEN];
 
 static entityState_t	ev_baselines[MAX_GENTITIES];
@@ -1494,6 +1493,10 @@ void CG_DemoEvents_Shutdown( void ) {
 	ev_lastServerTime = 0;
 }
 
+qboolean CG_DemoEvents_ScanDone( void ) {
+	return ev_done;
+}
+
 int CG_DemoEvents_FirstServerTime( void ) {
 	return ev_firstServerTime;
 }
@@ -1505,6 +1508,14 @@ int CG_DemoEvents_LastServerTime( void ) {
 void CG_DemoEvents_Frame( void ) {
 	if ( !cg.demoPlayback ) {
 		CG_DemoEvents_Shutdown();
+		return;
+	}
+
+	/* Menu showcase duration comes from the filename; skip event scanning. */
+	if ( cg_showcase.integer ) {
+		if ( ev_active ) {
+			CG_DemoEvents_Shutdown();
+		}
 		return;
 	}
 

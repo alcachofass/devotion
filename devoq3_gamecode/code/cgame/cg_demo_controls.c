@@ -933,7 +933,7 @@ static int DemoCtrl_ButtonDrawer( int btn ) {
 static const char *DemoCtrl_DrawerLabel( int drawer ) {
 	switch ( drawer ) {
 	case DEMOCTRL_DRAWER_LEFT:
-		return "EDIT CAMS";
+		return "CAMERAS";
 	case DEMOCTRL_DRAWER_RIGHT_CAM:
 		return "VIEWS";
 	case DEMOCTRL_DRAWER_RIGHT_DISP:
@@ -1771,8 +1771,20 @@ static void DemoCtrl_FormatClock( int ms, char *out, int outSize ) {
 static void DemoCtrl_UpdateTiming( void ) {
 	int first;
 	int last;
+	char buf[32];
 
 	if ( !cg.snap ) {
+		return;
+	}
+
+	if ( cg_showcase.integer ) {
+		buf[0] = '\0';
+		trap_Cvar_VariableStringBuffer( "ui_showcaseDemoMs", buf, sizeof( buf ) );
+		dc_durationMs = atoi( buf );
+		if ( dc_firstServerTime <= 0 ) {
+			dc_firstServerTime = cg.snap->serverTime;
+		}
+		dc_timingReady = ( dc_durationMs > 0 ) ? qtrue : qfalse;
 		return;
 	}
 
@@ -1801,6 +1813,89 @@ static int DemoCtrl_ElapsedMs( void ) {
 		elapsed = 0;
 	}
 	return elapsed;
+}
+
+static void DemoCtrl_ProbePauseZero( void );
+
+/*
+=================
+DemoCtrl_ShowcaseHoldForMusic
+
+A showcase replay that ends disconnects the client and stops the menu
+track. If this replay is shorter than the track, crawl or freeze before
+the file ends so playback waits out the rest of the song. The UI starts
+the next replay when the track duration elapses.
+=================
+*/
+static void DemoCtrl_ShowcaseHoldForMusic( void ) {
+	char	buf[32];
+	int		musicStart;
+	int		musicMs;
+	int		wallElapsed;
+	int		musicLeft;
+	int		demoLeft;
+	int		needLeft;
+	float	slow;
+
+	if ( !cg_showcase.integer || !cg.demoPlayback ) {
+		return;
+	}
+	if ( !dc_timingReady || dc_durationMs <= 0 ) {
+		return;
+	}
+
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "ui_menuMusicMs", buf, sizeof( buf ) );
+	musicMs = atoi( buf );
+	buf[0] = '\0';
+	trap_Cvar_VariableStringBuffer( "ui_menuMusicStart", buf, sizeof( buf ) );
+	musicStart = atoi( buf );
+	if ( musicMs <= 0 ) {
+		return;
+	}
+	if ( dc_durationMs >= musicMs ) {
+		return;
+	}
+
+	if ( musicStart > 0 ) {
+		wallElapsed = trap_Milliseconds() - musicStart;
+	} else {
+		wallElapsed = 0;
+	}
+	if ( wallElapsed < 0 ) {
+		wallElapsed = 0;
+	}
+	if ( wallElapsed >= musicMs ) {
+		return;
+	}
+	musicLeft = musicMs - wallElapsed;
+	demoLeft = dc_durationMs - DemoCtrl_ElapsedMs();
+	if ( demoLeft < 0 ) {
+		demoLeft = 0;
+	}
+
+	DemoCtrl_ProbePauseZero();
+	if ( dc_pauseZeroOk ) {
+		/* Quake3e: timescale 0 freezes the replay. */
+		if ( demoLeft <= 1000 ) {
+			trap_Cvar_Set( "timescale", "0" );
+		}
+		return;
+	}
+
+	/*
+	 * ioquake3 ignores timescale 0 and keeps playing at 1x. 0.1 is the
+	 * slow crawl; 0.01 is the floor when 0.1 cannot stretch the file
+	 * across the rest of the song.
+	 */
+	slow = 0.1f;
+	if ( dc_durationMs * 10 < musicMs ) {
+		slow = 0.01f;
+	}
+	needLeft = (int)( slow * (float)musicLeft );
+	if ( demoLeft <= needLeft ) {
+		trap_Cvar_Set( "timescale", slow <= 0.05f ? "0.01" : "0.1" );
+	}
 }
 
 static int DemoCtrl_EndFadeStartMs( void ) {
@@ -4439,6 +4534,7 @@ void CG_DemoControls_Frame( void ) {
 	DemoCtrl_SeekFrame();
 	DemoCtrl_ClipFrame();
 	DemoCtrl_WatchPauseZero();
+	DemoCtrl_ShowcaseHoldForMusic();
 
 	catcher = trap_Key_GetCatcher();
 	if ( catcher & ( KEYCATCH_UI | KEYCATCH_CONSOLE | KEYCATCH_MESSAGE ) ) {

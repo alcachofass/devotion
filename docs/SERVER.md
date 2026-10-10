@@ -55,6 +55,10 @@ map pro-q3dm6
 ```
 ## Other Useful Commands
 
+### Item Editing Mode
+
+Setting `g_editMode 1` gives spectators an **ITEMS** slide-out on the overlay. Specs can then dynamically swap items in the map for different ones. Edits are written to `layouts/<mapname>.cfg` on the server. On the same spectator overlay, **Reset to map defaults** clears that file and swaps live pickups back to their BSP definitions.
+
 ### Movement Presets
 
 `\g_movement` controls player physics (default: `4`, Quake Live):

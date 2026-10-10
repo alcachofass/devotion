@@ -1399,6 +1399,10 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.thawingShader = trap_R_RegisterShader("playerThawingShell" );
 
 	cgs.media.spawnPointShader = trap_R_RegisterShader("spawnPoint" );
+	cgs.media.itemEditIconMove = trap_R_RegisterShaderNoMip( "gfx/2d/icon_move" );
+	cgs.media.itemEditIconCross = trap_R_RegisterShaderNoMip( "gfx/2d/icon_cross" );
+	cgs.media.itemEditIconTick = trap_R_RegisterShaderNoMip( "gfx/2d/icon_tick" );
+	cgs.media.itemEditIconHome = trap_R_RegisterShaderNoMip( "gfx/2d/icon_home" );
 
 
 	if ( cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION || 
@@ -1970,16 +1974,23 @@ void CG_StartMusic( void ) {
 	char	*s;
 	char	parm1[MAX_QPATH], parm2[MAX_QPATH];
 
-	// start the background music
+	if ( CG_MenuMusicOwnsChannel() ) {
+		return;
+	}
+
+	trap_S_StopBackgroundTrack();
+
 	if ( *cg_music.string && Q_stricmp( cg_music.string, "none" ) ) {
 		s = (char *)cg_music.string;
 	} else {
 		s = (char *)CG_ConfigString( CS_MUSIC );
+	}
 	Q_strncpyz( parm1, COM_Parse( &s ), sizeof( parm1 ) );
 	Q_strncpyz( parm2, COM_Parse( &s ), sizeof( parm2 ) );
 
-	trap_S_StartBackgroundTrack( parm1, parm2 );
-        }
+	if ( parm1[0] ) {
+		trap_S_StartBackgroundTrack( parm1, parm2 );
+	}
 }
 #if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
 char *CG_GetMenuBuffer(const char *filename) {
@@ -2579,8 +2590,8 @@ void CG_LoadHudMenu( void ) {
 	cgDC.ownerDrawWidth = &CG_OwnerDrawWidth;
 	//cgDC.Pause = &CG_Pause;
 	cgDC.registerSound = &trap_S_RegisterSound;
-	cgDC.startBackgroundTrack = &trap_S_StartBackgroundTrack;
-	cgDC.stopBackgroundTrack = &trap_S_StopBackgroundTrack;
+	cgDC.startBackgroundTrack = &CG_WrappedStartBackgroundTrack;
+	cgDC.stopBackgroundTrack = &CG_WrappedStopBackgroundTrack;
 	cgDC.playCinematic = &CG_PlayCinematic;
 	cgDC.stopCinematic = &CG_StopCinematic;
 	cgDC.drawCinematic = &CG_DrawCinematic;
@@ -2665,7 +2676,28 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	cgs.media.charsetPropB		= trap_R_RegisterShaderNoMip( "menu/art/font2_prop.tga" );
 
 	CG_RegisterCvars();
+
+	{
+		char	pendingReload[8];
+		char	suspend[8];
+
+		trap_Cvar_VariableStringBuffer( "ui_showcaseSuspend", suspend, sizeof( suspend ) );
+		trap_Cvar_VariableStringBuffer( "ui_showcasePendingReload", pendingReload, sizeof( pendingReload ) );
+		if ( suspend[0] && atoi( suspend ) ) {
+			/* Map or user demo owns this load. Do not rotate back to the menu. */
+			trap_Cvar_Set( "cg_showcase", "0" );
+		} else if ( pendingReload[0] && atoi( pendingReload ) ) {
+			trap_Cvar_Set( "ui_showcasePendingReload", "0" );
+		} else {
+			if ( cg_showcase.integer ) {
+				trap_Cvar_Set( "ui_showcaseRotate", "1" );
+			}
+			trap_Cvar_Set( "cg_showcase", "0" );
+		}
+	}
+
 	CG_ItemTimersInit();
+	CG_ItemEdit_Init();
 
 	CG_RatInitDefaults();
 
@@ -2808,6 +2840,9 @@ void CG_EventHandling(int type) {
 }
 
 void CG_KeyEvent(int key, qboolean down) {
+	if ( CG_ItemEdit_KeyEvent( key, down ) ) {
+		return;
+	}
 	if ( CG_SpecControls_KeyEvent( key, down ) ) {
 		return;
 	}

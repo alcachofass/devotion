@@ -49,11 +49,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define DEMOEXT "dm_"
 
 /*
- * Non-interactive replay played under the main menu.
- * demo command name, and the pk3 path used to confirm the file shipped.
+ * Shipped replays for the non-interactive main-menu background (demos/showcase/*).
+ * Basenames are <name>_<seconds> (e.g. showcase1_627). The demo command uses
+ * SHOWCASE_DEMO_DIR "/<basename>" without extension; duration is read from the name.
  */
-#define SHOWCASE_DEMO		"showcase"
-#define SHOWCASE_DEMO_FILE	"demos/showcase.dm_68"
+#define SHOWCASE_DEMO_DIR		"showcase"
+#define SHOWCASE_DEMO_PATH		"demos/showcase"
 #ifdef _MSC_VER
 
 #pragma warning(disable : 4018)     // signed/unsigned mismatch

@@ -297,6 +297,8 @@ qboolean G_CallSpawn( gentity_t *ent ) {
         char cvarname[128];
         char itemname[128];
 
+	ItemEdit_NoteBspItemFromEntity( ent );
+
         //Construct a replace cvar:
 	Com_sprintf(cvarname, sizeof(cvarname), "replace_%s", ent->classname);
 
@@ -307,6 +309,7 @@ qboolean G_CallSpawn( gentity_t *ent ) {
         else
             G_Printf ("%s replaced by %s\n", ent->classname, itemname);
 
+	ItemEdit_OverrideItemClassname( ent, itemname, sizeof( itemname ) );
 
 	if ( itemname[0]==0) {
                 G_Printf ("G_CallSpawn: NULL classname\n");

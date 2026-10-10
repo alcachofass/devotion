@@ -33,6 +33,7 @@ typedef struct {
 static cgItemTimerSlot_t cg_itemTimersList[MAX_CG_ITEMTIMERS];
 static qboolean cg_itemTimersLocked;
 static int cg_itemTimersRosterCount;
+static int cg_itemTimerLastSyncMs;
 
 static void CG_ItemTimerUpsert( int entNum, int itemIndex, int respawnTime, int duration, int side, qboolean unknown );
 static qboolean CG_ItemTimersLegacyDemo( void );
@@ -63,20 +64,16 @@ static int CG_ItemTimerBits( const gitem_t *item ) {
 }
 
 /*
- * HUD item timers (SuperHUD ItemTimers* and the spec overlay) are spectator-only.
- * visflags / custom HUD files cannot enable them while playing.
+ * True when the local view is a spectator session (free spec or follow).
+ * Follow copies the followed player's playerState, so check PMF_FOLLOW first.
  */
-qboolean CG_HudItemTimersAllowed( void ) {
+qboolean CG_SpectatorView( void ) {
 	if ( !cg.snap ) {
 		return qfalse;
 	}
 	if ( cg.snap->ps.pm_type == PM_INTERMISSION ) {
 		return qfalse;
 	}
-	if ( cg.demoPlayback ) {
-		return cg_demoItemTimers.integer ? qtrue : qfalse;
-	}
-	/* Follow copies the target playerState, so team/pm_type are theirs. */
 	if ( cg.snap->ps.pm_flags & PMF_FOLLOW ) {
 		return qtrue;
 	}
@@ -94,10 +91,21 @@ qboolean CG_HudItemTimersAllowed( void ) {
 	return qfalse;
 }
 
+/*
+ * HUD item timers (SuperHUD ItemTimers* and the spec overlay) are spectator-only.
+ */
+qboolean CG_HudItemTimersAllowed( void ) {
+	if ( cg.demoPlayback ) {
+		return cg_demoItemTimers.integer ? qtrue : qfalse;
+	}
+	return CG_SpectatorView();
+}
+
 void CG_ItemTimersReset( void ) {
 	memset( cg_itemTimersList, 0, sizeof( cg_itemTimersList ) );
 	cg_itemTimersLocked = qfalse;
 	cg_itemTimersRosterCount = 0;
+	cg_itemTimerLastSyncMs = 0;
 }
 
 void CG_ItemTimersInit( void ) {
@@ -423,7 +431,7 @@ static void CG_ItemTimerUpsert( int entNum, int itemIndex, int respawnTime, int 
 		}
 	}
 
-	if ( cg_itemTimersLocked ) {
+	if ( cg_itemTimersLocked && entNum >= CG_ITEMTIMER_PLACEHOLDER ) {
 		return;
 	}
 
@@ -478,6 +486,22 @@ static void CG_ItemTimerBindOrigin( int entNum, int itemIndex, const vec3_t orig
 		best->entNum = entNum;
 		VectorCopy( origin, best->origin );
 		best->lastSeenTime = cg.time;
+		for ( i = 0; i < MAX_CG_ITEMTIMERS; i++ ) {
+			slot = &cg_itemTimersList[i];
+			if ( !slot->valid || slot->itemIndex != itemIndex ) {
+				continue;
+			}
+			if ( slot == best ) {
+				continue;
+			}
+			if ( slot->entNum < CG_ITEMTIMER_PLACEHOLDER ) {
+				continue;
+			}
+			if ( CG_ItemTimerOriginDist2( origin, slot->origin )
+					> (float)( CG_ITEMTIMER_PICKUP_DIST * CG_ITEMTIMER_PICKUP_DIST ) ) {
+				slot->valid = qfalse;
+			}
+		}
 	}
 }
 
@@ -675,6 +699,67 @@ void CG_ItemTimersTouchEntity( const centity_t *cent ) {
 	} else if ( !( es->eFlags & EF_NODRAW ) ) {
 		CG_ItemTimerBindOrigin( es->number, es->modelindex, cent->lerpOrigin );
 		CG_ItemTimerUpsert( es->number, es->modelindex, 0, 0, es->otherEntityNum, qfalse );
+	}
+}
+
+#define CG_ITEMTIMER_SYNC_INTERVAL	1500
+
+/* Reconcile timer HUD slots with live map pickups (e.g. after item-edit swaps). */
+void CG_ItemTimersPeriodicSync( void ) {
+	int					i;
+	centity_t			*cent;
+	const entityState_t	*es;
+	gitem_t				*item;
+	cgItemTimerSlot_t	*slot;
+
+	if ( !CG_HudItemTimersAllowed() || !cg.snap ) {
+		return;
+	}
+	if ( cg.time - cg_itemTimerLastSyncMs < CG_ITEMTIMER_SYNC_INTERVAL ) {
+		return;
+	}
+	cg_itemTimerLastSyncMs = cg.time;
+
+	for ( i = MAX_CLIENTS; i < MAX_GENTITIES; i++ ) {
+		cent = &cg_entities[i];
+		if ( !cent->currentValid ) {
+			continue;
+		}
+		es = &cent->currentState;
+		if ( es->eType != ET_ITEM || es->modelindex <= 0 || es->modelindex2 ) {
+			continue;
+		}
+		if ( es->eFlags & EF_NODRAW ) {
+			continue;
+		}
+		item = &bg_itemlist[es->modelindex];
+		if ( !BG_ItemHasTimer( item ) ) {
+			continue;
+		}
+		CG_ItemTimersTouchEntity( cent );
+	}
+
+	for ( i = 0; i < MAX_CG_ITEMTIMERS; i++ ) {
+		slot = &cg_itemTimersList[i];
+		if ( !slot->valid ) {
+			continue;
+		}
+		if ( slot->entNum < MAX_CLIENTS || slot->entNum >= MAX_GENTITIES ) {
+			continue;
+		}
+		cent = &cg_entities[slot->entNum];
+		if ( !cent->currentValid ) {
+			slot->valid = qfalse;
+			continue;
+		}
+		es = &cent->currentState;
+		item = &bg_itemlist[es->modelindex];
+		if ( es->eType != ET_ITEM
+				|| es->modelindex != slot->itemIndex
+				|| ( es->eFlags & EF_NODRAW )
+				|| !BG_ItemHasTimer( item ) ) {
+			slot->valid = qfalse;
+		}
 	}
 }
 

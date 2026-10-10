@@ -3926,6 +3926,8 @@ void G_PrintVoteCommands(gentity_t *ent) {
 		strcat(buffer, " movement <Q3|Defrag|QL|CPM|RatMod>\n");
 	if(allowedVote("freezetag"))
 		strcat(buffer, " freezetag\n");
+	if(allowedVote("remix"))
+		strcat(buffer, " remix\n");
 	buffer[strlen(buffer)-1] = 0;
 	strcat(buffer, "\n\"");
 	trap_SendServerCommand( ent-g_entities, buffer);
@@ -4006,6 +4008,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 			|| !Q_stricmp( arg1, "timers" ) ) {
 	} else if ( !Q_stricmp( arg1, "movement" ) ) {
 	} else if ( !Q_stricmp( arg1, "freezetag" ) ) {
+	} else if ( !Q_stricmp( arg1, "remix" ) ) {
 	} else {
 		trap_SendServerCommand( ent-g_entities, "print \"Invalid vote string.\n\"" );
 		G_PrintVoteCommands(ent);
@@ -4185,29 +4188,29 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Set bot skill level to %d", i );
         } else if ( !Q_stricmp( arg1, "lock" ) ) {
 		Com_sprintf( level.voteString, sizeof( level.voteString ), "!lock" );
-		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Lock teams?");
+		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Enable Team Lock");
         } else if ( !Q_stricmp( arg1, "unlock" ) ) {
 		Com_sprintf( level.voteString, sizeof( level.voteString ), "!unlock");
-		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Unlock teams?");
+		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable Team Lock");
         } else if ( !Q_stricmp( arg1, "g_doWarmup" ) ) {
                 i = atoi(arg2);
                 if(i) {
                     Com_sprintf( level.voteString, sizeof( level.voteString ), "g_doWarmup \"1\"" );
-                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Enable warmup?" );
+                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Enable Warmup" );
                 }
                 else {
                     Com_sprintf( level.voteString, sizeof( level.voteString ), "g_doWarmup \"0\"" );
-                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable warmup?" );
+                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable Warmup" );
                 }
         } else if ( !Q_stricmp( arg1, "deathpit_mercy" ) ) {
                 i = atoi(arg2);
                 if(i) {
                     Com_sprintf( level.voteString, sizeof( level.voteString ), "g_deathpitMercy \"1\"" );
-                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Enable death pit mercy?" );
+                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Enable Death Pit Mercy" );
                 }
                 else {
                     Com_sprintf( level.voteString, sizeof( level.voteString ), "g_deathpitMercy \"0\"" );
-                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable death pit mercy?" );
+                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable Death Pit Mercy" );
                 }
         } else if ( !Q_stricmp( arg1, "bigheads" ) ) {
                 if ( arg2[0] ) {
@@ -4217,11 +4220,11 @@ void Cmd_CallVote_f( gentity_t *ent ) {
                 }
                 if(i) {
                     Com_sprintf( level.voteString, sizeof( level.voteString ), "g_bigHead \"1\"" );
-                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Enable big heads?" );
+                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Enable Big Heads" );
                 }
                 else {
                     Com_sprintf( level.voteString, sizeof( level.voteString ), "g_bigHead \"0\"" );
-                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable big heads?" );
+                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable Big Heads" );
                 }
         } else if ( !Q_stricmp( arg1, "itemtimers" ) || !Q_stricmp( arg1, "item_timers" )
 			|| !Q_stricmp( arg1, "timers" ) ) {
@@ -4232,11 +4235,11 @@ void Cmd_CallVote_f( gentity_t *ent ) {
                 }
                 if(i) {
                     Com_sprintf( level.voteString, sizeof( level.voteString ), "g_itemTimers \"1\"" );
-                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Enable item timers for players?" );
+                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Enable Player Item Timers" );
                 }
                 else {
                     Com_sprintf( level.voteString, sizeof( level.voteString ), "g_itemTimers \"0\"" );
-                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable item timers for players?" );
+                    Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable Player Item Timers" );
                 }
         } else if ( !Q_stricmp( arg1, "movement" ) ) {
                 movement_t movement;
@@ -4254,9 +4257,19 @@ void Cmd_CallVote_f( gentity_t *ent ) {
         } else if ( !Q_stricmp( arg1, "freezetag" ) ) {
 		Q_strncpyz( level.voteString, "freezetag", sizeof( level.voteString ) );
 		if ( g_freeze.integer ) {
-			Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable Freeze Tag?" );
+			Com_sprintf( level.voteString, sizeof( level.voteString ), "g_freeze \"0\"" );
+			Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable Freeze Tag" );
 		} else {
-			Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Enable Freeze Tag?" );
+			Com_sprintf( level.voteString, sizeof( level.voteString ), "g_freeze \"1\"" );
+			Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Enable Freeze Tag" );
+		}
+        } else if ( !Q_stricmp( arg1, "remix" ) ) {
+		if ( g_editMode.integer & 1 ) {
+			Com_sprintf( level.voteString, sizeof( level.voteString ), "g_editMode \"0\"" );
+			Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Disable Remix Mode" );
+		} else {
+			Com_sprintf( level.voteString, sizeof( level.voteString ), "g_editMode \"1\"" );
+			Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "Enable Remix Mode" );
 		}
         } else if ( !Q_stricmp( arg1, "clientkick" ) ) {
 		for( c = arg2; *c; ++c) {
@@ -4364,7 +4377,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 	} else {
 		//Com_sprintf( level.voteString, sizeof( level.voteString ), "%s \"%s\"", arg1, arg2 );
 		//Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "%s", level.voteString );
-                trap_SendServerCommand( ent-g_entities, "print \"Server vality check failed, appears to be my fault. Sorry\n\"" );
+                trap_SendServerCommand( ent-g_entities, "print \"Server validation check failed, appears to be my fault. Sorry\n\"" );
                 return;
 	}
 
@@ -4776,6 +4789,7 @@ commands_t cmds[ ] =
 
   { "camsession", 0, Cmd_CamSession_f },
   { "camup", 0, Cmd_CamUp_f },
+  { "itemedit", 0, Cmd_ItemEdit_f },
 
   { "follow", CMD_NOTEAM, Cmd_Follow_f },
   { "follownext", CMD_NOTEAM, Cmd_FollowCycle_f },

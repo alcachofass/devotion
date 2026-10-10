@@ -88,9 +88,14 @@ typedef struct {
 
 static mainmenu_t s_main;
 
-#define SHOWCASE_FAIL_MS	3000
-#define SHOWCASE_FADE_MS	3000
-#define MAIN_MENU_MUSIC		"music/sad_synthwave.ogg"
+#define SHOWCASE_FAIL_MS			3000
+#define SHOWCASE_FADE_MS			8000
+#define SHOWCASE_MUSIC_FADE_LEAD_MS	10000
+#define SHOWCASE_MUSIC_FADE_MS		8000
+#define SHOWCASE_WATCHDOG_MS		1000
+#define MAIN_MENU_MUSIC			"music/sad_synthwave.ogg"
+/* sad_synthwave.ogg is 22050 Hz; granule 4810176 is 218150 ms. */
+#define MAIN_MENU_MUSIC_MS		218150
 
 typedef enum {
 	SHOWCASE_IDLE,
@@ -103,18 +108,108 @@ typedef enum {
 static showcaseState_t	showcaseState;
 static int				showcaseStartTime;
 static int				showcaseFadeStart;
+static int				showcaseWatchdogTime;
 static char				showcaseDemo[MAX_OSPATH];
+static qboolean			menuMusicOn;
+static int				menuMusicStart;
 
 static void UI_Showcase_SetLatch( qboolean on ) {
 	trap_Cvar_Set( "cg_showcase", on ? "1" : "0" );
+	if ( !on ) {
+		trap_Cvar_Set( "ui_showcasePendingReload", "0" );
+	}
 }
 
 static qboolean UI_Showcase_Latched( void ) {
 	return ( trap_Cvar_VariableValue( "cg_showcase" ) != 0.0f ) ? qtrue : qfalse;
 }
 
+static int UI_Showcase_Suspend( void ) {
+	return (int)trap_Cvar_VariableValue( "ui_showcaseSuspend" );
+}
+
+static qboolean UI_MainMenu_ShouldPlayMusic( void ) {
+	uiClientState_t	cs;
+
+	trap_GetClientState( &cs );
+	if ( cs.connState == CA_DISCONNECTED ) {
+		return qtrue;
+	}
+	if ( UI_Showcase_Latched()
+			&& showcaseState != SHOWCASE_SUPPRESSED
+			&& showcaseState != SHOWCASE_FAILED ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+/*
+=================
+UI_MainMenu_StopMusic
+
+Independent of map/demo music. Only this path should stop main-menu music.
+=================
+*/
+void UI_MainMenu_StopMusic( void ) {
+	if ( !menuMusicOn && !trap_Cvar_VariableValue( "ui_mainMenuMusic" ) ) {
+		return;
+	}
+	menuMusicOn = qfalse;
+	menuMusicStart = 0;
+	trap_Cvar_Set( "ui_menuMusicStart", "0" );
+	trap_Cvar_Set( "ui_mainMenuMusic", "0" );
+	trap_S_StopBackgroundTrack();
+}
+
 static void UI_MainMenu_StartMusic( void ) {
+	if ( !UI_MainMenu_ShouldPlayMusic() ) {
+		return;
+	}
+	/*
+	 * menuMusicOn lives in this UI VM. A demo load wipes the VM and the
+	 * engine stops whatever was playing, so a fresh VM must start the
+	 * track again even if ui_mainMenuMusic is still set.
+	 */
+	if ( menuMusicOn ) {
+		return;
+	}
+	menuMusicOn = qtrue;
+	menuMusicStart = uis.realtime;
+	if ( !menuMusicStart ) {
+		menuMusicStart = 1;
+	}
+	trap_Cvar_Set( "ui_menuMusicStart", va( "%d", menuMusicStart ) );
+	trap_Cvar_Set( "ui_mainMenuMusic", "1" );
 	trap_S_StartBackgroundTrack( MAIN_MENU_MUSIC, NULL );
+}
+
+/*
+=================
+UI_Showcase_RotateForMusic
+
+The menu track has reached its end. That is the only time a new
+background replay is started on purpose. Disconnecting here restarts
+the track together with the next replay.
+=================
+*/
+static void UI_Showcase_RotateForMusic( void ) {
+	uiClientState_t	cs;
+
+	menuMusicStart = 0;
+	trap_Cvar_Set( "ui_menuMusicStart", "0" );
+	trap_Cvar_Set( "timescale", "1" );
+	showcaseFadeStart = 0;
+	showcaseState = SHOWCASE_IDLE;
+
+	trap_GetClientState( &cs );
+	if ( cs.connState != CA_DISCONNECTED ) {
+		trap_Cmd_ExecuteText( EXEC_APPEND, "disconnect\n" );
+	}
+
+	if ( !uis.activemenu ) {
+		UI_MainMenu();
+	}
+	trap_Key_SetCatcher( trap_Key_GetCatcher() | KEYCATCH_UI );
 }
 
 /*
@@ -164,6 +259,10 @@ static void UI_Showcase_NoteMainMenu( void ) {
 	if ( cs.connState != CA_DISCONNECTED ) {
 		return;
 	}
+	if ( UI_Showcase_Suspend() ) {
+		showcaseState = SHOWCASE_SUPPRESSED;
+		return;
+	}
 	if ( showcaseState == SHOWCASE_STARTING || showcaseState == SHOWCASE_FAILED ) {
 		return;
 	}
@@ -179,9 +278,51 @@ The next disconnected main menu may start it again.
 =================
 */
 void UI_Showcase_Stop( void ) {
+	uiClientState_t	cs;
+
+	/*
+	 * Persist across the UI VM wipe that a map or user demo causes.
+	 * The disconnect that precedes that load must not start another
+	 * showcase replay. Cleared once that session ends back at the menu.
+	 */
+	trap_GetClientState( &cs );
+	if ( cs.connState != CA_DISCONNECTED ) {
+		trap_Cvar_Set( "ui_showcaseSuspend", "1" );
+	}
+
 	showcaseState = SHOWCASE_SUPPRESSED;
 	showcaseFadeStart = 0;
+	trap_Cvar_Set( "ui_showcaseDemoMs", "0" );
 	UI_Showcase_SetLatch( qfalse );
+	trap_Cvar_Set( "timescale", "1" );
+	UI_MainMenu_StopMusic();
+}
+
+/*
+=================
+UI_Showcase_InitAfterVmReload
+
+UI VM wipe (showcase demo load). ui_showcasePendingReload stays set until
+CG_Init reads it; do not clear it here.
+=================
+*/
+void UI_Showcase_InitAfterVmReload( void ) {
+	if ( trap_Cvar_VariableValue( "ui_showcasePendingReload" ) != 0.0f ) {
+		if ( showcaseState != SHOWCASE_PLAYING ) {
+			showcaseState = SHOWCASE_STARTING;
+		}
+		UI_Showcase_RetainMenu();
+		return;
+	}
+
+	if ( UI_Showcase_Suspend() ) {
+		showcaseState = SHOWCASE_SUPPRESSED;
+		return;
+	}
+
+	if ( UI_Showcase_Latched() ) {
+		UI_Showcase_Stop();
+	}
 }
 
 /*
@@ -201,6 +342,41 @@ void UI_Showcase_PollDismiss( void ) {
 	trap_Cvar_Set( "ui_showcaseDismiss", "0" );
 	UI_Showcase_Stop();
 	UI_ForceMenuOff();
+}
+
+/*
+=================
+UI_Showcase_PollRotate
+
+Cgame signals that a menu showcase demo finished; queue another once
+disconnected (see UI_Showcase_Frame).
+=================
+*/
+void UI_Showcase_PollRotate( void ) {
+	uiClientState_t	cs;
+
+	if ( !trap_Cvar_VariableValue( "ui_showcaseRotate" ) ) {
+		return;
+	}
+
+	trap_Cvar_Set( "ui_showcaseRotate", "0" );
+
+	if ( UI_Showcase_Suspend() || showcaseState == SHOWCASE_SUPPRESSED ) {
+		return;
+	}
+
+	showcaseFadeStart = 0;
+	showcaseState = SHOWCASE_IDLE;
+
+	trap_GetClientState( &cs );
+	if ( cs.connState != CA_DISCONNECTED ) {
+		trap_Cmd_ExecuteText( EXEC_APPEND, "disconnect\n" );
+	}
+
+	if ( !uis.activemenu ) {
+		UI_MainMenu();
+	}
+	trap_Key_SetCatcher( trap_Key_GetCatcher() | KEYCATCH_UI );
 }
 
 /*
@@ -228,6 +404,105 @@ qboolean UI_Showcase_RetainMenu( void ) {
 	return qtrue;
 }
 
+static qboolean UI_Showcase_OnMainMenu( void ) {
+	return ( uis.activemenu == &s_main.menu ) ? qtrue : qfalse;
+}
+
+static qboolean UI_Showcase_ReplayActive( void ) {
+	uiClientState_t	cs;
+
+	trap_GetClientState( &cs );
+	return ( cs.connState == CA_ACTIVE ) ? qtrue : qfalse;
+}
+
+static qboolean UI_Showcase_BeginBackgroundDemo( void ) {
+	uiClientState_t	cs;
+
+	if ( UI_Showcase_Suspend() ) {
+		return qfalse;
+	}
+	if ( showcaseState == SHOWCASE_STARTING || showcaseState == SHOWCASE_SUPPRESSED ) {
+		return qfalse;
+	}
+
+	trap_GetClientState( &cs );
+	if ( cs.connState != CA_DISCONNECTED ) {
+		return qfalse;
+	}
+	if ( !UI_Showcase_OnMainMenu() ) {
+		return qfalse;
+	}
+
+	trap_Cvar_Set( "ui_showcaseDemoMs", "0" );
+	if ( !UI_Demo_PickRandomPlayable( showcaseDemo, sizeof( showcaseDemo ) ) ) {
+		showcaseState = SHOWCASE_FAILED;
+		UI_MainMenu_StartMusic();
+		return qfalse;
+	}
+
+	showcaseState = SHOWCASE_STARTING;
+	showcaseStartTime = uis.realtime;
+	showcaseFadeStart = 0;
+	trap_Cvar_Set( "cg_currentDemo", showcaseDemo );
+	trap_Cvar_Set( "ui_showcasePendingReload", "1" );
+	UI_Showcase_SetLatch( qtrue );
+	trap_Cmd_ExecuteText( EXEC_APPEND, va( "demo \"%s\"\n", showcaseDemo ) );
+	return qtrue;
+}
+
+/*
+=================
+UI_Showcase_Watchdog
+
+Once per second on the main menu: if no replay session is active, start
+the background showcase. Recovers from missed rotate/dismiss edge cases.
+=================
+*/
+void UI_Showcase_Watchdog( void ) {
+	uiClientState_t	cs;
+
+	if ( UI_Showcase_Suspend() || showcaseState == SHOWCASE_SUPPRESSED ) {
+		return;
+	}
+	if ( !UI_Showcase_OnMainMenu() ) {
+		return;
+	}
+	if ( uis.realtime - showcaseWatchdogTime < SHOWCASE_WATCHDOG_MS ) {
+		return;
+	}
+	showcaseWatchdogTime = uis.realtime;
+	if ( !showcaseWatchdogTime ) {
+		showcaseWatchdogTime = 1;
+	}
+
+	if ( UI_Showcase_ReplayActive() ) {
+		return;
+	}
+
+	trap_GetClientState( &cs );
+	if ( cs.connState != CA_DISCONNECTED ) {
+		return;
+	}
+
+	if ( showcaseState == SHOWCASE_STARTING ) {
+		return;
+	}
+
+	if ( showcaseState == SHOWCASE_FAILED ) {
+		showcaseState = SHOWCASE_IDLE;
+	}
+	if ( showcaseState == SHOWCASE_PLAYING ) {
+		showcaseState = SHOWCASE_IDLE;
+		UI_Showcase_SetLatch( qfalse );
+	}
+
+	if ( !uis.activemenu ) {
+		UI_MainMenu();
+	}
+	trap_Key_SetCatcher( trap_Key_GetCatcher() | KEYCATCH_UI );
+	UI_Showcase_BeginBackgroundDemo();
+}
+
 /*
 =================
 UI_Showcase_Frame
@@ -236,21 +511,71 @@ Start the showcase demo once the menu is up, and drop the 2D backdrop
 once that replay is actually rendering.
 =================
 */
+static void UI_Showcase_NoteDemoEnded( void ) {
+	showcaseFadeStart = 0;
+	showcaseState = SHOWCASE_IDLE;
+
+	if ( !uis.activemenu ) {
+		UI_MainMenu();
+	}
+	trap_Key_SetCatcher( trap_Key_GetCatcher() | KEYCATCH_UI );
+}
+
 void UI_Showcase_Frame( void ) {
 	uiClientState_t	cs;
+	int				suspend;
 
 	UI_Showcase_Adopt();
 
-	if ( ( showcaseState == SHOWCASE_PLAYING || showcaseState == SHOWCASE_STARTING )
-			&& !UI_Showcase_Latched() ) {
+	trap_GetClientState( &cs );
+	suspend = UI_Showcase_Suspend();
+
+	if ( suspend == 1 && cs.connState == CA_ACTIVE && !UI_Showcase_Latched() ) {
+		trap_Cvar_Set( "ui_showcaseSuspend", "2" );
 		showcaseState = SHOWCASE_SUPPRESSED;
-		showcaseFadeStart = 0;
-		UI_ForceMenuOff();
+		suspend = 2;
+	}
+
+	if ( suspend == 2 && cs.connState == CA_DISCONNECTED
+			&& !trap_Cvar_VariableValue( "cg_demoSeekActive" ) ) {
+		trap_Cvar_Set( "ui_showcaseSuspend", "0" );
+		showcaseState = SHOWCASE_IDLE;
+		suspend = 0;
+	}
+
+	if ( suspend ) {
+		if ( cs.connState == CA_ACTIVE && uis.activemenu == &s_main.menu ) {
+			UI_ForceMenuOff();
+		}
 		return;
 	}
 
+	if ( showcaseState == SHOWCASE_PLAYING && cs.connState == CA_DISCONNECTED ) {
+		UI_Showcase_NoteDemoEnded();
+	}
+
+	if ( ( showcaseState == SHOWCASE_PLAYING || showcaseState == SHOWCASE_STARTING )
+			&& !UI_Showcase_Latched() ) {
+		if ( cs.connState == CA_DISCONNECTED && showcaseState == SHOWCASE_PLAYING ) {
+			UI_Showcase_NoteDemoEnded();
+		} else {
+			showcaseState = SHOWCASE_SUPPRESSED;
+			showcaseFadeStart = 0;
+			UI_ForceMenuOff();
+			return;
+		}
+	}
+
 	if ( !uis.activemenu ) {
-		if ( UI_Showcase_Latched()
+		if ( showcaseState == SHOWCASE_IDLE
+				|| showcaseState == SHOWCASE_STARTING
+				|| showcaseState == SHOWCASE_PLAYING
+				|| UI_Showcase_Latched() ) {
+			if ( showcaseState != SHOWCASE_SUPPRESSED
+					&& showcaseState != SHOWCASE_FAILED ) {
+				UI_MainMenu();
+			}
+		} else if ( UI_Showcase_Latched()
 				&& showcaseState != SHOWCASE_SUPPRESSED
 				&& showcaseState != SHOWCASE_FAILED ) {
 			UI_MainMenu();
@@ -259,8 +584,6 @@ void UI_Showcase_Frame( void ) {
 			return;
 		}
 	}
-
-	trap_GetClientState( &cs );
 
 	if ( showcaseState == SHOWCASE_STARTING ) {
 		if ( cs.connState == CA_ACTIVE ) {
@@ -274,21 +597,15 @@ void UI_Showcase_Frame( void ) {
 		}
 	}
 
-	if ( showcaseState == SHOWCASE_IDLE
-			&& cs.connState == CA_DISCONNECTED
-			&& uis.activemenu == &s_main.menu ) {
-		if ( !UI_Demo_PickRandomPlayable( showcaseDemo, sizeof( showcaseDemo ) ) ) {
-			showcaseState = SHOWCASE_FAILED;
-			UI_MainMenu_StartMusic();
-			return;
-		}
-		showcaseState = SHOWCASE_STARTING;
-		showcaseStartTime = uis.realtime;
-		UI_Showcase_SetLatch( qtrue );
-		trap_Cmd_ExecuteText( EXEC_APPEND, va( "demo \"%s\"\n", showcaseDemo ) );
+	if ( showcaseState == SHOWCASE_IDLE && cs.connState == CA_DISCONNECTED ) {
+		UI_Showcase_BeginBackgroundDemo();
 	}
 
 	if ( showcaseState == SHOWCASE_PLAYING && cs.connState == CA_ACTIVE ) {
+		if ( menuMusicStart && uis.realtime - menuMusicStart >= MAIN_MENU_MUSIC_MS ) {
+			UI_Showcase_RotateForMusic();
+			return;
+		}
 		if ( !showcaseFadeStart ) {
 			showcaseFadeStart = uis.realtime;
 			if ( !showcaseFadeStart ) {
@@ -327,7 +644,7 @@ qboolean UI_Showcase_IsBusy( void ) {
 	return showcaseState == SHOWCASE_STARTING;
 }
 
-static float UI_Showcase_BackdropAlpha( void ) {
+static float UI_Showcase_IntroBackdropAlpha( void ) {
 	int		elapsed;
 
 	if ( !showcaseFadeStart || showcaseState != SHOWCASE_PLAYING ) {
@@ -344,14 +661,49 @@ static float UI_Showcase_BackdropAlpha( void ) {
 	return 1.0f - (float)elapsed / (float)SHOWCASE_FADE_MS;
 }
 
+static float UI_Showcase_MusicEndBackdropAlpha( void ) {
+	int		elapsed;
+	int		fadeStart;
+
+	if ( showcaseState != SHOWCASE_PLAYING || !menuMusicStart ) {
+		return 0.0f;
+	}
+
+	fadeStart = menuMusicStart + MAIN_MENU_MUSIC_MS - SHOWCASE_MUSIC_FADE_LEAD_MS;
+	if ( uis.realtime < fadeStart ) {
+		return 0.0f;
+	}
+
+	elapsed = uis.realtime - fadeStart;
+	if ( elapsed < 0 ) {
+		elapsed = 0;
+	}
+	if ( elapsed >= SHOWCASE_MUSIC_FADE_MS ) {
+		return 1.0f;
+	}
+	return (float)elapsed / (float)SHOWCASE_MUSIC_FADE_MS;
+}
+
+static float UI_Showcase_BackdropAlpha( void ) {
+	float	intro;
+	float	outro;
+
+	intro = UI_Showcase_IntroBackdropAlpha();
+	outro = UI_Showcase_MusicEndBackdropAlpha();
+	if ( intro > outro ) {
+		return intro;
+	}
+	return outro;
+}
+
 /*
 =================
 UI_Showcase_DrawBackdrop
 
-Hold a black backdrop while the showcase view fades in.
-Menu widgets stay opaque.
+Black backdrop over the showcase replay: fades out on start, fades in
+near the end of the main-menu music track. Menu widgets stay opaque.
 =================
-*/
+ */
 void UI_Showcase_DrawBackdrop( void ) {
 	float		alpha;
 	float		color[4];
@@ -527,6 +879,7 @@ void Main_MenuEvent (void* ptr, int event) {
 		break;
 
 	case ID_SINGLEPLAYER:
+		UI_Showcase_Stop();
 		UI_SPLevelMenu();
 		break;
 
@@ -778,7 +1131,7 @@ void UI_MainMenu( void ) {
 
 	UI_Showcase_Adopt();
 	UI_Showcase_NoteMainMenu();
-	if ( showcaseState != SHOWCASE_STARTING ) {
+	if ( showcaseState != SHOWCASE_STARTING && !UI_Showcase_Latched() ) {
 		trap_Cvar_Set( "sv_killserver", "1" );
 	}
         trap_Cvar_SetValue( "handicap", 100 ); //Reset handicap during server change, it must be ser per game
@@ -921,6 +1274,7 @@ void UI_MainMenu( void ) {
 	trap_Key_SetCatcher( KEYCATCH_UI );
 	uis.menusp = 0;
 	UI_PushMenu ( &s_main.menu );
+	m_entersound = qfalse;
 	if ( showcaseState != SHOWCASE_STARTING ) {
 		UI_MainMenu_StartMusic();
 	}

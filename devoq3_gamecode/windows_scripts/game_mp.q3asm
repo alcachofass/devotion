@@ -29,6 +29,7 @@ g_bot
 g_client
 g_cmds
 g_camsession
+g_itemedit
 g_cmds_ext
 g_combat
 g_items

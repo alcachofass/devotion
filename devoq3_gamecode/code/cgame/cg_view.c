@@ -30,6 +30,7 @@ static void CG_DrawLoadingScreen( stereoFrame_t stereoView ) {
 }
 
 static qboolean	s_showcaseDismissSent;
+static qboolean	s_showcaseWasDemoPlayback;
 
 /*
 =================
@@ -37,15 +38,41 @@ CG_DismissShowcaseIfNeeded
 
 The menu showcase runs as demo playback with cg_showcase set. Console \map
 and other engine transitions can leave that latch active on a live level.
+Natural demo EOF must not tear down the menu showcase (see ui_showcaseRotate).
 =================
 */
 static void CG_DismissShowcaseIfNeeded( qboolean demoPlayback ) {
+	{
+		char	suspend[8];
+
+		trap_Cvar_VariableStringBuffer( "ui_showcaseSuspend", suspend, sizeof( suspend ) );
+		if ( suspend[0] && atoi( suspend ) ) {
+			s_showcaseDismissSent = qfalse;
+			s_showcaseWasDemoPlayback = qfalse;
+			if ( cg_showcase.integer ) {
+				trap_Cvar_Set( "cg_showcase", "0" );
+			}
+			return;
+		}
+	}
+
 	if ( demoPlayback ) {
 		s_showcaseDismissSent = qfalse;
+		if ( cg_showcase.integer ) {
+			s_showcaseWasDemoPlayback = qtrue;
+		}
 		return;
 	}
 	if ( !cg_showcase.integer ) {
 		s_showcaseDismissSent = qfalse;
+		s_showcaseWasDemoPlayback = qfalse;
+		return;
+	}
+
+	if ( s_showcaseWasDemoPlayback ) {
+		s_showcaseWasDemoPlayback = qfalse;
+		s_showcaseDismissSent = qfalse;
+		trap_Cvar_Set( "ui_showcaseRotate", "1" );
 		return;
 	}
 
@@ -1518,6 +1545,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 	CG_DemoControls_Frame();
 	CG_SpecControls_Frame();
+	CG_ItemTimersPeriodicSync();
 	if ( stereoView != STEREO_RIGHT ) {
 		CG_DemoControls_PrepareSeekDraw();
 	}
@@ -1627,6 +1655,8 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// build cg.refdef
 	inwater = CG_CalcViewValues();
 
+	CG_ItemEdit_Frame();
+
 	// first person blend blobs, done after AnglesToAxis
 	if ( !cg.renderingThirdPerson && !povActive ) {
 		CG_DamageBlendBlob();
@@ -1635,6 +1665,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// build the render lists
 	if ( !cg.hyperspace ) {
 		CG_AddPacketEntities();			// adter calcViewValues, so predicted player state is correct
+		CG_ItemEdit_AddSceneEntities();
 		CG_FreeCamAddAmbientMovers();
 		CG_DemoCams_AddMarkers();
 		if ( !freeCam && !rigCam && !povActive ) {

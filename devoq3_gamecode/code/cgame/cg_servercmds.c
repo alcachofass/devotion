@@ -1775,6 +1775,7 @@ static void CG_MapRestart( void ) {
 	CG_ClearParticles ();
 
 	CG_ItemTimersBuildRoster();
+	CG_ItemEdit_Init();
 
 	cgs.redflag = 0;
 	cgs.blueflag = 0;
@@ -1804,7 +1805,9 @@ static void CG_MapRestart( void ) {
 
 	cg.mapRestart = qtrue;
 
-	CG_StartMusic();
+	if ( !cg_showcase.integer ) {
+		CG_StartMusic();
+	}
 
 	trap_S_ClearLoopingSounds(qtrue);
 

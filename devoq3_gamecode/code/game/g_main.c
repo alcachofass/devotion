@@ -795,6 +795,7 @@ void G_RegisterCvars( void ) {
 	G_EnsureVoteName( "item_timers" );
 	G_EnsureVoteName( "movement" );
 	G_EnsureVoteName( "freezetag" );
+	G_EnsureVoteName( "remix" );
 }
 
 qboolean G_IsTeamGametype(void) {
@@ -1009,6 +1010,10 @@ void G_UpdateCvars( void ) {
 				if ( cv->vmCvar == &g_itemTimers ) {
 					G_RefreshItemTimerBroadcast();
 				}
+
+				if ( cv->vmCvar == &g_editMode ) {
+					ItemEdit_UpdateConfigstring();
+				}
       
 				if (cv->teamShader) {
 					remapped = qtrue;
@@ -1200,6 +1205,8 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	}
 #endif // WITH_MULTITOURNAMENT
 
+	ItemEdit_LoadLayoutForMap();
+
 	// parse the key/value pairs and spawn gentities
 	G_SpawnEntitiesFromString();
 
@@ -1231,6 +1238,7 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 #endif
 
 	SaveRegisteredItems();
+	ItemEdit_OnEntitiesSpawned();
 
 	trap_Cvar_Set("g_usesRatEngine", va("%i", trap_Cvar_VariableIntegerValue( "sv_ratEngine" )));
         
@@ -1345,6 +1353,7 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	CalculateRanks();
 	G_PrintDelagMaxTimeshift();
 	CamSession_Init();
+	ItemEdit_Init();
 }
 
 
@@ -1356,6 +1365,8 @@ G_ShutdownGame
 */
 void G_ShutdownGame( int restart ) {
         G_Printf ("==== ShutdownGame ====\n");
+
+	ItemEdit_Shutdown( restart );
 
 	if ( level.logFile ) {
 		G_LogPrintf("ShutdownGame:\n" );
@@ -5435,6 +5446,8 @@ void G_RunFrame( int levelTime ) {
 	if (!level.timeout)
 		level.time = levelTime;
 	level.realtime = levelTime;
+
+	ItemEdit_RunDeferredApply();
 
 	msec = level.time - level.previousTime;
 

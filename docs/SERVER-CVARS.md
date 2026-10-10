@@ -111,6 +111,7 @@ Server game variables registered by the **qagame** module. On dedicated servers 
 | `g_delagMissiles` | RatMod | `1` | 0 or 1 | When `1`, enables projectile lag compensation on the server. |
 | `g_doWarmup` | Vanilla | `0` | 0 or 1 | When `1`, runs a warmup period before the match counts. |
 | `g_duelStats` | RatMod | `1` | 0 or 1 | When `1`, prints extended duel statistics. |
+| `g_editMode` | Devotion | `0` | integer bitmask | Item layout editing: `0` off; `1` spectators swap map pickups (picker UI). Loads `layouts/<mapname>.cfg` on map start when non-zero; saves on edit and level shutdown. |
 | `g_elimination` | RatMod | `0` | 0 or 1 | When `1`, enables elimination/Clan Arena rules on supported gametypes. |
 | `g_enableBreath` | Vanilla | `0` | 0 or 1 | When `1`, shows breath puffs in cold water. |
 | `g_enableDust` | Vanilla | `0` | 0 or 1 | When `1`, shows dust puffs when landing from a fall. |
