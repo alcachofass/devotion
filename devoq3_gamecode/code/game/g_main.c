@@ -1119,6 +1119,10 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	BG_InitMemory();
 
 	// set some level globals
+	if ( level.logFile ) {
+		trap_FS_FCloseFile( level.logFile );
+		level.logFile = 0;
+	}
 	memset( &level, 0, sizeof( level ) );
 	
 	level.time = levelTime;

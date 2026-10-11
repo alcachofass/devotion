@@ -680,6 +680,7 @@ qboolean G_ReadSpawnVarFile( char *buffer ) {
 	 
 	if (len >= SPAWNVARFILE_BUFFER_SIZE) {
 		Com_Printf("g_readSpawnVarFiles: Warning: file %s too large (max %i)\n", fname, SPAWNVARFILE_BUFFER_SIZE-1);
+		trap_FS_FCloseFile( file );
 		return qfalse;
 	}
 

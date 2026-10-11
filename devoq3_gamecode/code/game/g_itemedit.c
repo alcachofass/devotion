@@ -64,6 +64,7 @@ static char					itemEdit_mapName[MAX_QPATH];
 static int					itemEdit_levelGametype;
 static qboolean				itemEdit_dirty;
 static qboolean				itemEdit_deferredApplyDone;
+static qboolean				itemEdit_commitInProgress;
 
 static void ItemEdit_ApplyPickupItem( gentity_t *ent, gitem_t *item );
 static void ItemEdit_UpsertOverride( const gentity_t *pickupHint, const vec3_t origin, int itemIndex );
@@ -432,7 +433,6 @@ static void ItemEdit_UpsertMove( const vec3_t fromOrigin, const vec3_t toOrigin 
 				itemEditMoves[slot] = itemEditMoves[slot + 1];
 			}
 			itemEdit_dirty = qtrue;
-			ItemEdit_CommitLayout();
 		}
 		return;
 	}
@@ -447,7 +447,6 @@ static void ItemEdit_UpsertMove( const vec3_t fromOrigin, const vec3_t toOrigin 
 
 	VectorCopy( toOrigin, itemEditMoves[slot].toOrigin );
 	itemEdit_dirty = qtrue;
-	ItemEdit_CommitLayout();
 }
 
 static void ItemEdit_ApplyAllMoves( void ) {
@@ -658,7 +657,6 @@ static void ItemEdit_UpsertAdd( const vec3_t origin, int itemIndex ) {
 	itemEditAdds[slot].itemIndex = itemIndex;
 	ItemEdit_RemoveDeleteAtOrigin( origin );
 	itemEdit_dirty = qtrue;
-	ItemEdit_CommitLayout();
 }
 
 static void ItemEdit_RemoveAddAtOrigin( const vec3_t origin ) {
@@ -674,7 +672,6 @@ static void ItemEdit_RemoveAddAtOrigin( const vec3_t origin ) {
 		itemEditAdds[slot] = itemEditAdds[slot + 1];
 	}
 	itemEdit_dirty = qtrue;
-	ItemEdit_CommitLayout();
 }
 
 static void ItemEdit_UpsertDelete( const vec3_t origin ) {
@@ -693,7 +690,6 @@ static void ItemEdit_UpsertDelete( const vec3_t origin ) {
 		slot = itemEditDeleteCount++;
 		VectorCopy( origin, itemEditDeletes[slot].origin );
 		itemEdit_dirty = qtrue;
-		ItemEdit_CommitLayout();
 	}
 }
 
@@ -710,7 +706,6 @@ static void ItemEdit_RemoveDeleteAtOrigin( const vec3_t origin ) {
 		itemEditDeletes[slot] = itemEditDeletes[slot + 1];
 	}
 	itemEdit_dirty = qtrue;
-	ItemEdit_CommitLayout();
 }
 
 static void ItemEdit_HidePickup( gentity_t *ent ) {
@@ -1217,11 +1212,10 @@ static void ItemEdit_ApplyAllPickups( void ) {
 static void ItemEdit_PurgeSessionLayout( void ) {
 	fileHandle_t	f;
 	char			path[MAX_QPATH];
-	int				openLen;
 
 	ItemEdit_LayoutPath( path, sizeof( path ) );
-	openLen = trap_FS_FOpenFile( path, &f, FS_WRITE );
-	if ( openLen < 0 || !f ) {
+	trap_FS_FOpenFile( path, &f, FS_WRITE );
+	if ( !f ) {
 		G_Printf( S_COLOR_YELLOW "WARNING: could not purge item session layout %s\n", path );
 		return;
 	}
@@ -1237,27 +1231,36 @@ static void ItemEdit_CommitLayout( void ) {
 	char			line[256];
 	int				i;
 	int				len;
-	int				openLen;
 	gitem_t			*item;
+
+	if ( itemEdit_commitInProgress ) {
+		itemEdit_dirty = qtrue;
+		return;
+	}
 
 	if ( !itemEdit_dirty || !itemEdit_mapName[0] ) {
 		return;
 	}
+
+	itemEdit_commitInProgress = qtrue;
+	f = 0;
 
 	ItemEdit_ConsolidateOverridesForPickups();
 
 	if ( itemEditOverrideCount <= 0 && itemEditMoveCount <= 0
 			&& itemEditAddCount <= 0 && itemEditDeleteCount <= 0 ) {
 		ItemEdit_PurgeSessionLayout();
+		itemEdit_commitInProgress = qfalse;
 		return;
 	}
 
 	ItemEdit_LayoutPath( path, sizeof( path ) );
 
-	/* FS_WRITE returns existing file length, or 0 for a new file; only <0 is failure. */
-	openLen = trap_FS_FOpenFile( path, &f, FS_WRITE );
-	if ( openLen < 0 || !f ) {
+	/* Success is indicated by a non-zero handle; do not use the return length alone. */
+	trap_FS_FOpenFile( path, &f, FS_WRITE );
+	if ( !f ) {
 		G_Printf( S_COLOR_YELLOW "WARNING: could not write item layout %s\n", path );
+		itemEdit_commitInProgress = qfalse;
 		return;
 	}
 
@@ -1333,6 +1336,7 @@ static void ItemEdit_CommitLayout( void ) {
 
 	trap_FS_FCloseFile( f );
 	itemEdit_dirty = qfalse;
+	itemEdit_commitInProgress = qfalse;
 	G_Printf( "Item layout saved: %s (%i swaps, %i moves, %i adds, %i deletes)\n",
 			path, itemEditOverrideCount, itemEditMoveCount,
 			itemEditAddCount, itemEditDeleteCount );
@@ -1711,7 +1715,6 @@ static void ItemEdit_UpsertOverride( const gentity_t *pickupHint, const vec3_t o
 	}
 
 	itemEdit_dirty = qtrue;
-	ItemEdit_CommitLayout();
 }
 
 void ItemEdit_LoadLayoutForMap( void ) {
@@ -1768,7 +1771,9 @@ void ItemEdit_RunDeferredApply( void ) {
 
 void ItemEdit_Shutdown( int restart ) {
 	if ( restart && g_gametype.integer == itemEdit_levelGametype && itemEdit_mapName[0] ) {
-		ItemEdit_CommitLayout();
+		if ( itemEdit_dirty ) {
+			ItemEdit_CommitLayout();
+		}
 		return;
 	}
 
@@ -1895,6 +1900,9 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 			trap_SendServerCommand( ent - g_entities,
 					va( "print \"Item entity %i restored to map default.\n\"", entNum ) );
 		}
+		if ( itemEdit_dirty ) {
+			ItemEdit_CommitLayout();
+		}
 		return;
 	}
 	if ( !Q_stricmp( sub, "reset" ) ) {
@@ -1937,6 +1945,9 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 			trap_SendServerCommand( ent - g_entities,
 					va( "print \"Item entity %i deleted (layout saved)\n\"", entNum ) );
 		}
+		if ( itemEdit_dirty ) {
+			ItemEdit_CommitLayout();
+		}
 		return;
 	}
 	if ( !Q_stricmp( sub, "add" ) ) {
@@ -1975,6 +1986,9 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 			trap_SendServerCommand( ent - g_entities,
 					va( "print \"Item %s added at %s (entity %i, layout saved)\n\"",
 						item->classname, vtos( spawnOrigin ), spawned->s.number ) );
+		}
+		if ( itemEdit_dirty ) {
+			ItemEdit_CommitLayout();
 		}
 		return;
 	}
@@ -2016,6 +2030,9 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 
 		trap_SendServerCommand( ent - g_entities,
 				va( "print \"Item entity %i moved (layout saved)\n\"", entNum ) );
+		if ( itemEdit_dirty ) {
+			ItemEdit_CommitLayout();
+		}
 		return;
 	}
 	if ( !Q_stricmp( sub, "homemove" ) ) {
@@ -2058,6 +2075,9 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 
 		trap_SendServerCommand( ent - g_entities,
 				va( "print \"Item entity %i restored to home position.\n\"", entNum ) );
+		if ( itemEdit_dirty ) {
+			ItemEdit_CommitLayout();
+		}
 		return;
 	}
 
@@ -2114,4 +2134,7 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 
 	trap_SendServerCommand( ent - g_entities,
 		va( "print \"Item entity %i set to %s (layout saved)\n\"", entNum, item->classname ) );
+	if ( itemEdit_dirty ) {
+		ItemEdit_CommitLayout();
+	}
 }
