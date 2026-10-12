@@ -363,6 +363,7 @@ typedef enum {
 static int			s_levelLoadFadeStart;
 static loadXition_t	s_loadXition;
 static qboolean		s_loadXitionPicked;
+static int			s_killcamXitionStart;
 
 static int CG_LoadFadeElapsed( void ) {
 	int elapsed;
@@ -562,6 +563,76 @@ void CG_DrawLevelLoadFade( void ) {
 
 /*
 ====================
+CG_BeginKillcamTransitionFade
+
+Brief fade to black then back when switching from death POV to killcam.
+====================
+*/
+void CG_BeginKillcamTransitionFade( void ) {
+	if ( s_killcamXitionStart ) {
+		return;
+	}
+
+	s_killcamXitionStart = trap_Milliseconds();
+	if ( !s_killcamXitionStart ) {
+		s_killcamXitionStart = 1;
+	}
+}
+
+
+void CG_ClearKillcamTransitionFade( void ) {
+	s_killcamXitionStart = 0;
+}
+
+
+qboolean CG_KillcamTransitionShowKillcam( void ) {
+	int	elapsed;
+
+	if ( !s_killcamXitionStart ) {
+		return qtrue;
+	}
+
+	elapsed = trap_Milliseconds() - s_killcamXitionStart;
+	if ( elapsed < 0 ) {
+		elapsed = 0;
+	}
+
+	return elapsed >= CG_KILLCAM_XITION_HALF_MS ? qtrue : qfalse;
+}
+
+
+static void CG_DrawKillcamTransitionFade( void ) {
+	int		elapsed;
+	float	color[4];
+
+	if ( !s_killcamXitionStart ) {
+		return;
+	}
+
+	elapsed = trap_Milliseconds() - s_killcamXitionStart;
+	if ( elapsed < 0 ) {
+		elapsed = 0;
+	}
+
+	if ( elapsed >= CG_KILLCAM_XITION_MS ) {
+		s_killcamXitionStart = 0;
+		return;
+	}
+
+	color[0] = color[1] = color[2] = 0.0f;
+	if ( elapsed < CG_KILLCAM_XITION_HALF_MS ) {
+		color[3] = (float)elapsed / (float)CG_KILLCAM_XITION_HALF_MS;
+	} else {
+		elapsed -= CG_KILLCAM_XITION_HALF_MS;
+		color[3] = 1.0f - (float)elapsed / (float)CG_KILLCAM_XITION_HALF_MS;
+	}
+
+	CG_FillRect( 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, color );
+}
+
+
+/*
+====================
 CG_DrawViewFades
 
 Level-load and disconnect fades drawn at the end of a view pass.
@@ -570,6 +641,7 @@ Level-load and disconnect fades drawn at the end of a view pass.
 void CG_DrawViewFades( stereoFrame_t stereoView ) {
 	CG_DrawLevelLoadFade();
 	CG_DrawLeaveFade( stereoView );
+	CG_DrawKillcamTransitionFade();
 }
 
 /*

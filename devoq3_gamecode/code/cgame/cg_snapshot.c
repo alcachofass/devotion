@@ -197,6 +197,11 @@ static void CG_TransitionSnapshot( void ) {
 	cg_entities[ cg.snap->ps.clientNum ].interpolate = qfalse;
 	cg_entities[ cg.snap->ps.clientNum ].quiet = qfalse;
 
+	if ( cg_contextNum == CG_CONTEXT_LIVE
+		&& cg.snap->ps.stats[STAT_HEALTH] > 0 ) {
+		cg_soundMuted = qfalse;
+	}
+
 	for ( i = 0 ; i < cg.snap->numEntities ; i++ ) {
 		cent = &cg_entities[ cg.snap->entities[ i ].number ];
 		CG_TransitionEntity( cent );
@@ -329,6 +334,10 @@ static snapshot_t *CG_ReadNextSnapshot( void ) {
 	qboolean	r;
 	snapshot_t	*dest;
 
+	if ( cg_contextNum == CG_CONTEXT_KILLCAM ) {
+		return CG_KillcamReadNextSnapshot();
+	}
+
 	if ( cg.latestSnapshotNum > cgs.processedSnapshotNum + 1000 ) {
 		CG_Printf( "WARNING: CG_ReadNextSnapshot: way out of range, %i > %i", 
 			cg.latestSnapshotNum, cgs.processedSnapshotNum );
@@ -354,6 +363,7 @@ static snapshot_t *CG_ReadNextSnapshot( void ) {
 		// if it succeeded, return
 		if ( r ) {
 			CG_AddLagometerSnapshotInfo( dest );
+			CG_KillcamRecordSnapshot( cgs.processedSnapshotNum, dest );
 			return dest;
 		}
 
@@ -398,7 +408,14 @@ void CG_ProcessSnapshots( void ) {
 	int				n;
 
 	// see what the latest snapshot the client system has is
-	trap_GetCurrentSnapshotNumber( &n, &cg.latestSnapshotTime );
+	if ( cg_contextNum == CG_CONTEXT_KILLCAM ) {
+		n = cg_killcamRecordedCount;
+		cg.latestSnapshotTime = cg_killcamRecordedCount > 0
+			? cg_killcamSnapshots[( cg_killcamRecordedCount - 1 ) % KILLCAM_SNAPSHOT_BACKUP].serverTime
+			: 0;
+	} else {
+		trap_GetCurrentSnapshotNumber( &n, &cg.latestSnapshotTime );
+	}
 	if ( n != cg.latestSnapshotNum ) {
 		if ( n < cg.latestSnapshotNum ) {
 			// this should never happen

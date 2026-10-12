@@ -133,7 +133,7 @@ void CG_DemoHistory_Frame( void ) {
 void CG_DemoHistory_OnSnapshot( const snapshot_t *snap ) {
 	int slot;
 
-	if ( !cg.demoPlayback || !snap ) {
+	if ( !cg.demoPlayback || !snap || cg_contextNum != CG_CONTEXT_LIVE ) {
 		return;
 	}
 

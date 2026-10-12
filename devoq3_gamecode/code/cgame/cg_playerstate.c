@@ -397,7 +397,8 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 	}
 
 	// hit changes
-	if ( ps->persistant[PERS_HITS] > ops->persistant[PERS_HITS] ) {
+	if ( ps->persistant[PERS_HITS] > ops->persistant[PERS_HITS]
+		&& ( cg_contextNum != CG_CONTEXT_KILLCAM || cg_killcamHitSounds.integer ) ) {
 		cg.lastHitTime = cg.time;
 		cg.lastHitDamage = ps->persistant[PERS_DAMAGE_DONE] - ops->persistant[PERS_DAMAGE_DONE];
 

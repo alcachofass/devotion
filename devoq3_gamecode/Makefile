@@ -1718,6 +1718,8 @@ Q3CGOBJ_ = \
   $(B)/baseq3/cgame/cg_servercmds.o \
   $(B)/baseq3/cgame/cg_snapshot.o \
   $(B)/baseq3/cgame/cg_demo_history.o \
+  $(B)/baseq3/cgame/cg_killcam.o \
+  $(B)/baseq3/cgame/cg_killcam_view.o \
   $(B)/baseq3/cgame/cg_demo_controls.o \
   $(B)/baseq3/cgame/cg_overlay.o \
   $(B)/baseq3/cgame/cg_spec_controls.o \
@@ -1782,6 +1784,8 @@ MPCGOBJ_ = \
   $(B)/missionpack/cgame/cg_servercmds.o \
   $(B)/missionpack/cgame/cg_snapshot.o \
   $(B)/missionpack/cgame/cg_demo_history.o \
+  $(B)/missionpack/cgame/cg_killcam.o \
+  $(B)/missionpack/cgame/cg_killcam_view.o \
   $(B)/missionpack/cgame/cg_demo_controls.o \
   $(B)/missionpack/cgame/cg_overlay.o \
   $(B)/missionpack/cgame/cg_spec_controls.o \

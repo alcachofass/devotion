@@ -2824,6 +2824,9 @@ qboolean CG_DemoControls_IsFirstPersonClient( int clientNum ) {
 	if ( CG_DemoControls_PovEyesActive() ) {
 		return ( clientNum == dc_povClient ) ? qtrue : qfalse;
 	}
+	if ( CG_KillcamViewIsFirstPersonKiller() ) {
+		return ( clientNum == CG_KillcamKillerNum() ) ? qtrue : qfalse;
+	}
 	if ( cg.renderingThirdPerson ) {
 		return qfalse;
 	}

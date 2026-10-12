@@ -4353,6 +4353,10 @@ void CG_Player( centity_t *cent ) {
 	renderfx = 0;
 	if ( CG_DemoControls_IsFirstPersonClient( cent->currentState.number ) ) {
 		renderfx = RF_THIRD_PERSON;			// only draw in mirrors
+	} else if ( CG_KillcamViewIsFirstPersonKiller()
+		&& cent->currentState.number == CG_KillcamKillerNum() ) {
+		// killcam first person: view is from the killer's eyes; weapon is drawn separately
+		renderfx = RF_THIRD_PERSON;			// only draw in mirrors
 	} else if ( cent->currentState.number == cg.snap->ps.clientNum && cg.renderingThirdPerson ) {
 		if ( cg_cameraMode.integer ) {
 			return;

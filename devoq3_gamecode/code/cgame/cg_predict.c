@@ -29,11 +29,15 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 static	pmove_t		cg_pmove;
 
-static	int			cg_numSolidEntities;
- // MAX_ENTITIES_IN_SNAPSHOT + 1 to make sure predictedPlayerEntity fits in there
-static	centity_t	*cg_solidEntities[MAX_ENTITIES_IN_SNAPSHOT+1];
-static	int			cg_numTriggerEntities;
-static	centity_t	*cg_triggerEntities[MAX_ENTITIES_IN_SNAPSHOT];
+static	int			cg_numSolidEntitiesCtx[CG_NUM_CONTEXTS];
+static	centity_t	*cg_solidEntitiesCtx[CG_NUM_CONTEXTS][MAX_ENTITIES_IN_SNAPSHOT + 1];
+static	int			cg_numTriggerEntitiesCtx[CG_NUM_CONTEXTS];
+static	centity_t	*cg_triggerEntitiesCtx[CG_NUM_CONTEXTS][MAX_ENTITIES_IN_SNAPSHOT];
+
+#define cg_numSolidEntities		( cg_numSolidEntitiesCtx[cg_contextNum] )
+#define cg_solidEntities		( cg_solidEntitiesCtx[cg_contextNum] )
+#define cg_numTriggerEntities	( cg_numTriggerEntitiesCtx[cg_contextNum] )
+#define cg_triggerEntities		( cg_triggerEntitiesCtx[cg_contextNum] )
 
 /*
 ====================

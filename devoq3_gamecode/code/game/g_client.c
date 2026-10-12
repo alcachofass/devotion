@@ -2856,6 +2856,7 @@ qboolean G_ReadNameFile(char *fname, char *buffer, int size) {
 	
 	if (len >= size) {
 		Com_Printf("G_ReadNameFile: Warning: file %s too large (max %i)\n", fname, size-1);
+		trap_FS_FCloseFile( file );
 		return qfalse;
 	}
 

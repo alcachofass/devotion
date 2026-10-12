@@ -170,6 +170,16 @@ void CG_ItemTimersReadConfig( void ) {
 	cg_itemTimersLocked = qtrue;
 }
 
+static qboolean CG_ItemTimerMapEditActive( void ) {
+	const char	*s;
+
+	s = CG_ConfigString( CS_ITEMEDIT );
+	if ( !s || !s[0] ) {
+		return qfalse;
+	}
+	return ( atoi( s ) & 1 ) ? qtrue : qfalse;
+}
+
 static float CG_ItemTimerOriginDist2( const vec3_t a, const vec3_t b ) {
 	float	dx;
 	float	dy;
@@ -704,13 +714,14 @@ void CG_ItemTimersTouchEntity( const centity_t *cent ) {
 
 #define CG_ITEMTIMER_SYNC_INTERVAL	1500
 
-/* Reconcile timer HUD slots with live map pickups (e.g. after item-edit swaps). */
+/* Refresh HUD slots from in-PVS entities; prune stale slots only during map item edit. */
 void CG_ItemTimersPeriodicSync( void ) {
 	int					i;
 	centity_t			*cent;
 	const entityState_t	*es;
 	gitem_t				*item;
 	cgItemTimerSlot_t	*slot;
+	qboolean			editSync;
 
 	if ( !CG_HudItemTimersAllowed() || !cg.snap ) {
 		return;
@@ -729,14 +740,16 @@ void CG_ItemTimersPeriodicSync( void ) {
 		if ( es->eType != ET_ITEM || es->modelindex <= 0 || es->modelindex2 ) {
 			continue;
 		}
-		if ( es->eFlags & EF_NODRAW ) {
-			continue;
-		}
 		item = &bg_itemlist[es->modelindex];
 		if ( !BG_ItemHasTimer( item ) ) {
 			continue;
 		}
 		CG_ItemTimersTouchEntity( cent );
+	}
+
+	editSync = CG_ItemTimerMapEditActive();
+	if ( !editSync ) {
+		return;
 	}
 
 	for ( i = 0; i < MAX_CG_ITEMTIMERS; i++ ) {
@@ -749,16 +762,20 @@ void CG_ItemTimersPeriodicSync( void ) {
 		}
 		cent = &cg_entities[slot->entNum];
 		if ( !cent->currentValid ) {
-			slot->valid = qfalse;
 			continue;
 		}
 		es = &cent->currentState;
-		item = &bg_itemlist[es->modelindex];
-		if ( es->eType != ET_ITEM
-				|| es->modelindex != slot->itemIndex
-				|| ( es->eFlags & EF_NODRAW )
-				|| !BG_ItemHasTimer( item ) ) {
+		if ( es->eType != ET_ITEM ) {
 			slot->valid = qfalse;
+			continue;
+		}
+		item = &bg_itemlist[es->modelindex];
+		if ( !BG_ItemHasTimer( item ) ) {
+			slot->valid = qfalse;
+			continue;
+		}
+		if ( es->modelindex != slot->itemIndex ) {
+			CG_ItemTimersTouchEntity( cent );
 		}
 	}
 }

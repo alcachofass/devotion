@@ -2860,10 +2860,17 @@ qboolean G_admin_map( gentity_t *ent, int skiparg )
 
   G_SayArgv( skiparg + 1, map, sizeof( map ) );
 
-  if( !trap_FS_FOpenFile( va( "maps/%s.bsp", map ), NULL, FS_READ ) )
   {
-    ADMP( va( "^3!map: ^7invalid map name '%s'\n", map ) );
-    return qfalse;
+    fileHandle_t mapFile;
+    int mapLen;
+
+    mapLen = trap_FS_FOpenFile( va( "maps/%s.bsp", map ), &mapFile, FS_READ );
+    if( mapLen <= 0 || !mapFile )
+    {
+      ADMP( va( "^3!map: ^7invalid map name '%s'\n", map ) );
+      return qfalse;
+    }
+    trap_FS_FCloseFile( mapFile );
   }
 
   G_BroadcastLevelTransition( LT_NEWMAP );
