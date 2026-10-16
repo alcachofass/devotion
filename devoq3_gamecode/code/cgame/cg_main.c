@@ -1375,7 +1375,7 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.bloodTrailShader = trap_R_RegisterShader( "bloodTrail" );
 	cgs.media.lagometerShader = trap_R_RegisterShader("lagometer" );
 	//cgs.media.lagometerShader = trap_R_RegisterShader("gfx/2d/lag.tga" );
-	cgs.media.levelTransitionOkShader = trap_R_RegisterShader( "gfx/misc/alles_klar" );
+	cgs.media.levelTransitionOkShader = trap_R_RegisterShader( "gfx/2d/pending" );
 	cgs.media.connectionShader = trap_R_RegisterShader( "disconnected" );
 	//cgs.media.connectionShader = trap_R_RegisterShader( "gfx/2d/net.tga" );
 

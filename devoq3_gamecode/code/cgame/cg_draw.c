@@ -2924,6 +2924,10 @@ void CG_DrawElimRoundCountIn( void ) {
 	const char *st;
 	int sec, cw, w;
 
+	if ( CG_LevelTransitionActive() ) {
+		return;
+	}
+
 	if ( cg.warmup != 0 ) {
 		elimCountInWasActive = qfalse;
 		return;
@@ -4680,6 +4684,10 @@ static void CG_DrawReady ( void ) {
 	int w;
 	float char_width, char_height;
 
+	if ( CG_LevelTransitionActive() ) {
+		return;
+	}
+
 	if ( !cgs.startWhenReady )
 		return;
 	if ( cg.warmup >= 0 )
@@ -4706,6 +4714,10 @@ static void CG_DrawQueue ( void ) {
 	char *s;
 	int w;
 	float char_width, char_height;
+
+	if ( CG_LevelTransitionActive() ) {
+		return;
+	}
 
 	if (!CG_IsTeamGametype()) {
 		return;
@@ -4818,35 +4830,54 @@ void CG_BeginLevelTransition( void ) {
 	memset( lagometer.snapshotFlags, 0, sizeof( lagometer.snapshotFlags ) );
 }
 
-static void CG_DrawLevelTransitionLine( int y, const char *s ) {
-	int w = CG_DrawStrlen( s ) * BIGCHAR_WIDTH;
-	CG_DrawBigString( 320 - w / 2, y, s, 1.0F );
+static void CG_DrawLevelTransitionLine( float y, const char *s, float alpha, float scale ) {
+	vec4_t	color;
+	float	charWidth;
+	float	charHeight;
+	float	w;
+	float	x;
+
+	charWidth = CG_HeightToWidth( BIGCHAR_WIDTH ) * scale;
+	charHeight = (float)BIGCHAR_HEIGHT * scale;
+	w = (float)CG_DrawStrlen( s ) * charWidth;
+	x = 320.0f - w / 2.0f;
+
+	color[0] = color[1] = color[2] = 1.0f;
+	color[3] = alpha;
+	CG_DrawStringExtFloat( x, y, s, color, qfalse, qtrue, charWidth, charHeight, 0 );
 }
 
 void CG_DrawLevelTransition( void ) {
 	char	message[80];
 	int	dotIndex;
-	int	y;
-	int	lineHeight;
+	float	y;
+	float	lineHeight;
+	float	pulse;
+	float	alpha;
+	float	scale;
 
 	if ( cg.demoPlayback || !cg.snap || !CG_LevelTransitionActive() ) {
 		return;
 	}
 
+	pulse = 0.5f + 0.5f * sin( cg.time * 0.005f );
+	alpha = 0.55f + 0.45f * pulse;
+	scale = 0.9f + 0.1f * pulse;
+
 	dotIndex = ( cg.time / 400 ) % 3;
-	y = 90;
-	lineHeight = BIGCHAR_HEIGHT + 6;
+	y = 90.0f;
+	lineHeight = (float)BIGCHAR_HEIGHT * scale + 6.0f;
 
 	if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_NEWMAP ) {
-		CG_DrawLevelTransitionLine( y, "Server transitioning to" );
+		CG_DrawLevelTransitionLine( y, "Server transitioning to", alpha, scale );
 		y += lineHeight;
 		Com_sprintf( message, sizeof( message ), "new level, please wait%s",
 			dotIndex == 0 ? ".  " : ( dotIndex == 1 ? ".. " : "..." ) );
-		CG_DrawLevelTransitionLine( y, message );
+		CG_DrawLevelTransitionLine( y, message, alpha, scale );
 	} else {
 		Com_sprintf( message, sizeof( message ), "Map re-initializing, please wait%s",
 			dotIndex == 0 ? ".  " : ( dotIndex == 1 ? ".. " : "..." ) );
-		CG_DrawLevelTransitionLine( y + lineHeight / 2, message );
+		CG_DrawLevelTransitionLine( y + lineHeight / 2.0f, message, alpha, scale );
 	}
 }
 
@@ -4973,18 +5004,10 @@ static void CG_DrawLagometer( void ) {
 
 	if ( CG_LevelTransitionActive() ) {
 		if ( cg_lagometer.integer && !cgs.localServer ) {
-			float	iconColor[4];
-			float	pulse;
-
 			trap_R_SetColor( NULL );
 			CG_DrawPic( x, y, 48, 48, cgs.media.lagometerShader );
 			if ( cgs.media.levelTransitionOkShader ) {
-				pulse = 0.5f + 0.5f * sin( cg.time * 0.004f );
-				iconColor[0] = iconColor[1] = iconColor[2] = 1.0f;
-				iconColor[3] = 0.45f + 0.55f * pulse;
-				trap_R_SetColor( iconColor );
 				CG_DrawPic( x, y, 48, 48, cgs.media.levelTransitionOkShader );
-				trap_R_SetColor( NULL );
 			}
 		}
 		return;
@@ -5143,6 +5166,10 @@ static void CG_DrawCenterString( void ) {
 	float	*color;
 
 	if ( !cg.centerPrintTime ) {
+		return;
+	}
+
+	if ( CG_LevelTransitionActive() ) {
 		return;
 	}
 
@@ -6406,6 +6433,10 @@ static void CG_DrawWarmup( void ) {
 	clientInfo_t	*ci1, *ci2;
 	int			cw;
 	const char	*s;
+
+	if ( CG_LevelTransitionActive() ) {
+		return;
+	}
 
 	sec = cg.warmup;
 	if ( !sec ) {
@@ -7688,7 +7719,6 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 	if ( !CG_SH_Active() || !CG_SH_HasNetGraph() ) {
 		CG_DrawLagometer();
 	}
-	CG_DrawLevelTransition();
 	if ( !CG_SH_Active() ) {
 		if (cg_drawFPS.integer == 2) {
 			CG_DrawFPS(0);
@@ -7745,6 +7775,8 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 
 		CG_DrawQueue();
 	}
+
+	CG_DrawLevelTransition();
 
         cg.accBoardShowing = CG_DrawAccboard();
 
