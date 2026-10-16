@@ -100,6 +100,7 @@ typedef struct {
 	int		count;
 	char	lastName[MAX_INFO_VALUE];
 	int		lastSampleTime;
+	int		lastBarAnimStart;
 	int		lastCount;
 	int		scaleMax;
 	int		scaleMaxBps;
@@ -172,6 +173,7 @@ static void UI_DownloadChart_Update( int downloadCount, const char *downloadName
 
 	dlSpeedChart.lastCount = downloadCount;
 	dlSpeedChart.lastSampleTime += ticks * DL_CHART_SAMPLE_MS;
+	dlSpeedChart.lastBarAnimStart = dlSpeedChart.lastSampleTime;
 }
 
 static int UI_DownloadNiceBpsCeiling( int bps ) {
@@ -555,12 +557,14 @@ static void UI_DrawDownloadProgressBar( float x, float y, float width, float hei
 	bg[1] = 0.08f;
 	bg[2] = 0.10f;
 	bg[3] = 0.85f;
-	fill[0] = 0.35f;
-	fill[1] = 0.75f;
-	fill[2] = 1.0f;
+	fill[0] = 0.45f;
+	fill[1] = 0.06f;
+	fill[2] = 0.06f;
 	fill[3] = 0.95f;
-	border[0] = border[1] = border[2] = 1.0f;
-	border[3] = 0.35f;
+	border[0] = 0.55f;
+	border[1] = 0.0f;
+	border[2] = 0.0f;
+	border[3] = 0.85f;
 
 	UI_FillRect( x, y, width, height, bg );
 	if ( fraction > 0.0f ) {
@@ -599,11 +603,13 @@ static void UI_DrawDownloadSpeedChart( float x, float y, float width, float heig
 	bg[1] = 0.05f;
 	bg[2] = 0.07f;
 	bg[3] = 0.75f;
-	border[0] = border[1] = border[2] = 1.0f;
-	border[3] = 0.25f;
+	border[0] = 0.55f;
+	border[1] = 0.0f;
+	border[2] = 0.0f;
+	border[3] = 0.85f;
 	bar[0] = 0.45f;
-	bar[1] = 0.85f;
-	bar[2] = 0.55f;
+	bar[1] = 0.06f;
+	bar[2] = 0.06f;
 	bar[3] = 0.9f;
 
 	UI_FillRect( x, y, width, height, bg );
@@ -630,6 +636,17 @@ static void UI_DrawDownloadSpeedChart( float x, float y, float width, float heig
 		int		speed;
 
 		speed = dlSpeedChart.samples[i];
+		if ( i == dlSpeedChart.count - 1 && dlSpeedChart.lastBarAnimStart > 0 ) {
+			float	animFrac;
+
+			animFrac = ( uis.realtime - dlSpeedChart.lastBarAnimStart ) / (float)DL_CHART_SAMPLE_MS;
+			if ( animFrac < 0.0f ) {
+				animFrac = 0.0f;
+			} else if ( animFrac > 1.0f ) {
+				animFrac = 1.0f;
+			}
+			speed = (int)( (float)speed * animFrac );
+		}
 		topY = UI_DownloadChartSpeedY( y, height, speed, scaleMax );
 		by = topY;
 		barH = y + height - 2.0f - topY;

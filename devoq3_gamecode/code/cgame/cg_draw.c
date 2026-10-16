@@ -4830,6 +4830,23 @@ void CG_BeginLevelTransition( void ) {
 	memset( lagometer.snapshotFlags, 0, sizeof( lagometer.snapshotFlags ) );
 }
 
+#define LEVEL_TRANSITION_PENDING_SIZE		48.0f
+#define LEVEL_TRANSITION_PENDING_ALPHA	0.5f
+
+static void CG_DrawLevelTransitionPendingIcon( float x, float y, float size ) {
+	vec4_t	color;
+
+	if ( !cgs.media.levelTransitionOkShader ) {
+		return;
+	}
+
+	color[0] = color[1] = color[2] = 1.0f;
+	color[3] = LEVEL_TRANSITION_PENDING_ALPHA;
+	trap_R_SetColor( color );
+	CG_DrawPic( x, y, size, size, cgs.media.levelTransitionOkShader );
+	trap_R_SetColor( NULL );
+}
+
 static void CG_DrawLevelTransitionLine( float y, const char *s, float alpha, float scale ) {
 	vec4_t	color;
 	float	charWidth;
@@ -4878,6 +4895,17 @@ void CG_DrawLevelTransition( void ) {
 		Com_sprintf( message, sizeof( message ), "Map re-initializing, please wait%s",
 			dotIndex == 0 ? ".  " : ( dotIndex == 1 ? ".. " : "..." ) );
 		CG_DrawLevelTransitionLine( y + lineHeight / 2.0f, message, alpha, scale );
+	}
+
+	{
+		float	iconSize;
+		float	iconX;
+		float	iconY;
+
+		iconSize = LEVEL_TRANSITION_PENDING_SIZE * 1.5f;
+		iconX = 320.0f - iconSize / 2.0f;
+		iconY = 240.0f - iconSize / 2.0f;
+		CG_DrawLevelTransitionPendingIcon( iconX, iconY, iconSize );
 	}
 }
 
@@ -5006,9 +5034,7 @@ static void CG_DrawLagometer( void ) {
 		if ( cg_lagometer.integer && !cgs.localServer ) {
 			trap_R_SetColor( NULL );
 			CG_DrawPic( x, y, 48, 48, cgs.media.lagometerShader );
-			if ( cgs.media.levelTransitionOkShader ) {
-				CG_DrawPic( x, y, 48, 48, cgs.media.levelTransitionOkShader );
-			}
+			CG_DrawLevelTransitionPendingIcon( x, y, LEVEL_TRANSITION_PENDING_SIZE );
 		}
 		return;
 	}
