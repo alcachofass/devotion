@@ -1142,6 +1142,7 @@ void UI_SetActiveMenu( uiMenuCommand_t menu ) {
 			trap_Cvar_Set( "ui_menuFadeFromBlack", "0" );
 			uis.menuFadeStart = -1;
 		}
+		UI_Showcase_ReleaseForMainMenu();
 		UI_MainMenu();
 		return;
 	case UIMENU_NEED_CD:

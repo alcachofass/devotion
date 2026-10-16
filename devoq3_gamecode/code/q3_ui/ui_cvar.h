@@ -72,6 +72,7 @@ UI_CVAR( ui_mainMenuMusic, "ui_mainMenuMusic", "0", CVAR_ROM )
 UI_CVAR( ui_menuMusicStart, "ui_menuMusicStart", "0", CVAR_ROM )
 UI_CVAR( ui_menuMusicMs, "ui_menuMusicMs", "218150", CVAR_ROM )
 UI_CVAR( ui_showcaseDemoMs, "ui_showcaseDemoMs", "0", CVAR_ROM )
+UI_CVAR( ui_connectHostname, "ui_connectHostname", "", CVAR_ROM )
 
 UI_CVAR( ui_browserMaster, "ui_browserMaster", "0", CVAR_ARCHIVE )
 UI_CVAR( ui_browserGameType, "ui_browserGameType", "0", CVAR_ARCHIVE )

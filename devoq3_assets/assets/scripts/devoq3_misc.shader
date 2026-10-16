@@ -596,12 +596,12 @@ gfx/2d/icon_home
 	}
 }
 
-gfx/misc/alles_klar
+gfx/2d/pending
 {
 	nopicmip
 	nomipmaps
 	{
-		map gfx/misc/alles_klar.tga
+		animMap 8 gfx/2d/pending_1.tga gfx/2d/pending_2.tga gfx/2d/pending_3.tga gfx/2d/pending_4.tga gfx/2d/pending_5.tga gfx/2d/pending_6.tga gfx/2d/pending_7.tga gfx/2d/pending_8.tga
 		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
 		rgbGen vertex
 		alphaGen vertex

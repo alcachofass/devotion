@@ -207,6 +207,7 @@ void UI_SpecifyPasswordMenu( char* string, char *name )
 	SpecifyPassword_MenuInit();
 	s_specifypassword.connectstring = string;
         Q_strncpyz(s_specifypassword.servername,name,32);
+	UI_Connect_SetPendingHostname( name );
 	UI_PushMenu( &s_specifypassword.menu );
 }
 

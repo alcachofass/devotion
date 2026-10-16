@@ -868,6 +868,7 @@ static void ArenaServers_Go( void ) {
 		}
 		else {
 			UI_Showcase_Stop();
+			UI_Connect_SetPendingHostname( servernode->hostname );
 			trap_Cmd_ExecuteText( EXEC_APPEND, va( "connect %s\n", servernode->adrstr ) );
 		}
 	}
@@ -3648,6 +3649,7 @@ void UI_MainMenuServers_Connect( menulist_s *list ) {
 		UI_SpecifyPasswordMenu( va( "connect %s\n", servernodeptr->adrstr ), servernodeptr->hostname );
 	} else {
 		UI_Showcase_Stop();
+		UI_Connect_SetPendingHostname( servernodeptr->hostname );
 		trap_Cmd_ExecuteText( EXEC_APPEND, va( "connect %s\n", servernodeptr->adrstr ) );
 	}
 }						  

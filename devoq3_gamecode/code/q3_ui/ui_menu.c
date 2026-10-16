@@ -128,6 +128,35 @@ static int UI_Showcase_Suspend( void ) {
 	return (int)trap_Cvar_VariableValue( "ui_showcaseSuspend" );
 }
 
+static qboolean UI_Showcase_OnMainMenu( void );
+
+/*
+=================
+UI_Showcase_MayAutostart
+
+Single gate for starting the menu showcase: main menu only, fully
+disconnected, not blocked for an outgoing connect/map.
+=================
+*/
+static qboolean UI_Showcase_MayAutostart( void ) {
+	uiClientState_t	cs;
+
+	if ( !UI_Showcase_OnMainMenu() ) {
+		return qfalse;
+	}
+	trap_GetClientState( &cs );
+	if ( cs.connState != CA_DISCONNECTED ) {
+		return qfalse;
+	}
+	if ( UI_Showcase_Suspend() ) {
+		return qfalse;
+	}
+	if ( trap_Cvar_VariableValue( "cg_demoSeekActive" ) ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
 static qboolean UI_MainMenu_ShouldPlayMusic( void ) {
 	uiClientState_t	cs;
 
@@ -246,10 +275,39 @@ static void UI_Showcase_Adopt( void ) {
 
 /*
 =================
+UI_Showcase_ReleaseForMainMenu
+
+Called when the engine opens the main menu (UIMENU_MAIN). Clears the
+connect/map block so a showcase may start again. Not called from every
+UI_MainMenu() — only from that engine entry point — so a brief
+disconnect while loading a map does not release the block.
+=================
+*/
+void UI_Showcase_ReleaseForMainMenu( void ) {
+	uiClientState_t	cs;
+
+	trap_GetClientState( &cs );
+	if ( cs.connState != CA_DISCONNECTED ) {
+		return;
+	}
+	if ( trap_Cvar_VariableValue( "cg_demoSeekActive" ) ) {
+		return;
+	}
+
+	trap_Cvar_Set( "ui_showcaseSuspend", "0" );
+
+	if ( showcaseState == SHOWCASE_STARTING || showcaseState == SHOWCASE_FAILED ) {
+		return;
+	}
+	showcaseState = SHOWCASE_IDLE;
+}
+
+/*
+=================
 UI_Showcase_NoteMainMenu
 
-Called when the engine opens the main menu. A demo start disconnects
-first; that visit stays in STARTING so we do not queue a second demo.
+Called from UI_MainMenu(). A demo start disconnects first; that visit
+stays in STARTING so we do not queue a second demo.
 =================
 */
 static void UI_Showcase_NoteMainMenu( void ) {
@@ -416,20 +474,10 @@ static qboolean UI_Showcase_ReplayActive( void ) {
 }
 
 static qboolean UI_Showcase_BeginBackgroundDemo( void ) {
-	uiClientState_t	cs;
-
-	if ( UI_Showcase_Suspend() ) {
+	if ( !UI_Showcase_MayAutostart() ) {
 		return qfalse;
 	}
 	if ( showcaseState == SHOWCASE_STARTING || showcaseState == SHOWCASE_SUPPRESSED ) {
-		return qfalse;
-	}
-
-	trap_GetClientState( &cs );
-	if ( cs.connState != CA_DISCONNECTED ) {
-		return qfalse;
-	}
-	if ( !UI_Showcase_OnMainMenu() ) {
 		return qfalse;
 	}
 
@@ -459,14 +507,6 @@ the background showcase. Recovers from missed rotate/dismiss edge cases.
 =================
 */
 void UI_Showcase_Watchdog( void ) {
-	uiClientState_t	cs;
-
-	if ( UI_Showcase_Suspend() || showcaseState == SHOWCASE_SUPPRESSED ) {
-		return;
-	}
-	if ( !UI_Showcase_OnMainMenu() ) {
-		return;
-	}
 	if ( uis.realtime - showcaseWatchdogTime < SHOWCASE_WATCHDOG_MS ) {
 		return;
 	}
@@ -475,12 +515,15 @@ void UI_Showcase_Watchdog( void ) {
 		showcaseWatchdogTime = 1;
 	}
 
-	if ( UI_Showcase_ReplayActive() ) {
+	if ( !UI_Showcase_MayAutostart() ) {
 		return;
 	}
 
-	trap_GetClientState( &cs );
-	if ( cs.connState != CA_DISCONNECTED ) {
+	if ( showcaseState == SHOWCASE_SUPPRESSED || showcaseState == SHOWCASE_FAILED ) {
+		showcaseState = SHOWCASE_IDLE;
+	}
+
+	if ( UI_Showcase_ReplayActive() ) {
 		return;
 	}
 
@@ -530,19 +573,6 @@ void UI_Showcase_Frame( void ) {
 	trap_GetClientState( &cs );
 	suspend = UI_Showcase_Suspend();
 
-	if ( suspend == 1 && cs.connState == CA_ACTIVE && !UI_Showcase_Latched() ) {
-		trap_Cvar_Set( "ui_showcaseSuspend", "2" );
-		showcaseState = SHOWCASE_SUPPRESSED;
-		suspend = 2;
-	}
-
-	if ( suspend == 2 && cs.connState == CA_DISCONNECTED
-			&& !trap_Cvar_VariableValue( "cg_demoSeekActive" ) ) {
-		trap_Cvar_Set( "ui_showcaseSuspend", "0" );
-		showcaseState = SHOWCASE_IDLE;
-		suspend = 0;
-	}
-
 	if ( suspend ) {
 		if ( cs.connState == CA_ACTIVE && uis.activemenu == &s_main.menu ) {
 			UI_ForceMenuOff();
@@ -556,8 +586,13 @@ void UI_Showcase_Frame( void ) {
 
 	if ( ( showcaseState == SHOWCASE_PLAYING || showcaseState == SHOWCASE_STARTING )
 			&& !UI_Showcase_Latched() ) {
-		if ( cs.connState == CA_DISCONNECTED && showcaseState == SHOWCASE_PLAYING ) {
-			UI_Showcase_NoteDemoEnded();
+		if ( cs.connState == CA_DISCONNECTED ) {
+			if ( showcaseState == SHOWCASE_PLAYING ) {
+				UI_Showcase_NoteDemoEnded();
+			} else {
+				showcaseState = SHOWCASE_FAILED;
+				showcaseFadeStart = 0;
+			}
 		} else {
 			showcaseState = SHOWCASE_SUPPRESSED;
 			showcaseFadeStart = 0;
@@ -597,7 +632,7 @@ void UI_Showcase_Frame( void ) {
 		}
 	}
 
-	if ( showcaseState == SHOWCASE_IDLE && cs.connState == CA_DISCONNECTED ) {
+	if ( showcaseState == SHOWCASE_IDLE && UI_Showcase_MayAutostart() ) {
 		UI_Showcase_BeginBackgroundDemo();
 	}
 
