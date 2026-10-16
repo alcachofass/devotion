@@ -290,6 +290,7 @@ extern void MainMenu_Cache( void );
 extern void UI_MainMenu(void);
 extern void UI_MainMenu_StopMusic( void );
 extern void UI_Showcase_Frame( void );
+extern void UI_Showcase_ReleaseForMainMenu( void );
 extern void UI_Showcase_Stop( void );
 extern void UI_Showcase_InitAfterVmReload( void );
 extern void UI_Showcase_PollDismiss( void );
