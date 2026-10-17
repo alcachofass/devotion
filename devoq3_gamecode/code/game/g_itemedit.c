@@ -1839,14 +1839,14 @@ void ItemEdit_RunDeferredApply( void ) {
 }
 
 void ItemEdit_Shutdown( int restart ) {
-	if ( restart && g_gametype.integer == itemEdit_levelGametype && itemEdit_mapName[0] ) {
-		if ( itemEdit_dirty ) {
-			ItemEdit_CommitLayout();
-		}
-		return;
-	}
+	(void)restart;
 
-	ItemEdit_PurgeSessionLayout();
+	/* Do not purge session_temp.cfg here: map_restart often passes restart==0 to the
+	 * VM, and warmup-end also restarts via map_restart. Stale layouts are dropped on
+	 * load when meta map/gametype does not match (ItemEdit_ReadLayoutFile). */
+	if ( itemEdit_dirty ) {
+		ItemEdit_CommitLayout();
+	}
 }
 
 void ItemEdit_UpdateConfigstring( void ) {
