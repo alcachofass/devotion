@@ -7,6 +7,7 @@ Session layout persists in layouts/session_temp.cfg across map_restart only.
 
 #include "g_local.h"
 #include "g_itemedit.h"
+#include "g_spawnedit.h"
 
 #define ITEMEDIT_SPEC_BIT			1
 #define ITEMEDIT_MAX_OVERRIDES		512
@@ -1851,6 +1852,7 @@ void ItemEdit_Shutdown( int restart ) {
 void ItemEdit_UpdateConfigstring( void ) {
 	trap_SetConfigstring( CS_ITEMEDIT, va( "%i", g_editMode.integer ) );
 	ItemEdit_RefreshHiddenPickupBroadcast();
+	SpawnEdit_UpdateConfigstring();
 }
 
 void ItemEdit_Init( void ) {

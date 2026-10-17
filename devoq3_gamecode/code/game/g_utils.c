@@ -800,6 +800,20 @@ void G_LinkGameId(int gameId) {
 }
 #endif // WITH_MULTITOURNAMENT
 
+static const vec3_t	playerPlacementMins = { -15.0f, -15.0f, -24.0f };
+static const vec3_t	playerPlacementMaxs = { 15.0f, 15.0f, 32.0f };
+
+qboolean G_OriginFitsPlayerBox( const vec3_t origin, int ignoreEnt ) {
+	trace_t	tr;
+
+	if ( !origin ) {
+		return qfalse;
+	}
+	trap_Trace( &tr, origin, playerPlacementMins, playerPlacementMaxs, origin, ignoreEnt,
+			MASK_PLAYERSOLID );
+	return !( tr.startsolid || tr.allsolid );
+}
+
 /*
 =========================================================================
 

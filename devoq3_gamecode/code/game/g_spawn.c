@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 
 #include "g_local.h"
+#include "g_spawnedit.h"
 
 qboolean	G_SpawnString( const char *key, const char *defaultString, char **out ) {
 	int		i;
@@ -329,6 +330,7 @@ qboolean G_CallSpawn( gentity_t *ent ) {
 		if ( !strcmp(s->name, itemname) ) {
 			// found it
 			s->spawn(ent);
+			SpawnEdit_CommitBspSpawn( ent );
 			return qtrue;
 		}
 	}

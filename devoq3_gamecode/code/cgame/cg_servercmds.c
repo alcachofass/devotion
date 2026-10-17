@@ -1776,6 +1776,7 @@ static void CG_MapRestart( void ) {
 
 	CG_ItemTimersBuildRoster();
 	CG_ItemEdit_Init();
+	CG_SpawnEdit_Init();
 
 	cgs.redflag = 0;
 	cgs.blueflag = 0;
@@ -2720,6 +2721,10 @@ static void CG_ServerCommand( void ) {
 		return;
 	}
 
+        if ( !strcmp( cmd, "spawnEditRoster" ) ) {
+            CG_SpawnEdit_ParseRoster();
+            return;
+        }
         if ( !strcmp( cmd, "spawnPoints" ) ) {
 		CG_ParseSpawnpoints();
 		return;

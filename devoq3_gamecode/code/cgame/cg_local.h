@@ -2073,6 +2073,22 @@ int CG_ItemEdit_HighlightEntNum( void );
 void CG_ItemEdit_AddItemHighlight( int entNum, refEntity_t *ent );
 void CG_ItemEdit_AddSceneEntities( void );
 
+void CG_DrawSpawnpointMarkers( const spawnpoint_t *pts, const int *entNums, int count, int highlightEnt );
+void CG_SpawnEdit_Init( void );
+void CG_SpawnEdit_Frame( void );
+void CG_SpawnEdit_ParseRoster( void );
+qboolean CG_SpawnEdit_ModeEnabled( void );
+int CG_SpawnEdit_SidebarBodyH( void );
+void CG_SpawnEdit_DrawSidebar( int bodyX, int bodyY, int bodyW, int bodyH );
+void CG_SpawnEdit_SetSidebarOpen( qboolean open );
+qboolean CG_SpawnEdit_KeyEvent( int key, qboolean down );
+qboolean CG_SpawnEdit_SidebarContains( int mx, int my, int bodyX, int bodyY, int bodyW, int bodyH );
+void CG_SpawnEdit_PointerMoveSidebar( int mx, int my, int bodyX, int bodyY, int bodyW, int bodyH );
+qboolean CG_SpawnEdit_HandleClickSidebar( int mx, int my, int bodyX, int bodyY, int bodyW, int bodyH );
+void CG_SpawnEdit_DrawResetModal( void );
+qboolean CG_SpawnEdit_ModalOpen( void );
+void CG_SpawnEdit_AddSceneEntities( void );
+
 void CG_ItemTimersInit( void );
 void CG_ItemTimersReset( void );
 void CG_ItemTimersReadConfig( void );
