@@ -2088,6 +2088,10 @@ qboolean CG_SpawnEdit_HandleClickSidebar( int mx, int my, int bodyX, int bodyY, 
 void CG_SpawnEdit_DrawResetModal( void );
 qboolean CG_SpawnEdit_ModalOpen( void );
 void CG_SpawnEdit_AddSceneEntities( void );
+void CG_SpawnEdit_Tele_ParseRoster( void );
+void CG_SpawnEdit_AbortMove( void );
+qboolean CG_SpawnEdit_SidebarIsOpen( void );
+qboolean CG_SpawnEdit_PointerInTeleSection( void );
 
 void CG_ItemTimersInit( void );
 void CG_ItemTimersReset( void );

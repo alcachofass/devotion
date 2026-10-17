@@ -1412,6 +1412,7 @@ void CamSession_Frame( void );
 void CamSession_ClientDisconnect( int clientNum );
 void Cmd_CamSession_f( gentity_t *ent );
 
+#include "g_session_layout.h"
 #include "g_itemedit.h"
 #include "g_spawnedit.h"
 void Cmd_CamUp_f( gentity_t *ent );

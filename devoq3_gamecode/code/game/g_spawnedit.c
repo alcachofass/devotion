@@ -1,20 +1,19 @@
 /*
 ===========================================================================
 Spectator spawn point editing: move, add, delete, and change team affiliation.
-Session layout persists in layouts/session_spawns.cfg across map_restart only.
+Session layout persists in layouts/session.cfg across map_restart only.
 ===========================================================================
 */
 
 #include "g_local.h"
 #include "g_spawnedit.h"
+#include "g_spawnedit_tele.h"
+#include "g_session_layout.h"
 
 #define SPAWNEDIT_SPEC_BIT			1
 #define SPAWNEDIT_MAX_RECORDS		256
 #define SPAWNEDIT_ORIGIN_MATCH_EPS	4.0f
 #define SPAWNEDIT_HOME_Z_SLACK		24.0f
-#define SPAWNEDIT_LAYOUT_VERSION	"spawnedit_v1"
-#define SPAWNEDIT_SESSION_LAYOUT_PATH	"layouts/session_spawns.cfg"
-#define SPAWNEDIT_LAYOUT_MAX_READ	( 32 * 1024 )
 
 typedef struct {
 	vec3_t		fromOrigin;
@@ -576,79 +575,16 @@ static void SpawnEdit_BroadcastRoster( void ) {
 }
 
 static void SpawnEdit_PurgeSessionLayout( void ) {
-	fileHandle_t	f;
-	char			path[MAX_QPATH];
-
-	Q_strncpyz( path, SPAWNEDIT_SESSION_LAYOUT_PATH, sizeof( path ) );
-	trap_FS_FOpenFile( path, &f, FS_WRITE );
-	if ( f ) {
-		trap_FS_FCloseFile( f );
-	}
-	spawnEdit_dirty = qfalse;
+	SpawnEdit_ClearRecords();
+	spawnEdit_dirty = qtrue;
+	SessionLayout_Commit();
 }
 
 static void SpawnEdit_CommitLayout( void ) {
-	fileHandle_t	f;
-	char			path[MAX_QPATH];
-	char			line[256];
-	int				i;
-	int				len;
-
-	if ( !spawnEdit_dirty || !spawnEdit_mapName[0] ) {
+	if ( !spawnEdit_dirty ) {
 		return;
 	}
-
-	if ( spawnEditMoveCount <= 0 && spawnEditAddCount <= 0
-			&& spawnEditDeleteCount <= 0 && spawnEditTeamCount <= 0 ) {
-		SpawnEdit_PurgeSessionLayout();
-		return;
-	}
-
-	Q_strncpyz( path, SPAWNEDIT_SESSION_LAYOUT_PATH, sizeof( path ) );
-	trap_FS_FOpenFile( path, &f, FS_WRITE );
-	if ( !f ) {
-		G_Printf( S_COLOR_YELLOW "WARNING: could not write spawn layout %s\n", path );
-		return;
-	}
-
-	Com_sprintf( line, sizeof( line ), "%s\n", SPAWNEDIT_LAYOUT_VERSION );
-	len = (int)strlen( line );
-	trap_FS_Write( line, len, f );
-	Com_sprintf( line, sizeof( line ), "meta %s %i\n", spawnEdit_mapName, g_gametype.integer );
-	len = (int)strlen( line );
-	trap_FS_Write( line, len, f );
-
-	for ( i = 0; i < spawnEditMoveCount; i++ ) {
-		Com_sprintf( line, sizeof( line ), "move %.3f %.3f %.3f %.3f %.3f %.3f\n",
-				spawnEditMoves[i].fromOrigin[0], spawnEditMoves[i].fromOrigin[1], spawnEditMoves[i].fromOrigin[2],
-				spawnEditMoves[i].toOrigin[0], spawnEditMoves[i].toOrigin[1], spawnEditMoves[i].toOrigin[2] );
-		len = (int)strlen( line );
-		trap_FS_Write( line, len, f );
-	}
-	for ( i = 0; i < spawnEditTeamCount; i++ ) {
-		Com_sprintf( line, sizeof( line ), "team %.3f %.3f %.3f %i\n",
-				spawnEditTeams[i].origin[0], spawnEditTeams[i].origin[1], spawnEditTeams[i].origin[2],
-				spawnEditTeams[i].team );
-		len = (int)strlen( line );
-		trap_FS_Write( line, len, f );
-	}
-	for ( i = 0; i < spawnEditAddCount; i++ ) {
-		Com_sprintf( line, sizeof( line ), "add %.3f %.3f %.3f %.3f %.3f %.3f %i\n",
-				spawnEditAdds[i].origin[0], spawnEditAdds[i].origin[1], spawnEditAdds[i].origin[2],
-				spawnEditAdds[i].angles[0], spawnEditAdds[i].angles[1], spawnEditAdds[i].angles[2],
-				spawnEditAdds[i].team );
-		len = (int)strlen( line );
-		trap_FS_Write( line, len, f );
-	}
-	for ( i = 0; i < spawnEditDeleteCount; i++ ) {
-		Com_sprintf( line, sizeof( line ), "delete %.3f %.3f %.3f\n",
-				spawnEditDeletes[i].origin[0], spawnEditDeletes[i].origin[1], spawnEditDeletes[i].origin[2] );
-		len = (int)strlen( line );
-		trap_FS_Write( line, len, f );
-	}
-
-	trap_FS_FCloseFile( f );
-	spawnEdit_dirty = qfalse;
+	SessionLayout_Commit();
 }
 
 static void SpawnEdit_ApplyAllMoves( void ) {
@@ -779,27 +715,219 @@ static int SpawnEdit_RestoreMapDefaults( void ) {
 }
 
 void SpawnEdit_LoadLayoutForMap( void ) {
-	char	mapname[MAX_QPATH];
-	char	info[MAX_INFO_STRING];
-	const char *s;
+	SessionLayout_LoadForMap();
+}
 
-	if ( spawnEdit_dirty ) {
+void SpawnEdit_SessionPrepareLoad( void ) {
+	if ( spawnEdit_dirty && SpawnEdit_SessionHasRecords() ) {
 		SpawnEdit_CommitLayout();
 	}
+}
 
-	trap_GetServerinfo( info, sizeof( info ) );
-	s = Info_ValueForKey( info, "mapname" );
-	if ( s && s[0] ) {
-		Q_strncpyz( mapname, s, sizeof( mapname ) );
-	} else {
-		trap_Cvar_VariableStringBuffer( "mapname", mapname, sizeof( mapname ) );
+void SpawnEdit_SessionBeginMap( const char *mapname, int gametype ) {
+	if ( mapname && mapname[0] ) {
+		Q_strncpyz( spawnEdit_mapName, mapname, sizeof( spawnEdit_mapName ) );
 	}
-	Q_strncpyz( spawnEdit_mapName, mapname, sizeof( spawnEdit_mapName ) );
-	spawnEdit_levelGametype = g_gametype.integer;
+	spawnEdit_levelGametype = gametype;
 	SpawnEdit_ClearBspSpawns();
 	SpawnEdit_ClearRecords();
 	spawnEdit_deferredApplyDone = qfalse;
-	/* Session file parsing omitted for brevity — edits persist within match via CommitLayout. */
+	TeleEdit_SessionBeginMap( mapname, gametype );
+}
+
+void SpawnEdit_SessionClearRecords( void ) {
+	SpawnEdit_ClearRecords();
+}
+
+qboolean SpawnEdit_SessionHasRecords( void ) {
+	return ( spawnEditMoveCount > 0 || spawnEditAddCount > 0
+			|| spawnEditDeleteCount > 0 || spawnEditTeamCount > 0 ) ? qtrue : qfalse;
+}
+
+qboolean SpawnEdit_SessionIsDirty( void ) {
+	return spawnEdit_dirty;
+}
+
+void SpawnEdit_SessionClearDirty( void ) {
+	spawnEdit_dirty = qfalse;
+}
+
+void SpawnEdit_SessionFinishLoad( const char *mapname ) {
+	if ( mapname && mapname[0] ) {
+		Q_strncpyz( spawnEdit_mapName, mapname, sizeof( spawnEdit_mapName ) );
+	}
+	spawnEdit_dirty = qfalse;
+}
+
+static qboolean SpawnEdit_ParseSmoveLine( const char *line,
+		float *fox, float *foy, float *foz, float *nox, float *noy, float *noz ) {
+	const char	*p;
+
+	if ( !line || !fox || !foy || !foz || !nox || !noy || !noz ) {
+		return qfalse;
+	}
+	if ( Q_stricmpn( line, "smove ", 6 ) ) {
+		return qfalse;
+	}
+	p = line + 6;
+	*fox = (float)_atof( &p );
+	*foy = (float)_atof( &p );
+	*foz = (float)_atof( &p );
+	*nox = (float)_atof( &p );
+	*noy = (float)_atof( &p );
+	*noz = (float)_atof( &p );
+	return qtrue;
+}
+
+static qboolean SpawnEdit_ParseSteamLine( const char *line, float *ox, float *oy, float *oz, int *team ) {
+	const char	*p;
+
+	if ( !line || !ox || !oy || !oz || !team ) {
+		return qfalse;
+	}
+	if ( Q_stricmpn( line, "steam ", 6 ) ) {
+		return qfalse;
+	}
+	p = line + 6;
+	*ox = (float)_atof( &p );
+	*oy = (float)_atof( &p );
+	*oz = (float)_atof( &p );
+	*team = _atoi( &p );
+	return qtrue;
+}
+
+static qboolean SpawnEdit_ParseSaddLine( const char *line,
+		float *ox, float *oy, float *oz, float *ax, float *ay, float *az, int *team ) {
+	const char	*p;
+
+	if ( !line || !ox || !oy || !oz || !ax || !ay || !az || !team ) {
+		return qfalse;
+	}
+	if ( Q_stricmpn( line, "sadd ", 5 ) ) {
+		return qfalse;
+	}
+	p = line + 5;
+	*ox = (float)_atof( &p );
+	*oy = (float)_atof( &p );
+	*oz = (float)_atof( &p );
+	*ax = (float)_atof( &p );
+	*ay = (float)_atof( &p );
+	*az = (float)_atof( &p );
+	*team = _atoi( &p );
+	return qtrue;
+}
+
+static qboolean SpawnEdit_ParseSdeleteLine( const char *line, float *ox, float *oy, float *oz ) {
+	const char	*p;
+
+	if ( !line || !ox || !oy || !oz ) {
+		return qfalse;
+	}
+	if ( Q_stricmpn( line, "sdelete ", 8 ) ) {
+		return qfalse;
+	}
+	p = line + 8;
+	*ox = (float)_atof( &p );
+	*oy = (float)_atof( &p );
+	*oz = (float)_atof( &p );
+	return qtrue;
+}
+
+qboolean SpawnEdit_SessionParseLine( const char *line ) {
+	float	fox, foy, foz, nox, noy, noz;
+	float	ox, oy, oz, ax, ay, az;
+	int		team;
+
+	if ( !line || !line[0] ) {
+		return qfalse;
+	}
+	if ( SpawnEdit_ParseSmoveLine( line, &fox, &foy, &foz, &nox, &noy, &noz ) ) {
+		if ( spawnEditMoveCount >= SPAWNEDIT_MAX_RECORDS ) {
+			return qfalse;
+		}
+		spawnEditMoves[spawnEditMoveCount].fromOrigin[0] = fox;
+		spawnEditMoves[spawnEditMoveCount].fromOrigin[1] = foy;
+		spawnEditMoves[spawnEditMoveCount].fromOrigin[2] = foz;
+		spawnEditMoves[spawnEditMoveCount].toOrigin[0] = nox;
+		spawnEditMoves[spawnEditMoveCount].toOrigin[1] = noy;
+		spawnEditMoves[spawnEditMoveCount].toOrigin[2] = noz;
+		spawnEditMoveCount++;
+		return qtrue;
+	}
+	if ( SpawnEdit_ParseSteamLine( line, &ox, &oy, &oz, &team ) ) {
+		if ( spawnEditTeamCount >= SPAWNEDIT_MAX_RECORDS ) {
+			return qfalse;
+		}
+		spawnEditTeams[spawnEditTeamCount].origin[0] = ox;
+		spawnEditTeams[spawnEditTeamCount].origin[1] = oy;
+		spawnEditTeams[spawnEditTeamCount].origin[2] = oz;
+		spawnEditTeams[spawnEditTeamCount].team = team;
+		spawnEditTeamCount++;
+		return qtrue;
+	}
+	if ( SpawnEdit_ParseSaddLine( line, &ox, &oy, &oz, &ax, &ay, &az, &team ) ) {
+		if ( spawnEditAddCount >= SPAWNEDIT_MAX_RECORDS ) {
+			return qfalse;
+		}
+		spawnEditAdds[spawnEditAddCount].origin[0] = ox;
+		spawnEditAdds[spawnEditAddCount].origin[1] = oy;
+		spawnEditAdds[spawnEditAddCount].origin[2] = oz;
+		spawnEditAdds[spawnEditAddCount].angles[0] = ax;
+		spawnEditAdds[spawnEditAddCount].angles[1] = ay;
+		spawnEditAdds[spawnEditAddCount].angles[2] = az;
+		spawnEditAdds[spawnEditAddCount].team = team;
+		spawnEditAddCount++;
+		return qtrue;
+	}
+	if ( SpawnEdit_ParseSdeleteLine( line, &ox, &oy, &oz ) ) {
+		if ( spawnEditDeleteCount >= SPAWNEDIT_MAX_RECORDS ) {
+			return qfalse;
+		}
+		spawnEditDeletes[spawnEditDeleteCount].origin[0] = ox;
+		spawnEditDeletes[spawnEditDeleteCount].origin[1] = oy;
+		spawnEditDeletes[spawnEditDeleteCount].origin[2] = oz;
+		spawnEditDeleteCount++;
+		return qtrue;
+	}
+	return qfalse;
+}
+
+void SpawnEdit_SessionWriteLines( fileHandle_t f ) {
+	char	line[256];
+	int		i;
+	int		len;
+
+	if ( !f ) {
+		return;
+	}
+	for ( i = 0; i < spawnEditMoveCount; i++ ) {
+		Com_sprintf( line, sizeof( line ), "smove %.3f %.3f %.3f %.3f %.3f %.3f\n",
+				spawnEditMoves[i].fromOrigin[0], spawnEditMoves[i].fromOrigin[1], spawnEditMoves[i].fromOrigin[2],
+				spawnEditMoves[i].toOrigin[0], spawnEditMoves[i].toOrigin[1], spawnEditMoves[i].toOrigin[2] );
+		len = (int)strlen( line );
+		trap_FS_Write( line, len, f );
+	}
+	for ( i = 0; i < spawnEditTeamCount; i++ ) {
+		Com_sprintf( line, sizeof( line ), "steam %.3f %.3f %.3f %i\n",
+				spawnEditTeams[i].origin[0], spawnEditTeams[i].origin[1], spawnEditTeams[i].origin[2],
+				spawnEditTeams[i].team );
+		len = (int)strlen( line );
+		trap_FS_Write( line, len, f );
+	}
+	for ( i = 0; i < spawnEditAddCount; i++ ) {
+		Com_sprintf( line, sizeof( line ), "sadd %.3f %.3f %.3f %.3f %.3f %.3f %i\n",
+				spawnEditAdds[i].origin[0], spawnEditAdds[i].origin[1], spawnEditAdds[i].origin[2],
+				spawnEditAdds[i].angles[0], spawnEditAdds[i].angles[1], spawnEditAdds[i].angles[2],
+				spawnEditAdds[i].team );
+		len = (int)strlen( line );
+		trap_FS_Write( line, len, f );
+	}
+	for ( i = 0; i < spawnEditDeleteCount; i++ ) {
+		Com_sprintf( line, sizeof( line ), "sdelete %.3f %.3f %.3f\n",
+				spawnEditDeletes[i].origin[0], spawnEditDeletes[i].origin[1], spawnEditDeletes[i].origin[2] );
+		len = (int)strlen( line );
+		trap_FS_Write( line, len, f );
+	}
 }
 
 void SpawnEdit_OnEntitiesSpawned( void ) {
@@ -807,6 +935,11 @@ void SpawnEdit_OnEntitiesSpawned( void ) {
 	SpawnEdit_ApplyAllTeams();
 	SpawnEdit_ApplyAllDeletes();
 	SpawnEdit_ApplyAllAdds();
+	SpawnEdit_Tele_OnEntitiesSpawned();
+}
+
+void SpawnEdit_RunDeferredApply( void ) {
+	SpawnEdit_Tele_RunDeferredApply();
 }
 
 void SpawnEdit_Init( void ) {
@@ -815,9 +948,11 @@ void SpawnEdit_Init( void ) {
 
 void SpawnEdit_UpdateConfigstring( void ) {
 	SpawnEdit_BroadcastRoster();
+	SpawnEdit_Tele_BroadcastRoster();
 }
 
 void SpawnEdit_Shutdown( int restart ) {
+	SpawnEdit_Tele_Shutdown( restart );
 	if ( restart && g_gametype.integer == spawnEdit_levelGametype && spawnEdit_mapName[0] ) {
 		if ( spawnEdit_dirty ) {
 			SpawnEdit_CommitLayout();
@@ -846,6 +981,11 @@ void Cmd_SpawnEdit_f( gentity_t *ent ) {
 
 	if ( !Q_stricmp( sub, "sync" ) ) {
 		SpawnEdit_SendRoster( ent );
+		SpawnEdit_Tele_SendRoster( ent );
+		return;
+	}
+
+	if ( SpawnEdit_Tele_HandleCommand( ent, sub ) ) {
 		return;
 	}
 
@@ -1057,5 +1197,5 @@ void Cmd_SpawnEdit_f( gentity_t *ent ) {
 	}
 
 	trap_SendServerCommand( ent - g_entities,
-			"print \"usage: spawnedit set|move|homemove|add|delete|clear|reset|sync\n\"" );
+			"print \"usage: spawnedit set|move|homemove|add|delete|clear|reset|sync|telemove|teledestmove|telehome|telereset\n\"" );
 }

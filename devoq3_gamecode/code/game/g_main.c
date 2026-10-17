@@ -1209,8 +1209,7 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	}
 #endif // WITH_MULTITOURNAMENT
 
-	ItemEdit_LoadLayoutForMap();
-	SpawnEdit_LoadLayoutForMap();
+	SessionLayout_LoadForMap();
 
 	// parse the key/value pairs and spawn gentities
 	G_SpawnEntitiesFromString();
@@ -5456,6 +5455,7 @@ void G_RunFrame( int levelTime ) {
 	level.realtime = levelTime;
 
 	ItemEdit_RunDeferredApply();
+	SpawnEdit_RunDeferredApply();
 
 	msec = level.time - level.previousTime;
 

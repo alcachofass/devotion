@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 //
 #include "g_local.h"
+#include "g_spawnedit_tele.h"
 
 
 void InitTrigger( gentity_t *self ) {
@@ -401,6 +402,7 @@ void SP_trigger_teleport( gentity_t *self ) {
 	self->touch = trigger_teleporter_touch;
 
 	trap_LinkEntity (self);
+	SpawnEdit_Tele_CommitBspTrigger( self );
 }
 
 

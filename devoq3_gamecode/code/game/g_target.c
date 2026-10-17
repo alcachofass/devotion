@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 //
 #include "g_local.h"
+#include "g_spawnedit_tele.h"
 
 //==========================================================
 
@@ -420,6 +421,7 @@ Used as a positional target for in-game calculation, like jumppad targets.
 */
 void SP_target_position( gentity_t *self ){
 	G_SetOrigin( self, self->s.origin );
+	SpawnEdit_Tele_CommitBspDest( self );
 }
 
 static void target_location_linkup(gentity_t *ent)
