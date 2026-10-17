@@ -183,6 +183,25 @@ static void CG_ItemEdit_ContentRect( int bodyX, int bodyY, int bodyW, int bodyH,
 	}
 }
 
+static qboolean CG_ItemEdit_IsUnspawnedMapPickup( const centity_t *cent ) {
+	const entityState_t	*es;
+
+	if ( !cent || !cent->currentValid ) {
+		return qfalse;
+	}
+	if ( !CG_ItemEdit_Active() || !cg_itemEditSidebarOpen ) {
+		return qfalse;
+	}
+	es = &cent->currentState;
+	if ( es->eType != ET_ITEM || es->modelindex <= 0 || es->modelindex2 ) {
+		return qfalse;
+	}
+	if ( !( es->eFlags & EF_NODRAW ) ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
 static qboolean CG_ItemEdit_EntityLive( const centity_t *cent ) {
 	const entityState_t	*es;
 
@@ -197,7 +216,7 @@ static qboolean CG_ItemEdit_EntityLive( const centity_t *cent ) {
 		return qfalse;
 	}
 	if ( es->eFlags & EF_NODRAW ) {
-		return qfalse;
+		return CG_ItemEdit_IsUnspawnedMapPickup( cent );
 	}
 	return qtrue;
 }
@@ -1309,29 +1328,20 @@ int CG_ItemEdit_HighlightEntNum( void ) {
 	return cg_itemEditTarget;
 }
 
-void CG_ItemEdit_AddSceneEntities( void ) {
-	gitem_t		*item;
-	refEntity_t	ent;
-	vec3_t		origin;
+static void CG_ItemEdit_AddItemGhostAt( int modelIndex, const vec3_t baseOrigin, int entNum ) {
+	gitem_t			*item;
+	refEntity_t		ent;
+	vec3_t			origin;
 	weaponInfo_t	*wi;
-	float		scale;
-	int			modelIndex;
+	float			scale;
 
-	if ( !cg_itemEditMoveActive || !cg_itemEditMoveValid ) {
-		return;
-	}
-	if ( !cg_itemEditAddActive && cg_itemEditMoveEnt < MAX_CLIENTS ) {
-		return;
-	}
-
-	modelIndex = CG_ItemEdit_MoveItemIndex();
 	if ( modelIndex <= 0 || modelIndex >= bg_numItems ) {
 		return;
 	}
 
 	CG_RegisterItemVisuals( modelIndex );
 	item = &bg_itemlist[modelIndex];
-	VectorCopy( cg_itemEditMoveGhostOrigin, origin );
+	VectorCopy( baseOrigin, origin );
 	scale = 0.005f + modelIndex * 0.00001f;
 	origin[2] += 4.0f + cos( ( cg.time + 1000 ) * scale ) * 4.0f;
 
@@ -1342,7 +1352,6 @@ void CG_ItemEdit_AddSceneEntities( void ) {
 		AxisCopy( cg.autoAxis, ent.axis );
 	}
 
-	wi = NULL;
 	if ( item->giType == IT_WEAPON ) {
 		wi = &cg_weapons[item->giTag];
 		origin[0] -=
@@ -1370,6 +1379,7 @@ void CG_ItemEdit_AddSceneEntities( void ) {
 		ent.shaderRGBA[2] = 255;
 		ent.shaderRGBA[3] = 255;
 		trap_R_AddRefEntityToScene( &ent );
+		CG_ItemEdit_AddItemHighlight( entNum, &ent );
 		return;
 	}
 
@@ -1389,6 +1399,46 @@ void CG_ItemEdit_AddSceneEntities( void ) {
 	ent.shaderRGBA[2] = 255;
 	ent.shaderRGBA[3] = 255;
 	trap_R_AddRefEntityToScene( &ent );
+	CG_ItemEdit_AddItemHighlight( entNum, &ent );
+}
+
+static void CG_ItemEdit_DrawUnspawnedMapPickups( void ) {
+	int			i;
+	centity_t	*cent;
+	vec3_t		origin;
+
+	if ( !CG_ItemEdit_Active() || !cg_itemEditSidebarOpen ) {
+		return;
+	}
+
+	for ( i = MAX_CLIENTS; i < MAX_GENTITIES; i++ ) {
+		cent = &cg_entities[i];
+		if ( !CG_ItemEdit_IsUnspawnedMapPickup( cent ) ) {
+			continue;
+		}
+		if ( cg_itemEditMoveActive && i == cg_itemEditMoveEnt ) {
+			continue;
+		}
+		BG_EvaluateTrajectory( &cent->currentState.pos, cg.time, origin );
+		CG_ItemEdit_AddItemGhostAt( cent->currentState.modelindex, origin, i );
+	}
+}
+
+void CG_ItemEdit_AddSceneEntities( void ) {
+	int		modelIndex;
+
+	CG_ItemEdit_DrawUnspawnedMapPickups();
+
+	if ( !cg_itemEditMoveActive || !cg_itemEditMoveValid ) {
+		return;
+	}
+	if ( !cg_itemEditAddActive && cg_itemEditMoveEnt < MAX_CLIENTS ) {
+		return;
+	}
+
+	modelIndex = CG_ItemEdit_MoveItemIndex();
+	CG_ItemEdit_AddItemGhostAt( modelIndex, cg_itemEditMoveGhostOrigin,
+			cg_itemEditMoveEnt >= MAX_CLIENTS ? cg_itemEditMoveEnt : -1 );
 }
 
 /*

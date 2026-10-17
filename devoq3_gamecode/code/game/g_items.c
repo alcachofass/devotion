@@ -1009,6 +1009,8 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 	}
 	trap_LinkEntity( ent );
 
+	ItemEdit_OnMapPickupHidden( ent );
+
 	if ( !( ent->flags & FL_DROPPED_ITEM ) && BG_ItemHasTimer( ent->item )
 			&& ent->nextthink > level.time ) {
 		Item_NotifySpectators( ent, qfalse );
