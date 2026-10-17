@@ -11,7 +11,6 @@ Server gate: g_editMode bit 1 (mirrored on CS_ITEMEDIT). UI lives in the spec ov
 
 #define ITEMEDIT_SPEC_BIT		1
 #define ITEMEDIT_ROW_H			14
-#define ITEMEDIT_VISIBLE_ROWS	12
 #define ITEMEDIT_PANEL_PAD		8
 #define ITEMEDIT_RESET_BTN_H		18
 #define ITEMEDIT_ACTION_BTN_H		18
@@ -95,6 +94,7 @@ static qboolean			cg_itemEditDeleteConfirm;
 static int				cg_itemEditVisibleRows;
 static vec3_t			cg_itemEditMoveGhostOrigin;
 
+static int CG_ItemEdit_IdealPickerRows( void );
 static void CG_ItemEdit_ClampScroll( void );
 static void CG_ItemEdit_CancelMove( void );
 static void CG_ItemEdit_UpdateMoveGhost( void );
@@ -139,22 +139,7 @@ int CG_ItemEdit_SidebarBodyH( void ) {
 	return SCREEN_HEIGHT - OVERLAY_SIDE_MARGIN - bodyY;
 }
 
-static void CG_ItemEdit_SetVisibleRowsFromBodyH( int bodyH ) {
-	int		fixed;
-	int		rows;
-
-	fixed = ITEMEDIT_SIDEBAR_HDR + ITEMEDIT_PANEL_PAD
-			+ ITEMEDIT_ACTION_GAP + ITEMEDIT_ACTION_BTN_H
-			+ ITEMEDIT_RESET_GAP + ITEMEDIT_RESET_BTN_H;
-	rows = ( bodyH - fixed ) / ITEMEDIT_ROW_H;
-	if ( rows < 1 ) {
-		rows = 1;
-	}
-	if ( rows > ITEMEDIT_VISIBLE_ROWS ) {
-		rows = ITEMEDIT_VISIBLE_ROWS;
-	}
-	cg_itemEditVisibleRows = rows;
-}
+static void CG_ItemEdit_SetVisibleRowsFromBodyH( int bodyH );
 
 void CG_ItemEdit_SetSidebarOpen( qboolean open ) {
 	cg_itemEditSidebarOpen = open;
@@ -254,6 +239,52 @@ static itemEditGroup_t CG_ItemEdit_GroupForItem( const gitem_t *item ) {
 	default:
 		return ITEMEDIT_GRP_COUNT;
 	}
+}
+
+static int CG_ItemEdit_IdealPickerRows( void ) {
+	int		counts[ITEMEDIT_GRP_COUNT];
+	int		i;
+	int		g;
+	int		maxItems;
+	gitem_t	*item;
+
+	memset( counts, 0, sizeof( counts ) );
+	for ( i = 1; i < bg_numItems; i++ ) {
+		item = &bg_itemlist[i];
+		if ( !CG_ItemEdit_ItemUsable( item ) ) {
+			continue;
+		}
+		g = CG_ItemEdit_GroupForItem( item );
+		if ( g >= 0 && g < ITEMEDIT_GRP_COUNT ) {
+			counts[g]++;
+		}
+	}
+	maxItems = 0;
+	for ( g = 0; g < ITEMEDIT_GRP_COUNT; g++ ) {
+		if ( counts[g] > maxItems ) {
+			maxItems = counts[g];
+		}
+	}
+	return ITEMEDIT_GRP_COUNT + maxItems;
+}
+
+static void CG_ItemEdit_SetVisibleRowsFromBodyH( int bodyH ) {
+	int		fixed;
+	int		rows;
+	int		ideal;
+
+	fixed = ITEMEDIT_SIDEBAR_HDR + ITEMEDIT_PANEL_PAD
+			+ ITEMEDIT_ACTION_GAP + ITEMEDIT_ACTION_BTN_H
+			+ ITEMEDIT_RESET_GAP + ITEMEDIT_RESET_BTN_H;
+	rows = ( bodyH - fixed ) / ITEMEDIT_ROW_H;
+	if ( rows < 1 ) {
+		rows = 1;
+	}
+	ideal = CG_ItemEdit_IdealPickerRows();
+	if ( rows > ideal ) {
+		rows = ideal;
+	}
+	cg_itemEditVisibleRows = rows;
 }
 
 static void CG_ItemEdit_AddItemRow( int itemIndex ) {
@@ -1767,7 +1798,7 @@ void CG_ItemEdit_Init( void ) {
 	cg_itemEditMoveBtnHover = -1;
 	cg_itemEditActionBtnHover = -1;
 	cg_itemEditDeleteConfirm = qfalse;
-	cg_itemEditVisibleRows = ITEMEDIT_VISIBLE_ROWS;
+	cg_itemEditVisibleRows = CG_ItemEdit_IdealPickerRows();
 	for ( i = 0; i < ITEMEDIT_GRP_COUNT; i++ ) {
 		cg_itemEditGroupOpen[i] = qfalse;
 	}
