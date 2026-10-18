@@ -1135,6 +1135,7 @@ qboolean CanDamage (gentity_t *targ, vec3_t origin);
 //void G_Damage (gentity_t *targ, gentity_t *inflictor, gentity_t *attacker, vec3_t dir, vec3_t point, int damage, int dflags, int mod);
 void G_Damage (gentity_t *targ, gentity_t *inflictor, gentity_t *attacker, vec3_t dir, vec3_t point, int damage, int dflags, int mod, qboolean altFire);	//mrd
 #define ShouldPostponeGib( mod )	( mod == MOD_SHOTGUN )
+qboolean G_OriginFitsPlayerBox( const vec3_t origin, int ignoreEnt );
 qboolean G_RadiusDamage (vec3_t origin, gentity_t *inflictor, gentity_t *attacker, float damage, float radius, gentity_t *ignore, int mod, qboolean altFire);	//mrd
 qboolean G_RailJump( vec3_t origin, gentity_t *attacker);
 int G_InvulnerabilityEffect( gentity_t *targ, vec3_t dir, vec3_t point, vec3_t impactpoint, vec3_t bouncedir );
@@ -1411,7 +1412,9 @@ void CamSession_Frame( void );
 void CamSession_ClientDisconnect( int clientNum );
 void Cmd_CamSession_f( gentity_t *ent );
 
+#include "g_session_layout.h"
 #include "g_itemedit.h"
+#include "g_spawnedit.h"
 void Cmd_CamUp_f( gentity_t *ent );
 
 //

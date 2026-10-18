@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // It also handles local physics interaction, like fragments bouncing off walls
 
 #include "cg_local.h"
+#include "cg_spawnedit_tele.h"
 
 static	pmove_t		cg_pmove;
 
@@ -102,6 +103,7 @@ typedef struct {
 
 typedef struct {
 	int		modelIndex;
+	vec3_t	homeOrigin;
 	vec3_t	origin;
 	vec3_t	dest;
 	vec3_t	destAngles;
@@ -480,6 +482,7 @@ void CG_FreeCamParseMap( void ) {
 				&fc_teles[fc_numTeles].origin[0],
 				&fc_teles[fc_numTeles].origin[1],
 				&fc_teles[fc_numTeles].origin[2] );
+		VectorCopy( fc_teles[fc_numTeles].origin, fc_teles[fc_numTeles].homeOrigin );
 		Q_strncpyz( teleTarget[fc_numTeles], target, sizeof( teleTarget[fc_numTeles] ) );
 		VectorClear( fc_teles[fc_numTeles].dest );
 		VectorClear( fc_teles[fc_numTeles].destAngles );
@@ -506,6 +509,39 @@ void CG_FreeCamParseMap( void ) {
 			}
 		}
 		fc_numTeles = kept;
+	}
+}
+
+#define FC_TELE_HOME_EPS	4.0f
+
+void CG_FreeCam_SyncTeleportersFromSpawnEdit( const spawnEditTeleEntry_t *entries, int count ) {
+	int		e;
+	int		t;
+
+	if ( !entries || count <= 0 ) {
+		return;
+	}
+	if ( !fc_mapParsed ) {
+		CG_FreeCamParseMap();
+	}
+	if ( fc_numTeles <= 0 ) {
+		return;
+	}
+
+	for ( e = 0; e < count; e++ ) {
+		for ( t = 0; t < fc_numTeles; t++ ) {
+			if ( entries[e].triggerModelIndex > 0
+					&& fc_teles[t].modelIndex != entries[e].triggerModelIndex ) {
+				continue;
+			}
+			if ( Distance( fc_teles[t].homeOrigin, entries[e].triggerHome ) > FC_TELE_HOME_EPS ) {
+				continue;
+			}
+			VectorCopy( entries[e].triggerOrigin, fc_teles[t].origin );
+			VectorCopy( entries[e].destOrigin, fc_teles[t].dest );
+			VectorClear( fc_teles[t].destAngles );
+			fc_teles[t].destAngles[YAW] = entries[e].destYaw;
+		}
 	}
 }
 
@@ -1024,8 +1060,8 @@ qboolean CG_MissileTouchedPortal(const vec3_t start, const vec3_t end) {
 			continue;
 		}
 
-		trap_CM_BoxTrace( &trace, start, end,
-			NULL, NULL, cmodel, -1 );
+		trap_CM_TransformedBoxTrace( &trace, start, end,
+				NULL, NULL, cmodel, -1, cent->lerpOrigin, vec3_origin );
 
 		//if ( !trace.startsolid ) {
 		//	continue;
@@ -1085,8 +1121,8 @@ static void CG_TouchTriggerPrediction( void ) {
 			continue;
 		}
 
-		trap_CM_BoxTrace( &trace, cg.predictedPlayerState.origin, cg.predictedPlayerState.origin, 
-			cg_pmove.mins, cg_pmove.maxs, cmodel, -1 );
+		trap_CM_TransformedBoxTrace( &trace, cg.predictedPlayerState.origin, cg.predictedPlayerState.origin,
+				cg_pmove.mins, cg_pmove.maxs, cmodel, -1, cent->lerpOrigin, vec3_origin );
 
 		if ( !trace.startsolid ) {
 			continue;

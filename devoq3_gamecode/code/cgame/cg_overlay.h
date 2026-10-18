@@ -56,4 +56,29 @@ void Overlay_DrawerOpenInstant( overlayDrawer_t *d );
 void Overlay_DrawerTick( overlayDrawer_t *d );
 void Overlay_DrawerToggle( overlayDrawer_t *d );
 
+#define OVERLAY_EDIT_ICON_INSET	3
+
+typedef struct {
+	int			panelPad;
+	int			rowY;
+	int			iconSize;
+	int			btnH;
+	int			gap;
+	qboolean	moveActive;
+	qboolean	moveValid;
+	qboolean	showHomeAux;
+	int			hoverBtn;
+} overlayEditMoveUi_t;
+
+void Overlay_DrawIconButton( int x, int y, int size, const float *bg, qhandle_t iconShader );
+void Overlay_EditMoveLayout( int bodyX, int bodyY, const overlayEditMoveUi_t *ui,
+		int *moveX, int *moveY, int *moveW, int *moveH,
+		int *auxX, int *auxY, int *auxW, int *auxH, qboolean *auxIsCancel );
+void Overlay_DrawEditMoveButtons( const overlayEditMoveUi_t *ui,
+		int moveX, int moveY, int moveW, int moveH,
+		int auxX, int auxY, int auxW, int auxH, qboolean auxIsCancel );
+qboolean Overlay_EditMoveBtnHit( const overlayEditMoveUi_t *ui, int which, int mx, int my,
+		int moveX, int moveY, int moveW, int moveH,
+		int auxX, int auxY, int auxW, int auxH );
+
 #endif

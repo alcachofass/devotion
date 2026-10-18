@@ -7,26 +7,23 @@ Server gate: g_editMode bit 1 (mirrored on CS_ITEMEDIT). UI lives in the spec ov
 
 #include "cg_local.h"
 #include "cg_overlay.h"
+#include "cg_mapedit.h"
 #include "../client/keycodes.h"
 
 #define ITEMEDIT_SPEC_BIT		1
 #define ITEMEDIT_ROW_H			14
-#define ITEMEDIT_VISIBLE_ROWS	12
 #define ITEMEDIT_PANEL_PAD		8
 #define ITEMEDIT_RESET_BTN_H		18
 #define ITEMEDIT_ACTION_BTN_H		18
 #define ITEMEDIT_ACTION_GAP		4
 #define ITEMEDIT_MOVE_BTN_H		18
 #define ITEMEDIT_MOVE_ICON_SZ		ITEMEDIT_MOVE_BTN_H
-#define ITEMEDIT_MOVE_ICON_INSET	3
 #define ITEMEDIT_MOVE_GAP		4
 #define ITEMEDIT_ORIGIN_MATCH_EPS	4.0f
 #define ITEMEDIT_HOME_Z_SLACK		24.0f
 #define ITEMEDIT_RESET_GAP		4
-#define ITEMEDIT_MOVE_TRACE_DIST	4096.0f
-#define ITEMEDIT_MOVE_FLOOR_LIFT	20.0f
-#define ITEMEDIT_SIDEBAR_HDR	( OVERLAY_SIDE_HDR_H + 4 + 26 + ITEMEDIT_MOVE_GAP + ITEMEDIT_MOVE_BTN_H )
-#define ITEMEDIT_MOVE_ROW_Y		( OVERLAY_SIDE_HDR_H + 30 )
+#define ITEMEDIT_MOVE_ROW_Y		( OVERLAY_SIDE_HDR_H + 28 )
+#define ITEMEDIT_SIDEBAR_HDR	( ITEMEDIT_MOVE_ROW_Y + ITEMEDIT_MOVE_BTN_H + ITEMEDIT_MOVE_GAP )
 #define ITEMEDIT_HDR_LINE1_Y	( OVERLAY_SIDE_HDR_H + 6 )
 #define ITEMEDIT_HDR_LINE2_Y	( OVERLAY_SIDE_HDR_H + 16 )
 #define ITEMEDIT_HDR_LINE_H		10
@@ -95,17 +92,13 @@ static qboolean			cg_itemEditDeleteConfirm;
 static int				cg_itemEditVisibleRows;
 static vec3_t			cg_itemEditMoveGhostOrigin;
 
+static int CG_ItemEdit_IdealPickerRows( void );
 static void CG_ItemEdit_ClampScroll( void );
 static void CG_ItemEdit_CancelMove( void );
 static void CG_ItemEdit_UpdateMoveGhost( void );
 static void CG_ItemEdit_DrawMoveRow( int bodyX, int bodyY, int bodyW );
-static void CG_ItemEdit_MoveBtnRects( int bodyX, int bodyY, int bodyW,
-		int *moveX, int *moveY, int *moveW, int *moveH,
-		int *auxX, int *auxY, int *auxW, int *auxH, qboolean *auxIsCancel );
 static qboolean CG_ItemEdit_TargetRelocated( void );
 static void CG_ItemEdit_RestoreTargetHome( void );
-static void CG_ItemEdit_DrawIconButton( int x, int y, int size, const float *bg,
-		qhandle_t iconShader );
 static const char *CG_ItemEdit_ItemDisplayName( const gitem_t *item );
 static const char *CG_ItemEdit_GroupTitle( itemEditGroup_t group );
 static void CG_ItemEdit_DrawPickupHeader( int bodyX, int bodyY, int bodyW, const centity_t *cent );
@@ -139,22 +132,7 @@ int CG_ItemEdit_SidebarBodyH( void ) {
 	return SCREEN_HEIGHT - OVERLAY_SIDE_MARGIN - bodyY;
 }
 
-static void CG_ItemEdit_SetVisibleRowsFromBodyH( int bodyH ) {
-	int		fixed;
-	int		rows;
-
-	fixed = ITEMEDIT_SIDEBAR_HDR + ITEMEDIT_PANEL_PAD
-			+ ITEMEDIT_ACTION_GAP + ITEMEDIT_ACTION_BTN_H
-			+ ITEMEDIT_RESET_GAP + ITEMEDIT_RESET_BTN_H;
-	rows = ( bodyH - fixed ) / ITEMEDIT_ROW_H;
-	if ( rows < 1 ) {
-		rows = 1;
-	}
-	if ( rows > ITEMEDIT_VISIBLE_ROWS ) {
-		rows = ITEMEDIT_VISIBLE_ROWS;
-	}
-	cg_itemEditVisibleRows = rows;
-}
+static void CG_ItemEdit_SetVisibleRowsFromBodyH( int bodyH );
 
 void CG_ItemEdit_SetSidebarOpen( qboolean open ) {
 	cg_itemEditSidebarOpen = open;
@@ -183,6 +161,25 @@ static void CG_ItemEdit_ContentRect( int bodyX, int bodyY, int bodyW, int bodyH,
 	}
 }
 
+static qboolean CG_ItemEdit_IsUnspawnedMapPickup( const centity_t *cent ) {
+	const entityState_t	*es;
+
+	if ( !cent || !cent->currentValid ) {
+		return qfalse;
+	}
+	if ( !CG_ItemEdit_Active() || !cg_itemEditSidebarOpen ) {
+		return qfalse;
+	}
+	es = &cent->currentState;
+	if ( es->eType != ET_ITEM || es->modelindex <= 0 || es->modelindex2 ) {
+		return qfalse;
+	}
+	if ( !( es->eFlags & EF_NODRAW ) ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
 static qboolean CG_ItemEdit_EntityLive( const centity_t *cent ) {
 	const entityState_t	*es;
 
@@ -197,7 +194,7 @@ static qboolean CG_ItemEdit_EntityLive( const centity_t *cent ) {
 		return qfalse;
 	}
 	if ( es->eFlags & EF_NODRAW ) {
-		return qfalse;
+		return CG_ItemEdit_IsUnspawnedMapPickup( cent );
 	}
 	return qtrue;
 }
@@ -235,6 +232,52 @@ static itemEditGroup_t CG_ItemEdit_GroupForItem( const gitem_t *item ) {
 	default:
 		return ITEMEDIT_GRP_COUNT;
 	}
+}
+
+static int CG_ItemEdit_IdealPickerRows( void ) {
+	int		counts[ITEMEDIT_GRP_COUNT];
+	int		i;
+	int		g;
+	int		maxItems;
+	gitem_t	*item;
+
+	memset( counts, 0, sizeof( counts ) );
+	for ( i = 1; i < bg_numItems; i++ ) {
+		item = &bg_itemlist[i];
+		if ( !CG_ItemEdit_ItemUsable( item ) ) {
+			continue;
+		}
+		g = CG_ItemEdit_GroupForItem( item );
+		if ( g >= 0 && g < ITEMEDIT_GRP_COUNT ) {
+			counts[g]++;
+		}
+	}
+	maxItems = 0;
+	for ( g = 0; g < ITEMEDIT_GRP_COUNT; g++ ) {
+		if ( counts[g] > maxItems ) {
+			maxItems = counts[g];
+		}
+	}
+	return ITEMEDIT_GRP_COUNT + maxItems;
+}
+
+static void CG_ItemEdit_SetVisibleRowsFromBodyH( int bodyH ) {
+	int		fixed;
+	int		rows;
+	int		ideal;
+
+	fixed = ITEMEDIT_SIDEBAR_HDR + ITEMEDIT_PANEL_PAD
+			+ ITEMEDIT_ACTION_GAP + ITEMEDIT_ACTION_BTN_H
+			+ ITEMEDIT_RESET_GAP + ITEMEDIT_RESET_BTN_H;
+	rows = ( bodyH - fixed ) / ITEMEDIT_ROW_H;
+	if ( rows < 1 ) {
+		rows = 1;
+	}
+	ideal = CG_ItemEdit_IdealPickerRows();
+	if ( rows > ideal ) {
+		rows = ideal;
+	}
+	cg_itemEditVisibleRows = rows;
 }
 
 static void CG_ItemEdit_AddItemRow( int itemIndex ) {
@@ -572,26 +615,16 @@ static void CG_ItemEdit_StartAdd( void ) {
 }
 
 static void CG_ItemEdit_UpdateMoveGhost( void ) {
-	trace_t	tr;
-	vec3_t	start;
-	vec3_t	end;
+	vec3_t	planeNormal;
+	int		skipEnt;
 
 	if ( !cg_itemEditMoveActive ) {
 		return;
 	}
 
-	VectorCopy( cg.refdef.vieworg, start );
-	VectorMA( start, ITEMEDIT_MOVE_TRACE_DIST, cg.refdef.viewaxis[0], end );
-	CG_Trace( &tr, start, vec3_origin, vec3_origin, end, cg.snap->ps.clientNum, MASK_SOLID );
-	if ( tr.fraction < 1.0f ) {
-		VectorCopy( tr.endpos, cg_itemEditMoveGhostOrigin );
-		VectorMA( cg_itemEditMoveGhostOrigin, ITEMEDIT_MOVE_FLOOR_LIFT, tr.plane.normal,
-				cg_itemEditMoveGhostOrigin );
-		cg_itemEditMoveValid = qtrue;
-	} else {
-		VectorCopy( end, cg_itemEditMoveGhostOrigin );
-		cg_itemEditMoveValid = qfalse;
-	}
+	skipEnt = cg.snap ? cg.snap->ps.clientNum : -1;
+	cg_itemEditMoveValid = CG_MapEdit_TraceCrosshairSurface( skipEnt, cg_itemEditMoveGhostOrigin,
+			planeNormal );
 }
 
 void CG_ItemEdit_Frame( void ) {
@@ -627,144 +660,55 @@ static void CG_ItemEdit_RestoreTargetHome( void ) {
 	trap_SendClientCommand( va( "itemedit homemove %i", cg_itemEditTarget ) );
 }
 
-static void CG_ItemEdit_DrawIconButton( int x, int y, int size, const float *bg,
-		qhandle_t iconShader ) {
-	vec4_t		border;
-	vec4_t		iconColor;
-	int			inset;
-	int			iconSize;
+static overlayEditMoveUi_t CG_ItemEdit_MoveUi( void ) {
+	overlayEditMoveUi_t	ui;
 
-	CG_FillRect( x, y, size, size, bg );
-	border[0] = 0.75f;
-	border[1] = 0.78f;
-	border[2] = 0.82f;
-	border[3] = 0.65f;
-	CG_DrawRect( x, y, size, size, 1, border );
-
-	if ( !iconShader ) {
-		return;
-	}
-
-	inset = ITEMEDIT_MOVE_ICON_INSET;
-	iconSize = size - inset * 2;
-	iconColor[0] = 1.0f;
-	iconColor[1] = 1.0f;
-	iconColor[2] = 1.0f;
-	iconColor[3] = 1.0f;
-	trap_R_SetColor( iconColor );
-	CG_DrawPic( x + inset, y + inset, iconSize, iconSize, iconShader );
-	trap_R_SetColor( NULL );
-}
-
-static void CG_ItemEdit_MoveBtnRects( int bodyX, int bodyY, int bodyW,
-		int *moveX, int *moveY, int *moveW, int *moveH,
-		int *auxX, int *auxY, int *auxW, int *auxH, qboolean *auxIsCancel ) {
-	int	auxBtnW;
-
-	(void)bodyW;
-
-	*moveY = bodyY + ITEMEDIT_MOVE_ROW_Y;
-	*moveH = ITEMEDIT_MOVE_BTN_H;
-	*moveX = bodyX + ITEMEDIT_PANEL_PAD;
-	*auxW = 0;
-	*auxX = 0;
-	*auxY = *moveY;
-	*auxIsCancel = qfalse;
-
-	*moveW = ITEMEDIT_MOVE_ICON_SZ;
-
-	if ( cg_itemEditMoveActive ) {
-		auxBtnW = ITEMEDIT_MOVE_ICON_SZ;
-		*auxIsCancel = qtrue;
-	} else if ( CG_ItemEdit_TargetRelocated() ) {
-		auxBtnW = ITEMEDIT_MOVE_ICON_SZ;
-	} else {
-		return;
-	}
-
-	*auxW = auxBtnW;
-	*auxH = ITEMEDIT_MOVE_BTN_H;
-	*auxX = *moveX + *moveW + ITEMEDIT_MOVE_GAP;
+	ui.panelPad = ITEMEDIT_PANEL_PAD;
+	ui.rowY = ITEMEDIT_MOVE_ROW_Y;
+	ui.iconSize = ITEMEDIT_MOVE_ICON_SZ;
+	ui.btnH = ITEMEDIT_MOVE_BTN_H;
+	ui.gap = ITEMEDIT_MOVE_GAP;
+	ui.moveActive = cg_itemEditMoveActive;
+	ui.moveValid = cg_itemEditMoveValid;
+	ui.showHomeAux = CG_ItemEdit_TargetRelocated();
+	ui.hoverBtn = cg_itemEditMoveBtnHover;
+	return ui;
 }
 
 static void CG_ItemEdit_DrawMoveRow( int bodyX, int bodyY, int bodyW ) {
-	int			moveX, moveY, moveW, moveH;
-	int			auxX, auxY, auxW, auxH;
-	qboolean	auxIsCancel;
-	vec4_t		moveBtn;
-	vec4_t		auxBtn;
+	overlayEditMoveUi_t	ui;
+	int					moveX, moveY, moveW, moveH;
+	int					auxX, auxY, auxW, auxH;
+	qboolean			auxIsCancel;
 
+	(void)bodyW;
 	if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive ) {
 		return;
 	}
-
-	CG_ItemEdit_MoveBtnRects( bodyX, bodyY, bodyW,
+	ui = CG_ItemEdit_MoveUi();
+	Overlay_EditMoveLayout( bodyX, bodyY, &ui,
 			&moveX, &moveY, &moveW, &moveH,
 			&auxX, &auxY, &auxW, &auxH, &auxIsCancel );
-
-	if ( cg_itemEditMoveActive ) {
-		if ( cg_itemEditMoveValid ) {
-			moveBtn[0] = 0.12f;
-			moveBtn[1] = 0.55f;
-			moveBtn[2] = 0.18f;
-			moveBtn[3] = ( cg_itemEditMoveBtnHover == 0 ) ? 0.95f : 0.82f;
-		} else {
-			moveBtn[0] = 0.14f;
-			moveBtn[1] = 0.28f;
-			moveBtn[2] = 0.16f;
-			moveBtn[3] = ( cg_itemEditMoveBtnHover == 0 ) ? 0.55f : 0.45f;
-		}
-		CG_ItemEdit_DrawIconButton( moveX, moveY, moveW, moveBtn,
-				cgs.media.itemEditIconTick );
-	} else {
-		moveBtn[0] = 0.16f;
-		moveBtn[1] = 0.18f;
-		moveBtn[2] = 0.22f;
-		moveBtn[3] = ( cg_itemEditMoveBtnHover == 0 ) ? 0.92f : 0.78f;
-		CG_ItemEdit_DrawIconButton( moveX, moveY, moveW, moveBtn,
-				cgs.media.itemEditIconMove );
-	}
-
-	if ( auxW > 0 ) {
-		if ( auxIsCancel ) {
-			auxBtn[0] = 0.55f;
-			auxBtn[1] = 0.12f;
-			auxBtn[2] = 0.12f;
-			auxBtn[3] = ( cg_itemEditMoveBtnHover == 1 ) ? 0.95f : 0.82f;
-			CG_ItemEdit_DrawIconButton( auxX, auxY, auxW, auxBtn,
-					cgs.media.itemEditIconCross );
-		} else {
-			auxBtn[0] = 0.14f;
-			auxBtn[1] = 0.22f;
-			auxBtn[2] = 0.38f;
-			auxBtn[3] = ( cg_itemEditMoveBtnHover == 1 ) ? 0.95f : 0.82f;
-			CG_ItemEdit_DrawIconButton( auxX, auxY, auxW, auxBtn,
-					cgs.media.itemEditIconHome );
-		}
-	}
+	Overlay_DrawEditMoveButtons( &ui, moveX, moveY, moveW, moveH,
+			auxX, auxY, auxW, auxH, auxIsCancel );
 }
 
 static qboolean CG_ItemEdit_MoveBtnHit( int which, int mx, int my, int bodyX, int bodyY, int bodyW ) {
-	int			moveX, moveY, moveW, moveH;
-	int			auxX, auxY, auxW, auxH;
-	qboolean	auxIsCancel;
+	overlayEditMoveUi_t	ui;
+	int					moveX, moveY, moveW, moveH;
+	int					auxX, auxY, auxW, auxH;
+	qboolean			auxIsCancel;
 
+	(void)bodyW;
 	if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive ) {
 		return qfalse;
 	}
-
-	CG_ItemEdit_MoveBtnRects( bodyX, bodyY, bodyW,
+	ui = CG_ItemEdit_MoveUi();
+	Overlay_EditMoveLayout( bodyX, bodyY, &ui,
 			&moveX, &moveY, &moveW, &moveH,
 			&auxX, &auxY, &auxW, &auxH, &auxIsCancel );
-	if ( !which ) {
-		return ( mx >= moveX && mx < moveX + moveW && my >= moveY && my < moveY + moveH )
-				? qtrue : qfalse;
-	}
-	if ( !auxW ) {
-		return qfalse;
-	}
-	return ( mx >= auxX && mx < auxX + auxW && my >= auxY && my < auxY + auxH )
-			? qtrue : qfalse;
+	return Overlay_EditMoveBtnHit( &ui, which, mx, my,
+			moveX, moveY, moveW, moveH, auxX, auxY, auxW, auxH );
 }
 
 static void CG_ItemEdit_ClampScroll( void ) {
@@ -1309,29 +1253,20 @@ int CG_ItemEdit_HighlightEntNum( void ) {
 	return cg_itemEditTarget;
 }
 
-void CG_ItemEdit_AddSceneEntities( void ) {
-	gitem_t		*item;
-	refEntity_t	ent;
-	vec3_t		origin;
+static void CG_ItemEdit_AddItemGhostAt( int modelIndex, const vec3_t baseOrigin, int entNum ) {
+	gitem_t			*item;
+	refEntity_t		ent;
+	vec3_t			origin;
 	weaponInfo_t	*wi;
-	float		scale;
-	int			modelIndex;
+	float			scale;
 
-	if ( !cg_itemEditMoveActive || !cg_itemEditMoveValid ) {
-		return;
-	}
-	if ( !cg_itemEditAddActive && cg_itemEditMoveEnt < MAX_CLIENTS ) {
-		return;
-	}
-
-	modelIndex = CG_ItemEdit_MoveItemIndex();
 	if ( modelIndex <= 0 || modelIndex >= bg_numItems ) {
 		return;
 	}
 
 	CG_RegisterItemVisuals( modelIndex );
 	item = &bg_itemlist[modelIndex];
-	VectorCopy( cg_itemEditMoveGhostOrigin, origin );
+	VectorCopy( baseOrigin, origin );
 	scale = 0.005f + modelIndex * 0.00001f;
 	origin[2] += 4.0f + cos( ( cg.time + 1000 ) * scale ) * 4.0f;
 
@@ -1342,7 +1277,6 @@ void CG_ItemEdit_AddSceneEntities( void ) {
 		AxisCopy( cg.autoAxis, ent.axis );
 	}
 
-	wi = NULL;
 	if ( item->giType == IT_WEAPON ) {
 		wi = &cg_weapons[item->giTag];
 		origin[0] -=
@@ -1370,6 +1304,7 @@ void CG_ItemEdit_AddSceneEntities( void ) {
 		ent.shaderRGBA[2] = 255;
 		ent.shaderRGBA[3] = 255;
 		trap_R_AddRefEntityToScene( &ent );
+		CG_ItemEdit_AddItemHighlight( entNum, &ent );
 		return;
 	}
 
@@ -1389,6 +1324,46 @@ void CG_ItemEdit_AddSceneEntities( void ) {
 	ent.shaderRGBA[2] = 255;
 	ent.shaderRGBA[3] = 255;
 	trap_R_AddRefEntityToScene( &ent );
+	CG_ItemEdit_AddItemHighlight( entNum, &ent );
+}
+
+static void CG_ItemEdit_DrawUnspawnedMapPickups( void ) {
+	int			i;
+	centity_t	*cent;
+	vec3_t		origin;
+
+	if ( !CG_ItemEdit_Active() || !cg_itemEditSidebarOpen ) {
+		return;
+	}
+
+	for ( i = MAX_CLIENTS; i < MAX_GENTITIES; i++ ) {
+		cent = &cg_entities[i];
+		if ( !CG_ItemEdit_IsUnspawnedMapPickup( cent ) ) {
+			continue;
+		}
+		if ( cg_itemEditMoveActive && i == cg_itemEditMoveEnt ) {
+			continue;
+		}
+		BG_EvaluateTrajectory( &cent->currentState.pos, cg.time, origin );
+		CG_ItemEdit_AddItemGhostAt( cent->currentState.modelindex, origin, i );
+	}
+}
+
+void CG_ItemEdit_AddSceneEntities( void ) {
+	int		modelIndex;
+
+	CG_ItemEdit_DrawUnspawnedMapPickups();
+
+	if ( !cg_itemEditMoveActive || !cg_itemEditMoveValid ) {
+		return;
+	}
+	if ( !cg_itemEditAddActive && cg_itemEditMoveEnt < MAX_CLIENTS ) {
+		return;
+	}
+
+	modelIndex = CG_ItemEdit_MoveItemIndex();
+	CG_ItemEdit_AddItemGhostAt( modelIndex, cg_itemEditMoveGhostOrigin,
+			cg_itemEditMoveEnt >= MAX_CLIENTS ? cg_itemEditMoveEnt : -1 );
 }
 
 /*
@@ -1717,7 +1692,7 @@ void CG_ItemEdit_Init( void ) {
 	cg_itemEditMoveBtnHover = -1;
 	cg_itemEditActionBtnHover = -1;
 	cg_itemEditDeleteConfirm = qfalse;
-	cg_itemEditVisibleRows = ITEMEDIT_VISIBLE_ROWS;
+	cg_itemEditVisibleRows = CG_ItemEdit_IdealPickerRows();
 	for ( i = 0; i < ITEMEDIT_GRP_COUNT; i++ ) {
 		cg_itemEditGroupOpen[i] = qfalse;
 	}

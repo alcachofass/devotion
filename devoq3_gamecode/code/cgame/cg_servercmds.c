@@ -1776,6 +1776,7 @@ static void CG_MapRestart( void ) {
 
 	CG_ItemTimersBuildRoster();
 	CG_ItemEdit_Init();
+	CG_SpawnEdit_Init();
 
 	cgs.redflag = 0;
 	cgs.blueflag = 0;
@@ -2720,6 +2721,22 @@ static void CG_ServerCommand( void ) {
 		return;
 	}
 
+        if ( !strcmp( cmd, "spawnEditRoster" ) ) {
+            CG_SpawnEdit_ParseRoster();
+            return;
+        }
+        if ( !strcmp( cmd, "spawnEditTeleRoster" ) ) {
+            CG_SpawnEdit_Tele_ParseRoster();
+            return;
+        }
+        if ( !strcmp( cmd, "spawnEditTeleDestRoster" ) ) {
+            CG_SpawnEdit_Tele_ParseDestRoster();
+            return;
+        }
+        if ( !strcmp( cmd, "spawnEditTeleLinks" ) ) {
+            CG_SpawnEdit_Tele_ParseLinks();
+            return;
+        }
         if ( !strcmp( cmd, "spawnPoints" ) ) {
 		CG_ParseSpawnpoints();
 		return;

@@ -3220,6 +3220,7 @@ void ClientBegin( int clientNum ) {
 			trap_SendServerCommand(ent - g_entities, va("timeout %i", level.timeoutEnd));
 		}
 		G_SendSpawnpoints( ent );
+		SpawnEdit_SendRoster( ent );
 	}
 
 	//G_EQPingClientSet(client);

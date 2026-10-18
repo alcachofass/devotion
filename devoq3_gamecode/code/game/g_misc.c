@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // g_misc.c
 
 #include "g_local.h"
+#include "g_spawnedit_tele.h"
 
 
 /*QUAKED func_group (0 0 0) ?
@@ -220,6 +221,8 @@ Now that we don't have teleport destination pads, this is just
 an info_notnull
 */
 void SP_misc_teleporter_dest( gentity_t *ent ) {
+	G_SetOrigin( ent, ent->s.origin );
+	SpawnEdit_Tele_CommitBspDest( ent );
 }
 
 

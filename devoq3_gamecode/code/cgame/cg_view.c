@@ -1431,20 +1431,76 @@ static void CG_PlayBufferedRewardSounds( void ) {
 //=========================================================================
 
 
-void CG_AddSpawnpoints( void ){
-	int i;
+#define SPAWN_MARKER_HIGHLIGHT_ALPHA	0.42f
+#define SPAWN_MARKER_HIGHLIGHT_SCALE	1.1f
+
+static void CG_ScaleSpawnMarkerEnt( refEntity_t *ent, float scale ) {
+	if ( !ent || scale <= 0.0f ) {
+		return;
+	}
+	VectorScale( ent->axis[0], scale, ent->axis[0] );
+	VectorScale( ent->axis[1], scale, ent->axis[1] );
+	VectorScale( ent->axis[2], scale, ent->axis[2] );
+	ent->nonNormalizedAxes = qtrue;
+}
+
+static void CG_DrawSpawnpointMarkerHighlight( refEntity_t *legs, refEntity_t *torso, refEntity_t *head,
+		clientInfo_t *ci ) {
+	refEntity_t		overlay;
+	qhandle_t		shader;
+
+	shader = cgs.media.brightOutlineSmallBlend;
+	if ( !shader ) {
+		shader = cgs.media.occludedOutline;
+	}
+	if ( !shader || !legs || !torso || !head || !ci ) {
+		return;
+	}
+
+	overlay = *legs;
+	CG_ScaleSpawnMarkerEnt( &overlay, SPAWN_MARKER_HIGHLIGHT_SCALE );
+	overlay.customShader = shader;
+	overlay.shaderRGBA[0] = 255;
+	overlay.shaderRGBA[1] = 255;
+	overlay.shaderRGBA[2] = 255;
+	overlay.shaderRGBA[3] = (byte)( 255.0f * SPAWN_MARKER_HIGHLIGHT_ALPHA );
+	trap_R_AddRefEntityToScene( &overlay );
+
+	overlay = *torso;
+	CG_ScaleSpawnMarkerEnt( &overlay, SPAWN_MARKER_HIGHLIGHT_SCALE );
+	overlay.customShader = shader;
+	overlay.shaderRGBA[0] = 255;
+	overlay.shaderRGBA[1] = 255;
+	overlay.shaderRGBA[2] = 255;
+	overlay.shaderRGBA[3] = (byte)( 255.0f * SPAWN_MARKER_HIGHLIGHT_ALPHA );
+	trap_R_AddRefEntityToScene( &overlay );
+
+	overlay = *head;
+	CG_ScaleSpawnMarkerEnt( &overlay, SPAWN_MARKER_HIGHLIGHT_SCALE );
+	overlay.customShader = shader;
+	overlay.shaderRGBA[0] = 255;
+	overlay.shaderRGBA[1] = 255;
+	overlay.shaderRGBA[2] = 255;
+	overlay.shaderRGBA[3] = (byte)( 255.0f * SPAWN_MARKER_HIGHLIGHT_ALPHA );
+	trap_R_AddRefEntityToScene( &overlay );
+}
+
+void CG_DrawSpawnpointMarkers( const spawnpoint_t *pts, const int *entNums, int count, int highlightEnt ) {
+	int				i;
 	refEntity_t		legs;
 	refEntity_t		torso;
 	refEntity_t		head;
 	clientInfo_t	*ci;
+	qboolean		highlight;
 
-	if( !cg_drawSpawnpoints.integer )
+	if ( !pts || count <= 0 || !cg.snap ) {
 		return;
+	}
 
 	ci = &cgs.clientinfo[ cg.snap->ps.clientNum ];
-	memset( &legs, 0, sizeof(legs) );
-	memset( &torso, 0, sizeof(torso) );
-	memset( &head, 0, sizeof(head) );
+	memset( &legs, 0, sizeof( legs ) );
+	memset( &torso, 0, sizeof( torso ) );
+	memset( &head, 0, sizeof( head ) );
 
 	legs.hModel = ci->legsModel;
 	torso.hModel = ci->torsoModel;
@@ -1458,38 +1514,49 @@ void CG_AddSpawnpoints( void ){
 	legs.oldframe = legs.frame;
 	torso.frame = ci->animations[ TORSO_STAND ].firstFrame;
 	torso.oldframe = torso.frame;
-	
-	for( i=0; i < cg.numSpawnpoints; i++ ){
-	    VectorCopy( cg.spawnpoints[i].origin, legs.origin);
-	    AnglesToAxis(cg.spawnpoints[i].angle, legs.axis);
-	    //AnglesToAxis(cg.spawnpoints[i].angle, torso.axis);
-	    //AnglesToAxis(cg.spawnpoints[i].angle, head.axis);
 
-	    legs.shaderRGBA[3] = 255;
-	    if( cg.spawnpoints[i].team == TEAM_BLUE ){
-		    legs.shaderRGBA[0] = 0;
-		    legs.shaderRGBA[1] = 0;
-		    legs.shaderRGBA[2] = 255;
-	    } else if( cg.spawnpoints[i].team == TEAM_RED ){
-		    legs.shaderRGBA[0] = 255;
-		    legs.shaderRGBA[1] = 0;
-		    legs.shaderRGBA[2] = 0;
-	    } else {
-		    legs.shaderRGBA[0] = 255;
-		    legs.shaderRGBA[1] = 255;
-		    legs.shaderRGBA[2] = 255;
-	    }
-	    memcpy(&torso.shaderRGBA, &legs.shaderRGBA, sizeof(legs.shaderRGBA));
-	    memcpy(&head.shaderRGBA, &legs.shaderRGBA, sizeof(legs.shaderRGBA));
+	for ( i = 0; i < count; i++ ) {
+		highlight = ( highlightEnt >= 0 && entNums && entNums[i] == highlightEnt ) ? qtrue : qfalse;
 
-	    trap_R_AddRefEntityToScene(&legs);
-	    AxisClear(torso.axis);
-	    CG_PositionRotatedEntityOnTag( &torso, &legs, ci->legsModel, "tag_torso");
-	    trap_R_AddRefEntityToScene(&torso);
-	    AxisClear(head.axis);
-	    CG_PositionRotatedEntityOnTag( &head, &torso, ci->torsoModel, "tag_head");
-	    trap_R_AddRefEntityToScene(&head);
+		VectorCopy( pts[i].origin, legs.origin );
+		AnglesToAxis( pts[i].angle, legs.axis );
+
+		legs.shaderRGBA[3] = highlight ? 255 : 200;
+		if ( pts[i].team == TEAM_BLUE ) {
+			legs.shaderRGBA[0] = 0;
+			legs.shaderRGBA[1] = 0;
+			legs.shaderRGBA[2] = highlight ? 255 : 200;
+		} else if ( pts[i].team == TEAM_RED ) {
+			legs.shaderRGBA[0] = highlight ? 255 : 200;
+			legs.shaderRGBA[1] = 0;
+			legs.shaderRGBA[2] = 0;
+		} else {
+			legs.shaderRGBA[0] = 255;
+			legs.shaderRGBA[1] = 255;
+			legs.shaderRGBA[2] = 255;
+		}
+		memcpy( &torso.shaderRGBA, &legs.shaderRGBA, sizeof( legs.shaderRGBA ) );
+		memcpy( &head.shaderRGBA, &legs.shaderRGBA, sizeof( legs.shaderRGBA ) );
+
+		trap_R_AddRefEntityToScene( &legs );
+		AxisClear( torso.axis );
+		CG_PositionRotatedEntityOnTag( &torso, &legs, ci->legsModel, "tag_torso" );
+		trap_R_AddRefEntityToScene( &torso );
+		AxisClear( head.axis );
+		CG_PositionRotatedEntityOnTag( &head, &torso, ci->torsoModel, "tag_head" );
+		trap_R_AddRefEntityToScene( &head );
+
+		if ( highlight ) {
+			CG_DrawSpawnpointMarkerHighlight( &legs, &torso, &head, ci );
+		}
 	}
+}
+
+void CG_AddSpawnpoints( void ) {
+	if ( !cg_drawSpawnpoints.integer ) {
+		return;
+	}
+	CG_DrawSpawnpointMarkers( cg.spawnpoints, NULL, cg.numSpawnpoints, -1 );
 }
 
 void CG_SpecZooming(void) {
@@ -1677,6 +1744,7 @@ static void CG_DrawActiveFrameCtx( int serverTime, stereoFrame_t stereoView, qbo
 
 	if ( !cg_passHidden ) {
 		CG_ItemEdit_Frame();
+		CG_SpawnEdit_Frame();
 
 		if ( !cg.renderingThirdPerson && !povActive ) {
 			CG_DamageBlendBlob();
@@ -1698,6 +1766,7 @@ static void CG_DrawActiveFrameCtx( int serverTime, stereoFrame_t stereoView, qbo
 			if ( cg.warmup != 0 ) {
 				CG_AddSpawnpoints();
 			}
+			CG_SpawnEdit_AddSceneEntities();
 		}
 		CG_AddLocalEntities();
 	}

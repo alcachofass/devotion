@@ -223,3 +223,95 @@ void Overlay_DrawerToggle( overlayDrawer_t *d ) {
 		d->animMs = 1;
 	}
 }
+
+void Overlay_DrawIconButton( int x, int y, int size, const float *bg, qhandle_t iconShader ) {
+	vec4_t	border;
+	vec4_t	iconColor;
+	int		inset;
+	int		iconSize;
+
+	CG_FillRect( x, y, size, size, bg );
+	border[0] = 0.75f;
+	border[1] = 0.78f;
+	border[2] = 0.82f;
+	border[3] = 0.65f;
+	CG_DrawRect( x, y, size, size, 1, border );
+	if ( !iconShader ) {
+		return;
+	}
+	inset = OVERLAY_EDIT_ICON_INSET;
+	iconSize = size - inset * 2;
+	iconColor[0] = iconColor[1] = iconColor[2] = iconColor[3] = 1.0f;
+	trap_R_SetColor( iconColor );
+	CG_DrawPic( x + inset, y + inset, iconSize, iconSize, iconShader );
+	trap_R_SetColor( NULL );
+}
+
+void Overlay_EditMoveLayout( int bodyX, int bodyY, const overlayEditMoveUi_t *ui,
+		int *moveX, int *moveY, int *moveW, int *moveH,
+		int *auxX, int *auxY, int *auxW, int *auxH, qboolean *auxIsCancel ) {
+	*moveY = bodyY + ui->rowY;
+	*moveH = ui->btnH;
+	*moveX = bodyX + ui->panelPad;
+	*moveW = ui->iconSize;
+	*auxW = 0;
+	*auxX = 0;
+	*auxY = *moveY;
+	*auxIsCancel = qfalse;
+	if ( ui->moveActive ) {
+		*auxW = ui->iconSize;
+		*auxIsCancel = qtrue;
+	} else if ( ui->showHomeAux ) {
+		*auxW = ui->iconSize;
+	} else {
+		return;
+	}
+	*auxH = ui->btnH;
+	*auxX = *moveX + *moveW + ui->gap;
+}
+
+void Overlay_DrawEditMoveButtons( const overlayEditMoveUi_t *ui,
+		int moveX, int moveY, int moveW, int moveH,
+		int auxX, int auxY, int auxW, int auxH, qboolean auxIsCancel ) {
+	vec4_t	moveBtn;
+	vec4_t	auxBtn;
+
+	if ( ui->moveActive ) {
+		if ( ui->moveValid ) {
+			moveBtn[0] = 0.12f; moveBtn[1] = 0.55f; moveBtn[2] = 0.18f;
+			moveBtn[3] = ( ui->hoverBtn == 0 ) ? 0.95f : 0.82f;
+		} else {
+			moveBtn[0] = 0.14f; moveBtn[1] = 0.28f; moveBtn[2] = 0.16f;
+			moveBtn[3] = ( ui->hoverBtn == 0 ) ? 0.55f : 0.45f;
+		}
+		Overlay_DrawIconButton( moveX, moveY, moveW, moveBtn, cgs.media.itemEditIconTick );
+	} else {
+		moveBtn[0] = 0.16f; moveBtn[1] = 0.18f; moveBtn[2] = 0.22f;
+		moveBtn[3] = ( ui->hoverBtn == 0 ) ? 0.92f : 0.78f;
+		Overlay_DrawIconButton( moveX, moveY, moveW, moveBtn, cgs.media.itemEditIconMove );
+	}
+	if ( auxW > 0 ) {
+		if ( auxIsCancel ) {
+			auxBtn[0] = 0.55f; auxBtn[1] = 0.12f; auxBtn[2] = 0.12f;
+			auxBtn[3] = ( ui->hoverBtn == 1 ) ? 0.95f : 0.82f;
+			Overlay_DrawIconButton( auxX, auxY, auxW, auxBtn, cgs.media.itemEditIconCross );
+		} else {
+			auxBtn[0] = 0.14f; auxBtn[1] = 0.22f; auxBtn[2] = 0.38f;
+			auxBtn[3] = ( ui->hoverBtn == 1 ) ? 0.95f : 0.82f;
+			Overlay_DrawIconButton( auxX, auxY, auxW, auxBtn, cgs.media.itemEditIconHome );
+		}
+	}
+}
+
+qboolean Overlay_EditMoveBtnHit( const overlayEditMoveUi_t *ui, int which, int mx, int my,
+		int moveX, int moveY, int moveW, int moveH,
+		int auxX, int auxY, int auxW, int auxH ) {
+	(void)ui;
+	if ( !which ) {
+		return ( mx >= moveX && mx < moveX + moveW && my >= moveY && my < moveY + moveH );
+	}
+	if ( !auxW ) {
+		return qfalse;
+	}
+	return ( mx >= auxX && mx < auxX + auxW && my >= auxY && my < auxY + auxH );
+}

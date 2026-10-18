@@ -1209,7 +1209,7 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	}
 #endif // WITH_MULTITOURNAMENT
 
-	ItemEdit_LoadLayoutForMap();
+	SessionLayout_LoadForMap();
 
 	// parse the key/value pairs and spawn gentities
 	G_SpawnEntitiesFromString();
@@ -1243,6 +1243,7 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 
 	SaveRegisteredItems();
 	ItemEdit_OnEntitiesSpawned();
+	SpawnEdit_OnEntitiesSpawned();
 
 	trap_Cvar_Set("g_usesRatEngine", va("%i", trap_Cvar_VariableIntegerValue( "sv_ratEngine" )));
         
@@ -1358,6 +1359,7 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	G_PrintDelagMaxTimeshift();
 	CamSession_Init();
 	ItemEdit_Init();
+	SpawnEdit_Init();
 }
 
 
@@ -1371,6 +1373,7 @@ void G_ShutdownGame( int restart ) {
         G_Printf ("==== ShutdownGame ====\n");
 
 	ItemEdit_Shutdown( restart );
+	SpawnEdit_Shutdown( restart );
 
 	if ( level.logFile ) {
 		G_LogPrintf("ShutdownGame:\n" );
@@ -5452,6 +5455,7 @@ void G_RunFrame( int levelTime ) {
 	level.realtime = levelTime;
 
 	ItemEdit_RunDeferredApply();
+	SpawnEdit_RunDeferredApply();
 
 	msec = level.time - level.previousTime;
 
