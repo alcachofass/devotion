@@ -7562,10 +7562,6 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 	qboolean	followHud;
 	qboolean	povHudPush;
 
-	if ( CG_ShowcaseActive() ) {
-		return;
-	}
-
 	if ( CG_LoadFadeViewSizeOverride() >= 0 ) {
 		return;
 	}
@@ -7842,7 +7838,7 @@ void CG_DrawActive( stereoFrame_t stereoView ) {
 	}
 
 	// optionally draw the tournement scoreboard instead
-	if ( !CG_ShowcaseActive() && cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR &&
+	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR &&
 		( cg.snap->ps.pm_flags & PMF_SCOREBOARD ) ) {
 		CG_DrawTourneyScoreboard();
 		CG_DemoControls_Draw();
@@ -7850,7 +7846,7 @@ void CG_DrawActive( stereoFrame_t stereoView ) {
 		return;
 	}
 
-	if ( !CG_ShowcaseActive() && CG_DemoControls_IsSeeking() ) {
+	if ( CG_DemoControls_IsSeeking() ) {
 		if ( !CG_DemoControls_SeekWantsKeyframe() ) {
 			CG_DemoControls_Draw();
 			CG_SpecControls_Draw();
@@ -7870,7 +7866,7 @@ void CG_DrawActive( stereoFrame_t stereoView ) {
 	// clear around the rendered view if sized down
 	CG_TileClear();
 
-	if( !CG_ShowcaseActive() && stereoView != STEREO_CENTER )
+	if( stereoView != STEREO_CENTER )
 		CG_DrawCrosshair3D();
 
 	// draw 3D view

@@ -1543,14 +1543,12 @@ qboolean CG_ConsoleCommand( void ) {
 	}
 
 	if ( !Q_stricmp( cmd, "map" ) || !Q_stricmp( cmd, "devmap" ) || !Q_stricmp( cmd, "spmap" ) ) {
-		trap_Cvar_Set( "cg_showcase", "0" );
 		cg.leaveFadeStart = 0;
 		cg.leaveFadeDisconnect = qfalse;
 		return qfalse;
 	}
 
 	if ( !Q_stricmp( cmd, "connect" ) ) {
-		trap_Cvar_Set( "cg_showcase", "0" );
 		cg.leaveFadeStart = 0;
 		cg.leaveFadeDisconnect = qfalse;
 		return qfalse;

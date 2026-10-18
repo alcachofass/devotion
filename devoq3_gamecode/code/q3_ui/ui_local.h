@@ -288,18 +288,6 @@ extern sfxHandle_t	MenuField_Key( menufield_s* m, int* key );
 //
 extern void MainMenu_Cache( void );
 extern void UI_MainMenu(void);
-extern void UI_MainMenu_StopMusic( void );
-extern void UI_Showcase_Frame( void );
-extern void UI_Showcase_ReleaseForMainMenu( void );
-extern void UI_Showcase_Stop( void );
-extern void UI_Showcase_InitAfterVmReload( void );
-extern void UI_Showcase_PollDismiss( void );
-extern void UI_Showcase_PollRotate( void );
-extern void UI_Showcase_Watchdog( void );
-extern qboolean UI_Showcase_RetainMenu( void );
-extern qboolean UI_Showcase_Playing( void );
-extern qboolean UI_Showcase_IsBusy( void );
-extern void UI_Showcase_DrawBackdrop( void );
 extern void UI_RegisterCvars( void );
 extern void UI_UpdateCvars( void );
 extern void UI_SetDefaultCvar(const char* cvar, const char* value);
@@ -410,7 +398,6 @@ extern void Demos_Cache( void );
 extern void UI_Demo_ParseStop( void );
 extern void UI_Demo_ParseBegin( demoEntry_t *entry );
 extern void UI_Demo_ParseTick( void );
-extern qboolean UI_Demo_PickRandomPlayable( char *filename, int filenameSize );
 
 
 //
@@ -697,7 +684,6 @@ typedef struct {
 	qboolean			debug;
 	qhandle_t			whiteShader;
 	qhandle_t			menuBackShader;
-	qhandle_t			menuBackFadeShader;
 	qhandle_t			menuBackNoLogoShader;
 	qhandle_t			charset;
 	qhandle_t			charsetProp;

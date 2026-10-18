@@ -29,64 +29,6 @@ static void CG_DrawLoadingScreen( stereoFrame_t stereoView ) {
 	CG_DrawViewFades( stereoView );
 }
 
-static qboolean	s_showcaseDismissSent;
-static qboolean	s_showcaseWasDemoPlayback;
-
-/*
-=================
-CG_DismissShowcaseIfNeeded
-
-The menu showcase runs as demo playback with cg_showcase set. Console \map
-and other engine transitions can leave that latch active on a live level.
-Natural demo EOF must not tear down the menu showcase (see ui_showcaseRotate).
-=================
-*/
-static void CG_DismissShowcaseIfNeeded( qboolean demoPlayback ) {
-	{
-		char	suspend[8];
-
-		trap_Cvar_VariableStringBuffer( "ui_showcaseSuspend", suspend, sizeof( suspend ) );
-		if ( suspend[0] && atoi( suspend ) ) {
-			s_showcaseDismissSent = qfalse;
-			s_showcaseWasDemoPlayback = qfalse;
-			if ( cg_showcase.integer ) {
-				trap_Cvar_Set( "cg_showcase", "0" );
-			}
-			return;
-		}
-	}
-
-	if ( demoPlayback ) {
-		s_showcaseDismissSent = qfalse;
-		if ( cg_showcase.integer ) {
-			s_showcaseWasDemoPlayback = qtrue;
-		}
-		return;
-	}
-	if ( !cg_showcase.integer ) {
-		s_showcaseDismissSent = qfalse;
-		s_showcaseWasDemoPlayback = qfalse;
-		return;
-	}
-
-	if ( s_showcaseWasDemoPlayback ) {
-		s_showcaseWasDemoPlayback = qfalse;
-		s_showcaseDismissSent = qfalse;
-		trap_Cvar_Set( "ui_showcaseRotate", "1" );
-		return;
-	}
-
-	trap_Cvar_Set( "cg_showcase", "0" );
-	if ( !s_showcaseDismissSent ) {
-		int		catcher;
-
-		s_showcaseDismissSent = qtrue;
-		trap_Cvar_Set( "ui_showcaseDismiss", "1" );
-		catcher = trap_Key_GetCatcher();
-		trap_Key_SetCatcher( catcher & ~KEYCATCH_UI );
-	}
-}
-
 /*
 =============================================================================
 
@@ -1613,15 +1555,6 @@ static void CG_DrawActiveFrameCtx( int serverTime, stereoFrame_t stereoView, qbo
 
 	// update cvars
 	CG_UpdateCvars();
-	CG_DismissShowcaseIfNeeded( demoPlayback );
-	if ( cg_showcase.integer ) {
-		int catcher;
-
-		/* The engine clears KEYCATCH_UI when a demo starts. Put it back
-		 * before this frame returns so the menu draws over the load. */
-		catcher = trap_Key_GetCatcher();
-		trap_Key_SetCatcher( ( catcher | KEYCATCH_UI ) & ~KEYCATCH_CGAME );
-	}
 	if ( cg_contextNum == CG_CONTEXT_LIVE ) {
 		CG_DemoControls_Frame();
 		CG_SpecControls_Frame();

@@ -1806,9 +1806,7 @@ static void CG_MapRestart( void ) {
 
 	cg.mapRestart = qtrue;
 
-	if ( !cg_showcase.integer ) {
-		CG_StartMusic();
-	}
+	CG_StartMusic();
 
 	trap_S_ClearLoopingSounds(qtrue);
 

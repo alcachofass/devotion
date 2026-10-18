@@ -1511,14 +1511,6 @@ void CG_DemoEvents_Frame( void ) {
 		return;
 	}
 
-	/* Menu showcase duration comes from the filename; skip event scanning. */
-	if ( cg_showcase.integer ) {
-		if ( ev_active ) {
-			CG_DemoEvents_Shutdown();
-		}
-		return;
-	}
-
 	if ( !ev_active && !ev_done ) {
 		DemoEv_Begin();
 	} else if ( !ev_active && ev_done ) {

@@ -867,7 +867,6 @@ static void ArenaServers_Go( void ) {
 			UI_SpecifyPasswordMenu( va( "connect %s\n", servernode->adrstr ), servernode->hostname );
 		}
 		else {
-			UI_Showcase_Stop();
 			UI_Connect_SetPendingHostname( servernode->hostname );
 			trap_Cmd_ExecuteText( EXEC_APPEND, va( "connect %s\n", servernode->adrstr ) );
 		}
@@ -989,10 +988,6 @@ MainMenuServers_CanIssuePings
 */
 static qboolean MainMenuServers_CanIssuePings( void ) {
 	if( uis.realtime - g_mainmenu_scan_start_time < MAINMENU_PING_DEFER_MS ) {
-		return qfalse;
-	}
-
-	if( UI_Showcase_IsBusy() ) {
 		return qfalse;
 	}
 
@@ -3648,7 +3643,6 @@ void UI_MainMenuServers_Connect( menulist_s *list ) {
 	if( servernodeptr->needPass ) {
 		UI_SpecifyPasswordMenu( va( "connect %s\n", servernodeptr->adrstr ), servernodeptr->hostname );
 	} else {
-		UI_Showcase_Stop();
 		UI_Connect_SetPendingHostname( servernodeptr->hostname );
 		trap_Cmd_ExecuteText( EXEC_APPEND, va( "connect %s\n", servernodeptr->adrstr ) );
 	}

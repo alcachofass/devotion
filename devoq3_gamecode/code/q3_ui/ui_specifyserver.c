@@ -82,7 +82,6 @@ static void SpecifyServer_Event( void* ptr, int event )
 				if (s_specifyserver.port.field.buffer[0])
 					Com_sprintf( buff+strlen(buff), 128, ":%s", s_specifyserver.port.field.buffer );
 
-				UI_Showcase_Stop();
 				UI_Connect_ClearPendingHostname();
 				trap_Cmd_ExecuteText( EXEC_APPEND, va( "connect %s\n", buff ) );
 			}

@@ -157,13 +157,6 @@ void CG_DrawInformation( void ) {
 	char		buf[1024];
 	float	color[4];
 
-	if ( cg_showcase.integer ) {
-		color[0] = color[1] = color[2] = 0.0f;
-		color[3] = 1.0f;
-		CG_FillRect( 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, color );
-		return;
-	}
-
 	info = CG_ConfigString( CS_SERVERINFO );
 	sysInfo = CG_ConfigString( CS_SYSTEMINFO );
 
@@ -390,7 +383,7 @@ void CG_BeginLoadFadeIfNeeded( void ) {
 	int elapsed;
 	int seed;
 
-	if ( cg.loadFadeStart || cg.levelShot || cg_showcase.integer ) {
+	if ( cg.loadFadeStart || cg.levelShot ) {
 		return;
 	}
 
@@ -466,7 +459,7 @@ void CG_DrawLoadFade( void ) {
 	float		color[4];
 	qhandle_t	levelshot;
 
-	if ( cg.levelShot || cg_showcase.integer ) {
+	if ( cg.levelShot ) {
 		return;
 	}
 
