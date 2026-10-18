@@ -1415,6 +1415,8 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.itemEditIconCross = trap_R_RegisterShaderNoMip( "gfx/2d/icon_cross" );
 	cgs.media.itemEditIconTick = trap_R_RegisterShaderNoMip( "gfx/2d/icon_tick" );
 	cgs.media.itemEditIconHome = trap_R_RegisterShaderNoMip( "gfx/2d/icon_home" );
+	cgs.media.itemEditIconWall = trap_R_RegisterShaderNoMip( "gfx/2d/icon_wall" );
+	cgs.media.itemEditWallShader = trap_R_RegisterShader( "devoq3_itemedit_wall" );
 
 
 	if ( cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION || 

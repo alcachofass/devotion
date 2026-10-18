@@ -190,3 +190,66 @@ qboolean CG_MapEdit_ResolveBrushPlacement( const vec3_t candidateCentroid, const
 
 	return qfalse;
 }
+
+void CG_MapEdit_DrawLine( const vec3_t a, const vec3_t b, const float rgba[4] ) {
+	localEntity_t	*le;
+	refEntity_t		*re;
+
+	if ( !a || !b || !rgba || !cgs.media.railCoreShader ) {
+		return;
+	}
+	le = CG_AllocLocalEntity();
+	re = &le->refEntity;
+	le->leType = LE_FADE_RGB;
+	le->startTime = cg.time;
+	le->endTime = cg.time + 50;
+	le->lifeRate = 1.0f / 50.0f;
+	re->reType = RT_RAIL_CORE;
+	re->customShader = cgs.media.railCoreShader;
+	re->shaderTime = cg.time / 1000.0f;
+	VectorCopy( a, re->origin );
+	VectorCopy( b, re->oldorigin );
+	re->shaderRGBA[0] = (byte)( rgba[0] * 255.0f );
+	re->shaderRGBA[1] = (byte)( rgba[1] * 255.0f );
+	re->shaderRGBA[2] = (byte)( rgba[2] * 255.0f );
+	re->shaderRGBA[3] = (byte)( rgba[3] * 255.0f );
+	le->color[0] = rgba[0];
+	le->color[1] = rgba[1];
+	le->color[2] = rgba[2];
+	le->color[3] = rgba[3];
+}
+
+void CG_MapEdit_DrawBBoxEx( const vec3_t origin, const vec3_t mins, const vec3_t maxs,
+		const float rgba[4], float expand ) {
+	vec3_t			boundsMin;
+	vec3_t			boundsMax;
+	vec3_t			corners[8];
+	int				i;
+	static const int edges[12][2] = {
+		{0,1},{1,3},{3,2},{2,0},
+		{4,5},{5,7},{7,6},{6,4},
+		{0,4},{1,5},{2,6},{3,7}
+	};
+
+	if ( !origin || !mins || !maxs || !rgba ) {
+		return;
+	}
+	VectorCopy( mins, boundsMin );
+	VectorCopy( maxs, boundsMax );
+	if ( expand > 0.0f ) {
+		boundsMin[0] -= expand;
+		boundsMin[1] -= expand;
+		boundsMin[2] -= expand;
+		boundsMax[0] += expand;
+		boundsMax[1] += expand;
+		boundsMax[2] += expand;
+	}
+	for ( i = 0; i < 8; i++ ) {
+		corners[i][0] = origin[0] + ( ( i & 1 ) ? boundsMax[0] : boundsMin[0] );
+		corners[i][1] = origin[1] + ( ( i & 2 ) ? boundsMax[1] : boundsMin[1] );
+		corners[i][2] = origin[2] + ( ( i & 4 ) ? boundsMax[2] : boundsMin[2] );
+	}
+	for ( i = 0; i < 12; i++ ) {
+		CG_MapEdit_DrawLine( corners[edges[i][0]], corners[edges[i][1]], rgba );
+	}
+}

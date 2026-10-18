@@ -1280,6 +1280,8 @@ typedef struct {
 	qhandle_t	itemEditIconCross;
 	qhandle_t	itemEditIconTick;
 	qhandle_t	itemEditIconHome;
+	qhandle_t	itemEditIconWall;
+	qhandle_t	itemEditWallShader;
 
         // player overlays
         qhandle_t       neutralOverlay;
@@ -2059,6 +2061,8 @@ typedef struct {
 
 void CG_ItemEdit_Init( void );
 void CG_ItemEdit_Frame( void );
+#define CG_ITEMEDIT_WALL_FRAME		57345
+
 qboolean CG_ItemEdit_ModeEnabled( void );
 int CG_ItemEdit_SidebarBodyH( void );
 void CG_ItemEdit_DrawSidebar( int bodyX, int bodyY, int bodyW, int bodyH );
@@ -2072,6 +2076,7 @@ qboolean CG_ItemEdit_ModalOpen( void );
 int CG_ItemEdit_HighlightEntNum( void );
 void CG_ItemEdit_AddItemHighlight( int entNum, refEntity_t *ent );
 void CG_ItemEdit_AddSceneEntities( void );
+void CG_ItemEdit_DrawWallForCent( const centity_t *cent );
 
 void CG_DrawSpawnpointMarkers( const spawnpoint_t *pts, const int *entNums, int count, int highlightEnt );
 void CG_SpawnEdit_Init( void );

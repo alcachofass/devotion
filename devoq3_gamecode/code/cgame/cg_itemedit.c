@@ -11,6 +11,17 @@ Server gate: g_editMode bit 1 (mirrored on CS_ITEMEDIT). UI lives in the spec ov
 #include "../client/keycodes.h"
 
 #define ITEMEDIT_SPEC_BIT		1
+#define ITEMEDIT_WALL_GENERIC1		1
+#define ITEMEDIT_WALL_HALF_WIDTH	64.0f
+#define ITEMEDIT_WALL_HALF_DEPTH	8.0f
+#define ITEMEDIT_WALL_HEIGHT		128.0f
+#define ITEMEDIT_WALL_YAW_SNAP_DEG	90.0f
+#define ITEMEDIT_WALL_MIN_HALF_WIDTH	8.0f
+#define ITEMEDIT_WALL_MAX_HALF_WIDTH	512.0f
+#define ITEMEDIT_WALL_MIN_HEIGHT	16.0f
+#define ITEMEDIT_WALL_MAX_HEIGHT	1024.0f
+#define ITEMEDIT_WALL_RAY_TRACE_DIST	4096.0f
+#define ITEMEDIT_WALL_TEX_WORLD_SIZE	128.0f
 #define ITEMEDIT_ROW_H			14
 #define ITEMEDIT_PANEL_PAD		8
 #define ITEMEDIT_RESET_BTN_H		18
@@ -67,6 +78,8 @@ typedef struct {
 } itemEditRow_t;
 
 static int				cg_itemEditTarget = -1;
+static int				cg_itemEditWallTarget = -1;
+static int				cg_itemEditLastWallTarget = -1;
 static int				cg_itemEditLastTarget = -1;
 static int				cg_itemEditLastItemIndex = -1;
 static itemEditRow_t	cg_itemEditRows[ITEMEDIT_MAX_ROWS];
@@ -91,11 +104,27 @@ static int				cg_itemEditActionBtnHover;
 static qboolean			cg_itemEditDeleteConfirm;
 static int				cg_itemEditVisibleRows;
 static vec3_t			cg_itemEditMoveGhostOrigin;
+static qboolean			cg_itemEditWallActive;
+static qboolean			cg_itemEditWallValid;
+static vec3_t			cg_itemEditWallGhostOrigin;
+static float			cg_itemEditWallGhostYaw;
+static float			cg_itemEditWallGhostHalfWidth;
+static float			cg_itemEditWallGhostHeight;
 
 static int CG_ItemEdit_IdealPickerRows( void );
 static void CG_ItemEdit_ClampScroll( void );
 static void CG_ItemEdit_CancelMove( void );
+static void CG_ItemEdit_CancelWall( void );
 static void CG_ItemEdit_UpdateMoveGhost( void );
+static void CG_ItemEdit_UpdateWallGhost( void );
+static void CG_ItemEdit_StartWall( void );
+static void CG_ItemEdit_ConfirmWall( void );
+static void CG_ItemEdit_DrawWallQuad( const vec3_t bottomCenter, float yaw, float halfWidth,
+		float height, qhandle_t shader, byte alpha );
+static void CG_ItemEdit_DrawWorldWalls( void );
+static qboolean CG_ItemEdit_IsEditWallCent( const centity_t *cent );
+static qboolean CG_ItemEdit_WallBtnHit( int mx, int my, int bodyX, int bodyY, int bodyW );
+static void CG_ItemEdit_DrawWallBtn( int bodyX, int bodyY, int bodyW );
 static void CG_ItemEdit_DrawMoveRow( int bodyX, int bodyY, int bodyW );
 static qboolean CG_ItemEdit_TargetRelocated( void );
 static void CG_ItemEdit_RestoreTargetHome( void );
@@ -407,13 +436,32 @@ static const char *CG_ItemEdit_GroupTitle( itemEditGroup_t group ) {
 	return buf;
 }
 
-static qboolean CG_ItemEdit_HasLineOfSight( const vec3_t viewOrg, const vec3_t itemOrg ) {
+static int CG_ItemEdit_PickWallTarget( void );
+static float CG_ItemEdit_WallHalfWidthFromEs( const entityState_t *es );
+static float CG_ItemEdit_WallHeightFromEs( const entityState_t *es );
+static void CG_ItemEdit_WallAxisBounds( float yawDeg, float halfWidth, float height, vec3_t mins,
+		vec3_t maxs );
+
+static float CG_ItemEdit_LookDotToPoint( const vec3_t point ) {
+	vec3_t		forward;
+	vec3_t		to;
+
+	VectorCopy( cg.refdef.viewaxis[0], forward );
+	VectorSubtract( point, cg.refdef.vieworg, to );
+	if ( VectorNormalize( to ) == 0.0f ) {
+		return -1.0f;
+	}
+	return DotProduct( forward, to );
+}
+
+static qboolean CG_ItemEdit_HasLineOfSight( const vec3_t viewOrg, const vec3_t itemOrg,
+		int skipEnt ) {
 	trace_t	tr;
 	vec3_t	end;
 	float	dist;
 
 	VectorCopy( itemOrg, end );
-	CG_Trace( &tr, viewOrg, vec3_origin, vec3_origin, end, -1, MASK_SOLID );
+	CG_Trace( &tr, viewOrg, vec3_origin, vec3_origin, end, skipEnt, MASK_SOLID );
 	if ( tr.fraction >= 1.0f ) {
 		return qtrue;
 	}
@@ -450,7 +498,7 @@ static int CG_ItemEdit_PickTarget( void ) {
 		if ( dot < ITEMEDIT_LOOK_MIN_DOT ) {
 			continue;
 		}
-		if ( !CG_ItemEdit_HasLineOfSight( cg.refdef.vieworg, itemOrg ) ) {
+		if ( !CG_ItemEdit_HasLineOfSight( cg.refdef.vieworg, itemOrg, -1 ) ) {
 			continue;
 		}
 		if ( dot > bestDot ) {
@@ -468,11 +516,21 @@ static void CG_ItemEdit_UpdateTarget( void ) {
 
 	if ( !CG_ItemEdit_Active() || !cg_itemEditSidebarOpen ) {
 		cg_itemEditTarget = -1;
+		cg_itemEditWallTarget = -1;
 		cg_itemEditLastTarget = -1;
 		cg_itemEditLastItemIndex = -1;
+		cg_itemEditLastWallTarget = -1;
 		if ( cg_itemEditMoveActive ) {
 			CG_ItemEdit_CancelMove();
+		} else {
+			CG_ItemEdit_CancelWall();
 		}
+		return;
+	}
+
+	if ( cg_itemEditWallActive ) {
+		cg_itemEditTarget = -1;
+		cg_itemEditWallTarget = -1;
 		return;
 	}
 
@@ -490,26 +548,71 @@ static void CG_ItemEdit_UpdateTarget( void ) {
 		return;
 	}
 
-	cg_itemEditTarget = -1;
-	bestEnt = CG_ItemEdit_PickTarget();
+	{
+		int		itemEnt;
+		int		wallEnt;
+		float	itemDot;
+		float	wallDot;
+		vec3_t	aim;
 
-	if ( bestEnt >= MAX_CLIENTS ) {
-		itemIndex = cg_entities[bestEnt].currentState.modelindex;
-		if ( bestEnt != cg_itemEditLastTarget || itemIndex != cg_itemEditLastItemIndex ) {
-			cg_itemEditDeleteConfirm = qfalse;
-			cg_itemEditLastTarget = bestEnt;
-			cg_itemEditLastItemIndex = itemIndex;
-			CG_ItemEdit_FocusItem( itemIndex );
-		}
-		cg_itemEditTarget = bestEnt;
-	} else {
-		if ( cg_itemEditLastTarget >= MAX_CLIENTS ) {
-			cg_itemEditDeleteConfirm = qfalse;
-		}
-		cg_itemEditLastTarget = -1;
-		cg_itemEditLastItemIndex = -1;
 		cg_itemEditTarget = -1;
+		cg_itemEditWallTarget = -1;
+		itemEnt = CG_ItemEdit_PickTarget();
+		wallEnt = CG_ItemEdit_PickWallTarget();
+		itemDot = -1.0f;
+		wallDot = -1.0f;
+
+		if ( itemEnt >= MAX_CLIENTS ) {
+			BG_EvaluateTrajectory( &cg_entities[itemEnt].currentState.pos, cg.time, aim );
+			itemDot = CG_ItemEdit_LookDotToPoint( aim );
+		}
+		if ( wallEnt >= MAX_CLIENTS ) {
+			BG_EvaluateTrajectory( &cg_entities[wallEnt].currentState.pos, cg.time, aim );
+			aim[2] += CG_ItemEdit_WallHeightFromEs( &cg_entities[wallEnt].currentState )
+					* 0.5f;
+			wallDot = CG_ItemEdit_LookDotToPoint( aim );
+		}
+
+		if ( itemEnt >= MAX_CLIENTS && wallEnt >= MAX_CLIENTS ) {
+			if ( wallDot > itemDot ) {
+				itemEnt = -1;
+			} else {
+				wallEnt = -1;
+			}
+		}
+
+		if ( wallEnt >= MAX_CLIENTS ) {
+			if ( wallEnt != cg_itemEditLastWallTarget ) {
+				cg_itemEditDeleteConfirm = qfalse;
+				cg_itemEditLastWallTarget = wallEnt;
+			}
+			cg_itemEditWallTarget = wallEnt;
+			cg_itemEditLastTarget = -1;
+			cg_itemEditLastItemIndex = -1;
+		} else if ( itemEnt >= MAX_CLIENTS ) {
+			itemIndex = cg_entities[itemEnt].currentState.modelindex;
+			if ( itemEnt != cg_itemEditLastTarget || itemIndex != cg_itemEditLastItemIndex ) {
+				cg_itemEditDeleteConfirm = qfalse;
+				cg_itemEditLastTarget = itemEnt;
+				cg_itemEditLastItemIndex = itemIndex;
+				CG_ItemEdit_FocusItem( itemIndex );
+			}
+			cg_itemEditTarget = itemEnt;
+			cg_itemEditLastWallTarget = -1;
+		} else {
+			if ( cg_itemEditLastTarget >= MAX_CLIENTS || cg_itemEditLastWallTarget >= MAX_CLIENTS ) {
+				cg_itemEditDeleteConfirm = qfalse;
+			}
+			cg_itemEditLastTarget = -1;
+			cg_itemEditLastItemIndex = -1;
+			cg_itemEditLastWallTarget = -1;
+		}
 	}
+}
+
+static void CG_ItemEdit_CancelWall( void ) {
+	cg_itemEditWallActive = qfalse;
+	cg_itemEditWallValid = qfalse;
 }
 
 static void CG_ItemEdit_CancelMove( void ) {
@@ -519,6 +622,429 @@ static void CG_ItemEdit_CancelMove( void ) {
 	cg_itemEditMoveEnt = -1;
 	cg_itemEditMoveItemIndex = -1;
 	cg_itemEditMoveBtnHover = -1;
+	CG_ItemEdit_CancelWall();
+}
+
+static qboolean CG_ItemEdit_IsEditWallCent( const centity_t *cent ) {
+	const entityState_t	*es;
+
+	if ( !cent || !cent->currentValid ) {
+		return qfalse;
+	}
+	es = &cent->currentState;
+	if ( es->eType != ET_GENERAL || es->frame != CG_ITEMEDIT_WALL_FRAME ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+static qboolean CG_ItemEdit_TraceRayToWall( const centity_t *cent, const vec3_t start,
+		const vec3_t end, trace_t *tr ) {
+	vec3_t			origin;
+	vec3_t			mins;
+	vec3_t			maxs;
+	vec3_t			angles;
+	float			yaw;
+	float			halfWidth;
+	float			height;
+	clipHandle_t	cmodel;
+
+	if ( !cent || !start || !end || !tr || !CG_ItemEdit_IsEditWallCent( cent ) ) {
+		return qfalse;
+	}
+
+	BG_EvaluateTrajectory( &cent->currentState.pos, cg.time, origin );
+	yaw = cent->currentState.apos.trBase[1];
+	if ( cent->currentState.apos.trType != TR_STATIONARY ) {
+		yaw = cent->lerpAngles[1];
+	}
+	halfWidth = CG_ItemEdit_WallHalfWidthFromEs( &cent->currentState );
+	height = CG_ItemEdit_WallHeightFromEs( &cent->currentState );
+	CG_ItemEdit_WallAxisBounds( yaw, halfWidth, height, mins, maxs );
+	cmodel = trap_CM_TempBoxModel( mins, maxs );
+	VectorClear( angles );
+	trap_CM_TransformedBoxTrace( tr, start, end, vec3_origin, vec3_origin, cmodel,
+			MASK_SOLID, origin, angles );
+	return ( tr->fraction < 1.0f || tr->startsolid ) ? qtrue : qfalse;
+}
+
+static int CG_ItemEdit_PickWallCrosshair( void ) {
+	trace_t		tr;
+	vec3_t		end;
+	int			i;
+	int			bestEnt;
+	float		bestFrac;
+	centity_t	*cent;
+
+	VectorMA( cg.refdef.vieworg, CG_MAPEDIT_CROSSHAIR_TRACE_DIST, cg.refdef.viewaxis[0], end );
+	bestEnt = -1;
+	bestFrac = 2.0f;
+	for ( i = MAX_CLIENTS; i < MAX_GENTITIES; i++ ) {
+		cent = &cg_entities[i];
+		if ( !CG_ItemEdit_TraceRayToWall( cent, cg.refdef.vieworg, end, &tr ) ) {
+			continue;
+		}
+		if ( tr.fraction < bestFrac ) {
+			bestFrac = tr.fraction;
+			bestEnt = i;
+		}
+	}
+	return bestEnt;
+}
+
+static int CG_ItemEdit_PickWallTarget( void ) {
+	int			i;
+	float		bestDot;
+	float		dot;
+	int			lookEnt;
+	int			crossEnt;
+	vec3_t		aim;
+	centity_t	*cent;
+
+	crossEnt = CG_ItemEdit_PickWallCrosshair();
+	if ( crossEnt >= MAX_CLIENTS ) {
+		return crossEnt;
+	}
+
+	lookEnt = -1;
+	bestDot = ITEMEDIT_LOOK_MIN_DOT;
+	for ( i = MAX_CLIENTS; i < MAX_GENTITIES; i++ ) {
+		cent = &cg_entities[i];
+		if ( !CG_ItemEdit_IsEditWallCent( cent ) ) {
+			continue;
+		}
+		BG_EvaluateTrajectory( &cent->currentState.pos, cg.time, aim );
+		aim[2] += CG_ItemEdit_WallHeightFromEs( &cent->currentState ) * 0.5f;
+		dot = CG_ItemEdit_LookDotToPoint( aim );
+		if ( dot < ITEMEDIT_LOOK_MIN_DOT ) {
+			continue;
+		}
+		if ( !CG_ItemEdit_HasLineOfSight( cg.refdef.vieworg, aim, i ) ) {
+			continue;
+		}
+		if ( dot > bestDot ) {
+			bestDot = dot;
+			lookEnt = i;
+		}
+	}
+	return lookEnt;
+}
+
+static float CG_ItemEdit_SnapWallYaw( float yaw ) {
+	int	steps;
+
+	yaw = AngleNormalize360( yaw );
+	steps = (int)(( yaw + ( ITEMEDIT_WALL_YAW_SNAP_DEG * 0.5f ) ) / ITEMEDIT_WALL_YAW_SNAP_DEG);
+	steps %= 4;
+	if ( steps < 0 ) {
+		steps += 4;
+	}
+	return steps * ITEMEDIT_WALL_YAW_SNAP_DEG;
+}
+
+static void CG_ItemEdit_WallBasis( float yaw, vec3_t right ) {
+	vec3_t	forward;
+	vec3_t	angles;
+
+	angles[0] = 0.0f;
+	angles[1] = yaw;
+	angles[2] = 0.0f;
+	AngleVectors( angles, forward, right, NULL );
+	right[2] = 0.0f;
+	if ( VectorNormalize( right ) < 0.001f ) {
+		VectorSet( right, 1.0f, 0.0f, 0.0f );
+	}
+}
+
+static float CG_ItemEdit_ClampWallHalfWidth( float halfWidth ) {
+	if ( halfWidth < ITEMEDIT_WALL_MIN_HALF_WIDTH ) {
+		return ITEMEDIT_WALL_MIN_HALF_WIDTH;
+	}
+	if ( halfWidth > ITEMEDIT_WALL_MAX_HALF_WIDTH ) {
+		return ITEMEDIT_WALL_MAX_HALF_WIDTH;
+	}
+	return halfWidth;
+}
+
+static float CG_ItemEdit_ClampWallHeight( float height ) {
+	if ( height < ITEMEDIT_WALL_MIN_HEIGHT ) {
+		return ITEMEDIT_WALL_MIN_HEIGHT;
+	}
+	if ( height > ITEMEDIT_WALL_MAX_HEIGHT ) {
+		return ITEMEDIT_WALL_MAX_HEIGHT;
+	}
+	return height;
+}
+
+static float CG_ItemEdit_WallHalfWidthFromEs( const entityState_t *es ) {
+	int		packed;
+
+	if ( !es || es->time2 <= 0 ) {
+		return ITEMEDIT_WALL_HALF_WIDTH;
+	}
+	packed = es->time2;
+	return (float)(( packed >> 16 ) & 0xFFFF);
+}
+
+static float CG_ItemEdit_WallHeightFromEs( const entityState_t *es ) {
+	int		packed;
+	int		height;
+
+	if ( !es || es->time2 <= 0 ) {
+		return ITEMEDIT_WALL_HEIGHT;
+	}
+	packed = es->time2;
+	height = packed & 0xFFFF;
+	if ( height <= 0 ) {
+		return ITEMEDIT_WALL_HEIGHT;
+	}
+	return (float)height;
+}
+
+static void CG_ItemEdit_DrawWallQuad( const vec3_t bottomCenter, float yaw, float halfWidth,
+		float height, qhandle_t shader, byte alpha ) {
+	polyVert_t	verts[4];
+	vec3_t		right;
+	vec3_t		bl, br, tl, tr;
+	int			i;
+
+	if ( !bottomCenter || !shader ) {
+		return;
+	}
+
+	halfWidth = CG_ItemEdit_ClampWallHalfWidth( halfWidth );
+	height = CG_ItemEdit_ClampWallHeight( height );
+	CG_ItemEdit_WallBasis( yaw, right );
+	VectorMA( bottomCenter, -halfWidth, right, bl );
+	VectorMA( bottomCenter, halfWidth, right, br );
+	VectorCopy( bl, tl );
+	VectorCopy( br, tr );
+	tl[2] += height;
+	tr[2] += height;
+
+	VectorCopy( bl, verts[0].xyz );
+	verts[0].st[0] = 0.0f;
+	verts[0].st[1] = height / ITEMEDIT_WALL_TEX_WORLD_SIZE;
+	VectorCopy( br, verts[1].xyz );
+	verts[1].st[0] = ( halfWidth * 2.0f ) / ITEMEDIT_WALL_TEX_WORLD_SIZE;
+	verts[1].st[1] = height / ITEMEDIT_WALL_TEX_WORLD_SIZE;
+	VectorCopy( tr, verts[2].xyz );
+	verts[2].st[0] = ( halfWidth * 2.0f ) / ITEMEDIT_WALL_TEX_WORLD_SIZE;
+	verts[2].st[1] = 0.0f;
+	VectorCopy( tl, verts[3].xyz );
+	verts[3].st[0] = 0.0f;
+	verts[3].st[1] = 0.0f;
+	for ( i = 0; i < 4; i++ ) {
+		verts[i].modulate[0] = 255;
+		verts[i].modulate[1] = 255;
+		verts[i].modulate[2] = 255;
+		verts[i].modulate[3] = alpha;
+	}
+	trap_R_AddPolyToScene( shader, 4, verts );
+}
+
+static qhandle_t CG_ItemEdit_WallShader( void ) {
+	if ( cgs.media.itemEditWallShader ) {
+		return cgs.media.itemEditWallShader;
+	}
+	return cgs.media.spawnPointShader;
+}
+
+static void CG_ItemEdit_WallAxisBounds( float yawDeg, float halfWidth, float height, vec3_t mins,
+		vec3_t maxs ) {
+	vec3_t		forward;
+	vec3_t		right;
+	vec3_t		angles;
+	float		extX;
+	float		extY;
+
+	halfWidth = CG_ItemEdit_ClampWallHalfWidth( halfWidth );
+	height = CG_ItemEdit_ClampWallHeight( height );
+	yawDeg = CG_ItemEdit_SnapWallYaw( yawDeg );
+	angles[0] = 0.0f;
+	angles[1] = yawDeg;
+	angles[2] = 0.0f;
+	AngleVectors( angles, forward, right, NULL );
+	right[2] = 0.0f;
+	forward[2] = 0.0f;
+	VectorNormalize( right );
+	VectorNormalize( forward );
+	extX = fabs( right[0] ) * halfWidth + fabs( forward[0] ) * ITEMEDIT_WALL_HALF_DEPTH;
+	extY = fabs( right[1] ) * halfWidth + fabs( forward[1] ) * ITEMEDIT_WALL_HALF_DEPTH;
+	VectorSet( mins, -extX, -extY, 0.0f );
+	VectorSet( maxs, extX, extY, height );
+}
+
+static void CG_ItemEdit_DrawWallSolidBBox( const vec3_t origin, float yaw, float halfWidth,
+		float height, const float rgba[4], float expand ) {
+	vec3_t	mins;
+	vec3_t	maxs;
+
+	if ( !origin || !rgba ) {
+		return;
+	}
+	CG_ItemEdit_WallAxisBounds( yaw, halfWidth, height, mins, maxs );
+	CG_MapEdit_DrawBBoxEx( origin, mins, maxs, rgba, expand );
+}
+
+static float CG_ItemEdit_WallRayLength( const vec3_t start, const vec3_t dir, int skipEnt ) {
+	trace_t	tr;
+	vec3_t	end;
+
+	VectorMA( start, ITEMEDIT_WALL_RAY_TRACE_DIST, dir, end );
+	CG_Trace( &tr, start, vec3_origin, vec3_origin, end, skipEnt, MASK_SOLID );
+	if ( tr.fraction >= 1.0f ) {
+		return ITEMEDIT_WALL_RAY_TRACE_DIST;
+	}
+	return tr.fraction * ITEMEDIT_WALL_RAY_TRACE_DIST;
+}
+
+static void CG_ItemEdit_WallSizeFromRays( vec3_t bottomCenter, float yaw, int skipEnt,
+		float *halfWidth, float *height ) {
+	vec3_t		right;
+	vec3_t		rightNeg;
+	vec3_t		angles;
+	vec3_t		start;
+	vec3_t		mid;
+	float		upDist;
+	float		widthPos;
+	float		widthNeg;
+	float		totalHalfWidth;
+	static const vec3_t	up = { 0.0f, 0.0f, 1.0f };
+
+	if ( !bottomCenter || !halfWidth || !height ) {
+		return;
+	}
+
+	yaw = CG_ItemEdit_SnapWallYaw( yaw );
+	angles[0] = 0.0f;
+	angles[1] = yaw;
+	angles[2] = 0.0f;
+	AngleVectors( angles, NULL, right, NULL );
+	right[2] = 0.0f;
+	VectorNormalize( right );
+
+	VectorCopy( bottomCenter, start );
+	VectorMA( start, 0.125f, up, start );
+	upDist = CG_ItemEdit_WallRayLength( start, up, skipEnt );
+	*height = CG_ItemEdit_ClampWallHeight( upDist );
+
+	VectorCopy( bottomCenter, mid );
+	mid[2] += *height * 0.5f;
+	widthPos = CG_ItemEdit_WallRayLength( mid, right, skipEnt );
+	VectorScale( right, -1.0f, rightNeg );
+	widthNeg = CG_ItemEdit_WallRayLength( mid, rightNeg, skipEnt );
+
+	totalHalfWidth = ( widthPos + widthNeg ) * 0.5f;
+	VectorMA( bottomCenter, ( widthPos - widthNeg ) * 0.5f, right, bottomCenter );
+	*halfWidth = CG_ItemEdit_ClampWallHalfWidth( totalHalfWidth );
+}
+
+void CG_ItemEdit_DrawWallForCent( const centity_t *cent ) {
+	vec3_t		origin;
+	float		yaw;
+	float		halfWidth;
+	float		height;
+	qhandle_t	shader;
+
+	if ( !CG_ItemEdit_ModeEnabled() ) {
+		return;
+	}
+	if ( !CG_ItemEdit_IsEditWallCent( cent ) ) {
+		return;
+	}
+	shader = CG_ItemEdit_WallShader();
+	if ( !shader ) {
+		return;
+	}
+	BG_EvaluateTrajectory( &cent->currentState.pos, cg.time, origin );
+	yaw = cent->currentState.apos.trBase[1];
+	if ( cent->currentState.apos.trType != TR_STATIONARY ) {
+		yaw = cent->lerpAngles[1];
+	}
+	halfWidth = CG_ItemEdit_WallHalfWidthFromEs( &cent->currentState );
+	height = CG_ItemEdit_WallHeightFromEs( &cent->currentState );
+	if ( CG_ItemEdit_Active() && cg_itemEditSidebarOpen
+			&& cent->currentState.number == CG_ItemEdit_HighlightEntNum() ) {
+		CG_ItemEdit_DrawWallQuad( origin, yaw, halfWidth, height, shader, 255 );
+	} else {
+		CG_ItemEdit_DrawWallQuad( origin, yaw, halfWidth, height, shader, 200 );
+	}
+	if ( CG_ItemEdit_Active() && cg_itemEditSidebarOpen ) {
+		static const float	boxDim[4] = { 0.42f, 0.44f, 0.48f, 0.22f };
+		static const float	boxSel[4] = { 1.0f, 0.88f, 0.12f, 1.0f };
+
+		if ( cent->currentState.number == CG_ItemEdit_HighlightEntNum() ) {
+			CG_ItemEdit_DrawWallSolidBBox( origin, yaw, halfWidth, height, boxSel, 2.0f );
+			CG_ItemEdit_DrawWallSolidBBox( origin, yaw, halfWidth, height, boxSel, 4.0f );
+		} else {
+			CG_ItemEdit_DrawWallSolidBBox( origin, yaw, halfWidth, height, boxDim, 0.0f );
+		}
+	}
+}
+
+static qboolean CG_ItemEdit_TraceWallPlacement( int skipEnt, vec3_t surfaceOrigin ) {
+	trace_t	tr;
+	vec3_t	start;
+	vec3_t	end;
+
+	VectorCopy( cg.refdef.vieworg, start );
+	VectorMA( start, CG_MAPEDIT_CROSSHAIR_TRACE_DIST, cg.refdef.viewaxis[0], end );
+	CG_Trace( &tr, start, vec3_origin, vec3_origin, end, skipEnt, MASK_SOLID );
+	if ( tr.fraction < 1.0f ) {
+		VectorCopy( tr.endpos, surfaceOrigin );
+		return qtrue;
+	}
+	VectorCopy( end, surfaceOrigin );
+	return qfalse;
+}
+
+static void CG_ItemEdit_UpdateWallGhost( void ) {
+	int		skipEnt;
+
+	if ( !cg_itemEditWallActive ) {
+		return;
+	}
+
+	skipEnt = cg.snap ? cg.snap->ps.clientNum : -1;
+	cg_itemEditWallValid = CG_ItemEdit_TraceWallPlacement( skipEnt, cg_itemEditWallGhostOrigin );
+	cg_itemEditWallGhostYaw = CG_ItemEdit_SnapWallYaw( cg.refdefViewAngles[1] );
+	if ( cg_itemEditWallValid ) {
+		CG_ItemEdit_WallSizeFromRays( cg_itemEditWallGhostOrigin, cg_itemEditWallGhostYaw, skipEnt,
+				&cg_itemEditWallGhostHalfWidth, &cg_itemEditWallGhostHeight );
+	} else {
+		cg_itemEditWallGhostHalfWidth = ITEMEDIT_WALL_HALF_WIDTH;
+		cg_itemEditWallGhostHeight = ITEMEDIT_WALL_HEIGHT;
+	}
+}
+
+static void CG_ItemEdit_StartWall( void ) {
+	if ( cg_itemEditTarget >= MAX_CLIENTS || cg_itemEditWallTarget >= MAX_CLIENTS ) {
+		return;
+	}
+	cg_itemEditWallTarget = -1;
+	cg_itemEditMoveActive = qfalse;
+	cg_itemEditAddActive = qfalse;
+	cg_itemEditMoveValid = qfalse;
+	cg_itemEditMoveEnt = -1;
+	cg_itemEditMoveItemIndex = -1;
+	cg_itemEditWallActive = qtrue;
+	cg_itemEditWallValid = qfalse;
+	CG_ItemEdit_UpdateWallGhost();
+}
+
+static void CG_ItemEdit_ConfirmWall( void ) {
+	if ( !cg_itemEditWallActive || !cg_itemEditWallValid ) {
+		return;
+	}
+	trap_SendClientCommand( va( "itemedit walladd %.3f %.3f %.3f %.3f %.3f %.3f",
+			cg_itemEditWallGhostOrigin[0],
+			cg_itemEditWallGhostOrigin[1],
+			cg_itemEditWallGhostOrigin[2],
+			cg_itemEditWallGhostYaw,
+			cg_itemEditWallGhostHalfWidth,
+			cg_itemEditWallGhostHeight ) );
+	CG_ItemEdit_CancelWall();
 }
 
 static int CG_ItemEdit_MoveItemIndex( void ) {
@@ -539,6 +1065,7 @@ static int CG_ItemEdit_MoveItemIndex( void ) {
 static void CG_ItemEdit_StartMove( void ) {
 	centity_t	*cent;
 
+	CG_ItemEdit_CancelWall();
 	if ( cg_itemEditTarget < MAX_CLIENTS ) {
 		return;
 	}
@@ -599,6 +1126,7 @@ static int CG_ItemEdit_SelItemIndex( void ) {
 static void CG_ItemEdit_StartAdd( void ) {
 	int	itemIndex;
 
+	CG_ItemEdit_CancelWall();
 	if ( cg_itemEditTarget >= MAX_CLIENTS ) {
 		return;
 	}
@@ -630,6 +1158,7 @@ static void CG_ItemEdit_UpdateMoveGhost( void ) {
 void CG_ItemEdit_Frame( void ) {
 	CG_ItemEdit_UpdateTarget();
 	CG_ItemEdit_UpdateMoveGhost();
+	CG_ItemEdit_UpdateWallGhost();
 }
 
 static qboolean CG_ItemEdit_TargetRelocated( void ) {
@@ -675,6 +1204,36 @@ static overlayEditMoveUi_t CG_ItemEdit_MoveUi( void ) {
 	return ui;
 }
 
+static void CG_ItemEdit_DrawWallBtn( int bodyX, int bodyY, int bodyW ) {
+	vec4_t	btn;
+	int		x, y, size;
+	qhandle_t	icon;
+
+	(void)bodyW;
+	size = ITEMEDIT_MOVE_ICON_SZ;
+	x = bodyX + ITEMEDIT_PANEL_PAD;
+	y = bodyY + ITEMEDIT_MOVE_ROW_Y;
+	btn[0] = 0.16f;
+	btn[1] = 0.18f;
+	btn[2] = 0.22f;
+	btn[3] = ( cg_itemEditMoveBtnHover == 0 ) ? 0.92f : 0.78f;
+	icon = cgs.media.itemEditIconWall;
+	if ( !icon ) {
+		icon = cgs.media.itemEditIconMove;
+	}
+	Overlay_DrawIconButton( x, y, size, btn, icon );
+}
+
+static qboolean CG_ItemEdit_WallBtnHit( int mx, int my, int bodyX, int bodyY, int bodyW ) {
+	int	x, y, size;
+
+	(void)bodyW;
+	size = ITEMEDIT_MOVE_ICON_SZ;
+	x = bodyX + ITEMEDIT_PANEL_PAD;
+	y = bodyY + ITEMEDIT_MOVE_ROW_Y;
+	return ( mx >= x && mx < x + size && my >= y && my < y + size ) ? qtrue : qfalse;
+}
+
 static void CG_ItemEdit_DrawMoveRow( int bodyX, int bodyY, int bodyW ) {
 	overlayEditMoveUi_t	ui;
 	int					moveX, moveY, moveW, moveH;
@@ -682,7 +1241,22 @@ static void CG_ItemEdit_DrawMoveRow( int bodyX, int bodyY, int bodyW ) {
 	qboolean			auxIsCancel;
 
 	(void)bodyW;
+	if ( cg_itemEditWallActive ) {
+		ui = CG_ItemEdit_MoveUi();
+		ui.moveActive = qtrue;
+		ui.moveValid = cg_itemEditWallValid;
+		Overlay_EditMoveLayout( bodyX, bodyY, &ui,
+				&moveX, &moveY, &moveW, &moveH,
+				&auxX, &auxY, &auxW, &auxH, &auxIsCancel );
+		Overlay_DrawEditMoveButtons( &ui, moveX, moveY, moveW, moveH,
+				auxX, auxY, auxW, auxH, auxIsCancel );
+		return;
+	}
+	if ( cg_itemEditWallTarget >= MAX_CLIENTS ) {
+		return;
+	}
 	if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive ) {
+		CG_ItemEdit_DrawWallBtn( bodyX, bodyY, bodyW );
 		return;
 	}
 	ui = CG_ItemEdit_MoveUi();
@@ -700,7 +1274,23 @@ static qboolean CG_ItemEdit_MoveBtnHit( int which, int mx, int my, int bodyX, in
 	qboolean			auxIsCancel;
 
 	(void)bodyW;
+	if ( cg_itemEditWallActive ) {
+		ui = CG_ItemEdit_MoveUi();
+		ui.moveActive = qtrue;
+		ui.moveValid = cg_itemEditWallValid;
+		Overlay_EditMoveLayout( bodyX, bodyY, &ui,
+				&moveX, &moveY, &moveW, &moveH,
+				&auxX, &auxY, &auxW, &auxH, &auxIsCancel );
+		return Overlay_EditMoveBtnHit( &ui, which, mx, my,
+				moveX, moveY, moveW, moveH, auxX, auxY, auxW, auxH );
+	}
+	if ( cg_itemEditWallTarget >= MAX_CLIENTS ) {
+		return qfalse;
+	}
 	if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive ) {
+		if ( which == 0 ) {
+			return CG_ItemEdit_WallBtnHit( mx, my, bodyX, bodyY, bodyW );
+		}
 		return qfalse;
 	}
 	ui = CG_ItemEdit_MoveUi();
@@ -820,6 +1410,33 @@ static void CG_ItemEdit_DrawMovePinnedHeader( int bodyX, int bodyY, int itemInde
 			"(out of view)", muted, qtrue, qtrue, 6, 10, 0 );
 }
 
+static void CG_ItemEdit_DrawWallHeader( int bodyX, int bodyY, const centity_t *cent ) {
+	char		line[96];
+	vec4_t		valueColor;
+	vec4_t		muted;
+	float		halfWidth;
+	float		height;
+
+	valueColor[0] = 0.9f;
+	valueColor[1] = 0.92f;
+	valueColor[2] = 1.0f;
+	valueColor[3] = 1.0f;
+	muted[0] = 0.55f;
+	muted[1] = 0.58f;
+	muted[2] = 0.62f;
+	muted[3] = 1.0f;
+
+	halfWidth = CG_ItemEdit_WallHalfWidthFromEs( &cent->currentState );
+	height = CG_ItemEdit_WallHeightFromEs( &cent->currentState );
+	Com_sprintf( line, sizeof( line ), "Edit Wall" );
+	CG_DrawStringExt( bodyX + ITEMEDIT_PANEL_PAD, bodyY + ITEMEDIT_HDR_LINE1_Y,
+			line, valueColor, qtrue, qtrue, 6, 10, 0 );
+	Com_sprintf( line, sizeof( line ), "Size: %.0f x %.0f x %.0f",
+			halfWidth * 2.0f, ITEMEDIT_WALL_HALF_DEPTH * 2.0f, height );
+	CG_DrawStringExt( bodyX + ITEMEDIT_PANEL_PAD, bodyY + ITEMEDIT_HDR_LINE2_Y,
+			line, muted, qtrue, qtrue, 6, 10, 0 );
+}
+
 static void CG_ItemEdit_DrawPickupHeader( int bodyX, int bodyY, int bodyW, const centity_t *cent ) {
 	gitem_t		*currentItem;
 	gitem_t		*defaultItem;
@@ -920,7 +1537,7 @@ static void CG_ItemEdit_DrawActionButton( int bodyX, int bodyY, int bodyW, int b
 	}
 
 	CG_ItemEdit_ActionBtnRect( bodyX, bodyY, bodyW, bodyH, &x, &y, &w, &h );
-	if ( cg_itemEditTarget >= MAX_CLIENTS ) {
+	if ( cg_itemEditTarget >= MAX_CLIENTS || cg_itemEditWallTarget >= MAX_CLIENTS ) {
 		if ( cg_itemEditDeleteConfirm ) {
 			btn[0] = 0.45f;
 			btn[1] = 0.12f;
@@ -1037,7 +1654,8 @@ static void CG_ItemEdit_DrawItemPicker( int bodyX, int bodyY, int bodyW, int bod
 void CG_ItemEdit_DrawSidebar( int bodyX, int bodyY, int bodyW, int bodyH ) {
 	vec4_t		muted;
 	centity_t	*cent;
-	qboolean	hasTarget;
+	qboolean	hasItemTarget;
+	qboolean	hasWallTarget;
 
 	muted[0] = 0.65f;
 	muted[1] = 0.68f;
@@ -1046,8 +1664,16 @@ void CG_ItemEdit_DrawSidebar( int bodyX, int bodyY, int bodyW, int bodyH ) {
 
 	CG_ItemEdit_SetVisibleRowsFromBodyH( bodyH );
 
-	hasTarget = ( cg_itemEditTarget >= MAX_CLIENTS ) ? qtrue : qfalse;
-	if ( hasTarget ) {
+	hasItemTarget = ( cg_itemEditTarget >= MAX_CLIENTS ) ? qtrue : qfalse;
+	hasWallTarget = ( cg_itemEditWallTarget >= MAX_CLIENTS ) ? qtrue : qfalse;
+	if ( hasWallTarget ) {
+		cent = &cg_entities[cg_itemEditWallTarget];
+		if ( !CG_ItemEdit_IsEditWallCent( cent ) ) {
+			hasWallTarget = qfalse;
+			cg_itemEditWallTarget = -1;
+		}
+	}
+	if ( hasItemTarget ) {
 		cent = &cg_entities[cg_itemEditTarget];
 		if ( !CG_ItemEdit_EntityLive( cent ) ) {
 			if ( cg_itemEditMoveActive && cg_itemEditTarget == cg_itemEditMoveEnt ) {
@@ -1060,22 +1686,28 @@ void CG_ItemEdit_DrawSidebar( int bodyX, int bodyY, int bodyW, int bodyH ) {
 				CG_ItemEdit_DrawResetFooter( bodyX, bodyY, bodyW, bodyH );
 				return;
 			}
-			hasTarget = qfalse;
+			hasItemTarget = qfalse;
 			cg_itemEditTarget = -1;
 		}
 	}
 
 	CG_ItemEdit_RebuildRows();
 
-	if ( hasTarget ) {
+	if ( hasWallTarget ) {
+		cent = &cg_entities[cg_itemEditWallTarget];
+		CG_ItemEdit_DrawWallHeader( bodyX, bodyY, cent );
+	} else if ( hasItemTarget ) {
 		CG_ItemEdit_DrawPickupHeader( bodyX, bodyY, bodyW, cent );
 		CG_ItemEdit_DrawMoveRow( bodyX, bodyY, bodyW );
 	} else if ( cg_itemEditAddActive ) {
 		CG_ItemEdit_DrawMovePinnedHeader( bodyX, bodyY, CG_ItemEdit_MoveItemIndex() );
 		CG_ItemEdit_DrawMoveRow( bodyX, bodyY, bodyW );
 	} else {
-		CG_DrawStringExt( bodyX + ITEMEDIT_PANEL_PAD, bodyY + OVERLAY_SIDE_HDR_H + 12,
-				"No Item Selected", muted, qtrue, qtrue, 6, 10, 0 );
+		if ( !cg_itemEditWallActive ) {
+			CG_DrawStringExt( bodyX + ITEMEDIT_PANEL_PAD, bodyY + OVERLAY_SIDE_HDR_H + 12,
+					"No Item Selected", muted, qtrue, qtrue, 6, 10, 0 );
+		}
+		CG_ItemEdit_DrawMoveRow( bodyX, bodyY, bodyW );
 	}
 
 	CG_ItemEdit_DrawItemPicker( bodyX, bodyY, bodyW, bodyH );
@@ -1247,10 +1879,16 @@ static qboolean CG_ItemEdit_ResetBtnHit( int mx, int my, int bodyX, int bodyY, i
 
 int CG_ItemEdit_HighlightEntNum( void ) {
 	if ( !CG_ItemEdit_Active() || !cg_itemEditSidebarOpen || cg_itemEditMoveActive
-			|| cg_itemEditTarget < MAX_CLIENTS ) {
+			|| cg_itemEditWallActive ) {
 		return -1;
 	}
-	return cg_itemEditTarget;
+	if ( cg_itemEditWallTarget >= MAX_CLIENTS ) {
+		return cg_itemEditWallTarget;
+	}
+	if ( cg_itemEditTarget >= MAX_CLIENTS ) {
+		return cg_itemEditTarget;
+	}
+	return -1;
 }
 
 static void CG_ItemEdit_AddItemGhostAt( int modelIndex, const vec3_t baseOrigin, int entNum ) {
@@ -1353,6 +1991,16 @@ void CG_ItemEdit_AddSceneEntities( void ) {
 	int		modelIndex;
 
 	CG_ItemEdit_DrawUnspawnedMapPickups();
+
+	if ( cg_itemEditWallActive && cg_itemEditWallValid ) {
+		static const float	boxActive[4] = { 1.0f, 0.88f, 0.12f, 1.0f };
+
+		CG_ItemEdit_DrawWallQuad( cg_itemEditWallGhostOrigin, cg_itemEditWallGhostYaw,
+				cg_itemEditWallGhostHalfWidth, cg_itemEditWallGhostHeight,
+				cgs.media.spawnPointShader, 160 );
+		CG_ItemEdit_DrawWallSolidBBox( cg_itemEditWallGhostOrigin, cg_itemEditWallGhostYaw,
+				cg_itemEditWallGhostHalfWidth, cg_itemEditWallGhostHeight, boxActive, 2.0f );
+	}
 
 	if ( !cg_itemEditMoveActive || !cg_itemEditMoveValid ) {
 		return;
@@ -1610,7 +2258,9 @@ qboolean CG_ItemEdit_HandleClickSidebar( int mx, int my, int bodyX, int bodyY, i
 	}
 	if ( CG_ItemEdit_SidebarContains( mx, my, bodyX, bodyY, bodyW, bodyH )
 			&& CG_ItemEdit_MoveBtnHit( 1, mx, my, bodyX, bodyY, bodyW ) ) {
-		if ( cg_itemEditMoveActive ) {
+		if ( cg_itemEditWallActive ) {
+			CG_ItemEdit_CancelWall();
+		} else if ( cg_itemEditMoveActive ) {
 			CG_ItemEdit_CancelMove();
 		} else if ( cg_itemEditTarget >= MAX_CLIENTS ) {
 			CG_ItemEdit_RestoreTargetHome();
@@ -1619,20 +2269,29 @@ qboolean CG_ItemEdit_HandleClickSidebar( int mx, int my, int bodyX, int bodyY, i
 	}
 	if ( CG_ItemEdit_SidebarContains( mx, my, bodyX, bodyY, bodyW, bodyH )
 			&& CG_ItemEdit_MoveBtnHit( 0, mx, my, bodyX, bodyY, bodyW ) ) {
-		if ( cg_itemEditMoveActive ) {
+		if ( cg_itemEditWallActive ) {
+			CG_ItemEdit_ConfirmWall();
+		} else if ( cg_itemEditMoveActive ) {
 			CG_ItemEdit_ConfirmMove();
 		} else if ( cg_itemEditTarget >= MAX_CLIENTS ) {
 			CG_ItemEdit_StartMove();
+		} else if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive ) {
+			CG_ItemEdit_StartWall();
 		}
 		return qtrue;
 	}
 	if ( CG_ItemEdit_SidebarContains( mx, my, bodyX, bodyY, bodyW, bodyH )
 			&& CG_ItemEdit_ActionBtnHit( mx, my, bodyX, bodyY, bodyW, bodyH ) ) {
-		if ( cg_itemEditTarget >= MAX_CLIENTS ) {
+		if ( cg_itemEditTarget >= MAX_CLIENTS || cg_itemEditWallTarget >= MAX_CLIENTS ) {
+			int		delEnt;
+
+			delEnt = ( cg_itemEditWallTarget >= MAX_CLIENTS ) ? cg_itemEditWallTarget
+					: cg_itemEditTarget;
 			if ( cg_itemEditDeleteConfirm ) {
-				trap_SendClientCommand( va( "itemedit delete %i", cg_itemEditTarget ) );
+				trap_SendClientCommand( va( "itemedit delete %i", delEnt ) );
 				cg_itemEditDeleteConfirm = qfalse;
 				cg_itemEditTarget = -1;
+				cg_itemEditWallTarget = -1;
 			} else {
 				cg_itemEditDeleteConfirm = qtrue;
 			}
@@ -1677,8 +2336,10 @@ void CG_ItemEdit_Init( void ) {
 	int	i;
 
 	cg_itemEditTarget = -1;
+	cg_itemEditWallTarget = -1;
 	cg_itemEditLastTarget = -1;
 	cg_itemEditLastItemIndex = -1;
+	cg_itemEditLastWallTarget = -1;
 	cg_itemEditScroll = 0;
 	cg_itemEditSel = 0;
 	cg_itemEditRowCount = 0;
@@ -1690,6 +2351,7 @@ void CG_ItemEdit_Init( void ) {
 	CG_ItemEdit_CancelMove();
 	cg_itemEditMoveEnt = -1;
 	cg_itemEditMoveBtnHover = -1;
+	CG_ItemEdit_CancelWall();
 	cg_itemEditActionBtnHover = -1;
 	cg_itemEditDeleteConfirm = qfalse;
 	cg_itemEditVisibleRows = CG_ItemEdit_IdealPickerRows();
