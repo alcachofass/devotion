@@ -48,6 +48,14 @@ Server gate: g_editMode bit 1 (mirrored on CS_ITEMEDIT). UI lives in the spec ov
 #define ITEMEDIT_HIGHLIGHT_ALPHA	0.42f
 #define ITEMEDIT_HIGHLIGHT_SCALE	1.1f
 #define ITEMEDIT_MAX_ROWS		( MAX_ITEMS + 8 )
+#define ITEMEDIT_PICKUP_MATCH_DIST	160
+
+typedef struct {
+	qboolean	valid;
+	qboolean	ghost;
+	int			modelindex;
+	vec3_t		origin;
+} cgItemEditSlot_t;
 
 typedef enum {
 	ITEMEDIT_ROW_ITEM,
@@ -110,8 +118,12 @@ static vec3_t			cg_itemEditWallGhostOrigin;
 static float			cg_itemEditWallGhostYaw;
 static float			cg_itemEditWallGhostHalfWidth;
 static float			cg_itemEditWallGhostHeight;
+static cgItemEditSlot_t	cg_itemEditSlots[MAX_GENTITIES];
 
 static int CG_ItemEdit_IdealPickerRows( void );
+static void CG_ItemEdit_SyncRoster( void );
+static qboolean CG_ItemEdit_GetMapPickupOrigin( int entNum, vec3_t out );
+static qboolean CG_ItemEdit_IsUnspawnedMapPickupEnt( int entNum );
 static void CG_ItemEdit_ClampScroll( void );
 static void CG_ItemEdit_CancelMove( void );
 static void CG_ItemEdit_CancelWall( void );
@@ -190,42 +202,177 @@ static void CG_ItemEdit_ContentRect( int bodyX, int bodyY, int bodyW, int bodyH,
 	}
 }
 
-static qboolean CG_ItemEdit_IsUnspawnedMapPickup( const centity_t *cent ) {
-	const entityState_t	*es;
-
-	if ( !cent || !cent->currentValid ) {
-		return qfalse;
-	}
-	if ( !CG_ItemEdit_Active() || !cg_itemEditSidebarOpen ) {
-		return qfalse;
-	}
-	es = &cent->currentState;
-	if ( es->eType != ET_ITEM || es->modelindex <= 0 || es->modelindex2 ) {
-		return qfalse;
-	}
-	if ( !( es->eFlags & EF_NODRAW ) ) {
-		return qfalse;
-	}
-	return qtrue;
-}
-
-static qboolean CG_ItemEdit_EntityLive( const centity_t *cent ) {
-	const entityState_t	*es;
-
-	if ( !cent || !cent->currentValid ) {
-		return qfalse;
-	}
-	es = &cent->currentState;
-	if ( es->eType != ET_ITEM || es->modelindex <= 0 ) {
+static qboolean CG_ItemEdit_IsMapPickupEs( const entityState_t *es ) {
+	if ( !es || es->eType != ET_ITEM || es->modelindex <= 0 || es->modelindex >= bg_numItems ) {
 		return qfalse;
 	}
 	if ( es->modelindex2 ) {
 		return qfalse;
 	}
-	if ( es->eFlags & EF_NODRAW ) {
-		return CG_ItemEdit_IsUnspawnedMapPickup( cent );
-	}
 	return qtrue;
+}
+
+static void CG_ItemEdit_SyncRoster( void ) {
+	int					i;
+	centity_t			*cent;
+	const entityState_t	*es;
+	cgItemEditSlot_t	*slot;
+
+	if ( !CG_ItemEdit_ModeEnabled() ) {
+		memset( cg_itemEditSlots, 0, sizeof( cg_itemEditSlots ) );
+		return;
+	}
+
+	for ( i = MAX_CLIENTS; i < MAX_GENTITIES; i++ ) {
+		cent = &cg_entities[i];
+		es = &cent->currentState;
+		slot = &cg_itemEditSlots[i];
+
+		if ( cent->currentValid && CG_ItemEdit_IsMapPickupEs( es ) ) {
+			slot->valid = qtrue;
+			slot->modelindex = es->modelindex;
+			BG_EvaluateTrajectory( &es->pos, cg.time, slot->origin );
+			if ( es->eFlags & EF_NODRAW ) {
+				slot->ghost = qtrue;
+			} else {
+				slot->ghost = qfalse;
+			}
+			continue;
+		}
+
+		if ( slot->valid && !cent->currentValid && !slot->ghost ) {
+			slot->ghost = qtrue;
+		}
+	}
+}
+
+static qboolean CG_ItemEdit_GetMapPickupOrigin( int entNum, vec3_t out ) {
+	centity_t			*cent;
+	const entityState_t	*es;
+	cgItemEditSlot_t	*slot;
+
+	if ( entNum < MAX_CLIENTS || entNum >= MAX_GENTITIES || !out ) {
+		return qfalse;
+	}
+	cent = &cg_entities[entNum];
+	es = &cent->currentState;
+	slot = &cg_itemEditSlots[entNum];
+	if ( cent->currentValid && CG_ItemEdit_IsMapPickupEs( es ) ) {
+		BG_EvaluateTrajectory( &es->pos, cg.time, out );
+		return qtrue;
+	}
+	if ( slot->valid ) {
+		VectorCopy( slot->origin, out );
+		return qtrue;
+	}
+	return qfalse;
+}
+
+void CG_ItemEdit_NoteItemPickup( int itemIndex, const vec3_t position ) {
+	int					i;
+	int					bestEnt;
+	float				bestDist;
+	float				dist;
+	vec3_t				delta;
+	cgItemEditSlot_t	*slot;
+
+	if ( !CG_ItemEdit_ModeEnabled() || itemIndex <= 0 || itemIndex >= bg_numItems || !position ) {
+		return;
+	}
+
+	bestEnt = -1;
+	bestDist = (float)( ITEMEDIT_PICKUP_MATCH_DIST * ITEMEDIT_PICKUP_MATCH_DIST );
+	for ( i = MAX_CLIENTS; i < MAX_GENTITIES; i++ ) {
+		slot = &cg_itemEditSlots[i];
+		if ( !slot->valid || slot->modelindex != itemIndex ) {
+			continue;
+		}
+		VectorSubtract( slot->origin, position, delta );
+		dist = delta[0] * delta[0] + delta[1] * delta[1] + delta[2] * delta[2];
+		if ( dist < bestDist ) {
+			bestDist = dist;
+			bestEnt = i;
+		}
+	}
+
+	if ( bestEnt < 0 ) {
+		centity_t			*cent;
+		const entityState_t	*es;
+		vec3_t				itemOrg;
+
+		for ( i = MAX_CLIENTS; i < MAX_GENTITIES; i++ ) {
+			cent = &cg_entities[i];
+			if ( !cent->currentValid ) {
+				continue;
+			}
+			es = &cent->currentState;
+			if ( !CG_ItemEdit_IsMapPickupEs( es ) || es->modelindex != itemIndex ) {
+				continue;
+			}
+			BG_EvaluateTrajectory( &es->pos, cg.time, itemOrg );
+			VectorSubtract( itemOrg, position, delta );
+			dist = delta[0] * delta[0] + delta[1] * delta[1] + delta[2] * delta[2];
+			if ( dist < bestDist ) {
+				bestDist = dist;
+				bestEnt = i;
+			}
+		}
+	}
+
+	if ( bestEnt >= 0 ) {
+		slot = &cg_itemEditSlots[bestEnt];
+		slot->valid = qtrue;
+		slot->modelindex = itemIndex;
+		slot->ghost = qtrue;
+		VectorCopy( position, slot->origin );
+	}
+}
+
+static qboolean CG_ItemEdit_IsUnspawnedMapPickupEnt( int entNum ) {
+	const entityState_t	*es;
+	cgItemEditSlot_t	*slot;
+
+	if ( !CG_ItemEdit_Active() || !cg_itemEditSidebarOpen ) {
+		return qfalse;
+	}
+	if ( entNum < MAX_CLIENTS || entNum >= MAX_GENTITIES ) {
+		return qfalse;
+	}
+	es = &cg_entities[entNum].currentState;
+	slot = &cg_itemEditSlots[entNum];
+	if ( cg_entities[entNum].currentValid && CG_ItemEdit_IsMapPickupEs( es ) ) {
+		return ( es->eFlags & EF_NODRAW ) ? qtrue : qfalse;
+	}
+	return ( slot->valid && slot->ghost ) ? qtrue : qfalse;
+}
+
+static qboolean CG_ItemEdit_EntityLive( const centity_t *cent ) {
+	const entityState_t	*es;
+	int					entNum;
+	cgItemEditSlot_t	*slot;
+
+	if ( !cent ) {
+		return qfalse;
+	}
+	entNum = cent->currentState.number;
+	if ( entNum < MAX_CLIENTS || entNum >= MAX_GENTITIES ) {
+		return qfalse;
+	}
+	slot = &cg_itemEditSlots[entNum];
+	if ( cent->currentValid ) {
+		es = &cent->currentState;
+		if ( !CG_ItemEdit_IsMapPickupEs( es ) ) {
+			return qfalse;
+		}
+		if ( es->eFlags & EF_NODRAW ) {
+			return CG_ItemEdit_IsUnspawnedMapPickupEnt( entNum );
+		}
+		return qtrue;
+	}
+	if ( !CG_ItemEdit_Active() || !cg_itemEditSidebarOpen ) {
+		return qfalse;
+	}
+	return ( slot->valid && slot->ghost ) ? qtrue : qfalse;
 }
 
 static qboolean CG_ItemEdit_ItemUsable( const gitem_t *item ) {
@@ -489,7 +636,9 @@ static int CG_ItemEdit_PickTarget( void ) {
 			continue;
 		}
 
-		BG_EvaluateTrajectory( &cent->currentState.pos, cg.time, itemOrg );
+		if ( !CG_ItemEdit_GetMapPickupOrigin( i, itemOrg ) ) {
+			continue;
+		}
 		VectorSubtract( itemOrg, cg.refdef.vieworg, toItem );
 		if ( VectorNormalize( toItem ) == 0.0f ) {
 			continue;
@@ -563,8 +712,9 @@ static void CG_ItemEdit_UpdateTarget( void ) {
 		wallDot = -1.0f;
 
 		if ( itemEnt >= MAX_CLIENTS ) {
-			BG_EvaluateTrajectory( &cg_entities[itemEnt].currentState.pos, cg.time, aim );
-			itemDot = CG_ItemEdit_LookDotToPoint( aim );
+			if ( CG_ItemEdit_GetMapPickupOrigin( itemEnt, aim ) ) {
+				itemDot = CG_ItemEdit_LookDotToPoint( aim );
+			}
 		}
 		if ( wallEnt >= MAX_CLIENTS ) {
 			BG_EvaluateTrajectory( &cg_entities[wallEnt].currentState.pos, cg.time, aim );
@@ -590,7 +740,11 @@ static void CG_ItemEdit_UpdateTarget( void ) {
 			cg_itemEditLastTarget = -1;
 			cg_itemEditLastItemIndex = -1;
 		} else if ( itemEnt >= MAX_CLIENTS ) {
-			itemIndex = cg_entities[itemEnt].currentState.modelindex;
+			if ( cg_entities[itemEnt].currentValid ) {
+				itemIndex = cg_entities[itemEnt].currentState.modelindex;
+			} else {
+				itemIndex = cg_itemEditSlots[itemEnt].modelindex;
+			}
 			if ( itemEnt != cg_itemEditLastTarget || itemIndex != cg_itemEditLastItemIndex ) {
 				cg_itemEditDeleteConfirm = qfalse;
 				cg_itemEditLastTarget = itemEnt;
@@ -1156,6 +1310,7 @@ static void CG_ItemEdit_UpdateMoveGhost( void ) {
 }
 
 void CG_ItemEdit_Frame( void ) {
+	CG_ItemEdit_SyncRoster();
 	CG_ItemEdit_UpdateTarget();
 	CG_ItemEdit_UpdateMoveGhost();
 	CG_ItemEdit_UpdateWallGhost();
@@ -1966,24 +2121,33 @@ static void CG_ItemEdit_AddItemGhostAt( int modelIndex, const vec3_t baseOrigin,
 }
 
 static void CG_ItemEdit_DrawUnspawnedMapPickups( void ) {
-	int			i;
-	centity_t	*cent;
-	vec3_t		origin;
+	int		i;
+	int		modelIndex;
+	vec3_t	origin;
 
 	if ( !CG_ItemEdit_Active() || !cg_itemEditSidebarOpen ) {
 		return;
 	}
 
 	for ( i = MAX_CLIENTS; i < MAX_GENTITIES; i++ ) {
-		cent = &cg_entities[i];
-		if ( !CG_ItemEdit_IsUnspawnedMapPickup( cent ) ) {
+		if ( !CG_ItemEdit_IsUnspawnedMapPickupEnt( i ) ) {
 			continue;
 		}
 		if ( cg_itemEditMoveActive && i == cg_itemEditMoveEnt ) {
 			continue;
 		}
-		BG_EvaluateTrajectory( &cent->currentState.pos, cg.time, origin );
-		CG_ItemEdit_AddItemGhostAt( cent->currentState.modelindex, origin, i );
+		if ( !CG_ItemEdit_GetMapPickupOrigin( i, origin ) ) {
+			continue;
+		}
+		if ( cg_entities[i].currentValid ) {
+			modelIndex = cg_entities[i].currentState.modelindex;
+		} else {
+			modelIndex = cg_itemEditSlots[i].modelindex;
+		}
+		if ( modelIndex <= 0 || modelIndex >= bg_numItems ) {
+			continue;
+		}
+		CG_ItemEdit_AddItemGhostAt( modelIndex, origin, i );
 	}
 }
 
@@ -2358,4 +2522,5 @@ void CG_ItemEdit_Init( void ) {
 	for ( i = 0; i < ITEMEDIT_GRP_COUNT; i++ ) {
 		cg_itemEditGroupOpen[i] = qfalse;
 	}
+	memset( cg_itemEditSlots, 0, sizeof( cg_itemEditSlots ) );
 }

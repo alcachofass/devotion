@@ -42,7 +42,6 @@ void ItemEdit_RunDeferredApply( void );
 void ItemEdit_Shutdown( int restart );
 void ItemEdit_Init( void );
 void ItemEdit_UpdateConfigstring( void );
-void ItemEdit_OnMapPickupHidden( gentity_t *ent );
 qboolean ItemEdit_OverrideItemClassname( const gentity_t *ent, char *itemname, int itemnameSize );
 qboolean ItemEdit_ApplyOverrideOnSpawn( gentity_t *ent );
 void ItemEdit_NoteBspItemFromEntity( gentity_t *ent );

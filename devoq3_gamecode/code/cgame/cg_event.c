@@ -976,6 +976,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 			CG_ItemTimersNotePickup( index, position );
 			CG_ItemGhostsNotePickup( index, position );
+			CG_ItemEdit_NoteItemPickup( index, position );
 
 			// show icon and name on status bar
 			if ( es->number == cg.snap->ps.clientNum ) {
@@ -1008,6 +1009,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 			CG_ItemTimersNotePickup( index, position );
 			CG_ItemGhostsNotePickup( index, position );
+			CG_ItemEdit_NoteItemPickup( index, position );
 
 			// show icon and name on status bar
 			if ( es->number == cg.snap->ps.clientNum ) {

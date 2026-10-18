@@ -161,17 +161,6 @@ static qboolean ItemEdit_ClientMayEdit( gentity_t *ent ) {
 	return qtrue;
 }
 
-static qboolean ItemEdit_SpectatorEditEnabled( void ) {
-	return ( g_editMode.integer & ITEMEDIT_SPEC_BIT ) ? qtrue : qfalse;
-}
-
-static qboolean ItemEdit_ItemTimerBroadcasts( gentity_t *ent ) {
-	if ( !ent ) {
-		return qfalse;
-	}
-	return ( ( ent->flags & FL_ITEM_TIMER ) && g_itemTimers.integer ) ? qtrue : qfalse;
-}
-
 static qboolean ItemEdit_IsAwaitingRespawn( gentity_t *ent ) {
 	if ( !ent || !G_InUse( ent ) ) {
 		return qfalse;
@@ -192,41 +181,6 @@ static qboolean ItemEdit_IsAwaitingRespawn( gentity_t *ent ) {
 		return qfalse;
 	}
 	return qtrue;
-}
-
-static void ItemEdit_ApplyHiddenPickupBroadcast( gentity_t *ent ) {
-	if ( !ItemEdit_IsAwaitingRespawn( ent ) ) {
-		return;
-	}
-	if ( ItemEdit_ItemTimerBroadcasts( ent ) ) {
-		return;
-	}
-	if ( ItemEdit_SpectatorEditEnabled() ) {
-		if ( ent->r.svFlags & SVF_NOCLIENT ) {
-			ent->r.svFlags &= ~SVF_NOCLIENT;
-			trap_LinkEntity( ent );
-		}
-	} else if ( !( ent->r.svFlags & SVF_NOCLIENT ) ) {
-		ent->r.svFlags |= SVF_NOCLIENT;
-		trap_LinkEntity( ent );
-	}
-}
-
-static void ItemEdit_RefreshHiddenPickupBroadcast( void ) {
-	int			i;
-	gentity_t	*ent;
-
-	for ( i = MAX_CLIENTS; i < level.num_entities; i++ ) {
-		ent = &g_entities[i];
-		if ( !G_InUse( ent ) ) {
-			continue;
-		}
-		ItemEdit_ApplyHiddenPickupBroadcast( ent );
-	}
-}
-
-void ItemEdit_OnMapPickupHidden( gentity_t *ent ) {
-	ItemEdit_ApplyHiddenPickupBroadcast( ent );
 }
 
 static qboolean ItemEdit_IsEditWallEnt( gentity_t *ent ) {
@@ -1804,7 +1758,6 @@ void ItemEdit_Shutdown( int restart ) {
 
 void ItemEdit_UpdateConfigstring( void ) {
 	trap_SetConfigstring( CS_ITEMEDIT, va( "%i", g_editMode.integer ) );
-	ItemEdit_RefreshHiddenPickupBroadcast();
 	SpawnEdit_UpdateConfigstring();
 }
 
@@ -1957,7 +1910,6 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 		SessionLayout_Purge();
 		ItemEdit_ClearOverrides();
 		itemEdit_deferredApplyDone = qfalse;
-		ItemEdit_RefreshHiddenPickupBroadcast();
 		trap_SendServerCommand( ent - g_entities,
 				va( "print \"Item layout cleared; %i BSP pickup(s) restored, %i added removed, %i delete(s) restored, %i wall(s) removed.\n\"",
 					restored, added, deleted, walls ) );

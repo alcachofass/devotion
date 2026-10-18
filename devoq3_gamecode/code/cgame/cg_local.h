@@ -2061,6 +2061,7 @@ typedef struct {
 
 void CG_ItemEdit_Init( void );
 void CG_ItemEdit_Frame( void );
+void CG_ItemEdit_NoteItemPickup( int itemIndex, const vec3_t position );
 #define CG_ITEMEDIT_WALL_FRAME		57345
 
 qboolean CG_ItemEdit_ModeEnabled( void );
