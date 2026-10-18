@@ -596,6 +596,17 @@ gfx/2d/icon_home
 	}
 }
 
+gfx/2d/icon_wall
+{
+	nopicmip
+	nomipmaps
+	{
+		clampmap gfx/2d/icon_wall.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+	}
+}
+
 gfx/2d/pending
 {
 	nopicmip
@@ -605,5 +616,14 @@ gfx/2d/pending
 		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
 		rgbGen vertex
 		alphaGen vertex
+	}
+}
+
+// In-game edit walls (cg_itemedit): unique shader name; samples stock map texture only.
+devoq3_itemedit_wall
+{
+	cull disable
+	{
+		map textures/gothic_wall/streetbricks14.jpg
 	}
 }

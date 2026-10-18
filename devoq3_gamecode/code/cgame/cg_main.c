@@ -1415,6 +1415,8 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.itemEditIconCross = trap_R_RegisterShaderNoMip( "gfx/2d/icon_cross" );
 	cgs.media.itemEditIconTick = trap_R_RegisterShaderNoMip( "gfx/2d/icon_tick" );
 	cgs.media.itemEditIconHome = trap_R_RegisterShaderNoMip( "gfx/2d/icon_home" );
+	cgs.media.itemEditIconWall = trap_R_RegisterShaderNoMip( "gfx/2d/icon_wall" );
+	cgs.media.itemEditWallShader = trap_R_RegisterShader( "devoq3_itemedit_wall" );
 
 
 	if ( cgs.gametype == GT_CTF || cgs.gametype == GT_CTF_ELIMINATION || 
@@ -1978,17 +1980,9 @@ CG_StartMusic
 
 ======================
 */
-qboolean CG_ShowcaseActive( void ) {
-	return ( cg_showcase.integer && cg.demoPlayback ) ? qtrue : qfalse;
-}
-
 void CG_StartMusic( void ) {
 	char	*s;
 	char	parm1[MAX_QPATH], parm2[MAX_QPATH];
-
-	if ( CG_MenuMusicOwnsChannel() ) {
-		return;
-	}
 
 	trap_S_StopBackgroundTrack();
 
@@ -2689,25 +2683,6 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 
 	CG_RegisterCvars();
 
-	{
-		char	pendingReload[8];
-		char	suspend[8];
-
-		trap_Cvar_VariableStringBuffer( "ui_showcaseSuspend", suspend, sizeof( suspend ) );
-		trap_Cvar_VariableStringBuffer( "ui_showcasePendingReload", pendingReload, sizeof( pendingReload ) );
-		if ( suspend[0] && atoi( suspend ) ) {
-			/* Map or user demo owns this load. Do not rotate back to the menu. */
-			trap_Cvar_Set( "cg_showcase", "0" );
-		} else if ( pendingReload[0] && atoi( pendingReload ) ) {
-			trap_Cvar_Set( "ui_showcasePendingReload", "0" );
-		} else {
-			if ( cg_showcase.integer ) {
-				trap_Cvar_Set( "ui_showcaseRotate", "1" );
-			}
-			trap_Cvar_Set( "cg_showcase", "0" );
-		}
-	}
-
 	CG_ItemTimersInit();
 	CG_ItemEdit_Init();
 	CG_SpawnEdit_Init();
@@ -2787,9 +2762,7 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	// Make sure we have update values (scores)
 	CG_SetConfigValues();
 
-	if ( !cg_showcase.integer ) {
-		CG_StartMusic();
-	}
+	CG_StartMusic();
 
 	CG_LoadingString( "" );
 

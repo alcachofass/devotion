@@ -806,6 +806,10 @@ static void CG_ParseNextMapVotes( void ) {
     char votes[1024] = "";
     int i;
 
+    if ( cg.demoPlayback ) {
+	return;
+    }
+
     for(i=1;i<NEXTMAPVOTE_NUM_MAPS+1;i++) {
         Q_strcat(votes,sizeof(votes),va("%i ",atoi(CG_Argv(i))));
     }
@@ -824,6 +828,10 @@ static void CG_ParseNextMapVote( void ) {
     const char *temp;
     const char*	c;
     int i;
+
+    if ( cg.demoPlayback ) {
+	return;
+    }
 
     cgs.nextmapVoteEndTime = atoi(CG_Argv(1));
     if (cgs.nextmapVoteEndTime < cg.time) {
@@ -1061,6 +1069,9 @@ CG_ParseChallenge
 */
 
 static void CG_ParseChallenge( void ) {
+	if ( cg.demoPlayback ) {
+		return;
+	}
 	addChallenge(atoi( CG_Argv(1) ) );
 }
 
@@ -1806,9 +1817,7 @@ static void CG_MapRestart( void ) {
 
 	cg.mapRestart = qtrue;
 
-	if ( !cg_showcase.integer ) {
-		CG_StartMusic();
-	}
+	CG_StartMusic();
 
 	trap_S_ClearLoopingSounds(qtrue);
 

@@ -776,15 +776,8 @@ static void CG_SpawnEdit_Tele_DrawLine( const vec3_t a, const vec3_t b, const fl
 }
 
 static void CG_SpawnEdit_Tele_DrawBrushBBoxEx( const vec3_t origin, int modelIndex, const float rgba[4], float expand ) {
-	vec3_t			mins, maxs;
-	vec3_t			corners[8];
-	qhandle_t		model;
-	int				i;
-	static const int edges[12][2] = {
-		{0,1},{1,3},{3,2},{2,0},
-		{4,5},{5,7},{7,6},{6,4},
-		{0,4},{1,5},{2,6},{3,7}
-	};
+	vec3_t		mins, maxs;
+	qhandle_t	model;
 
 	if ( modelIndex < 1 || modelIndex >= cgs.numInlineModels || !origin || !rgba ) {
 		return;
@@ -794,22 +787,7 @@ static void CG_SpawnEdit_Tele_DrawBrushBBoxEx( const vec3_t origin, int modelInd
 		return;
 	}
 	trap_R_ModelBounds( model, mins, maxs );
-	if ( expand > 0.0f ) {
-		mins[0] -= expand;
-		mins[1] -= expand;
-		mins[2] -= expand;
-		maxs[0] += expand;
-		maxs[1] += expand;
-		maxs[2] += expand;
-	}
-	for ( i = 0; i < 8; i++ ) {
-		corners[i][0] = origin[0] + ( ( i & 1 ) ? maxs[0] : mins[0] );
-		corners[i][1] = origin[1] + ( ( i & 2 ) ? maxs[1] : mins[1] );
-		corners[i][2] = origin[2] + ( ( i & 4 ) ? maxs[2] : mins[2] );
-	}
-	for ( i = 0; i < 12; i++ ) {
-		CG_SpawnEdit_Tele_DrawLine( corners[edges[i][0]], corners[edges[i][1]], rgba );
-	}
+	CG_MapEdit_DrawBBoxEx( origin, mins, maxs, rgba, expand );
 }
 
 static void CG_SpawnEdit_Tele_DrawBrushBBox( const vec3_t origin, int modelIndex, const float rgba[4] ) {

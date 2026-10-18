@@ -1426,7 +1426,7 @@ void CG_DrawVisualSounds( void ) {
 }
 
 void CG_WrappedStartSound( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx ) {
-	if ( cg_soundMuted || cg_showcase.integer || CG_DemoControls_IsSeeking() ) {
+	if ( cg_soundMuted || CG_DemoControls_IsSeeking() ) {
 		return;
 	}
 	CG_VisualSounds_Note( origin, entityNum, sfx, qfalse );
@@ -1437,21 +1437,14 @@ void CG_WrappedStartLocalSound( sfxHandle_t sfx, int channelNum ) {
 	if ( cg_contextNum == CG_CONTEXT_KILLCAM ) {
 		return;
 	}
-	if ( channelNum == CHAN_ANNOUNCER ) {
-		if ( cg_showcase.integer ) {
-			return;
-		}
-		trap_S_StartLocalSound( sfx, channelNum );
-		return;
-	}
-	if ( cg_soundMuted || cg_showcase.integer ) {
+	if ( cg_soundMuted ) {
 		return;
 	}
 	trap_S_StartLocalSound( sfx, channelNum );
 }
 
 void CG_WrappedAddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx ) {
-	if ( cg_soundMuted || cg_showcase.integer || CG_DemoControls_IsSeeking() || CG_DemoControls_IsPaused() ) {
+	if ( cg_soundMuted || CG_DemoControls_IsSeeking() || CG_DemoControls_IsPaused() ) {
 		return;
 	}
 	CG_VisualSounds_Note( origin, entityNum, sfx, qtrue );
@@ -1459,32 +1452,16 @@ void CG_WrappedAddLoopingSound( int entityNum, const vec3_t origin, const vec3_t
 }
 
 void CG_WrappedAddRealLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx ) {
-	if ( cg_soundMuted || cg_showcase.integer || CG_DemoControls_IsSeeking() || CG_DemoControls_IsPaused() ) {
+	if ( cg_soundMuted || CG_DemoControls_IsSeeking() || CG_DemoControls_IsPaused() ) {
 		return;
 	}
 	trap_S_AddRealLoopingSound( entityNum, origin, velocity, sfx );
 }
 
-qboolean CG_MenuMusicOwnsChannel( void ) {
-	char	buf[8];
-
-	if ( cg_showcase.integer ) {
-		return qtrue;
-	}
-	trap_Cvar_VariableStringBuffer( "ui_mainMenuMusic", buf, sizeof( buf ) );
-	return ( buf[0] && atoi( buf ) ) ? qtrue : qfalse;
-}
-
 void CG_WrappedStartBackgroundTrack( const char *intro, const char *loop ) {
-	if ( CG_MenuMusicOwnsChannel() ) {
-		return;
-	}
 	trap_S_StartBackgroundTrack( intro, loop );
 }
 
 void CG_WrappedStopBackgroundTrack( void ) {
-	if ( CG_MenuMusicOwnsChannel() ) {
-		return;
-	}
 	trap_S_StopBackgroundTrack();
 }

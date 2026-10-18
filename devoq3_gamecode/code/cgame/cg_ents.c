@@ -166,6 +166,11 @@ static void CG_General( centity_t *cent ) {
 
 	s1 = &cent->currentState;
 
+	if ( s1->eType == ET_GENERAL && s1->frame == CG_ITEMEDIT_WALL_FRAME ) {
+		CG_ItemEdit_DrawWallForCent( cent );
+		return;
+	}
+
 	// if set to invisible, skip
 	if (!s1->modelindex) {
 		return;

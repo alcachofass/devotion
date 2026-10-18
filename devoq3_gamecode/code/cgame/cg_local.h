@@ -1280,6 +1280,8 @@ typedef struct {
 	qhandle_t	itemEditIconCross;
 	qhandle_t	itemEditIconTick;
 	qhandle_t	itemEditIconHome;
+	qhandle_t	itemEditIconWall;
+	qhandle_t	itemEditWallShader;
 
         // player overlays
         qhandle_t       neutralOverlay;
@@ -2059,6 +2061,9 @@ typedef struct {
 
 void CG_ItemEdit_Init( void );
 void CG_ItemEdit_Frame( void );
+void CG_ItemEdit_NoteItemPickup( int itemIndex, const vec3_t position );
+#define CG_ITEMEDIT_WALL_FRAME		57345
+
 qboolean CG_ItemEdit_ModeEnabled( void );
 int CG_ItemEdit_SidebarBodyH( void );
 void CG_ItemEdit_DrawSidebar( int bodyX, int bodyY, int bodyW, int bodyH );
@@ -2072,6 +2077,7 @@ qboolean CG_ItemEdit_ModalOpen( void );
 int CG_ItemEdit_HighlightEntNum( void );
 void CG_ItemEdit_AddItemHighlight( int entNum, refEntity_t *ent );
 void CG_ItemEdit_AddSceneEntities( void );
+void CG_ItemEdit_DrawWallForCent( const centity_t *cent );
 
 void CG_DrawSpawnpointMarkers( const spawnpoint_t *pts, const int *entNums, int count, int highlightEnt );
 void CG_SpawnEdit_Init( void );
@@ -2432,7 +2438,6 @@ void CG_WrappedStartSound( vec3_t origin, int entityNum, int entchannel, sfxHand
 void CG_WrappedStartLocalSound( sfxHandle_t sfx, int channelNum );
 void CG_WrappedAddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx );
 void CG_WrappedAddRealLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx );
-qboolean CG_MenuMusicOwnsChannel( void );
 void CG_WrappedStartBackgroundTrack( const char *intro, const char *loop );
 void CG_WrappedStopBackgroundTrack( void );
 
@@ -2458,7 +2463,6 @@ void CG_DrawInformation( void );
 void CG_BeginLoadFadeIfNeeded( void );
 int CG_LoadFadeViewSizeOverride( void );
 void CG_DrawLoadFade( void );
-qboolean CG_ShowcaseActive( void );
 qboolean CG_LevelLoadFadeActive( void );
 void CG_BeginLevelLoadFade( void );
 void CG_DrawLevelLoadFade( void );

@@ -19,5 +19,8 @@ qboolean CG_MapEdit_BrushVolumeClear( int modelIndex, const vec3_t entOrigin, in
 qboolean CG_MapEdit_ResolveBrushPlacement( const vec3_t candidateCentroid, const vec3_t viewDir,
 		const vec3_t planeNormal, int modelIndex, const vec3_t centroidOffset,
 		int skipEnt, vec3_t resolvedCentroid );
+void CG_MapEdit_DrawLine( const vec3_t a, const vec3_t b, const float rgba[4] );
+void CG_MapEdit_DrawBBoxEx( const vec3_t origin, const vec3_t mins, const vec3_t maxs,
+		const float rgba[4], float expand );
 
 #endif

@@ -77,6 +77,13 @@ void CG_BuildSolidList( void ) {
 		ent = &cent->currentState;
 
 		if ( ent->eType == ET_ITEM || ent->eType == ET_PUSH_TRIGGER || ent->eType == ET_TELEPORT_TRIGGER ) {
+			/* Predicting against nextSnap: currentState is still the previous
+			   visible item until transition. Use the snapshot flags; local
+			   prediction also sets EF_NODRAW on nextState. */
+			if ( snap == cg.nextSnap && ent->eType == ET_ITEM
+					&& ( snap->entities[i].eFlags & EF_NODRAW ) ) {
+				continue;
+			}
 			cg_triggerEntities[cg_numTriggerEntities] = cent;
 			cg_numTriggerEntities++;
 			continue;
