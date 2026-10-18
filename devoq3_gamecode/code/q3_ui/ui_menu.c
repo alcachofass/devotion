@@ -317,6 +317,10 @@ static sfxHandle_t Main_MenuKey( int key ) {
 
 	Main_MenuUpdateFocus();
 
+	if( key == K_MOUSE2 ) {
+		return menu_null_sound;
+	}
+
 	if( key == K_MOUSE1 ) {
 		if( UI_MainMenuServers_MouseRegion( &s_main.serverlist ) ) {
 			if( UI_MainMenuServers_MouseClick( &s_main.serverlist ) ) {
@@ -387,7 +391,7 @@ static sfxHandle_t Main_MenuKey( int key ) {
 			return menu_move_sound;
 		}
 
-		if( key == K_ESCAPE || key == K_MOUSE2 ) {
+		if( key == K_ESCAPE ) {
 			return Menu_DefaultKey( m, key );
 		}
 
