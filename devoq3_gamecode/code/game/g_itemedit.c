@@ -826,6 +826,66 @@ static qboolean ItemEdit_IsDeletedOrigin( const vec3_t origin ) {
 	return qfalse;
 }
 
+static float ItemEdit_RespawnIntervalSeconds( gentity_t *ent ) {
+	float	respawn;
+
+	if ( !ent ) {
+		return 0.0f;
+	}
+
+	respawn = ent->wait;
+	if ( respawn <= 0.0f ) {
+		return 0.0f;
+	}
+	if ( ent->random ) {
+		respawn += crandom() * ent->random;
+		if ( respawn < 1.0f ) {
+			respawn = 1.0f;
+		}
+	}
+	return respawn;
+}
+
+qboolean ItemEdit_SuppressRespawn( gentity_t *ent ) {
+	vec3_t	layoutKey;
+	float	respawn;
+
+	if ( !ent || !G_InUse( ent ) || !ent->item ) {
+		return qfalse;
+	}
+	if ( ent->s.eType != ET_ITEM || ent->s.modelindex <= 0 || ent->s.modelindex2 ) {
+		return qfalse;
+	}
+	if ( ent->flags & FL_DROPPED_ITEM ) {
+		return qfalse;
+	}
+
+	ItemEdit_LayoutKeyForEnt( ent, layoutKey );
+	if ( !ItemEdit_IsDeletedOrigin( layoutKey ) ) {
+		return qfalse;
+	}
+
+	ItemEdit_HidePickup( ent );
+	if ( ent->wait == -1 ) {
+		return qtrue;
+	}
+
+	respawn = ItemEdit_RespawnIntervalSeconds( ent );
+	if ( respawn <= 0.0f ) {
+		ent->think = 0;
+		ent->nextthink = 0;
+		return qtrue;
+	}
+
+	ent->think = RespawnItem;
+	ent->nextthink = level.time + (int)( respawn * 1000.0f );
+	trap_LinkEntity( ent );
+	if ( BG_ItemHasTimer( ent->item ) ) {
+		Item_NotifySpectators( ent, qfalse );
+	}
+	return qtrue;
+}
+
 static void ItemEdit_UpsertAdd( const vec3_t origin, int itemIndex ) {
 	int	slot;
 

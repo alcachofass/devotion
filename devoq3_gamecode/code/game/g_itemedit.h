@@ -50,4 +50,6 @@ void ItemEdit_NoteBspItemFromEntity( gentity_t *ent );
 void ItemEdit_CommitBspPickup( gentity_t *ent );
 void Cmd_ItemEdit_f( gentity_t *ent );
 
+qboolean ItemEdit_SuppressRespawn( gentity_t *ent );
+
 #endif

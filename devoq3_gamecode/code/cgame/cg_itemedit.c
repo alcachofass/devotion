@@ -1232,6 +1232,42 @@ static void CG_ItemEdit_StartMove( void ) {
 	CG_ItemEdit_UpdateMoveGhost();
 }
 
+static void CG_ItemEdit_InvalidateSlot( int entNum ) {
+	if ( entNum < MAX_CLIENTS || entNum >= MAX_GENTITIES ) {
+		return;
+	}
+	memset( &cg_itemEditSlots[entNum], 0, sizeof( cg_itemEditSlots[entNum] ) );
+}
+
+static void CG_ItemEdit_NoteSlotMoved( int entNum, const vec3_t origin ) {
+	centity_t			*cent;
+	cgItemEditSlot_t	*slot;
+	entityState_t		*es;
+
+	if ( entNum < MAX_CLIENTS || entNum >= MAX_GENTITIES || !origin ) {
+		return;
+	}
+	slot = &cg_itemEditSlots[entNum];
+	if ( !slot->valid ) {
+		return;
+	}
+	VectorCopy( origin, slot->origin );
+
+	cent = &cg_entities[entNum];
+	if ( !cent->currentValid ) {
+		return;
+	}
+	es = &cent->currentState;
+	if ( !CG_ItemEdit_IsMapPickupEs( es ) ) {
+		return;
+	}
+	es->pos.trType = TR_STATIONARY;
+	es->pos.trTime = 0;
+	es->pos.trDuration = 0;
+	VectorClear( es->pos.trDelta );
+	VectorCopy( origin, es->pos.trBase );
+}
+
 static void CG_ItemEdit_ConfirmMove( void ) {
 	if ( !cg_itemEditMoveActive || !cg_itemEditMoveValid ) {
 		return;
@@ -1259,6 +1295,7 @@ static void CG_ItemEdit_ConfirmMove( void ) {
 			cg_itemEditMoveGhostOrigin[0],
 			cg_itemEditMoveGhostOrigin[1],
 			cg_itemEditMoveGhostOrigin[2] ) );
+	CG_ItemEdit_NoteSlotMoved( cg_itemEditMoveEnt, cg_itemEditMoveGhostOrigin );
 	CG_ItemEdit_CancelMove();
 }
 
@@ -2461,6 +2498,8 @@ qboolean CG_ItemEdit_HandleClickSidebar( int mx, int my, int bodyX, int bodyY, i
 					: cg_itemEditTarget;
 			if ( cg_itemEditDeleteConfirm ) {
 				trap_SendClientCommand( va( "itemedit delete %i", delEnt ) );
+				CG_ItemEdit_InvalidateSlot( delEnt );
+				CG_ItemEdit_CancelMove();
 				cg_itemEditDeleteConfirm = qfalse;
 				cg_itemEditTarget = -1;
 				cg_itemEditWallTarget = -1;
