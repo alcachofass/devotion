@@ -12,8 +12,6 @@ Session layout persists in layouts/session.cfg across map_restart only.
 
 #define ITEMEDIT_SPEC_BIT			1
 #define ITEMEDIT_MAX_OVERRIDES		512
-#define ITEMEDIT_ORIGIN_MATCH_EPS	4.0f
-#define ITEMEDIT_HOME_Z_SLACK		24.0f
 
 typedef struct {
 	vec3_t		origin;
@@ -387,27 +385,17 @@ static qboolean ItemEdit_IsLiveMapPickup( gentity_t *ent ) {
 	return qtrue;
 }
 
-static qboolean ItemEdit_AtHomePosition( const vec3_t current, const vec3_t home ) {
-	vec3_t	delta;
-	float	xyDist;
-
-	VectorSubtract( current, home, delta );
-	xyDist = sqrt( delta[0] * delta[0] + delta[1] * delta[1] );
-	if ( xyDist > ITEMEDIT_ORIGIN_MATCH_EPS ) {
-		return qfalse;
-	}
-	if ( fabs( delta[2] ) > ITEMEDIT_HOME_Z_SLACK ) {
+static qboolean ItemEdit_PositionsEqual( const vec3_t a, const vec3_t b ) {
+	if ( fabs( a[0] - b[0] ) > ITEMEDIT_POSITION_EPS
+			|| fabs( a[1] - b[1] ) > ITEMEDIT_POSITION_EPS
+			|| fabs( a[2] - b[2] ) > ITEMEDIT_POSITION_EPS ) {
 		return qfalse;
 	}
 	return qtrue;
 }
 
-/*
- * Match layout keys / pickup homes (bobbing items differ mostly in Z).
- * Same tolerances as homemove / client relocated detection.
- */
 static qboolean ItemEdit_OriginMatch( const vec3_t a, const vec3_t b ) {
-	return ItemEdit_AtHomePosition( a, b );
+	return ItemEdit_PositionsEqual( a, b );
 }
 
 static void ItemEdit_ClearMoves( void ) {
@@ -582,7 +570,7 @@ static void ItemEdit_LayoutKeyForEnt( const gentity_t *ent, vec3_t keyOut ) {
 		return;
 	}
 
-	VectorCopy( ent->s.origin, pos );
+	VectorCopy( ent->s.pos.trBase, pos );
 	for ( i = 0; i < itemEditMoveCount; i++ ) {
 		if ( ItemEdit_OriginMatch( pos, itemEditMoves[i].toOrigin ) ) {
 			VectorCopy( itemEditMoves[i].fromOrigin, keyOut );
@@ -590,7 +578,7 @@ static void ItemEdit_LayoutKeyForEnt( const gentity_t *ent, vec3_t keyOut ) {
 		}
 	}
 
-	/* BSP/session home in origin2; s.origin bobs on the client and server. */
+	/* BSP home in origin2; session-added pickups use trBase as key. */
 	if ( ent->s.frame > 0 && ent->s.frame < bg_numItems ) {
 		VectorCopy( ent->s.origin2, keyOut );
 	} else {
@@ -1026,7 +1014,7 @@ static void ItemEdit_ApplyAllDeletes( void ) {
 		ent = ItemEdit_FindPickupForLayoutKey( itemEditDeletes[i].origin, qtrue );
 		if ( ent && !( ent->s.eFlags & EF_NODRAW ) ) {
 			ItemEdit_Dbg( "apply delete[%i]: hide ent %i at %s (key %s)",
-					i, ent->s.number, vtos( ent->s.origin ),
+					i, ent->s.number, vtos( ent->s.pos.trBase ),
 					vtos( itemEditDeletes[i].origin ) );
 			ItemEdit_HidePickup( ent );
 		} else if ( !ent ) {
@@ -1070,7 +1058,7 @@ static int ItemEdit_RestoreAllDeletes( void ) {
 	for ( i = 0; i < itemEditDeleteCount; i++ ) {
 		ent = ItemEdit_FindPickupForLayoutKey( itemEditDeletes[i].origin, qtrue );
 		if ( ent && ( ent->s.eFlags & EF_NODRAW ) && !ItemEdit_IsSessionAddedEnt( ent ) ) {
-			if ( !ItemEdit_OriginMatch( ent->s.origin, itemEditDeletes[i].origin ) ) {
+			if ( !ItemEdit_OriginMatch( ent->s.pos.trBase, itemEditDeletes[i].origin ) ) {
 				ItemEdit_ApplyMoveOnEnt( ent, itemEditDeletes[i].origin );
 			}
 			ItemEdit_UnhidePickup( ent );
@@ -1195,7 +1183,7 @@ static qboolean ItemEdit_DeletePickup( gentity_t *target ) {
 		return qtrue;
 	}
 
-	if ( !ItemEdit_OriginMatch( target->s.origin, layoutKey ) ) {
+	if ( !ItemEdit_OriginMatch( target->s.pos.trBase, layoutKey ) ) {
 		ItemEdit_ApplyMoveOnEnt( target, layoutKey );
 	}
 	ItemEdit_PurgeLayoutRecordsForKey( layoutKey );
@@ -1828,7 +1816,7 @@ static int ItemEdit_RestoreMapDefaults( void ) {
 		}
 
 		changed = qfalse;
-		if ( !ItemEdit_AtHomePosition( pickup->s.pos.trBase, itemEditBspPickups[i].origin ) ) {
+		if ( !ItemEdit_PositionsEqual( pickup->s.pos.trBase, itemEditBspPickups[i].origin ) ) {
 			ItemEdit_ApplyMoveOnEnt( pickup, itemEditBspPickups[i].origin );
 			changed = qtrue;
 		}
@@ -1968,7 +1956,7 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 					|| !itemEdit_sessionWallEnt[entNum] ) {
 				return;
 			}
-			VectorCopy( target->s.origin, origin );
+			VectorCopy( target->s.pos.trBase, origin );
 			itemEdit_sessionWallEnt[entNum] = 0;
 			G_FreeEntity( target );
 			ItemEdit_RemoveWallRecord( origin );
@@ -2080,7 +2068,6 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 	if ( !Q_stricmp( sub, "homemove" ) ) {
 		vec3_t	home;
 		vec3_t	layoutKey;
-		vec3_t	current;
 
 		if ( trap_Argc() < 3 ) {
 			trap_SendServerCommand( ent - g_entities,
@@ -2099,9 +2086,7 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 			return;
 		}
 
-		VectorCopy( target->s.origin2, home );
-		VectorCopy( target->s.pos.trBase, current );
-		if ( ItemEdit_AtHomePosition( current, home ) ) {
+		if ( ItemEdit_PositionsEqual( target->s.pos.trBase, target->s.origin2 ) ) {
 			trap_SendServerCommand( ent - g_entities,
 					va( "print \"Item entity %i is already at its home position.\n\"", entNum ) );
 			return;
@@ -2109,6 +2094,7 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 
 		ItemEdit_ResolveMapName( itemEdit_mapName, sizeof( itemEdit_mapName ) );
 		ItemEdit_LayoutKeyForEnt( target, layoutKey );
+		VectorCopy( target->s.origin2, home );
 		ItemEdit_ApplyMoveOnEnt( target, home );
 		if ( !( target->s.eFlags & EF_NODRAW ) ) {
 			G_ItemTimerAfterMapEdit( target );

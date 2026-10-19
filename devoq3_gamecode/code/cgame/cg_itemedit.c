@@ -30,8 +30,6 @@ Server gate: g_editMode bit 1 (mirrored on CS_ITEMEDIT). UI lives in the spec ov
 #define ITEMEDIT_MOVE_BTN_H		18
 #define ITEMEDIT_MOVE_ICON_SZ		ITEMEDIT_MOVE_BTN_H
 #define ITEMEDIT_MOVE_GAP		4
-#define ITEMEDIT_ORIGIN_MATCH_EPS	4.0f
-#define ITEMEDIT_HOME_Z_SLACK		24.0f
 #define ITEMEDIT_RESET_GAP		4
 #define ITEMEDIT_MOVE_ROW_Y		( OVERLAY_SIDE_HDR_H + 28 )
 #define ITEMEDIT_SIDEBAR_HDR	( ITEMEDIT_MOVE_ROW_Y + ITEMEDIT_MOVE_BTN_H + ITEMEDIT_MOVE_GAP )
@@ -1316,9 +1314,25 @@ void CG_ItemEdit_Frame( void ) {
 	CG_ItemEdit_UpdateWallGhost();
 }
 
+static qboolean CG_ItemEdit_PositionsEqual( const vec3_t a, const vec3_t b ) {
+	if ( fabs( a[0] - b[0] ) > ITEMEDIT_POSITION_EPS
+			|| fabs( a[1] - b[1] ) > ITEMEDIT_POSITION_EPS
+			|| fabs( a[2] - b[2] ) > ITEMEDIT_POSITION_EPS ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+static void CG_ItemEdit_LogicalOrigin( const centity_t *cent, vec3_t out ) {
+	if ( !cent || !out ) {
+		return;
+	}
+	BG_EvaluateTrajectory( &cent->currentState.pos, cg.time, out );
+}
+
 static qboolean CG_ItemEdit_TargetRelocated( void ) {
 	centity_t	*cent;
-	vec3_t		delta;
+	vec3_t		logical;
 
 	if ( cg_itemEditTarget < MAX_CLIENTS ) {
 		return qfalse;
@@ -1327,14 +1341,8 @@ static qboolean CG_ItemEdit_TargetRelocated( void ) {
 	if ( !CG_ItemEdit_EntityLive( cent ) ) {
 		return qfalse;
 	}
-	VectorSubtract( cent->lerpOrigin, cent->currentState.origin2, delta );
-	if ( sqrt( delta[0] * delta[0] + delta[1] * delta[1] ) > ITEMEDIT_ORIGIN_MATCH_EPS ) {
-		return qtrue;
-	}
-	if ( fabs( delta[2] ) > ITEMEDIT_HOME_Z_SLACK ) {
-		return qtrue;
-	}
-	return qfalse;
+	CG_ItemEdit_LogicalOrigin( cent, logical );
+	return CG_ItemEdit_PositionsEqual( logical, cent->currentState.origin2 ) ? qfalse : qtrue;
 }
 
 static void CG_ItemEdit_RestoreTargetHome( void ) {

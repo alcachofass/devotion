@@ -7,6 +7,8 @@ In-game item pickup editing (spectator MVP).
 #ifndef G_ITEMEDIT_H
 #define G_ITEMEDIT_H
 
+#include "../cgame/cg_mapedit.h"
+
 #define ITEMEDIT_WALL_GENERIC1		1
 #define ITEMEDIT_WALL_FRAME			57345
 #define ITEMEDIT_WALL_HALF_WIDTH	64.0f
