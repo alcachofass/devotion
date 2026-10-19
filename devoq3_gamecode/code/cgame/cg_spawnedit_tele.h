@@ -40,6 +40,7 @@ void CG_SpawnEdit_Tele_AddSceneEntities( void );
 int CG_SpawnEdit_Tele_PanelMode( void );
 void CG_SpawnEdit_Tele_SetPanelMode( int mode );
 void CG_SpawnEdit_Tele_DrawContent( int bodyX, int teleSectionY, int bodyW, int teleSectionH );
+void CG_SpawnEdit_Tele_DrawHoverTips( int bodyX, int teleSectionY, int teleSectionH, int bodyW );
 void CG_SpawnEdit_Tele_PointerMove( int mx, int my, int bodyX, int bodyY, int bodyW, int bodyH );
 qboolean CG_SpawnEdit_Tele_HandleClick( int mx, int my, int bodyX, int bodyY, int bodyW, int bodyH );
 qboolean CG_SpawnEdit_Tele_KeyEvent( int key, qboolean down );

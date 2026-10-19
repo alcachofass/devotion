@@ -31,8 +31,10 @@ Server gate: g_editMode bit 1 (mirrored on CS_ITEMEDIT). UI lives in the spec ov
 #define ITEMEDIT_MOVE_ICON_SZ		ITEMEDIT_MOVE_BTN_H
 #define ITEMEDIT_MOVE_GAP		4
 #define ITEMEDIT_RESET_GAP		4
-#define ITEMEDIT_MOVE_ROW_Y		( OVERLAY_SIDE_HDR_H + 28 )
-#define ITEMEDIT_SIDEBAR_HDR	( ITEMEDIT_MOVE_ROW_Y + ITEMEDIT_MOVE_BTN_H + ITEMEDIT_MOVE_GAP )
+#define ITEMEDIT_MOVE_ROW_Y		( OVERLAY_SIDE_HDR_H + 4 )
+#define ITEMEDIT_PICKER_LABEL_H	12
+#define ITEMEDIT_PICKER_LABEL_Y	( ITEMEDIT_MOVE_ROW_Y + ITEMEDIT_MOVE_BTN_H + ITEMEDIT_MOVE_GAP )
+#define ITEMEDIT_SIDEBAR_HDR	( ITEMEDIT_PICKER_LABEL_Y + ITEMEDIT_PICKER_LABEL_H )
 #define ITEMEDIT_HDR_LINE1_Y	( OVERLAY_SIDE_HDR_H + 6 )
 #define ITEMEDIT_HDR_LINE2_Y	( OVERLAY_SIDE_HDR_H + 16 )
 #define ITEMEDIT_HDR_LINE_H		10
@@ -99,7 +101,6 @@ static qboolean			cg_itemEditSidebarOpen;
 static qboolean			cg_itemEditResetPrompt;
 static int				cg_itemEditResetModalHover;
 static int				cg_itemEditResetBtnHover;
-static qboolean			cg_itemEditDefaultLineHover;
 static qboolean			cg_itemEditMoveActive;
 static qboolean			cg_itemEditAddActive;
 static qboolean			cg_itemEditMoveValid;
@@ -136,19 +137,27 @@ static qboolean CG_ItemEdit_IsEditWallCent( const centity_t *cent );
 static qboolean CG_ItemEdit_WallBtnHit( int mx, int my, int bodyX, int bodyY, int bodyW );
 static void CG_ItemEdit_DrawWallBtn( int bodyX, int bodyY, int bodyW );
 static void CG_ItemEdit_DrawMoveRow( int bodyX, int bodyY, int bodyW );
+static void CG_ItemEdit_MoveRowRects( int bodyX, int bodyY, int bodyW,
+		int *moveX, int *moveY, int *moveW, int *moveH,
+		int *auxX, int *auxY, int *auxW, int *auxH, qboolean *auxIsCancel, qboolean *hasMoveRow,
+		int *revertX, int *revertY, int *revertW, int *revertH, qboolean *hasRevert );
+static qboolean CG_ItemEdit_DefaultRevertIndex( int *defaultIdxOut );
+static void CG_ItemEdit_DrawRevertDefaultBtn( int bodyX, int bodyY, int bodyW );
 static qboolean CG_ItemEdit_TargetRelocated( void );
 static void CG_ItemEdit_RestoreTargetHome( void );
 static const char *CG_ItemEdit_ItemDisplayName( const gitem_t *item );
 static const char *CG_ItemEdit_GroupTitle( itemEditGroup_t group );
-static void CG_ItemEdit_DrawPickupHeader( int bodyX, int bodyY, int bodyW, const centity_t *cent );
 static void CG_ItemEdit_RevertTargetToDefault( void );
 static void CG_ItemEdit_DrawResetFooter( int bodyX, int bodyY, int bodyW, int bodyH );
+static void CG_ItemEdit_ResetBtnRect( int bodyX, int bodyY, int bodyW, int bodyH,
+		int *x, int *y, int *w, int *h );
 static void CG_ItemEdit_ActionBtnRect( int bodyX, int bodyY, int bodyW, int bodyH,
 		int *x, int *y, int *w, int *h );
 static void CG_ItemEdit_DrawActionButton( int bodyX, int bodyY, int bodyW, int bodyH );
 static qboolean CG_ItemEdit_ActionBtnHit( int mx, int my, int bodyX, int bodyY, int bodyW, int bodyH );
 static int CG_ItemEdit_SelItemIndex( void );
 static void CG_ItemEdit_StartAdd( void );
+static void CG_ItemEdit_DrawPickerLabel( int bodyX, int bodyY, qboolean hasItemTarget );
 static void CG_ItemEdit_DrawItemPicker( int bodyX, int bodyY, int bodyW, int bodyH );
 static qboolean CG_ItemEdit_RowAt( int mx, int my, int bodyX, int bodyY, int bodyW, int bodyH, int *rowIndex );
 static void CG_ItemEdit_ResetModalRect( int *x, int *y, int *w, int *h );
@@ -1434,6 +1443,211 @@ static qboolean CG_ItemEdit_WallBtnHit( int mx, int my, int bodyX, int bodyY, in
 	return ( mx >= x && mx < x + size && my >= y && my < y + size ) ? qtrue : qfalse;
 }
 
+static qboolean CG_ItemEdit_DefaultRevertIndex( int *defaultIdxOut ) {
+	centity_t	*cent;
+	int			defaultIdx;
+	gitem_t		*currentItem;
+	gitem_t		*defaultItem;
+
+	if ( cg_itemEditTarget < MAX_CLIENTS || cg_itemEditAddActive || cg_itemEditWallActive ) {
+		return qfalse;
+	}
+	if ( cg_itemEditWallTarget >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	cent = &cg_entities[cg_itemEditTarget];
+	if ( !CG_ItemEdit_EntityLive( cent ) ) {
+		return qfalse;
+	}
+	defaultIdx = cent->currentState.frame;
+	if ( defaultIdx <= 0 || defaultIdx >= bg_numItems ) {
+		return qfalse;
+	}
+	currentItem = &bg_itemlist[cent->currentState.modelindex];
+	defaultItem = &bg_itemlist[defaultIdx];
+	if ( currentItem == defaultItem ) {
+		return qfalse;
+	}
+	if ( defaultIdxOut ) {
+		*defaultIdxOut = defaultIdx;
+	}
+	return qtrue;
+}
+
+static void CG_ItemEdit_MoveRowRects( int bodyX, int bodyY, int bodyW,
+		int *moveX, int *moveY, int *moveW, int *moveH,
+		int *auxX, int *auxY, int *auxW, int *auxH, qboolean *auxIsCancel, qboolean *hasMoveRow,
+		int *revertX, int *revertY, int *revertW, int *revertH, qboolean *hasRevert ) {
+	overlayEditMoveUi_t	ui;
+	int					anchorX;
+
+	*hasMoveRow = qfalse;
+	*auxW = 0;
+	*auxIsCancel = qfalse;
+	if ( hasRevert ) {
+		*hasRevert = qfalse;
+		if ( revertW ) {
+			*revertW = 0;
+		}
+	}
+
+	if ( cg_itemEditWallTarget >= MAX_CLIENTS && !cg_itemEditWallActive ) {
+		return;
+	}
+	if ( cg_itemEditWallActive ) {
+		ui = CG_ItemEdit_MoveUi();
+		ui.moveActive = qtrue;
+		ui.moveValid = cg_itemEditWallValid;
+		Overlay_EditMoveLayout( bodyX, bodyY, &ui,
+				moveX, moveY, moveW, moveH,
+				auxX, auxY, auxW, auxH, auxIsCancel );
+		*hasMoveRow = qtrue;
+		return;
+	}
+	if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive ) {
+		if ( cg_itemEditWallTarget < MAX_CLIENTS ) {
+			*moveX = bodyX + ITEMEDIT_PANEL_PAD;
+			*moveY = bodyY + ITEMEDIT_MOVE_ROW_Y;
+			*moveW = ITEMEDIT_MOVE_ICON_SZ;
+			*moveH = ITEMEDIT_MOVE_BTN_H;
+			*hasMoveRow = qtrue;
+		}
+		return;
+	}
+	ui = CG_ItemEdit_MoveUi();
+	Overlay_EditMoveLayout( bodyX, bodyY, &ui,
+			moveX, moveY, moveW, moveH,
+			auxX, auxY, auxW, auxH, auxIsCancel );
+	*hasMoveRow = qtrue;
+
+	if ( !hasRevert || !CG_ItemEdit_DefaultRevertIndex( NULL ) ) {
+		return;
+	}
+	anchorX = *moveX + *moveW;
+	if ( *auxW > 0 ) {
+		anchorX = *auxX + *auxW;
+	}
+	*hasRevert = qtrue;
+	*revertX = anchorX + ITEMEDIT_MOVE_GAP;
+	*revertY = *moveY;
+	*revertW = ITEMEDIT_MOVE_ICON_SZ;
+	*revertH = ITEMEDIT_MOVE_BTN_H;
+}
+
+static void CG_ItemEdit_DrawRevertDefaultBtn( int bodyX, int bodyY, int bodyW ) {
+	int			moveX, moveY, moveW, moveH;
+	int			auxX, auxY, auxW, auxH;
+	int			revertX, revertY, revertW, revertH;
+	qboolean	auxIsCancel;
+	qboolean	hasMoveRow;
+	qboolean	hasRevert;
+	int			defaultIdx;
+	vec4_t		btn;
+	qhandle_t	icon;
+
+	if ( !CG_ItemEdit_DefaultRevertIndex( &defaultIdx ) ) {
+		return;
+	}
+	CG_ItemEdit_MoveRowRects( bodyX, bodyY, bodyW,
+			&moveX, &moveY, &moveW, &moveH,
+			&auxX, &auxY, &auxW, &auxH, &auxIsCancel, &hasMoveRow,
+			&revertX, &revertY, &revertW, &revertH, &hasRevert );
+	if ( !hasRevert ) {
+		return;
+	}
+	CG_RegisterItemVisuals( defaultIdx );
+	icon = cg_items[defaultIdx].icon;
+	if ( !icon ) {
+		icon = cgs.media.noammoShader;
+	}
+	btn[0] = 0.16f;
+	btn[1] = 0.18f;
+	btn[2] = 0.22f;
+	btn[3] = ( cg_itemEditMoveBtnHover == 2 ) ? 0.92f : 0.78f;
+	Overlay_DrawIconButton( revertX, revertY, revertW, btn, icon );
+}
+
+static const char *CG_ItemEdit_PrimaryMoveTip( void ) {
+	if ( cg_itemEditWallActive ) {
+		return cg_itemEditWallValid ? "Place wall here" : "Aim at a floor or wall";
+	}
+	if ( cg_itemEditMoveActive ) {
+		if ( cg_itemEditAddActive ) {
+			return cg_itemEditMoveValid ? "Place new pickup here" : "Aim at a valid spot";
+		}
+		return cg_itemEditMoveValid ? "Confirm new position" : "Aim at a valid spot";
+	}
+	if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive ) {
+		return "Place an edit wall";
+	}
+	return "Move selected pickup";
+}
+
+static const char *CG_ItemEdit_AuxMoveTip( qboolean auxIsCancel ) {
+	if ( auxIsCancel ) {
+		if ( cg_itemEditWallActive ) {
+			return "Cancel wall placement";
+		}
+		return "Cancel move";
+	}
+	return "Return item to stock position";
+}
+
+void CG_ItemEdit_DrawHoverTips( int bodyX, int bodyY, int bodyW, int bodyH ) {
+	int			moveX, moveY, moveW, moveH;
+	int			auxX, auxY, auxW, auxH;
+	int			revertX, revertY, revertW, revertH;
+	int			x, y, w, h;
+	qboolean	auxIsCancel;
+	qboolean	hasMoveRow;
+	qboolean	hasRevert;
+	const char	*tip;
+
+	if ( cg_itemEditResetPrompt ) {
+		return;
+	}
+
+	CG_ItemEdit_MoveRowRects( bodyX, bodyY, bodyW,
+			&moveX, &moveY, &moveW, &moveH,
+			&auxX, &auxY, &auxW, &auxH, &auxIsCancel, &hasMoveRow,
+			&revertX, &revertY, &revertW, &revertH, &hasRevert );
+	if ( hasMoveRow && cg_itemEditMoveBtnHover == 0 ) {
+		tip = CG_ItemEdit_PrimaryMoveTip();
+		if ( tip && tip[0] ) {
+			Overlay_DrawHoverTip( tip, moveX, moveY, moveW, moveH, OVERLAY_TIP_LEFT_DRAWER_ICON );
+		}
+	}
+	if ( hasMoveRow && cg_itemEditMoveBtnHover == 1 && auxW > 0 ) {
+		tip = CG_ItemEdit_AuxMoveTip( auxIsCancel );
+		if ( tip && tip[0] ) {
+			Overlay_DrawHoverTip( tip, auxX, auxY, auxW, auxH, OVERLAY_TIP_LEFT_DRAWER_ICON );
+		}
+	}
+	if ( hasRevert && cg_itemEditMoveBtnHover == 2 ) {
+		Overlay_DrawHoverTip( "Restore default item type", revertX, revertY, revertW, revertH,
+				OVERLAY_TIP_LEFT_DRAWER_ICON );
+	}
+
+	if ( cg_itemEditActionBtnHover >= 0 && !cg_itemEditAddActive ) {
+		CG_ItemEdit_ActionBtnRect( bodyX, bodyY, bodyW, bodyH, &x, &y, &w, &h );
+		if ( cg_itemEditTarget >= MAX_CLIENTS || cg_itemEditWallTarget >= MAX_CLIENTS ) {
+			if ( cg_itemEditDeleteConfirm ) {
+				tip = "Confirm permanent removal";
+			} else {
+				tip = "Remove this pickup or wall";
+			}
+		} else {
+			tip = "Add a pickup to the map";
+		}
+		Overlay_DrawHoverTip( tip, x, y, w, h, OVERLAY_TIP_LEFT_DRAWER_WIDE );
+	}
+
+	if ( cg_itemEditResetBtnHover >= 0 ) {
+		CG_ItemEdit_ResetBtnRect( bodyX, bodyY, bodyW, bodyH, &x, &y, &w, &h );
+		Overlay_DrawHoverTip( "Revert all layout changes on this map", x, y, w, h, OVERLAY_TIP_LEFT_DRAWER_WIDE );
+	}
+}
+
 static void CG_ItemEdit_DrawMoveRow( int bodyX, int bodyY, int bodyW ) {
 	overlayEditMoveUi_t	ui;
 	int					moveX, moveY, moveW, moveH;
@@ -1465,15 +1679,30 @@ static void CG_ItemEdit_DrawMoveRow( int bodyX, int bodyY, int bodyW ) {
 			&auxX, &auxY, &auxW, &auxH, &auxIsCancel );
 	Overlay_DrawEditMoveButtons( &ui, moveX, moveY, moveW, moveH,
 			auxX, auxY, auxW, auxH, auxIsCancel );
+	CG_ItemEdit_DrawRevertDefaultBtn( bodyX, bodyY, bodyW );
 }
 
 static qboolean CG_ItemEdit_MoveBtnHit( int which, int mx, int my, int bodyX, int bodyY, int bodyW ) {
 	overlayEditMoveUi_t	ui;
 	int					moveX, moveY, moveW, moveH;
 	int					auxX, auxY, auxW, auxH;
+	int					revertX, revertY, revertW, revertH;
 	qboolean			auxIsCancel;
+	qboolean			hasMoveRow;
+	qboolean			hasRevert;
 
 	(void)bodyW;
+	if ( which == 2 ) {
+		CG_ItemEdit_MoveRowRects( bodyX, bodyY, bodyW,
+				&moveX, &moveY, &moveW, &moveH,
+				&auxX, &auxY, &auxW, &auxH, &auxIsCancel, &hasMoveRow,
+				&revertX, &revertY, &revertW, &revertH, &hasRevert );
+		if ( !hasRevert ) {
+			return qfalse;
+		}
+		return ( mx >= revertX && mx < revertX + revertW
+				&& my >= revertY && my < revertY + revertH ) ? qtrue : qfalse;
+	}
 	if ( cg_itemEditWallActive ) {
 		ui = CG_ItemEdit_MoveUi();
 		ui.moveActive = qtrue;
@@ -1637,56 +1866,6 @@ static void CG_ItemEdit_DrawWallHeader( int bodyX, int bodyY, const centity_t *c
 			line, muted, qtrue, qtrue, 6, 10, 0 );
 }
 
-static void CG_ItemEdit_DrawPickupHeader( int bodyX, int bodyY, int bodyW, const centity_t *cent ) {
-	gitem_t		*currentItem;
-	gitem_t		*defaultItem;
-	char		line[96];
-	vec4_t		valueColor;
-	vec4_t		defaultHover;
-	vec4_t		muted;
-	int			defaultIdx;
-	qboolean	canRevert;
-
-	valueColor[0] = 0.9f;
-	valueColor[1] = 0.92f;
-	valueColor[2] = 1.0f;
-	valueColor[3] = 1.0f;
-	muted[0] = 0.55f;
-	muted[1] = 0.58f;
-	muted[2] = 0.62f;
-	muted[3] = 1.0f;
-	defaultHover[0] = 0.55f;
-	defaultHover[1] = 0.75f;
-	defaultHover[2] = 1.0f;
-	defaultHover[3] = 1.0f;
-
-	currentItem = &bg_itemlist[cent->currentState.modelindex];
-	defaultIdx = cent->currentState.frame;
-	if ( defaultIdx <= 0 || defaultIdx >= bg_numItems ) {
-		defaultIdx = 0;
-	}
-	defaultItem = defaultIdx ? &bg_itemlist[defaultIdx] : NULL;
-	canRevert = ( defaultItem && currentItem != defaultItem ) ? qtrue : qfalse;
-
-	Com_sprintf( line, sizeof( line ), "Current: %s",
-			CG_ItemEdit_ItemDisplayName( currentItem ) );
-	CG_DrawStringExt( bodyX + ITEMEDIT_PANEL_PAD, bodyY + ITEMEDIT_HDR_LINE1_Y,
-			line, valueColor, qtrue, qtrue, 6, 10, 0 );
-
-	Com_sprintf( line, sizeof( line ), "Default: %s",
-			defaultItem ? CG_ItemEdit_ItemDisplayName( defaultItem ) : "?" );
-	if ( canRevert && cg_itemEditDefaultLineHover ) {
-		CG_DrawStringExt( bodyX + ITEMEDIT_PANEL_PAD, bodyY + ITEMEDIT_HDR_LINE2_Y,
-				line, defaultHover, qtrue, qtrue, 6, 10, 0 );
-	} else if ( canRevert ) {
-		CG_DrawStringExt( bodyX + ITEMEDIT_PANEL_PAD, bodyY + ITEMEDIT_HDR_LINE2_Y,
-				line, valueColor, qtrue, qtrue, 6, 10, 0 );
-	} else {
-		CG_DrawStringExt( bodyX + ITEMEDIT_PANEL_PAD, bodyY + ITEMEDIT_HDR_LINE2_Y,
-				line, muted, qtrue, qtrue, 6, 10, 0 );
-	}
-}
-
 static void CG_ItemEdit_RevertTargetToDefault( void ) {
 	centity_t	*cent;
 	int			defaultIdx;
@@ -1785,6 +1964,27 @@ static qboolean CG_ItemEdit_ActionBtnHit( int mx, int my, int bodyX, int bodyY, 
 	return ( mx >= x && mx < x + w && my >= y && my < y + h ) ? qtrue : qfalse;
 }
 
+static void CG_ItemEdit_DrawPickerLabel( int bodyX, int bodyY, qboolean hasItemTarget ) {
+	vec4_t		labelColor;
+	const char	*label;
+
+	if ( hasItemTarget ) {
+		label = "Swap Item:";
+		labelColor[0] = 0.9f;
+		labelColor[1] = 0.92f;
+		labelColor[2] = 1.0f;
+		labelColor[3] = 1.0f;
+	} else {
+		label = "New Item:";
+		labelColor[0] = 0.65f;
+		labelColor[1] = 0.68f;
+		labelColor[2] = 0.72f;
+		labelColor[3] = 1.0f;
+	}
+	CG_DrawStringExt( bodyX + ITEMEDIT_PANEL_PAD, bodyY + ITEMEDIT_PICKER_LABEL_Y,
+			label, labelColor, qtrue, qtrue, 6, 10, 0 );
+}
+
 static void CG_ItemEdit_DrawItemPicker( int bodyX, int bodyY, int bodyW, int bodyH ) {
 	int				x, y, w, h;
 	int				i;
@@ -1852,15 +2052,9 @@ static void CG_ItemEdit_DrawItemPicker( int bodyX, int bodyY, int bodyW, int bod
 }
 
 void CG_ItemEdit_DrawSidebar( int bodyX, int bodyY, int bodyW, int bodyH ) {
-	vec4_t		muted;
 	centity_t	*cent;
 	qboolean	hasItemTarget;
 	qboolean	hasWallTarget;
-
-	muted[0] = 0.65f;
-	muted[1] = 0.68f;
-	muted[2] = 0.72f;
-	muted[3] = 1.0f;
 
 	CG_ItemEdit_SetVisibleRowsFromBodyH( bodyH );
 
@@ -1881,6 +2075,7 @@ void CG_ItemEdit_DrawSidebar( int bodyX, int bodyY, int bodyW, int bodyH ) {
 				CG_ItemEdit_DrawMovePinnedHeader( bodyX, bodyY,
 						CG_ItemEdit_MoveItemIndex() );
 				CG_ItemEdit_DrawMoveRow( bodyX, bodyY, bodyW );
+				CG_ItemEdit_DrawPickerLabel( bodyX, bodyY, qtrue );
 				CG_ItemEdit_DrawItemPicker( bodyX, bodyY, bodyW, bodyH );
 				CG_ItemEdit_DrawActionButton( bodyX, bodyY, bodyW, bodyH );
 				CG_ItemEdit_DrawResetFooter( bodyX, bodyY, bodyW, bodyH );
@@ -1897,19 +2092,15 @@ void CG_ItemEdit_DrawSidebar( int bodyX, int bodyY, int bodyW, int bodyH ) {
 		cent = &cg_entities[cg_itemEditWallTarget];
 		CG_ItemEdit_DrawWallHeader( bodyX, bodyY, cent );
 	} else if ( hasItemTarget ) {
-		CG_ItemEdit_DrawPickupHeader( bodyX, bodyY, bodyW, cent );
 		CG_ItemEdit_DrawMoveRow( bodyX, bodyY, bodyW );
 	} else if ( cg_itemEditAddActive ) {
 		CG_ItemEdit_DrawMovePinnedHeader( bodyX, bodyY, CG_ItemEdit_MoveItemIndex() );
 		CG_ItemEdit_DrawMoveRow( bodyX, bodyY, bodyW );
 	} else {
-		if ( !cg_itemEditWallActive ) {
-			CG_DrawStringExt( bodyX + ITEMEDIT_PANEL_PAD, bodyY + OVERLAY_SIDE_HDR_H + 12,
-					"No Item Selected", muted, qtrue, qtrue, 6, 10, 0 );
-		}
 		CG_ItemEdit_DrawMoveRow( bodyX, bodyY, bodyW );
 	}
 
+	CG_ItemEdit_DrawPickerLabel( bodyX, bodyY, hasItemTarget );
 	CG_ItemEdit_DrawItemPicker( bodyX, bodyY, bodyW, bodyH );
 	CG_ItemEdit_DrawActionButton( bodyX, bodyY, bodyW, bodyH );
 	CG_ItemEdit_DrawResetFooter( bodyX, bodyY, bodyW, bodyH );
@@ -2358,16 +2549,11 @@ static qboolean CG_ItemEdit_RowAt( int mx, int my, int bodyX, int bodyY, int bod
 
 void CG_ItemEdit_PointerMoveSidebar( int mx, int my, int bodyX, int bodyY, int bodyW, int bodyH ) {
 	int			rowIndex;
-	centity_t	*cent;
-	int			defaultIdx;
-	gitem_t		*currentItem;
-	gitem_t		*defaultItem;
 
 	CG_ItemEdit_SetVisibleRowsFromBodyH( bodyH );
 
 	cg_itemEditResetBtnHover = -1;
 	cg_itemEditActionBtnHover = -1;
-	cg_itemEditDefaultLineHover = qfalse;
 	if ( !CG_ItemEdit_SidebarContains( mx, my, bodyX, bodyY, bodyW, bodyH ) ) {
 		cg_itemEditMoveBtnHover = -1;
 	}
@@ -2387,6 +2573,8 @@ void CG_ItemEdit_PointerMoveSidebar( int mx, int my, int bodyX, int bodyY, int b
 			cg_itemEditMoveBtnHover = 0;
 		} else if ( CG_ItemEdit_MoveBtnHit( 1, mx, my, bodyX, bodyY, bodyW ) ) {
 			cg_itemEditMoveBtnHover = 1;
+		} else if ( CG_ItemEdit_MoveBtnHit( 2, mx, my, bodyX, bodyY, bodyW ) ) {
+			cg_itemEditMoveBtnHover = 2;
 		} else {
 			cg_itemEditMoveBtnHover = -1;
 		}
@@ -2401,21 +2589,6 @@ void CG_ItemEdit_PointerMoveSidebar( int mx, int my, int bodyX, int bodyY, int b
 			CG_ItemEdit_ClampScroll();
 		}
 		return;
-	}
-
-	if ( mx >= bodyX + ITEMEDIT_PANEL_PAD
-			&& mx < bodyX + bodyW - ITEMEDIT_PANEL_PAD
-			&& my >= bodyY + ITEMEDIT_HDR_LINE2_Y
-			&& my < bodyY + ITEMEDIT_HDR_LINE2_Y + ITEMEDIT_HDR_LINE_H ) {
-		cent = &cg_entities[cg_itemEditTarget];
-		defaultIdx = cent->currentState.frame;
-		if ( defaultIdx > 0 && defaultIdx < bg_numItems ) {
-			currentItem = &bg_itemlist[cent->currentState.modelindex];
-			defaultItem = &bg_itemlist[defaultIdx];
-			if ( currentItem != defaultItem ) {
-				cg_itemEditDefaultLineHover = qtrue;
-			}
-		}
 	}
 
 	if ( cg_itemEditRowsDirty ) {
@@ -2477,6 +2650,11 @@ qboolean CG_ItemEdit_HandleClickSidebar( int mx, int my, int bodyX, int bodyY, i
 		return qtrue;
 	}
 	if ( CG_ItemEdit_SidebarContains( mx, my, bodyX, bodyY, bodyW, bodyH )
+			&& CG_ItemEdit_MoveBtnHit( 2, mx, my, bodyX, bodyY, bodyW ) ) {
+		CG_ItemEdit_RevertTargetToDefault();
+		return qtrue;
+	}
+	if ( CG_ItemEdit_SidebarContains( mx, my, bodyX, bodyY, bodyW, bodyH )
 			&& CG_ItemEdit_MoveBtnHit( 0, mx, my, bodyX, bodyY, bodyW ) ) {
 		if ( cg_itemEditWallActive ) {
 			CG_ItemEdit_ConfirmWall();
@@ -2526,13 +2704,6 @@ qboolean CG_ItemEdit_HandleClickSidebar( int mx, int my, int bodyX, int bodyY, i
 		CG_ItemEdit_ActivateSel();
 		return qtrue;
 	}
-	if ( mx >= bodyX + ITEMEDIT_PANEL_PAD
-			&& mx < bodyX + bodyW - ITEMEDIT_PANEL_PAD
-			&& my >= bodyY + ITEMEDIT_HDR_LINE2_Y
-			&& my < bodyY + ITEMEDIT_HDR_LINE2_Y + ITEMEDIT_HDR_LINE_H ) {
-		CG_ItemEdit_RevertTargetToDefault();
-		return qtrue;
-	}
 	if ( CG_ItemEdit_RowAt( mx, my, bodyX, bodyY, bodyW, bodyH, &rowIndex ) ) {
 		cg_itemEditSel = rowIndex;
 	}
@@ -2558,7 +2729,6 @@ void CG_ItemEdit_Init( void ) {
 	cg_itemEditResetPrompt = qfalse;
 	cg_itemEditResetModalHover = -1;
 	cg_itemEditResetBtnHover = -1;
-	cg_itemEditDefaultLineHover = qfalse;
 	CG_ItemEdit_CancelMove();
 	cg_itemEditMoveEnt = -1;
 	cg_itemEditMoveBtnHover = -1;
