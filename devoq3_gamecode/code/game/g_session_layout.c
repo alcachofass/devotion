@@ -218,7 +218,11 @@ static qboolean SessionLayout_ReadFile( const char *mapname, int gametype ) {
 	qboolean		ok;
 
 	len = trap_FS_FOpenFile( SESSION_LAYOUT_PATH, &f, FS_READ );
-	if ( len <= 0 || !f ) {
+	if ( !f ) {
+		return qfalse;
+	}
+	if ( len <= 0 ) {
+		trap_FS_FCloseFile( f );
 		return qfalse;
 	}
 	if ( len > SESSION_LAYOUT_MAX_READ ) {
