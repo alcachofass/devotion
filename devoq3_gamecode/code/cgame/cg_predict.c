@@ -92,7 +92,7 @@ void CG_BuildSolidList( void ) {
 		if ( cent->nextState.solid ) {
 			/* Item-edit walls use CG_ItemEdit_ClipMoveToWalls (axis AABB from time2);
 			   generic solid encoding is symmetric XY and mis-sized for one yaw. */
-			if ( !CG_ItemEdit_EsIsWall( &cent->nextState ) ) {
+			if ( !CG_ItemEdit_EsIsEditClip( &cent->nextState ) ) {
 				cg_solidEntities[cg_numSolidEntities] = cent;
 				cg_numSolidEntities++;
 			}
@@ -720,8 +720,8 @@ static void CG_ClipMoveToEntities ( const vec3_t start, const vec3_t mins, const
 			continue;
 		}
 
-		if ( CG_ItemEdit_EsIsWall( ent )
-				|| ( cg.nextSnap && CG_ItemEdit_EsIsWall( &cent->nextState ) ) ) {
+		if ( CG_ItemEdit_EsIsEditClip( ent )
+				|| ( cg.nextSnap && CG_ItemEdit_EsIsEditClip( &cent->nextState ) ) ) {
 			continue;
 		}
 

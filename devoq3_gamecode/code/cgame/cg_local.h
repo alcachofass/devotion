@@ -1285,7 +1285,9 @@ typedef struct {
 	qhandle_t	itemEditIconTick;
 	qhandle_t	itemEditIconHome;
 	qhandle_t	itemEditIconWall;
+	qhandle_t	itemEditIconFloor;
 	qhandle_t	itemEditWallShader;
+	qhandle_t	itemEditFloorShader;
 
         // player overlays
         qhandle_t       neutralOverlay;
@@ -2067,8 +2069,13 @@ void CG_ItemEdit_Init( void );
 void CG_ItemEdit_Frame( void );
 void CG_ItemEdit_NoteItemPickup( int itemIndex, const vec3_t position );
 #define CG_ITEMEDIT_WALL_FRAME		57345
+#define CG_ITEMEDIT_FLOOR_FRAME		57346
 #define CG_ItemEdit_EsIsWall( es ) \
 	( (es)->eType == ET_GENERAL && (es)->frame == CG_ITEMEDIT_WALL_FRAME )
+#define CG_ItemEdit_EsIsFloor( es ) \
+	( (es)->eType == ET_GENERAL && (es)->frame == CG_ITEMEDIT_FLOOR_FRAME )
+#define CG_ItemEdit_EsIsEditClip( es ) \
+	( CG_ItemEdit_EsIsWall( es ) || CG_ItemEdit_EsIsFloor( es ) )
 
 void CG_ItemEdit_WallPredict_Clear( void );
 void CG_ItemEdit_WallPredict_Register( int entNum );
@@ -2094,6 +2101,7 @@ int CG_ItemEdit_HighlightEntNum( void );
 void CG_ItemEdit_AddItemHighlight( int entNum, refEntity_t *ent );
 void CG_ItemEdit_AddSceneEntities( void );
 void CG_ItemEdit_DrawWallForCent( const centity_t *cent );
+void CG_ItemEdit_DrawFloorForCent( const centity_t *cent );
 
 void CG_DrawSpawnpointMarkers( const spawnpoint_t *pts, const int *entNums, int count, int highlightEnt );
 void CG_SpawnEdit_Init( void );

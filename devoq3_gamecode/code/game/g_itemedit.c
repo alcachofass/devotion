@@ -51,6 +51,13 @@ typedef struct {
 	float		height;
 } itemEditWallRec_t;
 
+typedef struct {
+	vec3_t		origin;
+	float		yaw;
+	float		halfWidth;
+	float		halfDepth;
+} itemEditFloorRec_t;
+
 static itemEditOverride_t	itemEditOverrides[ITEMEDIT_MAX_OVERRIDES];
 static int					itemEditOverrideCount;
 static itemEditMove_t		itemEditMoves[ITEMEDIT_MAX_OVERRIDES];
@@ -61,9 +68,12 @@ static itemEditDelete_t		itemEditDeletes[ITEMEDIT_MAX_OVERRIDES];
 static int					itemEditDeleteCount;
 static itemEditWallRec_t	itemEditWalls[ITEMEDIT_MAX_OVERRIDES];
 static int					itemEditWallCount;
+static itemEditFloorRec_t	itemEditFloors[ITEMEDIT_MAX_OVERRIDES];
+static int					itemEditFloorCount;
 static qboolean				itemEdit_skipBspPickupCommit;
 static byte					itemEdit_sessionAddedEnt[MAX_GENTITIES];
 static byte					itemEdit_sessionWallEnt[MAX_GENTITIES];
+static byte					itemEdit_sessionFloorEnt[MAX_GENTITIES];
 static itemEditBspPickup_t	itemEditBspPickups[ITEMEDIT_MAX_OVERRIDES];
 static int					itemEditBspPickupCount;
 static int					itemEditBspPendingByEnt[MAX_GENTITIES];
@@ -112,6 +122,13 @@ static void ItemEdit_UpsertWallRecord( const vec3_t origin, float yaw, float hal
 static void ItemEdit_RemoveWallRecord( const vec3_t origin );
 static qboolean ItemEdit_ParseWallLine( const char *line, vec3_t origin, float *yaw,
 		float *halfWidth, float *height );
+static void ItemEdit_ApplyAllFloors( void );
+static void ItemEdit_ClearFloorRecords( void );
+static void ItemEdit_UpsertFloorRecord( const vec3_t origin, float yaw, float halfWidth,
+		float halfDepth );
+static void ItemEdit_RemoveFloorRecord( const vec3_t origin );
+static qboolean ItemEdit_ParseFloorLine( const char *line, vec3_t origin, float *yaw,
+		float *halfWidth, float *halfDepth );
 static int ItemEdit_RemoveAllSessionAdds( void );
 static int ItemEdit_RestoreAllDeletes( void );
 static void ItemEdit_PurgeLayoutRecordsForKey( const vec3_t layoutKey );
@@ -372,6 +389,170 @@ static int ItemEdit_RemoveAllWalls( void ) {
 	return removed;
 }
 
+static qboolean ItemEdit_IsEditFloorEnt( gentity_t *ent ) {
+	if ( !ent || !G_InUse( ent ) ) {
+		return qfalse;
+	}
+	if ( ent->s.eType != ET_GENERAL ) {
+		return qfalse;
+	}
+	if ( ent->s.frame != ITEMEDIT_FLOOR_FRAME ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+static float ItemEdit_SnapFloorYaw( float yaw ) {
+	return ItemEdit_SnapWallYaw( yaw );
+}
+
+static float ItemEdit_ClampFloorHalfWidth( float halfWidth ) {
+	return ItemEdit_ClampWallHalfWidth( halfWidth );
+}
+
+static float ItemEdit_ClampFloorHalfDepth( float halfDepth ) {
+	if ( halfDepth < ITEMEDIT_FLOOR_MIN_HALF_DEPTH ) {
+		return ITEMEDIT_FLOOR_MIN_HALF_DEPTH;
+	}
+	if ( halfDepth > ITEMEDIT_FLOOR_MAX_HALF_DEPTH ) {
+		return ITEMEDIT_FLOOR_MAX_HALF_DEPTH;
+	}
+	return halfDepth;
+}
+
+static void ItemEdit_FloorAxisBounds( float yawDeg, float halfWidth, float halfDepth, vec3_t mins,
+		vec3_t maxs ) {
+	vec3_t		forward;
+	vec3_t		right;
+	vec3_t		angles;
+	float		extX;
+	float		extY;
+
+	halfWidth = ItemEdit_ClampFloorHalfWidth( halfWidth );
+	halfDepth = ItemEdit_ClampFloorHalfDepth( halfDepth );
+	yawDeg = ItemEdit_SnapFloorYaw( yawDeg );
+	angles[0] = 0.0f;
+	angles[1] = yawDeg;
+	angles[2] = 0.0f;
+	AngleVectors( angles, forward, right, NULL );
+	right[2] = 0.0f;
+	forward[2] = 0.0f;
+	VectorNormalize( right );
+	VectorNormalize( forward );
+	extX = fabs( right[0] ) * halfWidth + fabs( forward[0] ) * halfDepth;
+	extY = fabs( right[1] ) * halfWidth + fabs( forward[1] ) * halfDepth;
+	VectorSet( mins, -extX, -extY, 0.0f );
+	VectorSet( maxs, extX, extY, ITEMEDIT_FLOOR_THICKNESS );
+}
+
+static gentity_t *ItemEdit_SpawnFloor( vec3_t backBottomCenter, float yaw, float halfWidth,
+		float halfDepth ) {
+	gentity_t	*ent;
+
+	ent = G_Spawn();
+	if ( !ent ) {
+		return NULL;
+	}
+
+	ent->classname = "edit_floor";
+	ent->s.eType = ET_GENERAL;
+	ent->s.generic1 = ITEMEDIT_FLOOR_GENERIC1;
+	ent->s.frame = ITEMEDIT_FLOOR_FRAME;
+	ent->s.modelindex = 0;
+	ent->s.pos.trType = TR_STATIONARY;
+	ent->s.apos.trType = TR_STATIONARY;
+	ent->r.contents = CONTENTS_SOLID;
+	ent->clipmask = MASK_SOLID;
+	halfWidth = ItemEdit_ClampFloorHalfWidth( halfWidth );
+	halfDepth = ItemEdit_ClampFloorHalfDepth( halfDepth );
+	yaw = ItemEdit_SnapFloorYaw( yaw );
+	ItemEdit_FloorAxisBounds( yaw, halfWidth, halfDepth, ent->r.mins, ent->r.maxs );
+	G_SetOrigin( ent, backBottomCenter );
+	ent->s.angles[0] = 0.0f;
+	ent->s.angles[1] = yaw;
+	ent->s.angles[2] = 0.0f;
+	VectorCopy( ent->s.angles, ent->s.apos.trBase );
+	ent->s.time2 = ItemEdit_FloorPackSize( (int)( halfWidth + 0.5f ),
+			(int)( halfDepth + 0.5f ) );
+	ent->s.eventParm = 0;
+	trap_LinkEntity( ent );
+	if ( ent->s.number >= 0 && ent->s.number < MAX_GENTITIES ) {
+		itemEdit_sessionFloorEnt[ent->s.number] = 1;
+	}
+	return ent;
+}
+
+static void ItemEdit_UpsertFloorRecord( const vec3_t origin, float yaw, float halfWidth,
+		float halfDepth ) {
+	int	slot;
+
+	if ( !origin ) {
+		return;
+	}
+	slot = ItemEdit_FindOriginRecord( origin,
+			(const itemEditOriginRec_t *)itemEditFloors, itemEditFloorCount );
+	if ( slot < 0 ) {
+		if ( itemEditFloorCount >= ITEMEDIT_MAX_OVERRIDES ) {
+			return;
+		}
+		slot = itemEditFloorCount++;
+	}
+	VectorCopy( origin, itemEditFloors[slot].origin );
+	itemEditFloors[slot].yaw = yaw;
+	itemEditFloors[slot].halfWidth = halfWidth;
+	itemEditFloors[slot].halfDepth = halfDepth;
+	itemEdit_dirty = qtrue;
+}
+
+static void ItemEdit_RemoveFloorRecord( const vec3_t origin ) {
+	int	i;
+
+	if ( !origin ) {
+		return;
+	}
+	for ( i = 0; i < itemEditFloorCount; i++ ) {
+		if ( !ItemEdit_OriginMatch( itemEditFloors[i].origin, origin ) ) {
+			continue;
+		}
+		itemEditFloorCount--;
+		for ( ; i < itemEditFloorCount; i++ ) {
+			itemEditFloors[i] = itemEditFloors[i + 1];
+		}
+		itemEdit_dirty = qtrue;
+		return;
+	}
+}
+
+static void ItemEdit_ApplyAllFloors( void ) {
+	int	i;
+
+	for ( i = 0; i < itemEditFloorCount; i++ ) {
+		ItemEdit_SpawnFloor( itemEditFloors[i].origin, itemEditFloors[i].yaw,
+				itemEditFloors[i].halfWidth, itemEditFloors[i].halfDepth );
+	}
+}
+
+static int ItemEdit_RemoveAllFloors( void ) {
+	int			i;
+	int			removed;
+	gentity_t	*ent;
+
+	removed = 0;
+	for ( i = MAX_CLIENTS; i < level.num_entities; i++ ) {
+		ent = &g_entities[i];
+		if ( !ItemEdit_IsEditFloorEnt( ent ) ) {
+			continue;
+		}
+		if ( !itemEdit_sessionFloorEnt[ent->s.number] ) {
+			continue;
+		}
+		itemEdit_sessionFloorEnt[ent->s.number] = 0;
+		G_FreeEntity( ent );
+		removed++;
+	}
+	return removed;
+}
+
 static qboolean ItemEdit_IsLiveMapPickup( gentity_t *ent ) {
 	if ( !ent || !G_InUse( ent ) ) {
 		return qfalse;
@@ -416,10 +597,15 @@ static void ItemEdit_ClearAddsAndDeletes( void ) {
 	itemEditDeleteCount = 0;
 	memset( itemEdit_sessionAddedEnt, 0, sizeof( itemEdit_sessionAddedEnt ) );
 	memset( itemEdit_sessionWallEnt, 0, sizeof( itemEdit_sessionWallEnt ) );
+	memset( itemEdit_sessionFloorEnt, 0, sizeof( itemEdit_sessionFloorEnt ) );
 }
 
 static void ItemEdit_ClearWallRecords( void ) {
 	itemEditWallCount = 0;
+}
+
+static void ItemEdit_ClearFloorRecords( void ) {
+	itemEditFloorCount = 0;
 }
 
 static void ItemEdit_ClearOverrides( void ) {
@@ -427,6 +613,7 @@ static void ItemEdit_ClearOverrides( void ) {
 	ItemEdit_ClearMoves();
 	ItemEdit_ClearAddsAndDeletes();
 	ItemEdit_ClearWallRecords();
+	ItemEdit_ClearFloorRecords();
 	itemEdit_dirty = qfalse;
 }
 
@@ -1119,7 +1306,7 @@ static int ItemEdit_RemoveAllSessionAdds( void ) {
 		if ( !G_InUse( ent ) || !ItemEdit_IsSessionAddedEnt( ent ) ) {
 			continue;
 		}
-		if ( ItemEdit_IsEditWallEnt( ent ) ) {
+		if ( ItemEdit_IsEditWallEnt( ent ) || ItemEdit_IsEditFloorEnt( ent ) ) {
 			continue;
 		}
 		ItemEdit_UnmarkSessionAdded( ent->s.number );
@@ -1186,6 +1373,26 @@ static qboolean ItemEdit_ParseWallLine( const char *line, vec3_t origin, float *
 	*yaw = (float)_atof( &p );
 	*halfWidth = (float)_atof( &p );
 	*height = (float)_atof( &p );
+	return qtrue;
+}
+
+static qboolean ItemEdit_ParseFloorLine( const char *line, vec3_t origin, float *yaw,
+		float *halfWidth, float *halfDepth ) {
+	const char	*p;
+
+	if ( !line || !origin || !yaw || !halfWidth || !halfDepth ) {
+		return qfalse;
+	}
+	if ( Q_stricmpn( line, "ifloor ", 7 ) ) {
+		return qfalse;
+	}
+	p = line + 7;
+	origin[0] = (float)_atof( &p );
+	origin[1] = (float)_atof( &p );
+	origin[2] = (float)_atof( &p );
+	*yaw = (float)_atof( &p );
+	*halfWidth = (float)_atof( &p );
+	*halfDepth = (float)_atof( &p );
 	return qtrue;
 }
 
@@ -1652,7 +1859,7 @@ void ItemEdit_SessionClearRecords( void ) {
 qboolean ItemEdit_SessionHasRecords( void ) {
 	return ( itemEditOverrideCount > 0 || itemEditMoveCount > 0
 			|| itemEditAddCount > 0 || itemEditDeleteCount > 0
-			|| itemEditWallCount > 0 ) ? qtrue : qfalse;
+			|| itemEditWallCount > 0 || itemEditFloorCount > 0 ) ? qtrue : qfalse;
 }
 
 qboolean ItemEdit_SessionIsDirty( void ) {
@@ -1735,6 +1942,17 @@ void ItemEdit_SessionWriteLines( fileHandle_t f ) {
 		len = (int)strlen( line );
 		trap_FS_Write( line, len, f );
 	}
+	for ( i = 0; i < itemEditFloorCount; i++ ) {
+		Com_sprintf( line, sizeof( line ), "ifloor %.3f %.3f %.3f %.3f %.3f %.3f\n",
+				itemEditFloors[i].origin[0],
+				itemEditFloors[i].origin[1],
+				itemEditFloors[i].origin[2],
+				itemEditFloors[i].yaw,
+				itemEditFloors[i].halfWidth,
+				itemEditFloors[i].halfDepth );
+		len = (int)strlen( line );
+		trap_FS_Write( line, len, f );
+	}
 }
 
 qboolean ItemEdit_SessionParseLine( const char *lineBuf ) {
@@ -1748,6 +1966,10 @@ qboolean ItemEdit_SessionParseLine( const char *lineBuf ) {
 	float		wallYaw;
 	float		wallHalfWidth;
 	float		wallHeight;
+	vec3_t		floorOrigin;
+	float		floorYaw;
+	float		floorHalfWidth;
+	float		floorHalfDepth;
 
 	if ( !lineBuf || !lineBuf[0] ) {
 		return qfalse;
@@ -1762,6 +1984,18 @@ qboolean ItemEdit_SessionParseLine( const char *lineBuf ) {
 		itemEditWalls[itemEditWallCount].halfWidth = wallHalfWidth;
 		itemEditWalls[itemEditWallCount].height = wallHeight;
 		itemEditWallCount++;
+		return qtrue;
+	}
+
+	if ( ItemEdit_ParseFloorLine( lineBuf, floorOrigin, &floorYaw, &floorHalfWidth, &floorHalfDepth ) ) {
+		if ( itemEditFloorCount >= ITEMEDIT_MAX_OVERRIDES ) {
+			return qfalse;
+		}
+		VectorCopy( floorOrigin, itemEditFloors[itemEditFloorCount].origin );
+		itemEditFloors[itemEditFloorCount].yaw = floorYaw;
+		itemEditFloors[itemEditFloorCount].halfWidth = floorHalfWidth;
+		itemEditFloors[itemEditFloorCount].halfDepth = floorHalfDepth;
+		itemEditFloorCount++;
 		return qtrue;
 	}
 
@@ -1830,6 +2064,7 @@ void ItemEdit_OnEntitiesSpawned( void ) {
 	ItemEdit_ApplyAllDeletes();
 	ItemEdit_ApplyAllAdds();
 	ItemEdit_ApplyAllWalls();
+	ItemEdit_ApplyAllFloors();
 	ItemEdit_Dbg( "=== session apply pass end ===" );
 }
 
@@ -1837,7 +2072,7 @@ void ItemEdit_RunDeferredApply( void ) {
 	if ( itemEdit_deferredApplyDone
 			|| ( itemEditOverrideCount <= 0 && itemEditMoveCount <= 0
 					&& itemEditAddCount <= 0 && itemEditDeleteCount <= 0
-					&& itemEditWallCount <= 0 ) ) {
+					&& itemEditWallCount <= 0 && itemEditFloorCount <= 0 ) ) {
 		return;
 	}
 	if ( level.time < level.startTime + 250 ) {
@@ -1851,6 +2086,7 @@ void ItemEdit_RunDeferredApply( void ) {
 	ItemEdit_ApplyAllDeletes();
 	ItemEdit_ApplyAllAdds();
 	ItemEdit_ApplyAllWalls();
+	ItemEdit_ApplyAllFloors();
 	ItemEdit_Dbg( "=== session apply pass end (deferred) ===" );
 }
 
@@ -2009,17 +2245,19 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 		int	added;
 		int	deleted;
 		int	walls;
+		int	floors;
 
 		restored = ItemEdit_RestoreMapDefaults();
 		walls = ItemEdit_RemoveAllWalls();
+		floors = ItemEdit_RemoveAllFloors();
 		added = ItemEdit_RemoveAllSessionAdds();
 		deleted = ItemEdit_RestoreAllDeletes();
 		SessionLayout_Purge();
 		ItemEdit_ClearOverrides();
 		itemEdit_deferredApplyDone = qfalse;
 		trap_SendServerCommand( ent - g_entities,
-				va( "print \"Item layout cleared; %i BSP pickup(s) restored, %i added removed, %i delete(s) restored, %i wall(s) removed.\n\"",
-					restored, added, deleted, walls ) );
+				va( "print \"Item layout cleared; %i BSP pickup(s) restored, %i added removed, %i delete(s) restored, %i wall(s) removed, %i floor(s) removed.\n\"",
+					restored, added, deleted, walls, floors ) );
 		return;
 	}
 	if ( !Q_stricmp( sub, "walladd" ) ) {
@@ -2056,6 +2294,40 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 		}
 		return;
 	}
+	if ( !Q_stricmp( sub, "flooradd" ) ) {
+		vec3_t		backBottomCenter;
+		float		yaw;
+		float		halfWidth;
+		float		halfDepth;
+		gentity_t	*spawned;
+
+		if ( trap_Argc() < 8 ) {
+			trap_SendServerCommand( ent - g_entities,
+					"print \"usage: itemedit flooradd <x> <y> <z> <yaw> <halfWidth> <halfDepth>\n\"" );
+			return;
+		}
+
+		trap_Argv( 2, numBuf, sizeof( numBuf ) );
+		backBottomCenter[0] = atof( numBuf );
+		trap_Argv( 3, numBuf, sizeof( numBuf ) );
+		backBottomCenter[1] = atof( numBuf );
+		trap_Argv( 4, numBuf, sizeof( numBuf ) );
+		backBottomCenter[2] = atof( numBuf );
+		trap_Argv( 5, numBuf, sizeof( numBuf ) );
+		yaw = atof( numBuf );
+		trap_Argv( 6, numBuf, sizeof( numBuf ) );
+		halfWidth = atof( numBuf );
+		trap_Argv( 7, numBuf, sizeof( numBuf ) );
+		halfDepth = atof( numBuf );
+
+		spawned = ItemEdit_SpawnFloor( backBottomCenter, yaw, halfWidth, halfDepth );
+		if ( spawned ) {
+			ItemEdit_UpsertFloorRecord( backBottomCenter, yaw, halfWidth, halfDepth );
+			trap_SendServerCommand( ent - g_entities,
+					va( "print \"Edit floor placed (entity %i).\n\"", spawned->s.number ) );
+		}
+		return;
+	}
 	if ( !Q_stricmp( sub, "delete" ) ) {
 		if ( trap_Argc() < 3 ) {
 			trap_SendServerCommand( ent - g_entities,
@@ -2081,6 +2353,22 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 			ItemEdit_RemoveWallRecord( origin );
 			trap_SendServerCommand( ent - g_entities,
 					va( "print \"Edit wall %i removed.\n\"", entNum ) );
+			if ( itemEdit_dirty ) {
+				ItemEdit_CommitLayout();
+			}
+			return;
+		}
+		if ( ItemEdit_IsEditFloorEnt( target ) ) {
+			if ( entNum < MAX_CLIENTS || entNum >= MAX_GENTITIES
+					|| !itemEdit_sessionFloorEnt[entNum] ) {
+				return;
+			}
+			VectorCopy( target->s.pos.trBase, origin );
+			itemEdit_sessionFloorEnt[entNum] = 0;
+			G_FreeEntity( target );
+			ItemEdit_RemoveFloorRecord( origin );
+			trap_SendServerCommand( ent - g_entities,
+					va( "print \"Edit floor %i removed.\n\"", entNum ) );
 			if ( itemEdit_dirty ) {
 				ItemEdit_CommitLayout();
 			}
