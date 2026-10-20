@@ -74,3 +74,6 @@ clean: clean_assets clean_gamecode clean_output
 
 distclean: clean_assets clean_output
 	$(MAKE) -C $(GAMECODE_DIR) distclean
+
+# Include local overrides if present.
+-include Makefile.local
