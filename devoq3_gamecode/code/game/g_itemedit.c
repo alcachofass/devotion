@@ -80,6 +80,9 @@ static void ItemEdit_LayoutKeyForEnt( const gentity_t *ent, vec3_t keyOut );
 static void ItemEdit_ApplyMoveOnEnt( gentity_t *ent, const vec3_t newOrigin );
 static void ItemEdit_ApplyBspRespawnFields( gentity_t *ent );
 static void ItemEdit_CommitLayout( void );
+static qboolean ItemEdit_OriginMatch( const vec3_t a, const vec3_t b );
+static int ItemEdit_FindOriginRecord( const vec3_t origin,
+		const itemEditOriginRec_t *recs, int count );
 static gentity_t *ItemEdit_FindLivePickupAtOrigin( const vec3_t origin );
 static gentity_t *ItemEdit_FindPickupForLayoutKey( const vec3_t layoutKey, qboolean includeHidden );
 static gentity_t *ItemEdit_FindMapPickupAtOrigin( const vec3_t origin, qboolean includeHidden );
