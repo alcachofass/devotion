@@ -731,6 +731,10 @@ typedef struct {
 	int			predictedErrorTime;
 	vec3_t		predictedError;
 
+#define CG_ITEMEDIT_WALL_PREDICT_MAX	512
+	int			itemEditWallPredictCount;
+	int			itemEditWallPredictEnts[CG_ITEMEDIT_WALL_PREDICT_MAX];
+
 	int			eventSequence;
 	int			predictableEvents[MAX_PREDICTED_EVENTS];
 
@@ -2063,6 +2067,17 @@ void CG_ItemEdit_Init( void );
 void CG_ItemEdit_Frame( void );
 void CG_ItemEdit_NoteItemPickup( int itemIndex, const vec3_t position );
 #define CG_ITEMEDIT_WALL_FRAME		57345
+#define CG_ItemEdit_EsIsWall( es ) \
+	( (es)->eType == ET_GENERAL && (es)->frame == CG_ITEMEDIT_WALL_FRAME )
+
+void CG_ItemEdit_WallPredict_Clear( void );
+void CG_ItemEdit_WallPredict_Register( int entNum );
+void CG_ItemEdit_WallPredict_Unregister( int entNum );
+void CG_ItemEdit_WallPredict_NoteEntityState( const entityState_t *es );
+void CG_ItemEdit_WallPredict_OnEntityTransition( centity_t *cent );
+void CG_ItemEdit_WallPredict_OnSnapshotDrop( snapshot_t *oldSnap, snapshot_t *newSnap );
+void CG_ItemEdit_ClipMoveToWalls( const vec3_t start, const vec3_t mins, const vec3_t maxs,
+		const vec3_t end, int skipNumber, int mask, trace_t *tr );
 
 qboolean CG_ItemEdit_ModeEnabled( void );
 int CG_ItemEdit_SidebarBodyH( void );

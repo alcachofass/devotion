@@ -843,20 +843,15 @@ static void CG_ItemEdit_CancelMove( void ) {
 }
 
 static qboolean CG_ItemEdit_IsEditWallCent( const centity_t *cent ) {
-	const entityState_t	*es;
-
 	if ( !cent || !cent->currentValid ) {
 		return qfalse;
 	}
-	es = &cent->currentState;
-	if ( es->eType != ET_GENERAL || es->frame != CG_ITEMEDIT_WALL_FRAME ) {
-		return qfalse;
-	}
-	return qtrue;
+	return CG_ItemEdit_EsIsWall( &cent->currentState );
 }
 
-static qboolean CG_ItemEdit_TraceRayToWall( const centity_t *cent, const vec3_t start,
-		const vec3_t end, trace_t *tr ) {
+static void CG_ItemEdit_TraceWallEs( const entityState_t *es, int traceTime,
+		const vec3_t start, const vec3_t end, const vec3_t traceMins, const vec3_t traceMaxs,
+		int mask, trace_t *tr ) {
 	vec3_t			origin;
 	vec3_t			mins;
 	vec3_t			maxs;
@@ -866,23 +861,159 @@ static qboolean CG_ItemEdit_TraceRayToWall( const centity_t *cent, const vec3_t 
 	float			height;
 	clipHandle_t	cmodel;
 
+	if ( !es || !start || !end || !tr || !CG_ItemEdit_EsIsWall( es ) ) {
+		return;
+	}
+
+	BG_EvaluateTrajectory( &es->pos, traceTime, origin );
+	yaw = es->apos.trBase[1];
+	halfWidth = CG_ItemEdit_WallHalfWidthFromEs( es );
+	height = CG_ItemEdit_WallHeightFromEs( es );
+	CG_ItemEdit_WallAxisBounds( yaw, halfWidth, height, mins, maxs );
+	cmodel = trap_CM_TempBoxModel( mins, maxs );
+	VectorClear( angles );
+	trap_CM_TransformedBoxTrace( tr, start, end, traceMins, traceMaxs, cmodel, mask, origin,
+			angles );
+}
+
+static qboolean CG_ItemEdit_TraceRayToWall( const centity_t *cent, const vec3_t start,
+		const vec3_t end, trace_t *tr ) {
 	if ( !cent || !start || !end || !tr || !CG_ItemEdit_IsEditWallCent( cent ) ) {
 		return qfalse;
 	}
 
-	BG_EvaluateTrajectory( &cent->currentState.pos, cg.time, origin );
-	yaw = cent->currentState.apos.trBase[1];
-	if ( cent->currentState.apos.trType != TR_STATIONARY ) {
-		yaw = cent->lerpAngles[1];
-	}
-	halfWidth = CG_ItemEdit_WallHalfWidthFromEs( &cent->currentState );
-	height = CG_ItemEdit_WallHeightFromEs( &cent->currentState );
-	CG_ItemEdit_WallAxisBounds( yaw, halfWidth, height, mins, maxs );
-	cmodel = trap_CM_TempBoxModel( mins, maxs );
-	VectorClear( angles );
-	trap_CM_TransformedBoxTrace( tr, start, end, vec3_origin, vec3_origin, cmodel,
-			MASK_SOLID, origin, angles );
+	CG_ItemEdit_TraceWallEs( &cent->currentState, cg.time, start, end, vec3_origin, vec3_origin,
+			MASK_SOLID, tr );
 	return ( tr->fraction < 1.0f || tr->startsolid ) ? qtrue : qfalse;
+}
+
+void CG_ItemEdit_WallPredict_Clear( void ) {
+	cg.itemEditWallPredictCount = 0;
+}
+
+void CG_ItemEdit_WallPredict_Register( int entNum ) {
+	int	i;
+
+	if ( entNum < 0 || entNum >= MAX_GENTITIES ) {
+		return;
+	}
+	for ( i = 0; i < cg.itemEditWallPredictCount; i++ ) {
+		if ( cg.itemEditWallPredictEnts[i] == entNum ) {
+			return;
+		}
+	}
+	if ( cg.itemEditWallPredictCount >= CG_ITEMEDIT_WALL_PREDICT_MAX ) {
+		return;
+	}
+	cg.itemEditWallPredictEnts[cg.itemEditWallPredictCount++] = entNum;
+}
+
+void CG_ItemEdit_WallPredict_Unregister( int entNum ) {
+	int	i;
+
+	for ( i = 0; i < cg.itemEditWallPredictCount; i++ ) {
+		if ( cg.itemEditWallPredictEnts[i] != entNum ) {
+			continue;
+		}
+		cg.itemEditWallPredictCount--;
+		for ( ; i < cg.itemEditWallPredictCount; i++ ) {
+			cg.itemEditWallPredictEnts[i] = cg.itemEditWallPredictEnts[i + 1];
+		}
+		return;
+	}
+}
+
+void CG_ItemEdit_WallPredict_NoteEntityState( const entityState_t *es ) {
+	if ( !es || !CG_ItemEdit_EsIsWall( es ) ) {
+		return;
+	}
+	CG_ItemEdit_WallPredict_Register( es->number );
+}
+
+void CG_ItemEdit_WallPredict_OnEntityTransition( centity_t *cent ) {
+	qboolean	wasWall;
+	qboolean	nowWall;
+
+	if ( !cent ) {
+		return;
+	}
+	wasWall = cent->currentValid && CG_ItemEdit_EsIsWall( &cent->currentState );
+	nowWall = CG_ItemEdit_EsIsWall( &cent->nextState );
+	if ( wasWall && !nowWall ) {
+		CG_ItemEdit_WallPredict_Unregister( cent->currentState.number );
+	}
+	if ( nowWall ) {
+		CG_ItemEdit_WallPredict_Register( cent->nextState.number );
+	}
+}
+
+static qboolean CG_ItemEdit_SnapHasEntity( const snapshot_t *snap, int entNum ) {
+	int	i;
+
+	if ( !snap ) {
+		return qfalse;
+	}
+	for ( i = 0; i < snap->numEntities; i++ ) {
+		if ( snap->entities[i].number == entNum ) {
+			return qtrue;
+		}
+	}
+	return qfalse;
+}
+
+void CG_ItemEdit_WallPredict_OnSnapshotDrop( snapshot_t *oldSnap, snapshot_t *newSnap ) {
+	int	i;
+	int	entNum;
+
+	if ( !oldSnap || !newSnap ) {
+		return;
+	}
+	for ( i = 0; i < oldSnap->numEntities; i++ ) {
+		entNum = oldSnap->entities[i].number;
+		if ( CG_ItemEdit_SnapHasEntity( newSnap, entNum ) ) {
+			continue;
+		}
+		CG_ItemEdit_WallPredict_Unregister( entNum );
+	}
+}
+
+void CG_ItemEdit_ClipMoveToWalls( const vec3_t start, const vec3_t mins, const vec3_t maxs,
+		const vec3_t end, int skipNumber, int mask, trace_t *tr ) {
+	int				i;
+	int				entNum;
+	trace_t			trace;
+	centity_t		*cent;
+	const entityState_t	*es;
+
+	if ( !tr || cg.itemEditWallPredictCount <= 0 ) {
+		return;
+	}
+
+	for ( i = 0; i < cg.itemEditWallPredictCount; i++ ) {
+		entNum = cg.itemEditWallPredictEnts[i];
+		if ( entNum == skipNumber ) {
+			continue;
+		}
+		cent = &cg_entities[entNum];
+		if ( cent->currentValid && CG_ItemEdit_EsIsWall( &cent->currentState ) ) {
+			es = &cent->currentState;
+		} else if ( cg.nextSnap && CG_ItemEdit_EsIsWall( &cent->nextState ) ) {
+			es = &cent->nextState;
+		} else {
+			continue;
+		}
+
+		CG_ItemEdit_TraceWallEs( es, cg.physicsTime, start, end, mins, maxs, mask, &trace );
+		if ( trace.allsolid || trace.fraction < tr->fraction ) {
+			trace.entityNum = entNum;
+			*tr = trace;
+		} else if ( trace.startsolid ) {
+			tr->startsolid = qtrue;
+		}
+		if ( tr->allsolid ) {
+			return;
+		}
+	}
 }
 
 static int CG_ItemEdit_PickWallCrosshair( void ) {
@@ -2837,6 +2968,7 @@ qboolean CG_ItemEdit_HandleClickSidebar( int mx, int my, int bodyX, int bodyY, i
 void CG_ItemEdit_Init( void ) {
 	int	i;
 
+	CG_ItemEdit_WallPredict_Clear();
 	cg_itemEditTarget = -1;
 	cg_itemEditWallTarget = -1;
 	cg_itemEditLastTarget = -1;

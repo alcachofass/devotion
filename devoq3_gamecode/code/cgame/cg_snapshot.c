@@ -83,6 +83,7 @@ cent->nextState is moved to cent->currentState and events are fired
 //unlagged - early transitioning
 // used to be static, now needed to transition entities from within cg_ents.c
 void CG_TransitionEntity( centity_t *cent ) {
+	CG_ItemEdit_WallPredict_OnEntityTransition( cent );
 	cent->currentState = cent->nextState;
 	cent->currentValid = qtrue;
 
@@ -144,6 +145,8 @@ void CG_SetInitialSnapshot( snapshot_t *snap ) {
 		cent->interpolate = qfalse;
 		cent->currentValid = qtrue;
 
+		CG_ItemEdit_WallPredict_NoteEntityState( state );
+
 		CG_ResetEntity( cent );
 
 		CG_UpdateQuiet( cent );
@@ -192,6 +195,8 @@ static void CG_TransitionSnapshot( void ) {
 	oldFrame = cg.snap;
 
 	cg.snap = cg.nextSnap;
+
+	CG_ItemEdit_WallPredict_OnSnapshotDrop( oldFrame, cg.snap );
 
 	BG_PlayerStateToEntityState( &cg.snap->ps, &cg_entities[ cg.snap->ps.clientNum ].currentState, qfalse );
 	cg_entities[ cg.snap->ps.clientNum ].interpolate = qfalse;
@@ -270,6 +275,8 @@ static void CG_SetNextSnap( snapshot_t *snap ) {
 
 		memcpy(&cent->nextState, es, sizeof(entityState_t));
 		//cent->nextState = *es;
+
+		CG_ItemEdit_WallPredict_NoteEntityState( es );
 
 		// if this frame is a teleport, or the entity wasn't in the
 		// previous frame, don't interpolate
