@@ -93,7 +93,12 @@ static void ItemEdit_RemoveAddAtOrigin( const vec3_t origin );
 static void ItemEdit_UpsertDelete( const vec3_t origin );
 static void ItemEdit_RemoveDeleteAtOrigin( const vec3_t origin );
 static void ItemEdit_HidePickup( gentity_t *ent );
+static void ItemEdit_HideLayoutDeletedPickup( gentity_t *ent );
 static void ItemEdit_UnhidePickup( gentity_t *ent );
+
+static qboolean ItemEdit_IsForeignModelindex2( int modelindex2 ) {
+	return ( modelindex2 && modelindex2 != ITEMEDIT_LAYOUT_DELETED_MODELINDEX2 ) ? qtrue : qfalse;
+}
 static gentity_t *ItemEdit_SpawnSessionPickup( const vec3_t origin, int itemIndex );
 static void ItemEdit_ApplyAllAdds( void );
 static void ItemEdit_ApplyAllDeletes( void );
@@ -112,6 +117,7 @@ static void ItemEdit_ConsolidateOverridesForPickups( void );
 static qboolean ItemEdit_ParseAddLine( const char *line, float *ox, float *oy, float *oz, int *idx );
 static qboolean ItemEdit_ParseDeleteLine( const char *line, float *ox, float *oy, float *oz );
 static qboolean ItemEdit_DeletePickup( gentity_t *target );
+static void ItemEdit_ClearOverlappingPickupsAtKey( const vec3_t layoutKey, int keepEntNum );
 
 static void ItemEdit_Dbg( const char *fmt, ... ) {
 	va_list		argptr;
@@ -724,7 +730,7 @@ static gentity_t *ItemEdit_FindMapPickupAtOrigin( const vec3_t origin, qboolean 
 		if ( !ent || !G_InUse( ent ) ) {
 			continue;
 		}
-		if ( ent->s.eType != ET_ITEM || ent->s.modelindex <= 0 || ent->s.modelindex2 ) {
+		if ( ent->s.eType != ET_ITEM || ent->s.modelindex <= 0 || ItemEdit_IsForeignModelindex2( ent->s.modelindex2 ) ) {
 			continue;
 		}
 		if ( !includeHidden ) {
@@ -774,7 +780,7 @@ static gentity_t *ItemEdit_FindPickupForLayoutKey( const vec3_t layoutKey, qbool
 		if ( !G_InUse( ent ) ) {
 			continue;
 		}
-		if ( ent->s.eType != ET_ITEM || ent->s.modelindex <= 0 || ent->s.modelindex2 ) {
+		if ( ent->s.eType != ET_ITEM || ent->s.modelindex <= 0 || ItemEdit_IsForeignModelindex2( ent->s.modelindex2 ) ) {
 			continue;
 		}
 		if ( !includeHidden ) {
@@ -865,7 +871,7 @@ qboolean ItemEdit_SuppressRespawn( gentity_t *ent ) {
 		return qfalse;
 	}
 
-	ItemEdit_HidePickup( ent );
+	ItemEdit_HideLayoutDeletedPickup( ent );
 	if ( ent->wait == -1 ) {
 		return qtrue;
 	}
@@ -966,9 +972,20 @@ static void ItemEdit_HidePickup( gentity_t *ent ) {
 	trap_UnlinkEntity( ent );
 }
 
+static void ItemEdit_HideLayoutDeletedPickup( gentity_t *ent ) {
+	if ( !ent ) {
+		return;
+	}
+	ent->s.modelindex2 = ITEMEDIT_LAYOUT_DELETED_MODELINDEX2;
+	ItemEdit_HidePickup( ent );
+}
+
 static void ItemEdit_UnhidePickup( gentity_t *ent ) {
 	if ( !ent ) {
 		return;
+	}
+	if ( ent->s.modelindex2 == ITEMEDIT_LAYOUT_DELETED_MODELINDEX2 ) {
+		ent->s.modelindex2 = 0;
 	}
 	ent->s.eFlags &= ~EF_NODRAW;
 	ent->r.svFlags &= ~SVF_NOCLIENT;
@@ -1019,6 +1036,7 @@ static gentity_t *ItemEdit_SpawnSessionPickup( const vec3_t origin, int itemInde
 	ItemEdit_ApplyPickupItem( ent, item );
 	VectorCopy( origin, ent->s.origin2 );
 	ent->s.frame = itemIndex;
+	ItemEdit_ClearOverlappingPickupsAtKey( origin, ent->s.number );
 	trap_LinkEntity( ent );
 	G_ItemTimerAfterMapEdit( ent );
 	return ent;
@@ -1076,7 +1094,7 @@ static void ItemEdit_ApplyAllDeletes( void ) {
 			ItemEdit_Dbg( "apply delete[%i]: hide ent %i at %s (key %s)",
 					i, ent->s.number, vtos( ent->s.pos.trBase ),
 					vtos( itemEditDeletes[i].origin ) );
-			ItemEdit_HidePickup( ent );
+			ItemEdit_HideLayoutDeletedPickup( ent );
 		} else if ( !ent ) {
 			ItemEdit_Dbg( "apply delete[%i]: NO PICKUP for key %s",
 					i, vtos( itemEditDeletes[i].origin ) );
@@ -1226,6 +1244,42 @@ static qboolean ItemEdit_ParseDeleteLine( const char *line, float *ox, float *oy
 	return qtrue;
 }
 
+static void ItemEdit_ClearOverlappingPickupsAtKey( const vec3_t layoutKey, int keepEntNum ) {
+	int			i;
+	gentity_t	*ent;
+	vec3_t		key;
+
+	if ( !layoutKey ) {
+		return;
+	}
+
+	for ( i = MAX_CLIENTS; i < level.num_entities; i++ ) {
+		if ( i == keepEntNum ) {
+			continue;
+		}
+		ent = &g_entities[i];
+		if ( !ent || !G_InUse( ent ) ) {
+			continue;
+		}
+		if ( ent->s.eType != ET_ITEM || ent->s.modelindex <= 0 || ItemEdit_IsForeignModelindex2( ent->s.modelindex2 ) ) {
+			continue;
+		}
+		if ( !ent->item ) {
+			continue;
+		}
+		ItemEdit_LayoutKeyForEnt( ent, key );
+		if ( !ItemEdit_OriginMatch( key, layoutKey ) ) {
+			continue;
+		}
+		if ( ItemEdit_IsSessionAddedEnt( ent ) ) {
+			ItemEdit_UnmarkSessionAdded( ent->s.number );
+			G_FreeEntity( ent );
+		} else {
+			ItemEdit_HideLayoutDeletedPickup( ent );
+		}
+	}
+}
+
 static qboolean ItemEdit_DeletePickup( gentity_t *target ) {
 	vec3_t	layoutKey;
 
@@ -1240,6 +1294,7 @@ static qboolean ItemEdit_DeletePickup( gentity_t *target ) {
 		ItemEdit_PurgeLayoutRecordsForKey( layoutKey );
 		ItemEdit_UnmarkSessionAdded( target->s.number );
 		G_FreeEntity( target );
+		ItemEdit_ClearOverlappingPickupsAtKey( layoutKey, -1 );
 		return qtrue;
 	}
 
@@ -1248,7 +1303,8 @@ static qboolean ItemEdit_DeletePickup( gentity_t *target ) {
 	}
 	ItemEdit_PurgeLayoutRecordsForKey( layoutKey );
 	ItemEdit_UpsertDelete( layoutKey );
-	ItemEdit_HidePickup( target );
+	ItemEdit_HideLayoutDeletedPickup( target );
+	ItemEdit_ClearOverlappingPickupsAtKey( layoutKey, -1 );
 	return qtrue;
 }
 

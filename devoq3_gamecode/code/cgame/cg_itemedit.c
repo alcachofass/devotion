@@ -235,6 +235,12 @@ static void CG_ItemEdit_SyncRoster( void ) {
 		es = &cent->currentState;
 		slot = &cg_itemEditSlots[i];
 
+		if ( cent->currentValid && es->eType == ET_ITEM
+				&& es->modelindex2 == ITEMEDIT_LAYOUT_DELETED_MODELINDEX2 ) {
+			memset( slot, 0, sizeof( *slot ) );
+			continue;
+		}
+
 		if ( cent->currentValid && CG_ItemEdit_IsMapPickupEs( es ) ) {
 			slot->valid = qtrue;
 			slot->modelindex = es->modelindex;
@@ -248,7 +254,7 @@ static void CG_ItemEdit_SyncRoster( void ) {
 		}
 
 		if ( slot->valid && !cent->currentValid && !slot->ghost ) {
-			slot->ghost = qtrue;
+			memset( slot, 0, sizeof( *slot ) );
 		}
 	}
 }
@@ -1248,6 +1254,27 @@ static void CG_ItemEdit_InvalidateSlot( int entNum ) {
 	memset( &cg_itemEditSlots[entNum], 0, sizeof( cg_itemEditSlots[entNum] ) );
 }
 
+static void CG_ItemEdit_InvalidateSlotsAtOrigin( const vec3_t origin ) {
+	int		i;
+	vec3_t	delta;
+
+	if ( !origin ) {
+		return;
+	}
+	for ( i = MAX_CLIENTS; i < MAX_GENTITIES; i++ ) {
+		if ( !cg_itemEditSlots[i].valid ) {
+			continue;
+		}
+		VectorSubtract( cg_itemEditSlots[i].origin, origin, delta );
+		if ( fabs( delta[0] ) > ITEMEDIT_POSITION_EPS
+				|| fabs( delta[1] ) > ITEMEDIT_POSITION_EPS
+				|| fabs( delta[2] ) > ITEMEDIT_POSITION_EPS ) {
+			continue;
+		}
+		memset( &cg_itemEditSlots[i], 0, sizeof( cg_itemEditSlots[i] ) );
+	}
+}
+
 static void CG_ItemEdit_NoteSlotMoved( int entNum, const vec3_t origin ) {
 	centity_t			*cent;
 	cgItemEditSlot_t	*slot;
@@ -1325,13 +1352,13 @@ static void CG_ItemEdit_StartAdd( void ) {
 	int	itemIndex;
 
 	CG_ItemEdit_CancelWall();
-	if ( cg_itemEditTarget >= MAX_CLIENTS ) {
-		return;
-	}
 	itemIndex = CG_ItemEdit_SelItemIndex();
 	if ( itemIndex <= 0 ) {
 		return;
 	}
+	cg_itemEditTarget = -1;
+	cg_itemEditWallTarget = -1;
+	cg_itemEditDeleteConfirm = qfalse;
 	cg_itemEditAddActive = qtrue;
 	cg_itemEditMoveActive = qtrue;
 	cg_itemEditMoveEnt = -1;
@@ -2675,8 +2702,14 @@ qboolean CG_ItemEdit_HandleClickSidebar( int mx, int my, int bodyX, int bodyY, i
 			delEnt = ( cg_itemEditWallTarget >= MAX_CLIENTS ) ? cg_itemEditWallTarget
 					: cg_itemEditTarget;
 			if ( cg_itemEditDeleteConfirm ) {
+				vec3_t	delOrigin;
+
+				if ( CG_ItemEdit_GetMapPickupOrigin( delEnt, delOrigin ) ) {
+					CG_ItemEdit_InvalidateSlotsAtOrigin( delOrigin );
+				} else {
+					CG_ItemEdit_InvalidateSlot( delEnt );
+				}
 				trap_SendClientCommand( va( "itemedit delete %i", delEnt ) );
-				CG_ItemEdit_InvalidateSlot( delEnt );
 				CG_ItemEdit_CancelMove();
 				cg_itemEditDeleteConfirm = qfalse;
 				cg_itemEditTarget = -1;

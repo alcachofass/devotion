@@ -13,6 +13,8 @@ Shared spectator map-edit placement (crosshair surface trace, player box).
 
 /* Item layout keys: server trBase / origin2; session files use %.3f */
 #define ITEMEDIT_POSITION_EPS			0.01f
+/* Map pickups: modelindex2==1 dropped; ==2 layout-deleted (hidden, not a respawn ghost). */
+#define ITEMEDIT_LAYOUT_DELETED_MODELINDEX2	2
 
 float CG_MapEdit_SnapYaw( float yaw );
 qboolean CG_MapEdit_TraceCrosshairSurface( int skipEnt, vec3_t surfaceOrigin, vec3_t planeNormal );
