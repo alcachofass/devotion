@@ -103,6 +103,7 @@ static int				cg_itemEditResetModalHover;
 static int				cg_itemEditResetBtnHover;
 static qboolean			cg_itemEditMoveActive;
 static qboolean			cg_itemEditAddActive;
+static qboolean			cg_itemEditAddPickerOpen;
 static qboolean			cg_itemEditMoveValid;
 static int				cg_itemEditMoveEnt;
 static int				cg_itemEditMoveItemIndex;
@@ -156,7 +157,16 @@ static void CG_ItemEdit_ActionBtnRect( int bodyX, int bodyY, int bodyW, int body
 static void CG_ItemEdit_DrawActionButton( int bodyX, int bodyY, int bodyW, int bodyH );
 static qboolean CG_ItemEdit_ActionBtnHit( int mx, int my, int bodyX, int bodyY, int bodyW, int bodyH );
 static int CG_ItemEdit_SelItemIndex( void );
-static void CG_ItemEdit_StartAdd( void );
+static void CG_ItemEdit_StartAddWithItem( int itemIndex );
+static void CG_ItemEdit_OpenAddPicker( void );
+static qboolean CG_ItemEdit_ShowItemPicker( void );
+static qboolean CG_ItemEdit_ShowDeleteButton( void );
+static int CG_ItemEdit_ContentTopOffset( void );
+static int CG_ItemEdit_FooterReserve( void );
+static void CG_ItemEdit_IdleBtnRect( int bodyX, int bodyY, int which,
+		int *x, int *y, int *w, int *h );
+static void CG_ItemEdit_DrawAddBtn( int bodyX, int bodyY );
+static qboolean CG_ItemEdit_AddBtnHit( int mx, int my, int bodyX, int bodyY );
 static void CG_ItemEdit_DrawPickerLabel( int bodyX, int bodyY, qboolean hasItemTarget );
 static void CG_ItemEdit_DrawItemPicker( int bodyX, int bodyY, int bodyW, int bodyH );
 static qboolean CG_ItemEdit_RowAt( int mx, int my, int bodyX, int bodyY, int bodyW, int bodyH, int *rowIndex );
@@ -193,14 +203,44 @@ static qboolean CG_ItemEdit_Active( void ) {
 	return CG_ItemEdit_ModeEnabled();
 }
 
+static qboolean CG_ItemEdit_ShowItemPicker( void ) {
+	if ( cg_itemEditTarget >= MAX_CLIENTS ) {
+		return qtrue;
+	}
+	return ( cg_itemEditAddPickerOpen || cg_itemEditAddActive ) ? qtrue : qfalse;
+}
+
+static qboolean CG_ItemEdit_ShowDeleteButton( void ) {
+	if ( cg_itemEditAddActive || cg_itemEditAddPickerOpen ) {
+		return qfalse;
+	}
+	return ( cg_itemEditTarget >= MAX_CLIENTS || cg_itemEditWallTarget >= MAX_CLIENTS )
+			? qtrue : qfalse;
+}
+
+static int CG_ItemEdit_ContentTopOffset( void ) {
+	if ( CG_ItemEdit_ShowItemPicker() ) {
+		return ITEMEDIT_SIDEBAR_HDR;
+	}
+	return ITEMEDIT_MOVE_ROW_Y + ITEMEDIT_MOVE_BTN_H + ITEMEDIT_MOVE_GAP;
+}
+
+static int CG_ItemEdit_FooterReserve( void ) {
+	int	reserve;
+
+	reserve = ITEMEDIT_PANEL_PAD + ITEMEDIT_RESET_GAP + ITEMEDIT_RESET_BTN_H;
+	if ( CG_ItemEdit_ShowDeleteButton() ) {
+		reserve += ITEMEDIT_ACTION_GAP + ITEMEDIT_ACTION_BTN_H;
+	}
+	return reserve;
+}
+
 static void CG_ItemEdit_ContentRect( int bodyX, int bodyY, int bodyW, int bodyH,
 		int *x, int *y, int *w, int *h ) {
 	*x = bodyX + ITEMEDIT_PANEL_PAD;
-	*y = bodyY + ITEMEDIT_SIDEBAR_HDR;
+	*y = bodyY + CG_ItemEdit_ContentTopOffset();
 	*w = bodyW - ITEMEDIT_PANEL_PAD * 2;
-	*h = bodyH - ITEMEDIT_SIDEBAR_HDR - ITEMEDIT_PANEL_PAD
-			- ITEMEDIT_ACTION_GAP - ITEMEDIT_ACTION_BTN_H
-			- ITEMEDIT_RESET_GAP - ITEMEDIT_RESET_BTN_H;
+	*h = bodyH - CG_ItemEdit_ContentTopOffset() - CG_ItemEdit_FooterReserve();
 	if ( *w < 1 ) {
 		*w = 1;
 	}
@@ -455,9 +495,8 @@ static void CG_ItemEdit_SetVisibleRowsFromBodyH( int bodyH ) {
 	int		rows;
 	int		ideal;
 
-	fixed = ITEMEDIT_SIDEBAR_HDR + ITEMEDIT_PANEL_PAD
-			+ ITEMEDIT_ACTION_GAP + ITEMEDIT_ACTION_BTN_H
-			+ ITEMEDIT_RESET_GAP + ITEMEDIT_RESET_BTN_H;
+	fixed = CG_ItemEdit_ContentTopOffset() + ITEMEDIT_PANEL_PAD
+			+ CG_ItemEdit_FooterReserve();
 	rows = ( bodyH - fixed ) / ITEMEDIT_ROW_H;
 	if ( rows < 1 ) {
 		rows = 1;
@@ -766,6 +805,9 @@ static void CG_ItemEdit_UpdateTarget( void ) {
 			}
 			cg_itemEditTarget = itemEnt;
 			cg_itemEditLastWallTarget = -1;
+			if ( !cg_itemEditAddActive ) {
+				cg_itemEditAddPickerOpen = qfalse;
+			}
 		} else {
 			if ( cg_itemEditLastTarget >= MAX_CLIENTS || cg_itemEditLastWallTarget >= MAX_CLIENTS ) {
 				cg_itemEditDeleteConfirm = qfalse;
@@ -783,6 +825,9 @@ static void CG_ItemEdit_CancelWall( void ) {
 }
 
 static void CG_ItemEdit_CancelMove( void ) {
+	qboolean	wasAdd;
+
+	wasAdd = cg_itemEditAddActive;
 	cg_itemEditMoveActive = qfalse;
 	cg_itemEditAddActive = qfalse;
 	cg_itemEditMoveValid = qfalse;
@@ -790,6 +835,11 @@ static void CG_ItemEdit_CancelMove( void ) {
 	cg_itemEditMoveItemIndex = -1;
 	cg_itemEditMoveBtnHover = -1;
 	CG_ItemEdit_CancelWall();
+	if ( wasAdd ) {
+		cg_itemEditAddPickerOpen = qtrue;
+	} else {
+		cg_itemEditAddPickerOpen = qfalse;
+	}
 }
 
 static qboolean CG_ItemEdit_IsEditWallCent( const centity_t *cent ) {
@@ -1189,6 +1239,7 @@ static void CG_ItemEdit_StartWall( void ) {
 	if ( cg_itemEditTarget >= MAX_CLIENTS || cg_itemEditWallTarget >= MAX_CLIENTS ) {
 		return;
 	}
+	cg_itemEditAddPickerOpen = qfalse;
 	cg_itemEditWallTarget = -1;
 	cg_itemEditMoveActive = qfalse;
 	cg_itemEditAddActive = qfalse;
@@ -1320,6 +1371,7 @@ static void CG_ItemEdit_ConfirmMove( void ) {
 				cg_itemEditMoveGhostOrigin[0],
 				cg_itemEditMoveGhostOrigin[1],
 				cg_itemEditMoveGhostOrigin[2] ) );
+		cg_itemEditAddPickerOpen = qfalse;
 		CG_ItemEdit_CancelMove();
 		return;
 	}
@@ -1348,17 +1400,30 @@ static int CG_ItemEdit_SelItemIndex( void ) {
 	return row->itemIndex;
 }
 
-static void CG_ItemEdit_StartAdd( void ) {
-	int	itemIndex;
-
+static void CG_ItemEdit_OpenAddPicker( void ) {
 	CG_ItemEdit_CancelWall();
-	itemIndex = CG_ItemEdit_SelItemIndex();
-	if ( itemIndex <= 0 ) {
-		return;
-	}
+	cg_itemEditMoveActive = qfalse;
+	cg_itemEditAddActive = qfalse;
+	cg_itemEditMoveValid = qfalse;
+	cg_itemEditMoveEnt = -1;
+	cg_itemEditMoveItemIndex = -1;
+	cg_itemEditMoveBtnHover = -1;
+	cg_itemEditAddPickerOpen = qtrue;
 	cg_itemEditTarget = -1;
 	cg_itemEditWallTarget = -1;
 	cg_itemEditDeleteConfirm = qfalse;
+	cg_itemEditRowsDirty = qtrue;
+}
+
+static void CG_ItemEdit_StartAddWithItem( int itemIndex ) {
+	if ( itemIndex <= 0 || itemIndex >= bg_numItems ) {
+		return;
+	}
+	CG_ItemEdit_CancelWall();
+	cg_itemEditTarget = -1;
+	cg_itemEditWallTarget = -1;
+	cg_itemEditDeleteConfirm = qfalse;
+	cg_itemEditAddPickerOpen = qtrue;
 	cg_itemEditAddActive = qtrue;
 	cg_itemEditMoveActive = qtrue;
 	cg_itemEditMoveEnt = -1;
@@ -1440,34 +1505,64 @@ static overlayEditMoveUi_t CG_ItemEdit_MoveUi( void ) {
 	return ui;
 }
 
+static void CG_ItemEdit_IdleBtnRect( int bodyX, int bodyY, int which,
+		int *x, int *y, int *w, int *h ) {
+	*x = bodyX + ITEMEDIT_PANEL_PAD
+			+ which * ( ITEMEDIT_MOVE_ICON_SZ + ITEMEDIT_MOVE_GAP );
+	*y = bodyY + ITEMEDIT_MOVE_ROW_Y;
+	*w = ITEMEDIT_MOVE_ICON_SZ;
+	*h = ITEMEDIT_MOVE_BTN_H;
+}
+
+static void CG_ItemEdit_DrawAddBtn( int bodyX, int bodyY ) {
+	vec4_t	btn;
+	vec4_t	text;
+	int		x, y, w, h;
+
+	CG_ItemEdit_IdleBtnRect( bodyX, bodyY, 0, &x, &y, &w, &h );
+	btn[0] = 0.12f;
+	btn[1] = 0.28f;
+	btn[2] = 0.16f;
+	btn[3] = ( cg_itemEditMoveBtnHover == 0 ) ? 0.92f : 0.78f;
+	text[0] = 0.95f;
+	text[1] = 1.0f;
+	text[2] = 0.96f;
+	text[3] = 1.0f;
+	Overlay_DrawIconButton( x, y, w, btn, 0 );
+	CG_DrawStringExt( x + ( w - 6 ) / 2, y + ( h - 10 ) / 2, "+", text, qtrue, qtrue, 6, 10, 0 );
+}
+
+static qboolean CG_ItemEdit_AddBtnHit( int mx, int my, int bodyX, int bodyY ) {
+	int	x, y, w, h;
+
+	CG_ItemEdit_IdleBtnRect( bodyX, bodyY, 0, &x, &y, &w, &h );
+	return ( mx >= x && mx < x + w && my >= y && my < y + h ) ? qtrue : qfalse;
+}
+
 static void CG_ItemEdit_DrawWallBtn( int bodyX, int bodyY, int bodyW ) {
 	vec4_t	btn;
-	int		x, y, size;
+	int		x, y, w, h;
 	qhandle_t	icon;
 
 	(void)bodyW;
-	size = ITEMEDIT_MOVE_ICON_SZ;
-	x = bodyX + ITEMEDIT_PANEL_PAD;
-	y = bodyY + ITEMEDIT_MOVE_ROW_Y;
+	CG_ItemEdit_IdleBtnRect( bodyX, bodyY, 1, &x, &y, &w, &h );
 	btn[0] = 0.16f;
 	btn[1] = 0.18f;
 	btn[2] = 0.22f;
-	btn[3] = ( cg_itemEditMoveBtnHover == 0 ) ? 0.92f : 0.78f;
+	btn[3] = ( cg_itemEditMoveBtnHover == 1 ) ? 0.92f : 0.78f;
 	icon = cgs.media.itemEditIconWall;
 	if ( !icon ) {
 		icon = cgs.media.itemEditIconMove;
 	}
-	Overlay_DrawIconButton( x, y, size, btn, icon );
+	Overlay_DrawIconButton( x, y, w, btn, icon );
 }
 
 static qboolean CG_ItemEdit_WallBtnHit( int mx, int my, int bodyX, int bodyY, int bodyW ) {
-	int	x, y, size;
+	int	x, y, w, h;
 
 	(void)bodyW;
-	size = ITEMEDIT_MOVE_ICON_SZ;
-	x = bodyX + ITEMEDIT_PANEL_PAD;
-	y = bodyY + ITEMEDIT_MOVE_ROW_Y;
-	return ( mx >= x && mx < x + size && my >= y && my < y + size ) ? qtrue : qfalse;
+	CG_ItemEdit_IdleBtnRect( bodyX, bodyY, 1, &x, &y, &w, &h );
+	return ( mx >= x && mx < x + w && my >= y && my < y + h ) ? qtrue : qfalse;
 }
 
 static qboolean CG_ItemEdit_DefaultRevertIndex( int *defaultIdxOut ) {
@@ -1604,9 +1699,6 @@ static const char *CG_ItemEdit_PrimaryMoveTip( void ) {
 		}
 		return cg_itemEditMoveValid ? "Confirm new position" : "Aim at a valid spot";
 	}
-	if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive ) {
-		return "Place an edit wall";
-	}
 	return "Move selected pickup";
 }
 
@@ -1634,6 +1726,21 @@ void CG_ItemEdit_DrawHoverTips( int bodyX, int bodyY, int bodyW, int bodyH ) {
 		return;
 	}
 
+	if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive
+			&& !cg_itemEditMoveActive && !cg_itemEditWallActive ) {
+		if ( cg_itemEditMoveBtnHover == 0 ) {
+			CG_ItemEdit_IdleBtnRect( bodyX, bodyY, 0, &moveX, &moveY, &moveW, &moveH );
+			Overlay_DrawHoverTip( "Add a pickup to the map", moveX, moveY, moveW, moveH,
+					OVERLAY_TIP_LEFT_DRAWER_ICON );
+		}
+		if ( cg_itemEditMoveBtnHover == 1 ) {
+			CG_ItemEdit_IdleBtnRect( bodyX, bodyY, 1, &moveX, &moveY, &moveW, &moveH );
+			Overlay_DrawHoverTip( "Place an edit wall", moveX, moveY, moveW, moveH,
+					OVERLAY_TIP_LEFT_DRAWER_ICON );
+		}
+		return;
+	}
+
 	CG_ItemEdit_MoveRowRects( bodyX, bodyY, bodyW,
 			&moveX, &moveY, &moveW, &moveH,
 			&auxX, &auxY, &auxW, &auxH, &auxIsCancel, &hasMoveRow,
@@ -1655,16 +1762,12 @@ void CG_ItemEdit_DrawHoverTips( int bodyX, int bodyY, int bodyW, int bodyH ) {
 				OVERLAY_TIP_LEFT_DRAWER_ICON );
 	}
 
-	if ( cg_itemEditActionBtnHover >= 0 && !cg_itemEditAddActive ) {
+	if ( cg_itemEditActionBtnHover >= 0 && CG_ItemEdit_ShowDeleteButton() ) {
 		CG_ItemEdit_ActionBtnRect( bodyX, bodyY, bodyW, bodyH, &x, &y, &w, &h );
-		if ( cg_itemEditTarget >= MAX_CLIENTS || cg_itemEditWallTarget >= MAX_CLIENTS ) {
-			if ( cg_itemEditDeleteConfirm ) {
-				tip = "Confirm permanent removal";
-			} else {
-				tip = "Remove this pickup or wall";
-			}
+		if ( cg_itemEditDeleteConfirm ) {
+			tip = "Confirm permanent removal";
 		} else {
-			tip = "Add a pickup to the map";
+			tip = "Remove this pickup or wall";
 		}
 		Overlay_DrawHoverTip( tip, x, y, w, h, OVERLAY_TIP_LEFT_DRAWER_WIDE );
 	}
@@ -1696,7 +1799,8 @@ static void CG_ItemEdit_DrawMoveRow( int bodyX, int bodyY, int bodyW ) {
 	if ( cg_itemEditWallTarget >= MAX_CLIENTS ) {
 		return;
 	}
-	if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive ) {
+	if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive && !cg_itemEditWallActive ) {
+		CG_ItemEdit_DrawAddBtn( bodyX, bodyY );
 		CG_ItemEdit_DrawWallBtn( bodyX, bodyY, bodyW );
 		return;
 	}
@@ -1743,8 +1847,11 @@ static qboolean CG_ItemEdit_MoveBtnHit( int which, int mx, int my, int bodyX, in
 	if ( cg_itemEditWallTarget >= MAX_CLIENTS ) {
 		return qfalse;
 	}
-	if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive ) {
+	if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive && !cg_itemEditWallActive ) {
 		if ( which == 0 ) {
+			return CG_ItemEdit_AddBtnHit( mx, my, bodyX, bodyY );
+		}
+		if ( which == 1 ) {
 			return CG_ItemEdit_WallBtnHit( mx, my, bodyX, bodyY, bodyW );
 		}
 		return qfalse;
@@ -1814,6 +1921,10 @@ static void CG_ItemEdit_ActivateSel( void ) {
 		if ( cg_itemEditAddActive ) {
 			CG_RegisterItemVisuals( row->itemIndex );
 			cg_itemEditMoveItemIndex = row->itemIndex;
+			return;
+		}
+		if ( cg_itemEditAddPickerOpen ) {
+			CG_ItemEdit_StartAddWithItem( row->itemIndex );
 			return;
 		}
 		if ( cg_itemEditTarget >= MAX_CLIENTS ) {
@@ -1938,37 +2049,26 @@ static void CG_ItemEdit_DrawActionButton( int bodyX, int bodyY, int bodyW, int b
 	vec4_t		text;
 	const char	*label;
 
-	if ( cg_itemEditAddActive ) {
+	if ( !CG_ItemEdit_ShowDeleteButton() ) {
 		return;
 	}
 
 	CG_ItemEdit_ActionBtnRect( bodyX, bodyY, bodyW, bodyH, &x, &y, &w, &h );
-	if ( cg_itemEditTarget >= MAX_CLIENTS || cg_itemEditWallTarget >= MAX_CLIENTS ) {
-		if ( cg_itemEditDeleteConfirm ) {
-			btn[0] = 0.45f;
-			btn[1] = 0.12f;
-			btn[2] = 0.12f;
-			btn[3] = ( cg_itemEditActionBtnHover >= 0 ) ? 1.0f : 0.88f;
-		} else {
-			btn[0] = 0.28f;
-			btn[1] = 0.10f;
-			btn[2] = 0.10f;
-			btn[3] = ( cg_itemEditActionBtnHover >= 0 ) ? 0.92f : 0.78f;
-		}
-		border[0] = 0.85f;
-		border[1] = 0.35f;
-		border[2] = 0.35f;
-		label = cg_itemEditDeleteConfirm ? "Confirm Delete" : "Delete";
+	if ( cg_itemEditDeleteConfirm ) {
+		btn[0] = 0.45f;
+		btn[1] = 0.12f;
+		btn[2] = 0.12f;
+		btn[3] = ( cg_itemEditActionBtnHover >= 0 ) ? 1.0f : 0.88f;
 	} else {
-		btn[0] = 0.12f;
-		btn[1] = 0.28f;
-		btn[2] = 0.16f;
+		btn[0] = 0.28f;
+		btn[1] = 0.10f;
+		btn[2] = 0.10f;
 		btn[3] = ( cg_itemEditActionBtnHover >= 0 ) ? 0.92f : 0.78f;
-		border[0] = 0.35f;
-		border[1] = 0.75f;
-		border[2] = 0.45f;
-		label = "New Item";
 	}
+	border[0] = 0.85f;
+	border[1] = 0.35f;
+	border[2] = 0.35f;
+	label = cg_itemEditDeleteConfirm ? "Confirm Delete" : "Delete";
 	border[3] = 0.65f;
 	text[0] = 1.0f;
 	text[1] = 0.96f;
@@ -1984,7 +2084,7 @@ static void CG_ItemEdit_DrawActionButton( int bodyX, int bodyY, int bodyW, int b
 static qboolean CG_ItemEdit_ActionBtnHit( int mx, int my, int bodyX, int bodyY, int bodyW, int bodyH ) {
 	int	x, y, w, h;
 
-	if ( cg_itemEditAddActive ) {
+	if ( !CG_ItemEdit_ShowDeleteButton() ) {
 		return qfalse;
 	}
 	CG_ItemEdit_ActionBtnRect( bodyX, bodyY, bodyW, bodyH, &x, &y, &w, &h );
@@ -2121,14 +2221,15 @@ void CG_ItemEdit_DrawSidebar( int bodyX, int bodyY, int bodyW, int bodyH ) {
 	} else if ( hasItemTarget ) {
 		CG_ItemEdit_DrawMoveRow( bodyX, bodyY, bodyW );
 	} else if ( cg_itemEditAddActive ) {
-		CG_ItemEdit_DrawMovePinnedHeader( bodyX, bodyY, CG_ItemEdit_MoveItemIndex() );
 		CG_ItemEdit_DrawMoveRow( bodyX, bodyY, bodyW );
 	} else {
 		CG_ItemEdit_DrawMoveRow( bodyX, bodyY, bodyW );
 	}
 
-	CG_ItemEdit_DrawPickerLabel( bodyX, bodyY, hasItemTarget );
-	CG_ItemEdit_DrawItemPicker( bodyX, bodyY, bodyW, bodyH );
+	if ( CG_ItemEdit_ShowItemPicker() ) {
+		CG_ItemEdit_DrawPickerLabel( bodyX, bodyY, hasItemTarget );
+		CG_ItemEdit_DrawItemPicker( bodyX, bodyY, bodyW, bodyH );
+	}
 	CG_ItemEdit_DrawActionButton( bodyX, bodyY, bodyW, bodyH );
 	CG_ItemEdit_DrawResetFooter( bodyX, bodyY, bodyW, bodyH );
 }
@@ -2610,11 +2711,7 @@ void CG_ItemEdit_PointerMoveSidebar( int mx, int my, int bodyX, int bodyY, int b
 	if ( !CG_ItemEdit_SidebarContains( mx, my, bodyX, bodyY, bodyW, bodyH ) ) {
 		return;
 	}
-	if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive ) {
-		if ( CG_ItemEdit_RowAt( mx, my, bodyX, bodyY, bodyW, bodyH, &rowIndex ) ) {
-			cg_itemEditSel = rowIndex;
-			CG_ItemEdit_ClampScroll();
-		}
+	if ( !CG_ItemEdit_ShowItemPicker() ) {
 		return;
 	}
 
@@ -2671,6 +2768,8 @@ qboolean CG_ItemEdit_HandleClickSidebar( int mx, int my, int bodyX, int bodyY, i
 			CG_ItemEdit_CancelWall();
 		} else if ( cg_itemEditMoveActive ) {
 			CG_ItemEdit_CancelMove();
+		} else if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive ) {
+			CG_ItemEdit_StartWall();
 		} else if ( cg_itemEditTarget >= MAX_CLIENTS ) {
 			CG_ItemEdit_RestoreTargetHome();
 		}
@@ -2690,36 +2789,31 @@ qboolean CG_ItemEdit_HandleClickSidebar( int mx, int my, int bodyX, int bodyY, i
 		} else if ( cg_itemEditTarget >= MAX_CLIENTS ) {
 			CG_ItemEdit_StartMove();
 		} else if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive ) {
-			CG_ItemEdit_StartWall();
+			CG_ItemEdit_OpenAddPicker();
 		}
 		return qtrue;
 	}
 	if ( CG_ItemEdit_SidebarContains( mx, my, bodyX, bodyY, bodyW, bodyH )
 			&& CG_ItemEdit_ActionBtnHit( mx, my, bodyX, bodyY, bodyW, bodyH ) ) {
-		if ( cg_itemEditTarget >= MAX_CLIENTS || cg_itemEditWallTarget >= MAX_CLIENTS ) {
-			int		delEnt;
+		int		delEnt;
 
-			delEnt = ( cg_itemEditWallTarget >= MAX_CLIENTS ) ? cg_itemEditWallTarget
-					: cg_itemEditTarget;
-			if ( cg_itemEditDeleteConfirm ) {
-				vec3_t	delOrigin;
+		delEnt = ( cg_itemEditWallTarget >= MAX_CLIENTS ) ? cg_itemEditWallTarget
+				: cg_itemEditTarget;
+		if ( cg_itemEditDeleteConfirm ) {
+			vec3_t	delOrigin;
 
-				if ( CG_ItemEdit_GetMapPickupOrigin( delEnt, delOrigin ) ) {
-					CG_ItemEdit_InvalidateSlotsAtOrigin( delOrigin );
-				} else {
-					CG_ItemEdit_InvalidateSlot( delEnt );
-				}
-				trap_SendClientCommand( va( "itemedit delete %i", delEnt ) );
-				CG_ItemEdit_CancelMove();
-				cg_itemEditDeleteConfirm = qfalse;
-				cg_itemEditTarget = -1;
-				cg_itemEditWallTarget = -1;
+			if ( CG_ItemEdit_GetMapPickupOrigin( delEnt, delOrigin ) ) {
+				CG_ItemEdit_InvalidateSlotsAtOrigin( delOrigin );
 			} else {
-				cg_itemEditDeleteConfirm = qtrue;
+				CG_ItemEdit_InvalidateSlot( delEnt );
 			}
-		} else {
+			trap_SendClientCommand( va( "itemedit delete %i", delEnt ) );
+			CG_ItemEdit_CancelMove();
 			cg_itemEditDeleteConfirm = qfalse;
-			CG_ItemEdit_StartAdd();
+			cg_itemEditTarget = -1;
+			cg_itemEditWallTarget = -1;
+		} else {
+			cg_itemEditDeleteConfirm = qtrue;
 		}
 		return qtrue;
 	}
@@ -2727,14 +2821,7 @@ qboolean CG_ItemEdit_HandleClickSidebar( int mx, int my, int bodyX, int bodyY, i
 	if ( !CG_ItemEdit_SidebarContains( mx, my, bodyX, bodyY, bodyW, bodyH ) ) {
 		return qfalse;
 	}
-	if ( cg_itemEditTarget < MAX_CLIENTS && !cg_itemEditAddActive ) {
-		if ( CG_ItemEdit_RowAt( mx, my, bodyX, bodyY, bodyW, bodyH, &rowIndex ) ) {
-			cg_itemEditSel = rowIndex;
-		}
-		if ( cg_itemEditRowsDirty ) {
-			CG_ItemEdit_RebuildRows();
-		}
-		CG_ItemEdit_ActivateSel();
+	if ( !CG_ItemEdit_ShowItemPicker() ) {
 		return qtrue;
 	}
 	if ( CG_ItemEdit_RowAt( mx, my, bodyX, bodyY, bodyW, bodyH, &rowIndex ) ) {
@@ -2763,6 +2850,7 @@ void CG_ItemEdit_Init( void ) {
 	cg_itemEditResetModalHover = -1;
 	cg_itemEditResetBtnHover = -1;
 	CG_ItemEdit_CancelMove();
+	cg_itemEditAddPickerOpen = qfalse;
 	cg_itemEditMoveEnt = -1;
 	cg_itemEditMoveBtnHover = -1;
 	CG_ItemEdit_CancelWall();
