@@ -64,7 +64,6 @@ static int				dc_specMenuCount;
 static int				dc_specMenuRefreshMs;
 static char				dc_specPlayersBtnLabel[MAX_NAME_LENGTH + 8];
 static int				dc_specBarHover = -1;
-static qboolean			dc_specLockHover;
 static qboolean			dc_specDrawerReady;
 static int				dc_specShotHide;
 static int				dc_specDispHover = -1;
@@ -611,7 +610,6 @@ static void DemoCtrl_SpecEndSession( void ) {
 	DemoCtrl_SpecCamClear();
 	dc_specHover = -1;
 	dc_specBarHover = -1;
-	dc_specLockHover = qfalse;
 	dc_specMenuOpen = qfalse;
 	dc_specMenuFrac = 0.0f;
 	dc_specMenuFrom = 0.0f;
@@ -1129,11 +1127,28 @@ static void DemoCtrl_SpecBtnRect( int index, int *x, int *y, int *w, int *h ) {
 	*x += bodyX - baseBodyX;
 }
 
+#define SPEC_TOP_BAR_LOCK_SZ	OVERLAY_BTN_H
+
+static int DemoCtrl_SpecTopBarWidth( void ) {
+	return 2 * OVERLAY_BTN_W + 2 * OVERLAY_BTN_GAP + SPEC_TOP_BAR_LOCK_SZ;
+}
+
 static void DemoCtrl_SpecTopRect( int index, int *x, int *y, int *w, int *h ) {
-	*w = OVERLAY_BTN_W;
-	*h = OVERLAY_BTN_H;
-	*x = Overlay_BarX( 2 ) + index * ( OVERLAY_BTN_W + OVERLAY_BTN_GAP );
+	int		barX;
+
+	barX = ( SCREEN_WIDTH - DemoCtrl_SpecTopBarWidth() ) / 2;
 	*y = OVERLAY_TOP_Y;
+	*h = OVERLAY_BTN_H;
+	if ( index == 0 ) {
+		*x = barX;
+		*w = OVERLAY_BTN_W;
+	} else if ( index == 1 ) {
+		*x = barX + OVERLAY_BTN_W + OVERLAY_BTN_GAP;
+		*w = OVERLAY_BTN_W;
+	} else {
+		*x = barX + 2 * ( OVERLAY_BTN_W + OVERLAY_BTN_GAP );
+		*w = SPEC_TOP_BAR_LOCK_SZ;
+	}
 }
 
 static int DemoCtrl_SpecHitTest( int mx, int my ) {
@@ -1468,7 +1483,6 @@ static void DemoCtrl_SpecUpdateHover( void ) {
 	dc_specDispHover = -1;
 	dc_specEditHover = -1;
 	dc_specBarHover = -1;
-	dc_specLockHover = qfalse;
 	specTabHover = qfalse;
 	specDispTabHover = qfalse;
 	specEditTabHover = qfalse;
@@ -1481,17 +1495,12 @@ static void DemoCtrl_SpecUpdateHover( void ) {
 	if ( dc_specMenuHover >= 0 || DemoCtrl_SpecMenuContains( dc_cursorX, dc_cursorY ) ) {
 		return;
 	}
-	for ( i = 0; i < 2; i++ ) {
+	for ( i = 0; i < 3; i++ ) {
 		DemoCtrl_SpecTopRect( i, &x, &y, &w, &h );
 		if ( dc_cursorX >= x && dc_cursorX < x + w && dc_cursorY >= y && dc_cursorY < y + h ) {
 			dc_specBarHover = i;
 			return;
 		}
-	}
-	Overlay_LockRect( &x, &y, &w, &h );
-	if ( dc_cursorX >= x && dc_cursorX < x + w && dc_cursorY >= y && dc_cursorY < y + h ) {
-		dc_specLockHover = qtrue;
-		return;
 	}
 	if ( Spec_EditTabHit( dc_cursorX, dc_cursorY ) ) {
 		specEditTabHover = qtrue;
@@ -1763,63 +1772,6 @@ static const char *DemoCtrl_SpecDispTip( int action ) {
 	}
 }
 
-static void DemoCtrl_SpecDrawTipBox( const char *tip, int btnX, int btnY, int btnW, int btnH, int place ) {
-	int		cw, ch, pad;
-	int		tipW, tipH;
-	int		x, y;
-	int		len;
-	vec4_t	bg;
-	vec4_t	border;
-	vec4_t	textColor;
-
-	if ( !tip || !tip[0] ) {
-		return;
-	}
-	cw = 6;
-	ch = 10;
-	pad = 6;
-	len = CG_DrawStrlen( tip );
-	tipW = len * cw + pad * 2;
-	tipH = ch + pad * 2;
-	if ( place == 1 ) {
-		x = btnX + ( btnW - tipW ) / 2;
-		y = btnY + btnH + 6;
-	} else if ( place == 2 ) {
-		x = btnX + btnW + 8;
-		y = btnY + ( btnH - tipH ) / 2;
-	} else {
-		x = btnX - 8 - tipW;
-		y = btnY + ( btnH - tipH ) / 2;
-	}
-	if ( x < 4 ) {
-		x = 4;
-	}
-	if ( x + tipW > SCREEN_WIDTH - 4 ) {
-		x = SCREEN_WIDTH - 4 - tipW;
-	}
-	if ( y < 4 ) {
-		y = 4;
-	}
-	if ( y + tipH > SCREEN_HEIGHT - 4 ) {
-		y = SCREEN_HEIGHT - 4 - tipH;
-	}
-	bg[0] = 0.04f;
-	bg[1] = 0.04f;
-	bg[2] = 0.05f;
-	bg[3] = 0.92f;
-	border[0] = 1.0f;
-	border[1] = 1.0f;
-	border[2] = 1.0f;
-	border[3] = 0.40f;
-	textColor[0] = 1.0f;
-	textColor[1] = 1.0f;
-	textColor[2] = 1.0f;
-	textColor[3] = 1.0f;
-	CG_FillRect( x, y, tipW, tipH, bg );
-	CG_DrawRect( x, y, tipW, tipH, 1, border );
-	CG_DrawStringExt( x + pad, y + pad, tip, textColor, qfalse, qtrue, cw, ch, 0 );
-}
-
 static void DemoCtrl_SpecDrawHoverTip( void ) {
 	int	actions[SPEC_BTN_MAX];
 	int	n;
@@ -1830,40 +1782,54 @@ static void DemoCtrl_SpecDrawHoverTip( void ) {
 	if ( dc_specMenuHover >= 0 && dc_specMenuHover < dc_specMenuCount ) {
 		DemoCtrl_SpecMenuGeom( &x, &y, &w, &bodyH );
 		rowY = y + 1 + dc_specMenuHover * ( OVERLAY_SIDE_BTN_H + 1 );
-		DemoCtrl_SpecDrawTipBox( "Follow this player", x, rowY, w, OVERLAY_SIDE_BTN_H, 0 );
+		Overlay_DrawHoverTip( "Follow this player", x, rowY, w, OVERLAY_SIDE_BTN_H, OVERLAY_TIP_LEFT );
 		return;
 	}
 	if ( dc_specBarHover == 0 ) {
 		DemoCtrl_SpecTopRect( 0, &x, &y, &w, &h );
-		DemoCtrl_SpecDrawTipBox( "^2Open ^7in-game menu", x, y, w, h, 1 );
+		Overlay_DrawHoverTip( "^2Open ^7in-game menu", x, y, w, h, OVERLAY_TIP_BELOW );
 		return;
 	}
 	if ( dc_specBarHover == 1 ) {
 		DemoCtrl_SpecTopRect( 1, &x, &y, &w, &h );
-		DemoCtrl_SpecDrawTipBox( "^1Disconnect ^7from the server", x, y, w, h, 1 );
+		Overlay_DrawHoverTip( "^1Disconnect ^7from the server", x, y, w, h, OVERLAY_TIP_BELOW );
 		return;
 	}
-	if ( dc_specLockHover ) {
-		Overlay_LockRect( &x, &y, &w, &h );
-		DemoCtrl_SpecDrawTipBox( "^1Lock^7/^2unlock ^7the spectator overlay", x, y, w, h, 2 );
+	if ( dc_specBarHover == 2 ) {
+		DemoCtrl_SpecTopRect( 2, &x, &y, &w, &h );
+		Overlay_DrawHoverTip( "^1Lock^7/^2unlock ^7the spectator overlay", x, y, w, h, OVERLAY_TIP_BELOW );
 		return;
 	}
 	if ( dc_specEditHover >= 0 && dc_specEditHover < SPEC_CAM_NUM ) {
 		Spec_EditBtnRect( dc_specEditHover, &x, &y, &w, &h );
-		DemoCtrl_SpecDrawTipBox( DemoCtrl_SpecEditTip( dc_specEditHover ), x, y, w, h, 2 );
+		Overlay_DrawHoverTip( DemoCtrl_SpecEditTip( dc_specEditHover ), x, y, w, h, OVERLAY_TIP_RIGHT );
 		return;
 	}
 	if ( dc_specDispHover >= 0 && dc_specDispHover < SPEC_DISP_COUNT ) {
 		DemoCtrl_SpecDispBtnRect( dc_specDispHover, &x, &y, &w, &h );
-		DemoCtrl_SpecDrawTipBox( DemoCtrl_SpecDispTip( dc_specDispHover ), x, y, w, h, 0 );
+		Overlay_DrawHoverTip( DemoCtrl_SpecDispTip( dc_specDispHover ), x, y, w, h, OVERLAY_TIP_LEFT );
 		return;
 	}
 	if ( dc_specHover >= 0 ) {
 		n = DemoCtrl_SpecActions( actions, SPEC_BTN_MAX );
 		if ( dc_specHover < n ) {
 			DemoCtrl_SpecBtnRect( dc_specHover, &x, &y, &w, &h );
-			DemoCtrl_SpecDrawTipBox( DemoCtrl_SpecTip( actions[dc_specHover] ), x, y, w, h, 0 );
+			Overlay_DrawHoverTip( DemoCtrl_SpecTip( actions[dc_specHover] ), x, y, w, h, OVERLAY_TIP_LEFT );
 		}
+	}
+	if ( CG_ItemEdit_ModeEnabled() && specItemEditDrawer.frac > 0.35f ) {
+		int	ix, iy, iw, ih;
+		int	itabX, itabY, itabW, itabH;
+
+		Spec_ItemEditLayout( &ix, &iy, &iw, &ih, &itabX, &itabY, &itabW, &itabH );
+		CG_ItemEdit_DrawHoverTips( ix, iy, iw, ih );
+	}
+	if ( CG_SpawnEdit_ModeEnabled() && specSpawnEditDrawer.frac > 0.35f ) {
+		int	sx, sy, sw, sh;
+		int	stabX, stabY, stabW, stabH;
+
+		Spec_SpawnEditLayout( &sx, &sy, &sw, &sh, &stabX, &stabY, &stabW, &stabH );
+		CG_SpawnEdit_DrawHoverTips( sx, sy, sw, sh );
 	}
 }
 
@@ -1923,30 +1889,31 @@ static void DemoCtrl_DrawSpec( void ) {
 	textColor[2] = 1.0f;
 	textColor[3] = 1.0f;
 
-	panelX = Overlay_BarX( 2 ) - 8;
-	panelW = 2 * OVERLAY_BTN_W + OVERLAY_BTN_GAP + 16;
+	panelW = DemoCtrl_SpecTopBarWidth() + 16;
+	panelX = ( SCREEN_WIDTH - DemoCtrl_SpecTopBarWidth() ) / 2 - 8;
 	CG_FillRect( panelX, OVERLAY_TOP_Y - 6, panelW, OVERLAY_BTN_H + 12, panel );
-	for ( i = 0; i < 2; i++ ) {
+	for ( i = 0; i < 3; i++ ) {
 		DemoCtrl_SpecTopRect( i, &x, &y, &w, &h );
-		fill = ( i == dc_specBarHover ) ? btnHover : btnIdle;
+		if ( i == 2 ) {
+			fill = ( dc_specBarHover == 2 ) ? btnHover : ( dc_locked ? btnActive : btnIdle );
+		} else {
+			fill = ( i == dc_specBarHover ) ? btnHover : btnIdle;
+		}
 		CG_FillRect( x, y, w, h, fill );
 		CG_DrawRect( x, y, w, h, 1, border );
+		if ( i == 2 ) {
+			icon = dc_locked ? cgs.media.demoLockShader : cgs.media.demoUnlockShader;
+			if ( icon ) {
+				trap_R_SetColor( textColor );
+				CG_DrawPic( x + 2, y + 2, w - 4, h - 4, icon );
+				trap_R_SetColor( NULL );
+			}
+			continue;
+		}
 		label = ( i == 0 ) ? "Menu" : "Disconnect";
 		len = CG_DrawStrlen( label );
 		CG_DrawStringExt( x + ( w - len * 6 ) / 2, y + ( h - 10 ) / 2,
 				label, textColor, qtrue, qtrue, 6, 10, 0 );
-	}
-
-	Overlay_LockRect( &x, &y, &w, &h );
-	CG_FillRect( x - 8, y - 6, w + 16, h + 12, panel );
-	fill = dc_specLockHover ? btnHover : ( dc_locked ? btnActive : btnIdle );
-	CG_FillRect( x, y, w, h, fill );
-	CG_DrawRect( x, y, w, h, 1, border );
-	icon = dc_locked ? cgs.media.demoLockShader : cgs.media.demoUnlockShader;
-	if ( icon ) {
-		trap_R_SetColor( textColor );
-		CG_DrawPic( x + 3, y + 3, w - 6, h - 6, icon );
-		trap_R_SetColor( NULL );
 	}
 
 	Spec_DrawerLayout( &bodyX, &bodyY, &bodyW, &bodyH, &tabX, &tabY, &tabW, &tabH );
@@ -2206,7 +2173,6 @@ static void DemoCtrl_SpecFrame( void ) {
 		dc_visible = qfalse;
 		dc_specHover = -1;
 		dc_specBarHover = -1;
-		dc_specLockHover = qfalse;
 		specTabHover = qfalse;
 		specDispTabHover = qfalse;
 		specEditTabHover = qfalse;
@@ -2313,7 +2279,7 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 			trap_SendConsoleCommand( "fadeDisconnect\n" );
 			return qtrue;
 		}
-		if ( dc_specLockHover ) {
+		if ( dc_specBarHover == 2 ) {
 			dc_locked = dc_locked ? qfalse : qtrue;
 			if ( dc_locked ) {
 				Overlay_Wake();

@@ -1286,15 +1286,9 @@ static const char *DemoCtrl_ButtonTip( int btn ) {
 }
 
 static void DemoCtrl_DrawHoverTip( int btn ) {
-	const char	*tip;
-	int			btnX, btnY, btnW, btnH;
-	int			cw, ch, pad;
-	int			tipW, tipH;
-	int			x, y;
-	int			len;
-	vec4_t		bg;
-	vec4_t		border;
-	vec4_t		textColor;
+	const char			*tip;
+	int					btnX, btnY, btnW, btnH;
+	overlayTipPlace_t	place;
 
 	tip = DemoCtrl_ButtonTip( btn );
 	if ( !tip || !tip[0] ) {
@@ -1302,59 +1296,18 @@ static void DemoCtrl_DrawHoverTip( int btn ) {
 	}
 
 	DemoCtrl_ButtonRect( btn, &btnX, &btnY, &btnW, &btnH );
-	cw = 6;
-	ch = 10;
-	pad = 6;
-	len = CG_DrawStrlen( tip );
-	tipW = len * cw + pad * 2;
-	tipH = ch + pad * 2;
-
 	if ( DemoCtrl_IsLeftButton( btn ) ) {
-		x = btnX + btnW + 8;
-		y = btnY + ( btnH - tipH ) / 2;
+		place = OVERLAY_TIP_RIGHT;
 	} else if ( DemoCtrl_IsSideButton( btn ) ) {
-		x = btnX - 8 - tipW;
-		y = btnY + ( btnH - tipH ) / 2;
+		place = OVERLAY_TIP_LEFT;
 	} else if ( btn == DEMOCTRL_LOCK ) {
-		x = btnX + btnW + 8;
-		y = btnY + ( btnH - tipH ) / 2;
+		place = OVERLAY_TIP_RIGHT;
 	} else if ( DemoCtrl_IsClipButton( btn ) ) {
-		x = btnX + ( btnW - tipW ) / 2;
-		y = btnY - 8 - tipH;
+		place = OVERLAY_TIP_ABOVE;
 	} else {
-		x = btnX + ( btnW - tipW ) / 2;
-		y = btnY + btnH + 6;
+		place = OVERLAY_TIP_BELOW;
 	}
-
-	if ( x < 4 ) {
-		x = 4;
-	}
-	if ( x + tipW > SCREEN_WIDTH - 4 ) {
-		x = SCREEN_WIDTH - 4 - tipW;
-	}
-	if ( y < 4 ) {
-		y = 4;
-	}
-	if ( y + tipH > SCREEN_HEIGHT - 4 ) {
-		y = SCREEN_HEIGHT - 4 - tipH;
-	}
-
-	bg[0] = 0.04f;
-	bg[1] = 0.04f;
-	bg[2] = 0.05f;
-	bg[3] = 0.92f;
-	border[0] = 1.0f;
-	border[1] = 1.0f;
-	border[2] = 1.0f;
-	border[3] = 0.40f;
-	textColor[0] = 1.0f;
-	textColor[1] = 1.0f;
-	textColor[2] = 1.0f;
-	textColor[3] = 1.0f;
-
-	CG_FillRect( x, y, tipW, tipH, bg );
-	CG_DrawRect( x, y, tipW, tipH, 1, border );
-	CG_DrawStringExt( x + pad, y + pad, tip, textColor, qfalse, qtrue, cw, ch, 0 );
+	Overlay_DrawHoverTip( tip, btnX, btnY, btnW, btnH, place );
 }
 
 static int DemoCtrl_HitTest( int mx, int my ) {

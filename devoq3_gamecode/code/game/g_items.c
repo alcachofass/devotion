@@ -726,6 +726,10 @@ void RespawnItem( gentity_t *ent ) {
         //if(ent->item->giType == IT_POWERUP && ent->item->giTag == PW_QUAD && g_quadfactor.value <= 1.0)
         //    return;
 
+	if ( ItemEdit_SuppressRespawn( ent ) ) {
+		return;
+	}
+
 	thinker = ent;
 	thinker->s.time = 0;
 	thinker->s.time2 = 0;

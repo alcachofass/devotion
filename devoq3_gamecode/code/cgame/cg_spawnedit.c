@@ -96,6 +96,10 @@ static void CG_SpawnEdit_FocusTeam( int team );
 static const char *CG_SpawnEdit_TeamLabel( int team );
 static int CG_SpawnEdit_RosterIndexForEnt( int entNum );
 static spawnEditEntry_t *CG_SpawnEdit_EntryForEnt( int entNum );
+static void CG_SpawnEdit_ActionBtnRect( int bodyX, int spawnContentY, int spawnSectionBottom, int bodyW,
+		int *x, int *y, int *w, int *h );
+static void CG_SpawnEdit_ResetBtnRect( int bodyX, int spawnSectionBottom, int bodyW,
+		int *x, int *y, int *w, int *h );
 
 qboolean CG_SpawnEdit_ModeEnabled( void ) {
 	return CG_ItemEdit_ModeEnabled();
@@ -682,6 +686,116 @@ static void CG_SpawnEdit_DrawMoveRow( int bodyX, int bodyY, int bodyW ) {
 			&auxX, &auxY, &auxW, &auxH, &auxIsCancel );
 	Overlay_DrawEditMoveButtons( &ui, moveX, moveY, moveW, moveH,
 			auxX, auxY, auxW, auxH, auxIsCancel );
+}
+
+static void CG_SpawnEdit_MoveRowRects( int bodyX, int spawnContentY, int bodyW,
+		int *moveX, int *moveY, int *moveW, int *moveH,
+		int *auxX, int *auxY, int *auxW, int *auxH, qboolean *auxIsCancel, qboolean *hasMoveRow ) {
+	overlayEditMoveUi_t	ui;
+
+	*hasMoveRow = qfalse;
+	*auxW = 0;
+	*auxIsCancel = qfalse;
+	if ( cg_spawnEditTarget < MAX_CLIENTS && !cg_spawnEditAddActive ) {
+		return;
+	}
+	ui = CG_SpawnEdit_MoveUi();
+	Overlay_EditMoveLayout( bodyX, spawnContentY, &ui,
+			moveX, moveY, moveW, moveH,
+			auxX, auxY, auxW, auxH, auxIsCancel );
+	*hasMoveRow = qtrue;
+}
+
+static const char *CG_SpawnEdit_PrimaryMoveTip( void ) {
+	if ( cg_spawnEditMoveActive ) {
+		if ( cg_spawnEditAddActive ) {
+			return cg_spawnEditMoveValid ? "Place new spawn here" : "Aim at a valid spot";
+		}
+		return cg_spawnEditMoveValid ? "Confirm new position" : "Aim at a valid spot";
+	}
+	return "Move selected spawn";
+}
+
+static const char *CG_SpawnEdit_AuxMoveTip( qboolean auxIsCancel ) {
+	if ( auxIsCancel ) {
+		return "Cancel move";
+	}
+	return "Return spawn to stock position";
+}
+
+static void CG_SpawnEdit_DrawSpawnHoverTips( int bodyX, int bodyY, int bodyH, int bodyW ) {
+	int					moveX, moveY, moveW, moveH;
+	int					auxX, auxY, auxW, auxH;
+	int					x, y, w, h;
+	int					spawnContentY;
+	int					spawnSectionBottom;
+	int					teleSectionY;
+	int					teleSectionH;
+	qboolean			auxIsCancel;
+	qboolean			hasMoveRow;
+	const char			*tip;
+
+	if ( cg_spawnEditResetPrompt || CG_SpawnEdit_Tele_ResetPrompt() ) {
+		return;
+	}
+	if ( cg_spawnEditPointerInTeleSection ) {
+		return;
+	}
+
+	CG_SpawnEdit_UnifiedSections( bodyY, bodyH, &spawnContentY, &spawnSectionBottom,
+			&teleSectionY, &teleSectionH );
+
+	CG_SpawnEdit_MoveRowRects( bodyX, spawnContentY, bodyW,
+			&moveX, &moveY, &moveW, &moveH,
+			&auxX, &auxY, &auxW, &auxH, &auxIsCancel, &hasMoveRow );
+	if ( hasMoveRow && cg_spawnEditMoveBtnHover == 0 ) {
+		tip = CG_SpawnEdit_PrimaryMoveTip();
+		if ( tip && tip[0] ) {
+			Overlay_DrawHoverTip( tip, moveX, moveY, moveW, moveH, OVERLAY_TIP_LEFT_DRAWER_ICON );
+		}
+	}
+	if ( hasMoveRow && cg_spawnEditMoveBtnHover == 1 && auxW > 0 ) {
+		tip = CG_SpawnEdit_AuxMoveTip( auxIsCancel );
+		if ( tip && tip[0] ) {
+			Overlay_DrawHoverTip( tip, auxX, auxY, auxW, auxH, OVERLAY_TIP_LEFT_DRAWER_ICON );
+		}
+	}
+
+	if ( cg_spawnEditDefaultLineHover ) {
+		x = bodyX + SPAWNEDIT_PANEL_PAD;
+		y = spawnContentY + SPAWNEDIT_HDR_LINE2_Y;
+		w = bodyW - SPAWNEDIT_PANEL_PAD * 2;
+		h = SPAWNEDIT_HDR_LINE_H;
+		Overlay_DrawHoverTip( "Revert to default team", x, y, w, h, OVERLAY_TIP_LEFT_DRAWER_WIDE );
+	}
+
+	if ( cg_spawnEditActionBtnHover >= 0 && !cg_spawnEditAddActive ) {
+		CG_SpawnEdit_ActionBtnRect( bodyX, spawnContentY, spawnSectionBottom, bodyW, &x, &y, &w, &h );
+		if ( cg_spawnEditTarget >= MAX_CLIENTS ) {
+			tip = cg_spawnEditDeleteConfirm ? "Confirm permanent removal" : "Remove this spawn point";
+		} else {
+			tip = "Add a spawn point to the map";
+		}
+		Overlay_DrawHoverTip( tip, x, y, w, h, OVERLAY_TIP_LEFT_DRAWER_WIDE );
+	}
+
+	if ( cg_spawnEditResetBtnHover >= 0 ) {
+		CG_SpawnEdit_ResetBtnRect( bodyX, spawnSectionBottom, bodyW, &x, &y, &w, &h );
+		Overlay_DrawHoverTip( "Revert all spawn layout changes on this map", x, y, w, h,
+				OVERLAY_TIP_LEFT_DRAWER_WIDE );
+	}
+}
+
+void CG_SpawnEdit_DrawHoverTips( int bodyX, int bodyY, int bodyW, int bodyH ) {
+	int	spawnContentY;
+	int	spawnSectionBottom;
+	int	teleSectionY;
+	int	teleSectionH;
+
+	CG_SpawnEdit_DrawSpawnHoverTips( bodyX, bodyY, bodyH, bodyW );
+	CG_SpawnEdit_UnifiedSections( bodyY, bodyH, &spawnContentY, &spawnSectionBottom,
+			&teleSectionY, &teleSectionH );
+	CG_SpawnEdit_Tele_DrawHoverTips( bodyX, teleSectionY, teleSectionH, bodyW );
 }
 
 static qboolean CG_SpawnEdit_MoveBtnHit( int which, int mx, int my, int bodyX, int bodyY, int bodyW ) {

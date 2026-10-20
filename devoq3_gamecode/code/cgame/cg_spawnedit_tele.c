@@ -1288,6 +1288,73 @@ static qboolean CG_SpawnEdit_Tele_RowAt( int mx, int my, int bodyX, int teleCont
 	return qfalse;
 }
 
+static const char *CG_SpawnEdit_Tele_PrimaryMoveTip( void ) {
+	if ( cg_spawnEditTeleMoveActive ) {
+		return cg_spawnEditTeleMoveValid ? "Confirm new position" : "Aim at a valid spot";
+	}
+	if ( CG_SpawnEdit_Tele_SelIsExit() ) {
+		return "Move teleporter exit";
+	}
+	return "Move teleporter trigger";
+}
+
+static const char *CG_SpawnEdit_Tele_AuxMoveTip( qboolean auxIsCancel ) {
+	if ( auxIsCancel ) {
+		return "Cancel move";
+	}
+	return "Return teleporter to stock position";
+}
+
+void CG_SpawnEdit_Tele_DrawHoverTips( int bodyX, int teleSectionY, int teleSectionH, int bodyW ) {
+	overlayEditMoveUi_t	ui;
+	int					moveX, moveY, moveW, moveH;
+	int					auxX, auxY, auxW, auxH;
+	int					x, y, w, h;
+	int					teleContentY;
+	int					teleSectionBottom;
+	qboolean			auxIsCancel;
+	const char			*tip;
+
+	if ( cg_spawnEditTeleResetPrompt ) {
+		return;
+	}
+
+	teleContentY = teleSectionY + SPAWNEDIT_TELE_SECTION_HDR_H;
+	teleSectionBottom = teleSectionY + teleSectionH;
+
+	if ( cg_spawnEditTeleResetBtnHover >= 0 ) {
+		x = bodyX + SPAWNEDIT_TELE_PANEL_PAD;
+		w = bodyW - SPAWNEDIT_TELE_PANEL_PAD * 2;
+		h = SPAWNEDIT_TELE_RESET_BTN_H;
+		y = teleSectionBottom - SPAWNEDIT_TELE_PANEL_PAD - h;
+		Overlay_DrawHoverTip( "Revert all teleporter edits on this map", x, y, w, h,
+				OVERLAY_TIP_LEFT_DRAWER_WIDE );
+	}
+
+	CG_SpawnEdit_Tele_EnsureListTarget();
+	if ( cg_spawnEditTeleTarget < 0 && cg_spawnEditTeleSelDestEnt < 0 && !cg_spawnEditTeleMoveActive ) {
+		return;
+	}
+
+	ui = CG_SpawnEdit_Tele_MoveUi();
+	Overlay_EditMoveLayout( bodyX, teleContentY, &ui,
+			&moveX, &moveY, &moveW, &moveH,
+			&auxX, &auxY, &auxW, &auxH, &auxIsCancel );
+
+	if ( cg_spawnEditTeleMoveBtnHover == 0 ) {
+		tip = CG_SpawnEdit_Tele_PrimaryMoveTip();
+		if ( tip && tip[0] ) {
+			Overlay_DrawHoverTip( tip, moveX, moveY, moveW, moveH, OVERLAY_TIP_LEFT_DRAWER_ICON );
+		}
+	}
+	if ( cg_spawnEditTeleMoveBtnHover == 1 && auxW > 0 ) {
+		tip = CG_SpawnEdit_Tele_AuxMoveTip( auxIsCancel );
+		if ( tip && tip[0] ) {
+			Overlay_DrawHoverTip( tip, auxX, auxY, auxW, auxH, OVERLAY_TIP_LEFT_DRAWER_ICON );
+		}
+	}
+}
+
 void CG_SpawnEdit_Tele_PointerMove( int mx, int my, int bodyX, int teleSectionY, int bodyW, int teleSectionH ) {
 	int						listIndex;
 	int						teleContentY;

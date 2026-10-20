@@ -143,13 +143,6 @@ int Overlay_BarX( int numBtns ) {
 	return ( SCREEN_WIDTH - totalW ) / 2;
 }
 
-void Overlay_LockRect( int *x, int *y, int *w, int *h ) {
-	*w = OVERLAY_LOCK_W;
-	*h = OVERLAY_LOCK_H;
-	*x = OVERLAY_SIDE_MARGIN;
-	*y = OVERLAY_BAR_Y;
-}
-
 void Overlay_DrawVerticalText( int cx, int y, int h, const char *s, const float *color ) {
 	int		i;
 	int		n;
@@ -314,4 +307,151 @@ qboolean Overlay_EditMoveBtnHit( const overlayEditMoveUi_t *ui, int which, int m
 		return qfalse;
 	}
 	return ( mx >= auxX && mx < auxX + auxW && my >= auxY && my < auxY + auxH );
+}
+
+#define OVERLAY_TIP_CHAR_W	6
+#define OVERLAY_TIP_CHAR_H	10
+#define OVERLAY_TIP_PAD		6
+
+void Overlay_MeasureHoverTip( const char *tip, int *tipW, int *tipH ) {
+	int	len;
+
+	if ( !tipW || !tipH ) {
+		return;
+	}
+	len = tip ? CG_DrawStrlen( tip ) : 0;
+	*tipW = len * OVERLAY_TIP_CHAR_W + OVERLAY_TIP_PAD * 2;
+	*tipH = OVERLAY_TIP_CHAR_H + OVERLAY_TIP_PAD * 2;
+}
+
+static void Overlay_TipPosition( int tipW, int tipH, int anchorX, int anchorY, int anchorW, int anchorH,
+		overlayTipPlace_t place, int *x, int *y ) {
+	switch ( place ) {
+	case OVERLAY_TIP_BELOW:
+		*x = anchorX + ( anchorW - tipW ) / 2;
+		*y = anchorY + anchorH + 6;
+		break;
+	case OVERLAY_TIP_RIGHT:
+		*x = anchorX + anchorW + 8;
+		*y = anchorY + ( anchorH - tipH ) / 2;
+		break;
+	case OVERLAY_TIP_ABOVE:
+		*x = anchorX + ( anchorW - tipW ) / 2;
+		*y = anchorY - 8 - tipH;
+		break;
+	case OVERLAY_TIP_LEFT:
+	default:
+		*x = anchorX - 8 - tipW;
+		*y = anchorY + ( anchorH - tipH ) / 2;
+		break;
+	}
+}
+
+static void Overlay_ClampTip( int *x, int *y, int tipW, int tipH ) {
+	if ( *x < 4 ) {
+		*x = 4;
+	}
+	if ( *x + tipW > SCREEN_WIDTH - 4 ) {
+		*x = SCREEN_WIDTH - 4 - tipW;
+	}
+	if ( *y < 4 ) {
+		*y = 4;
+	}
+	if ( *y + tipH > SCREEN_HEIGHT - 4 ) {
+		*y = SCREEN_HEIGHT - 4 - tipH;
+	}
+}
+
+static qboolean Overlay_RectsOverlap( int ax, int ay, int aw, int ah, int bx, int by, int bw, int bh ) {
+	if ( aw <= 0 || ah <= 0 || bw <= 0 || bh <= 0 ) {
+		return qfalse;
+	}
+	return ( ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by ) ? qtrue : qfalse;
+}
+
+static qboolean Overlay_TipPlacementBad( int x, int y, int tipW, int tipH,
+		int anchorX, int anchorY, int anchorW, int anchorH ) {
+	int	cursorPad;
+	int	cursorX;
+	int	cursorY;
+	int	cursorW;
+	int	cursorH;
+
+	if ( Overlay_RectsOverlap( x, y, tipW, tipH, anchorX, anchorY, anchorW, anchorH ) ) {
+		return qtrue;
+	}
+	cursorPad = 2;
+	cursorX = dc_cursorX - OVERLAY_CURSOR_SIZE / 2 - cursorPad;
+	cursorY = dc_cursorY - OVERLAY_CURSOR_SIZE / 2 - cursorPad;
+	cursorW = OVERLAY_CURSOR_SIZE + cursorPad * 2;
+	cursorH = OVERLAY_CURSOR_SIZE + cursorPad * 2;
+	if ( Overlay_RectsOverlap( x, y, tipW, tipH, cursorX, cursorY, cursorW, cursorH ) ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+static overlayTipPlace_t Overlay_NextTipPlace( overlayTipPlace_t place ) {
+	switch ( place ) {
+	case OVERLAY_TIP_LEFT:
+		return OVERLAY_TIP_BELOW;
+	case OVERLAY_TIP_BELOW:
+		return OVERLAY_TIP_RIGHT;
+	case OVERLAY_TIP_RIGHT:
+		return OVERLAY_TIP_ABOVE;
+	case OVERLAY_TIP_ABOVE:
+	default:
+		return OVERLAY_TIP_LEFT;
+	}
+}
+
+void Overlay_DrawHoverTip( const char *tip, int anchorX, int anchorY, int anchorW, int anchorH,
+		overlayTipPlace_t preferred ) {
+	int					tipW;
+	int					tipH;
+	int					x;
+	int					y;
+	int					i;
+	overlayTipPlace_t	place;
+	overlayTipPlace_t	tryPlace;
+	vec4_t				bg;
+	vec4_t				border;
+	vec4_t				textColor;
+
+	if ( !tip || !tip[0] ) {
+		return;
+	}
+
+	Overlay_MeasureHoverTip( tip, &tipW, &tipH );
+	place = preferred;
+	for ( i = 0; i < 4; i++ ) {
+		tryPlace = place;
+		Overlay_TipPosition( tipW, tipH, anchorX, anchorY, anchorW, anchorH, tryPlace, &x, &y );
+		Overlay_ClampTip( &x, &y, tipW, tipH );
+		if ( !Overlay_TipPlacementBad( x, y, tipW, tipH, anchorX, anchorY, anchorW, anchorH ) ) {
+			place = tryPlace;
+			break;
+		}
+		place = Overlay_NextTipPlace( place );
+	}
+	Overlay_TipPosition( tipW, tipH, anchorX, anchorY, anchorW, anchorH, place, &x, &y );
+	Overlay_ClampTip( &x, &y, tipW, tipH );
+
+	bg[0] = 0.04f;
+	bg[1] = 0.04f;
+	bg[2] = 0.05f;
+	bg[3] = 0.92f;
+	border[0] = 1.0f;
+	border[1] = 1.0f;
+	border[2] = 1.0f;
+	border[3] = 0.40f;
+	textColor[0] = 1.0f;
+	textColor[1] = 1.0f;
+	textColor[2] = 1.0f;
+	textColor[3] = 1.0f;
+
+	CG_FillRect( x, y, tipW, tipH, bg );
+	CG_DrawRect( x, y, tipW, tipH, 1, border );
+	CG_DrawStringExt( x + OVERLAY_TIP_PAD, y + OVERLAY_TIP_PAD, tip, textColor, qfalse, qtrue,
+			OVERLAY_TIP_CHAR_W, OVERLAY_TIP_CHAR_H, 0 );
 }
