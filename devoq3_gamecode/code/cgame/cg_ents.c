@@ -171,6 +171,11 @@ static void CG_General( centity_t *cent ) {
 		return;
 	}
 
+	if ( s1->eType == ET_GENERAL && s1->frame == CG_ITEMEDIT_FLOOR_FRAME ) {
+		CG_ItemEdit_DrawFloorForCent( cent );
+		return;
+	}
+
 	// if set to invisible, skip
 	if (!s1->modelindex) {
 		return;

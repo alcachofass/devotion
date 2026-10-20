@@ -21,6 +21,13 @@ In-game item pickup editing (spectator MVP).
 #define ITEMEDIT_WALL_MAX_HEIGHT	1024.0f
 #define ITEMEDIT_WALL_RAY_TRACE_DIST	4096.0f
 
+#define ITEMEDIT_FLOOR_GENERIC1		2
+#define ITEMEDIT_FLOOR_FRAME			57346
+#define ITEMEDIT_FLOOR_HALF_DEPTH		64.0f
+#define ITEMEDIT_FLOOR_THICKNESS		16.0f
+#define ITEMEDIT_FLOOR_MIN_HALF_DEPTH	8.0f
+#define ITEMEDIT_FLOOR_MAX_HALF_DEPTH	512.0f
+
 /* Packed into time2 (32-bit net); eventParm is only 8 bits on the wire. */
 #define ItemEdit_WallPackSize( halfWidth, height ) \
 	( ( ( (int)( halfWidth ) & 0xFFFF ) << 16 ) | ( (int)( height ) & 0xFFFF ) )
@@ -28,6 +35,11 @@ In-game item pickup editing (spectator MVP).
 	( ( time2 ) > 0 ? (float)((( time2 ) >> 16) & 0xFFFF) : ITEMEDIT_WALL_HALF_WIDTH )
 #define ItemEdit_WallHeightFromTime2( time2 ) \
 	( ( ( time2 ) & 0xFFFF ) > 0 ? (float)(( time2 ) & 0xFFFF) : ITEMEDIT_WALL_HEIGHT )
+
+#define ItemEdit_FloorPackSize( halfWidth, halfDepth )	ItemEdit_WallPackSize( halfWidth, halfDepth )
+#define ItemEdit_FloorHalfWidthFromTime2( time2 )	ItemEdit_WallHalfWidthFromTime2( time2 )
+#define ItemEdit_FloorHalfDepthFromTime2( time2 ) \
+	( ( ( time2 ) & 0xFFFF ) > 0 ? (float)(( time2 ) & 0xFFFF) : ITEMEDIT_FLOOR_HALF_DEPTH )
 
 void ItemEdit_LoadLayoutForMap( void );
 void ItemEdit_SessionPrepareLoad( void );

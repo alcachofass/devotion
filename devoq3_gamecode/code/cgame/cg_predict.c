@@ -90,8 +90,12 @@ void CG_BuildSolidList( void ) {
 		}
 
 		if ( cent->nextState.solid ) {
-			cg_solidEntities[cg_numSolidEntities] = cent;
-			cg_numSolidEntities++;
+			/* Item-edit walls use CG_ItemEdit_ClipMoveToWalls (axis AABB from time2);
+			   generic solid encoding is symmetric XY and mis-sized for one yaw. */
+			if ( !CG_ItemEdit_EsIsEditClip( &cent->nextState ) ) {
+				cg_solidEntities[cg_numSolidEntities] = cent;
+				cg_numSolidEntities++;
+			}
 			continue;
 		}
 	}
@@ -716,6 +720,11 @@ static void CG_ClipMoveToEntities ( const vec3_t start, const vec3_t mins, const
 			continue;
 		}
 
+		if ( CG_ItemEdit_EsIsEditClip( ent )
+				|| ( cg.nextSnap && CG_ItemEdit_EsIsEditClip( &cent->nextState ) ) ) {
+			continue;
+		}
+
 		if ( ent->solid == SOLID_BMODEL ) {
 			// special value for bmodel
 			cmodel = trap_CM_InlineModel( ent->modelindex );
@@ -766,6 +775,10 @@ void	CG_Trace( trace_t *result, const vec3_t start, const vec3_t mins, const vec
 	t.entityNum = t.fraction != 1.0 ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
 	// check all other solid models
 	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, mask, &t);
+
+	if ( cg.itemEditWallPredictCount > 0 ) {
+		CG_ItemEdit_ClipMoveToWalls( start, mins, maxs, end, skipNumber, mask, &t );
+	}
 
 	*result = t;
 }

@@ -607,6 +607,17 @@ gfx/2d/icon_wall
 	}
 }
 
+gfx/2d/icon_floor
+{
+	nopicmip
+	nomipmaps
+	{
+		clampmap gfx/2d/icon_floor.tga
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+	}
+}
+
 gfx/2d/pending
 {
 	nopicmip
@@ -625,5 +636,14 @@ devoq3_itemedit_wall
 	cull disable
 	{
 		map textures/gothic_wall/streetbricks14.jpg
+	}
+}
+
+// In-game edit floors (cg_itemedit): horizontal shelf from a wall.
+devoq3_itemedit_floor
+{
+	cull disable
+	{
+		map textures/base_floor/tilefloor7.jpg
 	}
 }
