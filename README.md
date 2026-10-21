@@ -1,22 +1,21 @@
 ![Devotion Logo](/docs/logo2.png)
 
-Devotion is a mod for Quake III: Arena which implements [Unlagged](https://www.ra.is/unlagged/). It aims to retain the core gameplay of vanilla Q3 multiplayer while adding useful features and enhancements.
-
-Devotion began as a partial conversion of [RatArena](https://github.com/rdntcntrl/ratoa_gamecode) (v0.15.5) into Q3A.
+Devotion is an enhanced version of Quake III: Arena. It retains the core gameplay of vanilla Q3 while adding useful features and enhancements.
 
 ## Features
 
-- Unlagged Netcode
-- Customizable HUDs (import from QL or CPM)
-- Voteable QL/CPM/VQ3 Movement
-- Clan Arena/Elimination/Last Man Standing Gamemodes
-- Upgraded Bots with more human-like aim and strategic goal pursuit
-- Demo Autorecording and an enhanced demo browser
-- Alternative Footstep Sounds (Wood/Snow)
-- Keys & Locked Doors (for QL levels like Elder)
-- De-lagged Demo Playback
-- Client-side hit prediction and damage-based hit tones
-- Sound Visualization Overlay
+- Fully Unlagged Netcode - For projectile and hitscan weapons, with no engine modification. Implements [Unlagged](https://www.ra.is/unlagged/).
+- Customizable HUDs (supports QL or CPM SuperHUD .cfg HUD files).
+- Voteable movement types - Quake Live, Promode/CPM, Defrag, Vanilla Q3.
+- Extra gamemodes - Clan Arena/Elimination/Rocket Arena, Last Man Standing.
+- Upgraded Bots with humanized aim, strategic goal pursuit, and attitudes.
+- Replay/demo Autorecording and enhanced replay browsing and playback with pause, fast forward, event highlighting, multi-POV and freecam.
+- Alt Footstep Sounds (Wood/Snow), keys & locked doors for port of Quake Live maps like Elder.
+- De-lagged replay playback - See what the recording player saw.
+- Client-side hit prediction and damage-based hit tones.
+- Sound Visualization Overlay.
+- In-game editing for items, spawns, and teleporters. Live build of walls and floors to quickly test different level layouts/flows.
+- Ported minor mods - [KIllcam](https://github.com/WofWca/quake3-killcam-mod) and [Better Gibs](https://github.com/WofWca/quake3-better-gibs-mod).
 
 ## Installation
 1. Grab the [Latest Release](https://github.com/alcachofass/devotion/releases)
@@ -24,21 +23,9 @@ Devotion began as a partial conversion of [RatArena](https://github.com/rdntcntr
 3. Place the .pk3 file into the new directory
 4. Load the game, select `mods`, and load the mod named `devotion`
 
-**Note:** We recommend starting from a clean mod folder during upgrades.
-
-Development builds are published as prereleases for every push to `main` or `develop`.
-They are available from the [releases page](https://github.com/alcachofass/devotion/releases)
-alongside the stable releases.
-
-### Alternative method
-1. Load Quake 3 (Quake3e or IOQ3 client recommended)
-2. Pull down the console (`~` key, generally found below `ESC` on a US QWERTY keyboard layout)
-3. Enter `\cl_allowdownload 1` then hit enter
-4. Connect to a server running the mod. (For example, enter `\connect nuegados.com` then hit enter. Q3 will connect to our server running Devotion and automatically download/install/start the mod.) 
-
-**Note:** From time to time, `nuegados.com` may be running a test pk3 instead of the release pk3. If this matters to you, download the latest published PK3 directly from the [Release](/releases) page.
-
 ## Documentation
+Devotion began as a port of [RatArena](https://github.com/rdntcntrl/ratoa_gamecode) (v0.15.5) from OpenArena into Q3A in 2023.
+
 Since this is a partial conversion, not everything previously found in RatArena will work here, namely the extra medals, the Treasure Hunt gametype, Team Arena gametypes, alternate rockets, alternate announcers (here we use the default for Quake III), Team Arena items and weapons, radar, grenade skins, and maybe one or another cosmetic setting to achieve consistency. 
 
 For everything else, the documentation available at the [RatArena website](https://ratmod.github.io/) serves well for Devotion. There is also [a wiki](https://github.com/alcachofass/devotion/wiki) in the works.
