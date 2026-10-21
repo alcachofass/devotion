@@ -134,6 +134,12 @@ static void CG_Obituary( entityState_t *ent ) {
 		CG_LmsScheduleFollowKiller( attacker );
 	}
 
+	if ( cgs.gametype == GT_LMS && target != cg.clientNum
+			&& attacker != ENTITYNUM_WORLD && attacker >= 0 && attacker < MAX_CLIENTS
+			&& attacker != target ) {
+		CG_LmsFollowKillerChain( target, attacker );
+	}
+
 	message2 = "";
 
 	// check for single client messages

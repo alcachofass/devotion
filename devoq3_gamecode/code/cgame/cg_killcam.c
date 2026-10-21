@@ -5,6 +5,7 @@ Killcam: snapshot ring buffer and replay state (ported from quake3-killcam-mod)
 */
 
 #include "cg_local.h"
+#include "cg_overlay.h"
 
 /*
 =====================================================================
@@ -124,14 +125,92 @@ static int CG_LmsFollowKillerDelayMs( void ) {
 }
 
 
-static void CG_LmsAutoFollowKillerTry( void ) {
-	int				k;
+static qboolean CG_LmsAutoFollowKillerEligible( void ) {
+	if ( CG_LmsElimSpectator() ) {
+		return qtrue;
+	}
+	if ( cg.snap && cgs.gametype == GT_LMS
+			&& cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR
+			&& ( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+
+static int CG_LmsFollowKillerSubject( void ) {
+	if ( cg_lmsFollowKillerPending ) {
+		return cg_lmsFollowKillerNum;
+	}
+	if ( cg.snap && cgs.gametype == GT_LMS
+			&& cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR
+			&& ( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
+		return cg.snap->ps.clientNum;
+	}
+	return -1;
+}
+
+
+static qboolean CG_LmsFollowKillerTargetOk( int clientNum ) {
 	clientInfo_t	*ci;
+
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS || clientNum == cg.clientNum ) {
+		return qfalse;
+	}
+	if ( !Overlay_ClientConnected( clientNum ) ) {
+		return qfalse;
+	}
+	ci = &cgs.clientinfo[clientNum];
+	if ( ci->team == TEAM_SPECTATOR ) {
+		return qfalse;
+	}
+	if ( CG_SpecMenuClientEliminated( clientNum ) ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+
+/*
+ * Prefer the scheduled killer (or latest chain target); if they are already
+ * out, pick any other player still in the round.
+ */
+static int CG_LmsResolveFollowKillerTarget( int preferred ) {
+	int		i;
+
+	if ( CG_LmsFollowKillerTargetOk( preferred ) ) {
+		return preferred;
+	}
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		if ( i == preferred ) {
+			continue;
+		}
+		if ( CG_LmsFollowKillerTargetOk( i ) ) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+
+static void CG_LmsFollowKillerRequestScores( void ) {
+	if ( cg.demoPlayback || cgs.gametype != GT_LMS ) {
+		return;
+	}
+	if ( cg.scoresRequestTime + 200 < cg.time ) {
+		cg.scoresRequestTime = cg.time;
+		trap_SendClientCommand( "score" );
+	}
+}
+
+
+static void CG_LmsAutoFollowKillerTry( void ) {
+	int		k;
 
 	if ( !cg_lmsFollowKillerPending ) {
 		return;
 	}
-	if ( !CG_LmsElimSpectator() ) {
+	if ( !CG_LmsAutoFollowKillerEligible() ) {
 		if ( cg.snap && cgs.gametype == GT_LMS
 				&& cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR
 				&& cg.snap->ps.pm_type == PM_NORMAL
@@ -140,14 +219,9 @@ static void CG_LmsAutoFollowKillerTry( void ) {
 		}
 		return;
 	}
-	k = cg_lmsFollowKillerNum;
-	if ( k < 0 || k >= MAX_CLIENTS || k == cg.clientNum ) {
-		cg_lmsFollowKillerPending = qfalse;
-		return;
-	}
-	ci = &cgs.clientinfo[k];
-	if ( !ci->infoValid || ci->team == TEAM_SPECTATOR ) {
-		cg_lmsFollowKillerPending = qfalse;
+	CG_LmsFollowKillerRequestScores();
+	k = CG_LmsResolveFollowKillerTarget( cg_lmsFollowKillerNum );
+	if ( k < 0 ) {
 		return;
 	}
 	cg_lmsFollowKillerPending = qfalse;
@@ -169,7 +243,7 @@ void CG_LmsFollowKillerUpdate( void ) {
 }
 
 
-void CG_LmsScheduleFollowKiller( int killerNum ) {
+static void CG_LmsScheduleFollowKillerInternal( int killerNum, qboolean chain ) {
 	if ( cgs.gametype != GT_LMS ) {
 		return;
 	}
@@ -178,11 +252,41 @@ void CG_LmsScheduleFollowKiller( int killerNum ) {
 	}
 	cg_lmsFollowKillerPending = qtrue;
 	cg_lmsFollowKillerNum = killerNum;
-	if ( cg_killcam.integer ) {
+	if ( chain ) {
+		cg_lmsFollowKillerTime = cg.time;
+	} else if ( cg_killcam.integer ) {
 		cg_lmsFollowKillerTime = 0;
 	} else {
 		cg_lmsFollowKillerTime = cg.time + CG_LmsFollowKillerDelayMs();
 	}
+}
+
+
+void CG_LmsScheduleFollowKiller( int killerNum ) {
+	CG_LmsScheduleFollowKillerInternal( killerNum, qfalse );
+}
+
+
+void CG_LmsFollowKillerChain( int victimNum, int attackerNum ) {
+	if ( cg_contextNum != CG_CONTEXT_LIVE ) {
+		return;
+	}
+	if ( cgs.gametype != GT_LMS ) {
+		return;
+	}
+	if ( victimNum < 0 || victimNum >= MAX_CLIENTS ) {
+		return;
+	}
+	if ( attackerNum < 0 || attackerNum >= MAX_CLIENTS || attackerNum == victimNum ) {
+		return;
+	}
+	if ( attackerNum == cg.clientNum ) {
+		return;
+	}
+	if ( CG_LmsFollowKillerSubject() != victimNum ) {
+		return;
+	}
+	CG_LmsScheduleFollowKillerInternal( attackerNum, qtrue );
 }
 
 

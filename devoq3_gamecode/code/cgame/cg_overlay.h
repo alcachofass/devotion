@@ -44,6 +44,7 @@ void Overlay_Wake( void );
 void Overlay_ReleaseCatcher( void );
 void Overlay_CopyName( char *dst, int dstSize, int clientNum, int maxVis );
 qboolean Overlay_ClientConnected( int clientNum );
+qboolean CG_SpecMenuClientEliminated( int clientNum );
 void Overlay_ForwardKey( int key, qboolean down );
 int Overlay_BarX( int numBtns );
 void Overlay_DrawVerticalText( int cx, int y, int h, const char *s, const float *color );

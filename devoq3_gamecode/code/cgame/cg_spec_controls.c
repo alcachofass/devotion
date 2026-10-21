@@ -1206,6 +1206,16 @@ static void DemoCtrl_SpecSortList( int *list, int count ) {
 	}
 }
 
+static void DemoCtrl_SpecRequestScores( void ) {
+	if ( cg.demoPlayback || !BG_IsElimGT( cgs.gametype ) ) {
+		return;
+	}
+	if ( cg.scoresRequestTime + 200 < cg.time ) {
+		cg.scoresRequestTime = cg.time;
+		trap_SendClientCommand( "score" );
+	}
+}
+
 static int DemoCtrl_SpecCollect( int *out, int max ) {
 	int	i;
 	int	n;
@@ -1251,6 +1261,7 @@ static void DemoCtrl_SpecMenuClose( void ) {
 }
 
 static void DemoCtrl_SpecMenuRefresh( void ) {
+	DemoCtrl_SpecRequestScores();
 	dc_specMenuCount = DemoCtrl_SpecCollect( dc_specMenuList, MAX_CLIENTS );
 	if ( dc_specMenuCount <= 0 && dc_specMenuOpen ) {
 		DemoCtrl_SpecMenuClose();
@@ -1406,6 +1417,9 @@ static int DemoCtrl_SpecMenuHitTest( int mx, int my ) {
 		if ( rowY + OVERLAY_SIDE_BTN_H > y + clipH ) {
 			break;
 		}
+		if ( CG_SpecMenuClientEliminated( dc_specMenuList[i] ) ) {
+			continue;
+		}
 		if ( mx >= x && mx < x + w && my >= rowY && my < rowY + OVERLAY_SIDE_BTN_H ) {
 			return i;
 		}
@@ -1445,15 +1459,22 @@ static void DemoCtrl_DrawSpecMenu( vec4_t btnIdle, vec4_t btnHover, vec4_t btnAc
 	for ( i = 0; i < dc_specMenuCount; i++ ) {
 		qboolean	active;
 		qboolean	hover;
+		qboolean	eliminated;
 		int			team;
+		int			textX;
+		int			textY;
+		int			iconSz;
+		vec4_t		rowText;
+		vec4_t		strikeColor;
 
 		rowY = y + 1 + i * rowH;
 		if ( rowY + OVERLAY_SIDE_BTN_H > y + clipH ) {
 			break;
 		}
-		active = ( DemoCtrl_SpecFollowing() && cg.snap
+		eliminated = CG_SpecMenuClientEliminated( dc_specMenuList[i] );
+		active = ( !eliminated && DemoCtrl_SpecFollowing() && cg.snap
 				&& dc_specMenuList[i] == cg.snap->ps.clientNum ) ? qtrue : qfalse;
-		hover = ( i == dc_specMenuHover ) ? qtrue : qfalse;
+		hover = ( !eliminated && i == dc_specMenuHover ) ? qtrue : qfalse;
 		team = cgs.clientinfo[dc_specMenuList[i]].team;
 		if ( CG_IsTeamGametype() && ( team == TEAM_RED || team == TEAM_BLUE ) ) {
 			DemoCtrl_SpecTeamFill( team, active, hover, btnIdle, btnHover, btnActive, rowFill );
@@ -1465,13 +1486,42 @@ static void DemoCtrl_DrawSpecMenu( vec4_t btnIdle, vec4_t btnHover, vec4_t btnAc
 		} else {
 			fill = btnIdle;
 		}
+		if ( eliminated ) {
+			rowFill[0] = fill[0] * 0.45f;
+			rowFill[1] = fill[1] * 0.45f;
+			rowFill[2] = fill[2] * 0.45f;
+			rowFill[3] = fill[3] * 0.75f;
+			fill = rowFill;
+		}
 		CG_FillRect( x + 1, rowY, w - 2, OVERLAY_SIDE_BTN_H, fill );
 		Overlay_CopyName( name, sizeof( name ), dc_specMenuList[i], 14 );
 		len = CG_DrawStrlen( name );
-		CG_DrawStringExt( x + ( w - len * OVERLAY_SIDE_CHAR_W ) / 2,
-				rowY + ( OVERLAY_SIDE_BTN_H - OVERLAY_SIDE_CHAR_H ) / 2,
-				name, textColor, qfalse, qtrue,
+		textY = rowY + ( OVERLAY_SIDE_BTN_H - OVERLAY_SIDE_CHAR_H ) / 2;
+		iconSz = OVERLAY_SIDE_CHAR_H;
+		if ( eliminated && cgs.media.deathShader ) {
+			textX = x + iconSz + 6 + ( w - iconSz - 6 - len * OVERLAY_SIDE_CHAR_W ) / 2;
+			CG_DrawPic( x + 4, rowY + ( OVERLAY_SIDE_BTN_H - iconSz ) / 2, iconSz, iconSz,
+					cgs.media.deathShader );
+		} else {
+			textX = x + ( w - len * OVERLAY_SIDE_CHAR_W ) / 2;
+		}
+		Vector4Copy( textColor, rowText );
+		if ( eliminated ) {
+			rowText[0] *= 0.55f;
+			rowText[1] *= 0.55f;
+			rowText[2] *= 0.55f;
+			rowText[3] *= 0.65f;
+		}
+		CG_DrawStringExt( textX, textY, name, rowText, qfalse, qtrue,
 				OVERLAY_SIDE_CHAR_W, OVERLAY_SIDE_CHAR_H, 0 );
+		if ( eliminated ) {
+			strikeColor[0] = rowText[0] * 0.85f;
+			strikeColor[1] = rowText[1] * 0.85f;
+			strikeColor[2] = rowText[2] * 0.85f;
+			strikeColor[3] = rowText[3];
+			CG_FillRect( textX, textY + OVERLAY_SIDE_CHAR_H / 2,
+					len * OVERLAY_SIDE_CHAR_W, 1, strikeColor );
+		}
 	}
 }
 
@@ -2272,7 +2322,8 @@ static qboolean DemoCtrl_SpecKey( int key, qboolean down ) {
 				return qtrue;
 			}
 		}
-		if ( dc_specMenuHover >= 0 && dc_specMenuHover < dc_specMenuCount ) {
+		if ( dc_specMenuHover >= 0 && dc_specMenuHover < dc_specMenuCount
+				&& !CG_SpecMenuClientEliminated( dc_specMenuList[dc_specMenuHover] ) ) {
 			trap_SendConsoleCommand( va( "follow %d\n", dc_specMenuList[dc_specMenuHover] ) );
 			DemoCtrl_SpecMenuClose();
 			return qtrue;

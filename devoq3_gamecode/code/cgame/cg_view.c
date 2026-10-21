@@ -1810,12 +1810,12 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 
 	killcamDelay = CG_KillcamUpdate( serverTime, demoPlayback );
-	CG_LmsFollowKillerUpdate();
 	killcamView = killcamDelay > 0;
 
 	cg_passHidden = killcamView && CG_KillcamTransitionShowKillcam();
 	cg_soundMuted = cg_passHidden;
 	CG_DrawActiveFrameCtx( serverTime, stereoView, demoPlayback );
+	CG_LmsFollowKillerUpdate();
 	cg_passHidden = qfalse;
 	cg_soundMuted = qfalse;
 
