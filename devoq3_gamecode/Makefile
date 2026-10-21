@@ -1845,6 +1845,7 @@ Q3GOBJ_ = \
   $(B)/baseq3/game/ai_bot_position.o \
   $(B)/baseq3/game/ai_bot_opponent.o \
   $(B)/baseq3/game/ai_bot_nav_guard.o \
+  $(B)/baseq3/game/ai_bot_elim_seek.o \
   $(B)/baseq3/game/ai_bot_dmnet.o \
   $(B)/baseq3/game/ai_main.o \
   $(B)/baseq3/game/ai_team.o \
@@ -1925,6 +1926,7 @@ MPGOBJ_ = \
   $(B)/missionpack/game/ai_bot_position.o \
   $(B)/missionpack/game/ai_bot_opponent.o \
   $(B)/missionpack/game/ai_bot_nav_guard.o \
+  $(B)/missionpack/game/ai_bot_elim_seek.o \
   $(B)/missionpack/game/ai_bot_dmnet.o \
   $(B)/missionpack/game/ai_main.o \
   $(B)/missionpack/game/ai_team.o \

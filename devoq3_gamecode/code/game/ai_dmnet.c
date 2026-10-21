@@ -1981,6 +1981,10 @@ int AINode_Seek_LTG(bot_state_t *bs)
 			AIEnter_Seek_NBG(bs, "items: committed pickup");
 			return qfalse;
 		}
+		if (BotDmnet_TryEnterElimHunt(bs, "elim: hunt")) {
+			AIEnter_Seek_NBG(bs, "elim: hunt");
+			return qfalse;
+		}
 		if (BotNearbyGoal(bs, bs->tfl, &goal, range)) {
 			trap_BotResetLastAvoidReach(bs->ms);
 			//get the goal at the top of the stack

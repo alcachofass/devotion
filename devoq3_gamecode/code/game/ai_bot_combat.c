@@ -1156,7 +1156,8 @@ int BotCombat_ShouldEngageFromRetreat(bot_state_t *bs) {
 	if (!BotEnhanced_AllowsVoluntaryCloseGauntlet(bs)) {
 		return 0;
 	}
-	if (BotOpponent_IsActive() && BotOpponent_WantsAvoidEngagement(bs)) {
+	if (BotOpponent_IsActive() && BotOpponent_WantsAvoidEngagement(bs) &&
+			!BotEnhanced_MustEngageFinale(bs)) {
 		return 0;
 	}
 	if (!BotWpnSelect_VoluntaryGauntletWarranted(bs,

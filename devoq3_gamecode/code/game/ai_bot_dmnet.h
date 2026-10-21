@@ -49,6 +49,7 @@ void BotDmnet_SeekLTG_OnMoveFailure(struct bot_state_s *bs,
 	struct bot_moveresult_s *mr);
 
 int BotDmnet_TryEnterItemPickup(struct bot_state_s *bs, const char *reason);
+int BotDmnet_TryEnterElimHunt(struct bot_state_s *bs, const char *reason);
 
 int BotDmnet_NBG_ShouldClearReachTime(struct bot_state_s *bs, struct bot_goal_s *goal);
 void BotDmnet_NBG_OnItemsMoveFailure(struct bot_state_s *bs,

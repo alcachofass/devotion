@@ -132,6 +132,7 @@ typedef struct bot_activategoal_s
 #include "ai_bot_item_timing.h"
 #include "ai_bot_opponent.h"
 #include "ai_bot_nav_guard.h"
+#include "ai_bot_elim_seek.h"
 
 //bot state
 typedef struct bot_state_s
@@ -492,6 +493,16 @@ typedef struct bot_state_s
 	float		nav_goal_watch_since;	/* when best was last improved */
 	float		nav_stuck_debug_next;	/* throttle for bot_navstuck_debug */
 	/* ---- end BOT NAV GUARD ---- */
+
+	/* ---- BOT ELIM SEEK: ai_bot_elim_seek.c ---- */
+	vec3_t		elim_clue_origin;
+	float		elim_clue_time;
+	int			elim_clue_client;
+	float		elim_next_roam_time;
+	qboolean	elim_seek_active;
+	float		elim_seek_until;
+	bot_goal_t	elim_seek_goal;
+	/* ---- end BOT ELIM SEEK ---- */
 } bot_state_t;
 
 //resets the whole bot state

@@ -91,6 +91,11 @@ int BotEnhanced_CanEngageClient(struct bot_state_s *bs, int clientnum);
 /* Enhanced bots do not use info_camp / BotWantsToCamp roaming. */
 int BotEnhanced_AllowsCamping(void);
 
+/* LMS / elimination: exactly two non-eliminated players left in the round. */
+int BotEnhanced_CountElimRoundSurvivors(void);
+/* Must close and fight (no stack-based avoid / flee) — e.g. LMS final duel. */
+int BotEnhanced_MustEngageFinale(struct bot_state_s *bs);
+
 /*
  * Goal stack guards (botlib MAX_GOALSTACK = 8). Use before botlib choose/push
  * paths that can overflow the heap (items, nearby goals, air goals).

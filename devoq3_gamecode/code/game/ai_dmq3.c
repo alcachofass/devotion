@@ -46,6 +46,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "ai_main.h"
 #include "ai_bot_enhanced.h"
 #include "ai_bot_opponent.h"
+#include "ai_bot_elim_seek.h"
 #include "ai_bot_combat.h"
 #include "ai_dmq3.h"
 #include "ai_aim_harness.h"
@@ -2543,6 +2544,9 @@ BotWantsToRetreat
 int BotWantsToRetreat(bot_state_t *bs) {
 	aas_entityinfo_t entinfo;
 
+	if (BotEnhanced_MustEngageFinale(bs)) {
+		return qfalse;
+	}
 	if (gametype == GT_CTF || gametype == GT_CTF_ELIMINATION) {
 		//always retreat when carrying a CTF flag
 		if (BotCTFCarryingFlag(bs))
@@ -5478,6 +5482,7 @@ void BotCheckEvents(bot_state_t *bs, entityState_t *state) {
 			break;
 	}
 	BotOpponent_OnClientEvent(bs, state, event);
+	BotElimSeek_OnClientEvent(bs, state, event);
 }
 
 /*
