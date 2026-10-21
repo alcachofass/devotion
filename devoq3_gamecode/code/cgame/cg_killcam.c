@@ -77,6 +77,10 @@ static qboolean		cg_killcamJumpWasUp;
 // (see cg_killcamSkipOnJumpDelay)
 static int			cg_killcamSkipAllowedTime;
 
+static qboolean		cg_lmsFollowKillerPending;
+static int			cg_lmsFollowKillerNum = -1;
+static int			cg_lmsFollowKillerTime;
+
 #ifndef KILLCAM_NO_MISSILE_CHASE
 // the missile that scored the kill, for the missile-chase camera
 static int			cg_killcamMissileNum = -1;
@@ -91,6 +95,97 @@ static killcamCamera_t	cg_killcamCameraMode = KILLCAM_CAMERA_THIRD;
 
 
 static int	cg_killcamLastRecordTime = -99999;
+static qboolean CG_KillcamTreatAsSpectator( void ) {
+	if ( !CG_SpectatorView() ) {
+		return qfalse;
+	}
+	if ( CG_LmsElimSpectator() ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+
+static qboolean CG_KillcamEndedByRespawn( void ) {
+	if ( CG_LmsElimSpectator() ) {
+		return qfalse;
+	}
+	return cg.predictedPlayerState.stats[STAT_HEALTH] > 0;
+}
+
+
+static int CG_LmsFollowKillerDelayMs( void ) {
+	int	delay = cg_killcamStartDelay.integer;
+
+	if ( delay < 0 ) {
+		delay = 0;
+	}
+	return delay + CG_KILLCAM_PREROLL_MS + CG_KILLCAM_POSTROLL_MS;
+}
+
+
+static void CG_LmsAutoFollowKillerTry( void ) {
+	int				k;
+	clientInfo_t	*ci;
+
+	if ( !cg_lmsFollowKillerPending ) {
+		return;
+	}
+	if ( !CG_LmsElimSpectator() ) {
+		if ( cg.snap && cgs.gametype == GT_LMS
+				&& cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR
+				&& cg.snap->ps.pm_type == PM_NORMAL
+				&& cg.snap->ps.stats[STAT_HEALTH] > 0 ) {
+			cg_lmsFollowKillerPending = qfalse;
+		}
+		return;
+	}
+	k = cg_lmsFollowKillerNum;
+	if ( k < 0 || k >= MAX_CLIENTS || k == cg.clientNum ) {
+		cg_lmsFollowKillerPending = qfalse;
+		return;
+	}
+	ci = &cgs.clientinfo[k];
+	if ( !ci->infoValid || ci->team == TEAM_SPECTATOR ) {
+		cg_lmsFollowKillerPending = qfalse;
+		return;
+	}
+	cg_lmsFollowKillerPending = qfalse;
+	trap_SendConsoleCommand( va( "follow %d\n", k ) );
+}
+
+
+void CG_LmsFollowKillerUpdate( void ) {
+	if ( !cg_lmsFollowKillerPending ) {
+		return;
+	}
+	if ( cg_lmsFollowKillerTime > 0 && cg.time < cg_lmsFollowKillerTime ) {
+		return;
+	}
+	if ( cg_killcamDeathPending || CG_KillcamRunning() ) {
+		return;
+	}
+	CG_LmsAutoFollowKillerTry();
+}
+
+
+void CG_LmsScheduleFollowKiller( int killerNum ) {
+	if ( cgs.gametype != GT_LMS ) {
+		return;
+	}
+	if ( killerNum < 0 || killerNum >= MAX_CLIENTS || killerNum == cg.clientNum ) {
+		return;
+	}
+	cg_lmsFollowKillerPending = qtrue;
+	cg_lmsFollowKillerNum = killerNum;
+	if ( cg_killcam.integer ) {
+		cg_lmsFollowKillerTime = 0;
+	} else {
+		cg_lmsFollowKillerTime = cg.time + CG_LmsFollowKillerDelayMs();
+	}
+}
+
+
 static qboolean CG_KillcamShouldRecord( int serverTime ) {
 	int		delta = serverTime - cg_killcamLastRecordTime;
 
@@ -502,6 +597,7 @@ void CG_KillcamStop( void ) {
 	cg_killcamCameraMode = KILLCAM_CAMERA_THIRD;
 	CG_KillcamViewReset();
 	CG_ClearKillcamTransitionFade();
+	CG_LmsAutoFollowKillerTry();
 }
 
 
@@ -528,7 +624,7 @@ void CG_KillcamScheduleDeathReplay( int killerNum, int mod, int time ) {
 		// obituary events re-fired by the replay itself
 		return;
 	}
-	if ( CG_SpectatorView() ) {
+	if ( CG_KillcamTreatAsSpectator() ) {
 		return;
 	}
 	cg_killcamDeathPending = qtrue;
@@ -700,7 +796,7 @@ int CG_KillcamUpdate( int serverTime, qboolean demoPlayback ) {
 		return 0;
 	}
 
-	if ( CG_SpectatorView() ) {
+	if ( CG_KillcamTreatAsSpectator() ) {
 		cg_killcamDeathPending = qfalse;
 		if ( cg_killcamRunning ) {
 			CG_KillcamStop();
@@ -716,7 +812,7 @@ int CG_KillcamUpdate( int serverTime, qboolean demoPlayback ) {
 		if (
 			// the player respawned (e.g. clicked): hand the view back
 			// right away, they need to see what they're doing
-			cg.predictedPlayerState.stats[STAT_HEALTH] > 0
+			CG_KillcamEndedByRespawn()
 
 			// A timescale above 1 caught up with the live view.
 			// Not super necessary to handle this.
@@ -788,7 +884,7 @@ int CG_KillcamUpdate( int serverTime, qboolean demoPlayback ) {
 		}
 
 		// skip if the player already respawned or the game is ending
-		if ( cg.predictedPlayerState.stats[STAT_HEALTH] > 0 || cg.intermissionStarted ) {
+		if ( CG_KillcamEndedByRespawn() || cg.intermissionStarted ) {
 			return 0;
 		}
 

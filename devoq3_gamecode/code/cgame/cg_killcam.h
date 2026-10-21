@@ -44,6 +44,8 @@ killcamMode_t CG_KillcamMode( void );
 int CG_KillcamKillerNum( void );
 killcamCamera_t CG_KillcamCameraMode( void );
 void CG_KillcamScheduleDeathReplay( int killerNum, int mod, int time );
+void CG_LmsScheduleFollowKiller( int killerNum );
+void CG_LmsFollowKillerUpdate( void );
 int CG_KillcamUpdate( int serverTime, qboolean demoPlayback );
 
 void CG_KillcamRecordSnapshot( int num, const snapshot_t *snap );
