@@ -114,8 +114,7 @@ static void CG_Obituary( entityState_t *ent ) {
 	Q_strncpyz( targetName, Info_ValueForKey( targetInfo, "n" ), sizeof(targetName) - 2);
 	strcat( targetName, S_COLOR_WHITE );
 
-	if ( target == cg.snap->ps.clientNum && cg_killcam.integer &&
-		!(( cg.snap->ps.pm_flags & PMF_FOLLOW ) && ( cg_killcam.integer & 2 ) ) ) {
+	if ( target == cg.clientNum && cg_killcam.integer && !CG_SpectatorView() ) {
 		int subject = -1;
 
 		if ( attacker != target && attacker != ENTITYNUM_WORLD ) {

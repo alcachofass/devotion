@@ -538,7 +538,7 @@ static const cvarDesc_t cgameCvarDescriptions[] = {
 	{ "cg_itemTimersAlpha", "Opacity of world-space item timer pies." },
 	{ "cg_itemTimersOffset", "Vertical offset of world-space item timer pies, in game units." },
 	{ "cg_itemTimersScale", "Size of world-space item timer pies." },
-	{ "cg_killcam", "When 1, deaths show a killcam: a replay of the last few seconds with the camera on the killer (or on you for suicides and world deaths). Each replay randomly uses killer third-person, killer first-person, or missile chase when available. Ends shortly after the kill or when you respawn. Bit 1 (value 2): disable killcam while spectating." },
+	{ "cg_killcam", "When 1, your own deaths show a killcam: a replay of the last few seconds with the camera on the killer (or on you for suicides and world deaths). Each replay randomly uses killer third-person, killer first-person, or missile chase when available. Ends shortly after the kill or when you respawn. Does not run while spectating." },
 	{ "cg_killcamHeight", "Killcam third-person camera: vertical offset from the killer's head (also raises the aim point so the view stays level)." },
 	{ "cg_killcamHitSounds", "When 1, plays hit feedback sounds during the killcam replay. When 0, they are muted." },
 	{ "cg_killcamKillTimescale", "Playback speed multiplier around the moment of the kill (1 = real time). Outside the before/after window the replay runs at normal speed." },

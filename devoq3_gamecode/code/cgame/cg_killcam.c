@@ -528,6 +528,9 @@ void CG_KillcamScheduleDeathReplay( int killerNum, int mod, int time ) {
 		// obituary events re-fired by the replay itself
 		return;
 	}
+	if ( CG_SpectatorView() ) {
+		return;
+	}
 	cg_killcamDeathPending = qtrue;
 	cg_killcamDeathKiller = killerNum;
 	cg_killcamDeathMod = mod;
@@ -690,6 +693,14 @@ int CG_KillcamUpdate( int serverTime, qboolean demoPlayback ) {
 	}
 
 	if ( !cg_killcam.integer ) {
+		cg_killcamDeathPending = qfalse;
+		if ( cg_killcamRunning ) {
+			CG_KillcamStop();
+		}
+		return 0;
+	}
+
+	if ( CG_SpectatorView() ) {
 		cg_killcamDeathPending = qfalse;
 		if ( cg_killcamRunning ) {
 			CG_KillcamStop();
