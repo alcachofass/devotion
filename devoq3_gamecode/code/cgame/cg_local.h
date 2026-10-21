@@ -2137,6 +2137,7 @@ void CG_ItemTimersPeriodicSync( void );
 void CG_DrawItemTimerPie( const centity_t *cent );
 qboolean CG_SpectatorView( void );
 qboolean CG_LmsElimSpectator( void );
+qboolean CG_TeamElimRoundSpectator( void );
 qboolean CG_HudItemTimersAllowed( void );
 void CG_DrawSpecItemTimers( void );
 void CG_DrawSpecPlayerStatus( void );

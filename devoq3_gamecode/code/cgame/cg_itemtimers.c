@@ -112,6 +112,26 @@ qboolean CG_LmsElimSpectator( void ) {
 }
 
 /*
+ * Clan Arena / CTF elimination: eliminated for the round but still on a team
+ * (spectator pmove, not following yet).
+ */
+qboolean CG_TeamElimRoundSpectator( void ) {
+	if ( !cg.snap || !BG_IsElimTeamGT( cgs.gametype ) ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.pm_type != PM_SPECTATOR ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.pm_flags & PMF_FOLLOW ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+/*
  * HUD item timers (SuperHUD ItemTimers* and the spec overlay) are spectator-only.
  */
 qboolean CG_HudItemTimersAllowed( void ) {
