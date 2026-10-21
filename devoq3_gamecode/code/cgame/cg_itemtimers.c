@@ -92,6 +92,46 @@ qboolean CG_SpectatorView( void ) {
 }
 
 /*
+ * LMS players eliminated for the current round: still on a playing team but
+ * in spectator pmove (not joined spectators, not follow mode yet).
+ */
+qboolean CG_LmsElimSpectator( void ) {
+	if ( cgs.gametype != GT_LMS || !cg.snap ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.pm_type != PM_SPECTATOR ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.pm_flags & PMF_FOLLOW ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+/*
+ * Clan Arena / CTF elimination: eliminated for the round but still on a team
+ * (spectator pmove, not following yet).
+ */
+qboolean CG_TeamElimRoundSpectator( void ) {
+	if ( !cg.snap || !BG_IsElimTeamGT( cgs.gametype ) ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.pm_type != PM_SPECTATOR ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.pm_flags & PMF_FOLLOW ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+/*
  * HUD item timers (SuperHUD ItemTimers* and the spec overlay) are spectator-only.
  */
 qboolean CG_HudItemTimersAllowed( void ) {

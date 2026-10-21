@@ -114,8 +114,9 @@ static void CG_Obituary( entityState_t *ent ) {
 	Q_strncpyz( targetName, Info_ValueForKey( targetInfo, "n" ), sizeof(targetName) - 2);
 	strcat( targetName, S_COLOR_WHITE );
 
-	if ( target == cg.snap->ps.clientNum && cg_killcam.integer &&
-		!(( cg.snap->ps.pm_flags & PMF_FOLLOW ) && ( cg_killcam.integer & 2 ) ) ) {
+	if ( target == cg.clientNum && cg_killcam.integer
+			&& ( !CG_SpectatorView() || CG_LmsElimSpectator()
+				|| CG_TeamElimRoundSpectator() ) ) {
 		int subject = -1;
 
 		if ( attacker != target && attacker != ENTITYNUM_WORLD ) {
@@ -126,6 +127,27 @@ static void CG_Obituary( entityState_t *ent ) {
 		if ( subject != -1 ) {
 			CG_KillcamScheduleDeathReplay( subject, mod, cg.time );
 		}
+	}
+
+	if ( target == cg.clientNum && cgs.gametype == GT_LMS
+			&& attacker != ENTITYNUM_WORLD && attacker >= 0 && attacker < MAX_CLIENTS
+			&& attacker != target ) {
+		CG_LmsScheduleFollowKiller( attacker );
+	}
+
+	if ( target == cg.clientNum && BG_IsElimTeamGT( cgs.gametype ) ) {
+		CG_ElimScheduleFollowTeammate();
+	}
+
+	if ( cgs.gametype == GT_LMS && target != cg.clientNum
+			&& attacker != ENTITYNUM_WORLD && attacker >= 0 && attacker < MAX_CLIENTS
+			&& attacker != target ) {
+		CG_LmsFollowKillerChain( target, attacker );
+	}
+
+	if ( BG_IsElimTeamGT( cgs.gametype ) && target != cg.clientNum
+			&& cgs.clientinfo[target].team == cgs.clientinfo[cg.clientNum].team ) {
+		CG_ElimFollowTeammateChain( target );
 	}
 
 	message2 = "";

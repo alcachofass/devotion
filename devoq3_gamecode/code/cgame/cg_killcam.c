@@ -5,6 +5,7 @@ Killcam: snapshot ring buffer and replay state (ported from quake3-killcam-mod)
 */
 
 #include "cg_local.h"
+#include "cg_overlay.h"
 
 /*
 =====================================================================
@@ -77,6 +78,16 @@ static qboolean		cg_killcamJumpWasUp;
 // (see cg_killcamSkipOnJumpDelay)
 static int			cg_killcamSkipAllowedTime;
 
+static qboolean		cg_lmsFollowKillerPending;
+static int			cg_lmsFollowKillerNum = -1;
+static int			cg_lmsFollowKillerTime;
+
+static qboolean		cg_elimFollowMatePending;
+static int			cg_elimFollowMateNum = -1;
+static int			cg_elimFollowMateTime;
+static void CG_ElimFollowTeammateUpdate( void );
+static void CG_ElimAutoFollowTeammateTry( void );
+
 #ifndef KILLCAM_NO_MISSILE_CHASE
 // the missile that scored the kill, for the missile-chase camera
 static int			cg_killcamMissileNum = -1;
@@ -91,6 +102,388 @@ static killcamCamera_t	cg_killcamCameraMode = KILLCAM_CAMERA_THIRD;
 
 
 static int	cg_killcamLastRecordTime = -99999;
+static qboolean CG_KillcamTreatAsSpectator( void ) {
+	if ( !CG_SpectatorView() ) {
+		return qfalse;
+	}
+	if ( CG_LmsElimSpectator() ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+
+static qboolean CG_KillcamEndedByRespawn( void ) {
+	if ( CG_LmsElimSpectator() ) {
+		return qfalse;
+	}
+	return cg.predictedPlayerState.stats[STAT_HEALTH] > 0;
+}
+
+
+static int CG_LmsFollowKillerDelayMs( void ) {
+	int	delay = cg_killcamStartDelay.integer;
+
+	if ( delay < 0 ) {
+		delay = 0;
+	}
+	return delay + CG_KILLCAM_PREROLL_MS + CG_KILLCAM_POSTROLL_MS;
+}
+
+
+static qboolean CG_LmsAutoFollowKillerEligible( void ) {
+	if ( CG_LmsElimSpectator() ) {
+		return qtrue;
+	}
+	if ( cg.snap && cgs.gametype == GT_LMS
+			&& cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR
+			&& ( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+
+static int CG_LmsFollowKillerSubject( void ) {
+	if ( cg_lmsFollowKillerPending ) {
+		return cg_lmsFollowKillerNum;
+	}
+	if ( cg.snap && cgs.gametype == GT_LMS
+			&& cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR
+			&& ( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
+		return cg.snap->ps.clientNum;
+	}
+	return -1;
+}
+
+
+static qboolean CG_LmsFollowKillerTargetOk( int clientNum ) {
+	clientInfo_t	*ci;
+
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS || clientNum == cg.clientNum ) {
+		return qfalse;
+	}
+	if ( !Overlay_ClientConnected( clientNum ) ) {
+		return qfalse;
+	}
+	ci = &cgs.clientinfo[clientNum];
+	if ( ci->team == TEAM_SPECTATOR ) {
+		return qfalse;
+	}
+	if ( CG_SpecMenuClientEliminated( clientNum ) ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+
+/*
+ * Prefer the scheduled killer (or latest chain target); if they are already
+ * out, pick any other player still in the round.
+ */
+static int CG_LmsResolveFollowKillerTarget( int preferred ) {
+	int		i;
+
+	if ( CG_LmsFollowKillerTargetOk( preferred ) ) {
+		return preferred;
+	}
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		if ( i == preferred ) {
+			continue;
+		}
+		if ( CG_LmsFollowKillerTargetOk( i ) ) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+
+static void CG_LmsFollowKillerRequestScores( void ) {
+	if ( cg.demoPlayback || cgs.gametype != GT_LMS ) {
+		return;
+	}
+	if ( cg.scoresRequestTime + 200 < cg.time ) {
+		cg.scoresRequestTime = cg.time;
+		trap_SendClientCommand( "score" );
+	}
+}
+
+
+static void CG_LmsAutoFollowKillerTry( void ) {
+	int		k;
+
+	if ( !cg_lmsFollowKillerPending ) {
+		return;
+	}
+	if ( !CG_LmsAutoFollowKillerEligible() ) {
+		if ( cg.snap && cgs.gametype == GT_LMS
+				&& cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR
+				&& cg.snap->ps.pm_type == PM_NORMAL
+				&& cg.snap->ps.stats[STAT_HEALTH] > 0 ) {
+			cg_lmsFollowKillerPending = qfalse;
+		}
+		return;
+	}
+	CG_LmsFollowKillerRequestScores();
+	k = CG_LmsResolveFollowKillerTarget( cg_lmsFollowKillerNum );
+	if ( k < 0 ) {
+		return;
+	}
+	cg_lmsFollowKillerPending = qfalse;
+	trap_SendConsoleCommand( va( "follow %d\n", k ) );
+}
+
+
+void CG_LmsFollowKillerUpdate( void ) {
+	if ( cg_lmsFollowKillerPending ) {
+		if ( cg_lmsFollowKillerTime <= 0 || cg.time >= cg_lmsFollowKillerTime ) {
+			if ( !cg_killcamDeathPending && !CG_KillcamRunning() ) {
+				CG_LmsAutoFollowKillerTry();
+			}
+		}
+	}
+	CG_ElimFollowTeammateUpdate();
+}
+
+
+static void CG_LmsScheduleFollowKillerInternal( int killerNum, qboolean chain ) {
+	if ( cgs.gametype != GT_LMS ) {
+		return;
+	}
+	if ( killerNum < 0 || killerNum >= MAX_CLIENTS || killerNum == cg.clientNum ) {
+		return;
+	}
+	cg_lmsFollowKillerPending = qtrue;
+	cg_lmsFollowKillerNum = killerNum;
+	if ( chain ) {
+		cg_lmsFollowKillerTime = cg.time;
+	} else if ( cg_killcam.integer ) {
+		cg_lmsFollowKillerTime = 0;
+	} else {
+		cg_lmsFollowKillerTime = cg.time + CG_LmsFollowKillerDelayMs();
+	}
+}
+
+
+void CG_LmsScheduleFollowKiller( int killerNum ) {
+	CG_LmsScheduleFollowKillerInternal( killerNum, qfalse );
+}
+
+
+void CG_LmsFollowKillerChain( int victimNum, int attackerNum ) {
+	if ( cg_contextNum != CG_CONTEXT_LIVE ) {
+		return;
+	}
+	if ( cgs.gametype != GT_LMS ) {
+		return;
+	}
+	if ( victimNum < 0 || victimNum >= MAX_CLIENTS ) {
+		return;
+	}
+	if ( attackerNum < 0 || attackerNum >= MAX_CLIENTS || attackerNum == victimNum ) {
+		return;
+	}
+	if ( attackerNum == cg.clientNum ) {
+		return;
+	}
+	if ( CG_LmsFollowKillerSubject() != victimNum ) {
+		return;
+	}
+	CG_LmsScheduleFollowKillerInternal( attackerNum, qtrue );
+}
+
+
+static int CG_ElimLocalTeam( void ) {
+	return cgs.clientinfo[cg.clientNum].team;
+}
+
+
+static qboolean CG_ElimFollowTeammateTargetOk( int clientNum ) {
+	clientInfo_t	*ci;
+	int				myTeam;
+
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS || clientNum == cg.clientNum ) {
+		return qfalse;
+	}
+	if ( !Overlay_ClientConnected( clientNum ) ) {
+		return qfalse;
+	}
+	myTeam = CG_ElimLocalTeam();
+	if ( myTeam == TEAM_FREE || myTeam == TEAM_SPECTATOR ) {
+		return qfalse;
+	}
+	ci = &cgs.clientinfo[clientNum];
+	if ( ci->team != myTeam ) {
+		return qfalse;
+	}
+	if ( ci->team == TEAM_SPECTATOR ) {
+		return qfalse;
+	}
+	if ( CG_SpecMenuClientEliminated( clientNum ) ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+
+static int CG_ElimResolveFollowTeammateTarget( int preferred, int exclude ) {
+	int		i;
+
+	if ( preferred >= 0 && preferred != exclude
+			&& CG_ElimFollowTeammateTargetOk( preferred ) ) {
+		return preferred;
+	}
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		if ( i == preferred || i == exclude ) {
+			continue;
+		}
+		if ( CG_ElimFollowTeammateTargetOk( i ) ) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+
+static void CG_ElimFollowTeammateRequestScores( void ) {
+	if ( cg.demoPlayback || !BG_IsElimTeamGT( cgs.gametype ) ) {
+		return;
+	}
+	if ( cg.scoresRequestTime + 200 < cg.time ) {
+		cg.scoresRequestTime = cg.time;
+		trap_SendClientCommand( "score" );
+	}
+}
+
+
+static qboolean CG_ElimAutoFollowTeammateEligible( void ) {
+	if ( CG_TeamElimRoundSpectator() ) {
+		return qtrue;
+	}
+	if ( cg.snap && BG_IsElimTeamGT( cgs.gametype )
+			&& cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR
+			&& ( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+
+static int CG_ElimFollowTeammateSubject( void ) {
+	if ( cg_elimFollowMatePending ) {
+		return cg_elimFollowMateNum;
+	}
+	if ( cg.snap && BG_IsElimTeamGT( cgs.gametype )
+			&& cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR
+			&& ( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
+		return cg.snap->ps.clientNum;
+	}
+	return -1;
+}
+
+
+static void CG_ElimAutoFollowTeammateTry( void ) {
+	int		mate;
+
+	if ( !cg_elimFollowMatePending ) {
+		return;
+	}
+	if ( !CG_ElimAutoFollowTeammateEligible() ) {
+		if ( cg.snap && BG_IsElimTeamGT( cgs.gametype )
+				&& cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR
+				&& cg.snap->ps.pm_type == PM_NORMAL
+				&& cg.snap->ps.stats[STAT_HEALTH] > 0 ) {
+			cg_elimFollowMatePending = qfalse;
+		}
+		return;
+	}
+	CG_ElimFollowTeammateRequestScores();
+	mate = CG_ElimResolveFollowTeammateTarget( cg_elimFollowMateNum, -1 );
+	if ( mate < 0 ) {
+		return;
+	}
+	cg_elimFollowMatePending = qfalse;
+	trap_SendConsoleCommand( va( "follow %d\n", mate ) );
+}
+
+
+static void CG_ElimFollowTeammateUpdate( void ) {
+	if ( !cg_elimFollowMatePending ) {
+		return;
+	}
+	if ( cg_elimFollowMateTime > 0 && cg.time < cg_elimFollowMateTime ) {
+		return;
+	}
+	if ( cg_killcamDeathPending || CG_KillcamRunning() ) {
+		return;
+	}
+	CG_ElimAutoFollowTeammateTry();
+}
+
+
+static void CG_ElimScheduleFollowTeammateInternal( int mateNum, qboolean chain ) {
+	if ( !BG_IsElimTeamGT( cgs.gametype ) ) {
+		return;
+	}
+	if ( mateNum < 0 || mateNum >= MAX_CLIENTS || mateNum == cg.clientNum ) {
+		return;
+	}
+	if ( !CG_ElimFollowTeammateTargetOk( mateNum ) ) {
+		return;
+	}
+	cg_elimFollowMatePending = qtrue;
+	cg_elimFollowMateNum = mateNum;
+	if ( chain ) {
+		cg_elimFollowMateTime = cg.time;
+	} else if ( cg_killcam.integer ) {
+		cg_elimFollowMateTime = 0;
+	} else {
+		cg_elimFollowMateTime = cg.time + CG_LmsFollowKillerDelayMs();
+	}
+}
+
+
+void CG_ElimScheduleFollowTeammate( void ) {
+	int		mate;
+
+	if ( !BG_IsElimTeamGT( cgs.gametype ) ) {
+		return;
+	}
+	mate = CG_ElimResolveFollowTeammateTarget( -1, -1 );
+	if ( mate < 0 ) {
+		return;
+	}
+	CG_ElimScheduleFollowTeammateInternal( mate, qfalse );
+}
+
+
+void CG_ElimFollowTeammateChain( int victimNum ) {
+	int		mate;
+
+	if ( cg_contextNum != CG_CONTEXT_LIVE ) {
+		return;
+	}
+	if ( !BG_IsElimTeamGT( cgs.gametype ) ) {
+		return;
+	}
+	if ( victimNum < 0 || victimNum >= MAX_CLIENTS || victimNum == cg.clientNum ) {
+		return;
+	}
+	if ( cgs.clientinfo[victimNum].team != CG_ElimLocalTeam() ) {
+		return;
+	}
+	if ( CG_ElimFollowTeammateSubject() != victimNum ) {
+		return;
+	}
+	mate = CG_ElimResolveFollowTeammateTarget( -1, victimNum );
+	if ( mate < 0 ) {
+		return;
+	}
+	CG_ElimScheduleFollowTeammateInternal( mate, qtrue );
+}
+
+
 static qboolean CG_KillcamShouldRecord( int serverTime ) {
 	int		delta = serverTime - cg_killcamLastRecordTime;
 
@@ -502,6 +895,8 @@ void CG_KillcamStop( void ) {
 	cg_killcamCameraMode = KILLCAM_CAMERA_THIRD;
 	CG_KillcamViewReset();
 	CG_ClearKillcamTransitionFade();
+	CG_LmsAutoFollowKillerTry();
+	CG_ElimAutoFollowTeammateTry();
 }
 
 
@@ -526,6 +921,9 @@ another player. The replay itself is started later by CG_KillcamUpdate.
 void CG_KillcamScheduleDeathReplay( int killerNum, int mod, int time ) {
 	if ( cg_contextNum != CG_CONTEXT_LIVE ) {
 		// obituary events re-fired by the replay itself
+		return;
+	}
+	if ( CG_KillcamTreatAsSpectator() ) {
 		return;
 	}
 	cg_killcamDeathPending = qtrue;
@@ -697,6 +1095,14 @@ int CG_KillcamUpdate( int serverTime, qboolean demoPlayback ) {
 		return 0;
 	}
 
+	if ( CG_KillcamTreatAsSpectator() ) {
+		cg_killcamDeathPending = qfalse;
+		if ( cg_killcamRunning ) {
+			CG_KillcamStop();
+		}
+		return 0;
+	}
+
 	// death replay in progress?
 	if ( cg_killcamRunning && cg_killcamMode == KILLCAM_KILLER ) {
 		const int postroll = CG_KILLCAM_POSTROLL_MS;
@@ -705,7 +1111,7 @@ int CG_KillcamUpdate( int serverTime, qboolean demoPlayback ) {
 		if (
 			// the player respawned (e.g. clicked): hand the view back
 			// right away, they need to see what they're doing
-			cg.predictedPlayerState.stats[STAT_HEALTH] > 0
+			CG_KillcamEndedByRespawn()
 
 			// A timescale above 1 caught up with the live view.
 			// Not super necessary to handle this.
@@ -777,7 +1183,7 @@ int CG_KillcamUpdate( int serverTime, qboolean demoPlayback ) {
 		}
 
 		// skip if the player already respawned or the game is ending
-		if ( cg.predictedPlayerState.stats[STAT_HEALTH] > 0 || cg.intermissionStarted ) {
+		if ( CG_KillcamEndedByRespawn() || cg.intermissionStarted ) {
 			return 0;
 		}
 

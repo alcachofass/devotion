@@ -849,6 +849,21 @@ void BotChangeViewAngles(bot_state_t *bs, float thinktime) {
 	trap_EA_View(bs->client, bs->viewangles);
 }
 
+static void BotAI_StripAttackIfWeaponHold( int clientNum, bot_input_t *bi ) {
+	gentity_t	*ent;
+
+	if ( !bi || clientNum < 0 || clientNum >= level.maxclients ) {
+		return;
+	}
+	ent = &g_entities[clientNum];
+	if ( !ent->client ) {
+		return;
+	}
+	if ( ent->client->ps.pm_flags & PMF_ELIMWARMUP ) {
+		bi->actionflags &= ~( ACTION_ATTACK | ACTION_RESPAWN );
+	}
+}
+
 /*
 ==============
 BotInputToUserCommand
@@ -973,13 +988,14 @@ void BotUpdateInput(bot_state_t *bs, int time, int elapsed_time) {
 		}
 		BotAimHarness_BeginMotorFrame(bs);
 		BotChangeViewAngles(bs, thinktime);
-		BotAimHarness_ApplyCombatFire(bs);
 		trap_EA_GetInput(bs->client, (float)time / 1000, &bi);
+		BotAI_StripAttackIfWeaponHold(bs->client, &bi);
 		if (bi.actionflags & ACTION_RESPAWN) {
 			if (bs->lastucmd.buttons & BUTTON_ATTACK) {
 				bi.actionflags &= ~(ACTION_RESPAWN | ACTION_ATTACK);
 			}
 		}
+		BotAimHarness_ApplyCombatFire(bs);
 		BotInputToUserCommand(&bi, &bs->lastucmd, bs->cur_ps.delta_angles, time);
 		for (j = 0; j < 3; j++) {
 			bs->viewangles[j] = AngleMod(bs->viewangles[j] -
@@ -996,6 +1012,7 @@ void BotUpdateInput(bot_state_t *bs, int time, int elapsed_time) {
 	BotChangeViewAngles(bs, thinktime);
 	//retrieve the bot input
 	trap_EA_GetInput(bs->client, (float) time / 1000, &bi);
+	BotAI_StripAttackIfWeaponHold(bs->client, &bi);
 	//respawn hack
 	if (bi.actionflags & ACTION_RESPAWN) {
 		if (bs->lastucmd.buttons & BUTTON_ATTACK) bi.actionflags &= ~(ACTION_RESPAWN|ACTION_ATTACK);

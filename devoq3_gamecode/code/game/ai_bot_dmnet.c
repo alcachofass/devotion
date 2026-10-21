@@ -20,6 +20,7 @@ BOT DMNET — thin hooks from legacy ai_dmnet.c seek/battle nodes.
 #include "ai_bot_combat.h"
 #include "ai_bot_position.h"
 #include "ai_bot_opponent.h"
+#include "ai_bot_elim_seek.h"
 #include "ai_bot_move_harness.h"
 #include "ai_bot_item_timing.h"
 #include "ai_dmq3.h"
@@ -236,6 +237,14 @@ int BotDmnet_TryEnterItemPickup(bot_state_t *bs, const char *reason) {
 	}
 	bs->nbg_time = BotItems_CommitNbgTime(bs);
 	return 1;
+}
+
+int BotDmnet_TryEnterElimHunt(bot_state_t *bs, const char *reason) {
+	(void)reason;
+	if (!bs || !BotEnhanced_IsActive()) {
+		return 0;
+	}
+	return BotElimSeek_TryEnterHunt(bs);
 }
 
 int BotDmnet_NBG_ShouldClearReachTime(bot_state_t *bs, bot_goal_t *goal) {

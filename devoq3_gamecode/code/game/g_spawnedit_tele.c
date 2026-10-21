@@ -741,12 +741,12 @@ void TeleEdit_SessionFinishLoad( const char *mapname ) {
 	teleEdit_dirty = qfalse;
 }
 
-void TeleEdit_SessionWriteLines( fileHandle_t f ) {
+void TeleEdit_SessionWriteLines( sessionLayoutOut_t *out ) {
 	char	line[256];
 	int		i;
 	int		len;
 
-	if ( !f ) {
+	if ( !out || ( !out->file && !out->buffer ) ) {
 		return;
 	}
 	for ( i = 0; i < teleEdit_triggerMoveCount; i++ ) {
@@ -756,7 +756,7 @@ void TeleEdit_SessionWriteLines( fileHandle_t f ) {
 				teleEdit_triggerMoves[i].toOrigin[0], teleEdit_triggerMoves[i].toOrigin[1],
 				teleEdit_triggerMoves[i].toOrigin[2] );
 		len = (int)strlen( line );
-		trap_FS_Write( line, len, f );
+		SessionLayout_OutWrite( out, line, len );
 	}
 	for ( i = 0; i < teleEdit_destMoveCount; i++ ) {
 		Com_sprintf( line, sizeof( line ), "dmove %.3f %.3f %.3f %.3f %.3f %.3f %.3f\n",
@@ -765,7 +765,7 @@ void TeleEdit_SessionWriteLines( fileHandle_t f ) {
 				teleEdit_destMoves[i].toOrigin[0], teleEdit_destMoves[i].toOrigin[1],
 				teleEdit_destMoves[i].toOrigin[2], teleEdit_destMoves[i].yaw );
 		len = (int)strlen( line );
-		trap_FS_Write( line, len, f );
+		SessionLayout_OutWrite( out, line, len );
 	}
 }
 
@@ -972,7 +972,7 @@ qboolean SpawnEdit_Tele_HandleCommand( gentity_t *ent, const char *sub ) {
 		TeleEdit_PurgeSessionLayout();
 		SpawnEdit_Tele_BroadcastRoster();
 		trap_SendServerCommand( ent - g_entities,
-				va( "print \"Teleporter layout cleared; %i entit(y/ies) restored.\n\"", restored ) );
+				va( "print \"Teleporter layout cleared; %i entities restored.\n\"", restored ) );
 		return qtrue;
 	}
 

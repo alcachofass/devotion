@@ -312,6 +312,9 @@ static int Opponent_IsAvoiding(const bot_state_t *bs, const opponent_belief_t *o
 	if (!bs || !ob) {
 		return 0;
 	}
+	if (BotEnhanced_MustEngageFinale((bot_state_t *)bs)) {
+		return 0;
+	}
 	if (ob->compare == BOT_OPPONENT_COMPARE_DOWN) {
 		return 1;
 	}
@@ -1028,6 +1031,9 @@ int BotOpponent_WantsDuelCommit(const bot_state_t *bs) {
 	if (!bs || !BotOpponent_IsTracking(bs)) {
 		return 0;
 	}
+	if (BotEnhanced_MustEngageFinale((bot_state_t *)bs)) {
+		return 1;
+	}
 	ob = &bs->opponent_belief;
 	if (Opponent_IsEvenDuelScore(ob) &&
 			Opponent_HasDuelContact((bot_state_t *)bs, ob)) {
@@ -1718,7 +1724,8 @@ static void Opponent_OnOpponentPositionalClue(bot_state_t *bs,
 	now = FloatTime();
 	canEngage = BotCombat_CanEngageTrackedOpponent(bs);
 
-	if (Opponent_IsAvoiding(bs, ob) || Opponent_WantsPureFlee(ob)) {
+	if (!BotEnhanced_MustEngageFinale(bs) &&
+			(Opponent_IsAvoiding(bs, ob) || Opponent_WantsPureFlee(ob))) {
 		ob->flee_until = Opponent_FloatMax(ob->flee_until,
 			now + OPPONENT_NOISE_FLEE_SEC);
 		Opponent_ReactSensoryContact(bs, ob);

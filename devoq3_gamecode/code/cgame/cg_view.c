@@ -479,6 +479,12 @@ typedef enum {
 } deathCamMode_t;
 
 #define DEATHCAM_STILL_DEBOUNCE_MSEC	250
+#define DEATHCAM_ORBIT_DELAY_MSEC		1500
+#define DEATHCAM_ORBIT_BLEND_MSEC		900
+#define DEATHCAM_ORBIT_DIST				150.0f
+#define DEATHCAM_ORBIT_PITCH			22.0f
+#define DEATHCAM_ORBIT_SPEED			14.0f
+#define DEATHCAM_ORBIT_STILL_SPEED		24.0f
 
 static deathCamMode_t	deathCamMode = DEATHCAM_OFF;
 static int				deathCamDeathTime;
@@ -581,13 +587,13 @@ static void CG_DeathCam_Frame( void ) {
 
 	if ( deathCamMode == DEATHCAM_CLASSIC ) {
 		speed = sqrt( ps->velocity[0] * ps->velocity[0] + ps->velocity[1] * ps->velocity[1] );
-		if ( speed < cg_deathOrbitStillSpeed.value ) {
+		if ( speed < DEATHCAM_ORBIT_STILL_SPEED ) {
 			deathCamStillMs += cg.frametime;
 		} else {
 			deathCamStillMs = 0;
 		}
 
-		if ( ( cg.time - deathCamDeathTime >= cg_deathOrbitDelay.integer )
+		if ( ( cg.time - deathCamDeathTime >= DEATHCAM_ORBIT_DELAY_MSEC )
 				|| deathCamStillMs >= DEATHCAM_STILL_DEBOUNCE_MSEC ) {
 			CG_DeathCam_Focus( ps, focus );
 			CG_DeathCam_ClassicView( ps, classicOrg, classicAng );
@@ -599,18 +605,18 @@ static void CG_DeathCam_Frame( void ) {
 	}
 
 	if ( deathCamMode == DEATHCAM_BLEND ) {
-		blendT = (float)( cg.time - deathCamBlendStart ) / (float)cg_deathOrbitBlend.integer;
+		blendT = (float)( cg.time - deathCamBlendStart ) / (float)DEATHCAM_ORBIT_BLEND_MSEC;
 		if ( blendT > 1.0f ) {
 			blendT = 1.0f;
 			deathCamMode = DEATHCAM_ORBIT;
 		}
 		ramp = CG_DeathCam_SmoothStep( blendT );
-		deathOrbitYaw += cg_deathOrbitSpeed.value * ramp * cg.frametime / 1000.0f;
+		deathOrbitYaw += DEATHCAM_ORBIT_SPEED * ramp * cg.frametime / 1000.0f;
 		return;
 	}
 
 	if ( deathCamMode == DEATHCAM_ORBIT ) {
-		deathOrbitYaw += cg_deathOrbitSpeed.value * cg.frametime / 1000.0f;
+		deathOrbitYaw += DEATHCAM_ORBIT_SPEED * cg.frametime / 1000.0f;
 	}
 }
 
@@ -633,7 +639,7 @@ static qboolean CG_DeathCam_ApplyView( const playerState_t *ps ) {
 	CG_DeathCam_Focus( ps, focus );
 
 	if ( deathCamMode == DEATHCAM_BLEND ) {
-		blendT = (float)( cg.time - deathCamBlendStart ) / (float)cg_deathOrbitBlend.integer;
+		blendT = (float)( cg.time - deathCamBlendStart ) / (float)DEATHCAM_ORBIT_BLEND_MSEC;
 		if ( blendT > 1.0f ) {
 			blendT = 1.0f;
 		}
@@ -641,8 +647,8 @@ static qboolean CG_DeathCam_ApplyView( const playerState_t *ps ) {
 
 		CG_DeathCam_ClassicView( ps, classicOrg, classicAng );
 
-		dist = deathOrbitDist + ( cg_deathOrbitDist.value - deathOrbitDist ) * smoothT;
-		pitch = deathOrbitPitch + ( cg_deathOrbitPitch.value - deathOrbitPitch ) * smoothT;
+		dist = deathOrbitDist + ( DEATHCAM_ORBIT_DIST - deathOrbitDist ) * smoothT;
+		pitch = deathOrbitPitch + ( DEATHCAM_ORBIT_PITCH - deathOrbitPitch ) * smoothT;
 		CG_Orbit_ComputeAt( focus, ps->clientNum, deathOrbitYaw, pitch, dist, orbitOrg, orbitAng );
 
 		for ( i = 0; i < 3; i++ ) {
@@ -654,8 +660,8 @@ static qboolean CG_DeathCam_ApplyView( const playerState_t *ps ) {
 		return qtrue;
 	}
 
-	CG_Orbit_ComputeAt( focus, ps->clientNum, deathOrbitYaw, cg_deathOrbitPitch.value,
-			cg_deathOrbitDist.value, cg.refdef.vieworg, cg.refdefViewAngles );
+	CG_Orbit_ComputeAt( focus, ps->clientNum, deathOrbitYaw, DEATHCAM_ORBIT_PITCH,
+			DEATHCAM_ORBIT_DIST, cg.refdef.vieworg, cg.refdefViewAngles );
 	return qtrue;
 }
 
@@ -1809,6 +1815,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	cg_passHidden = killcamView && CG_KillcamTransitionShowKillcam();
 	cg_soundMuted = cg_passHidden;
 	CG_DrawActiveFrameCtx( serverTime, stereoView, demoPlayback );
+	CG_LmsFollowKillerUpdate();
 	cg_passHidden = qfalse;
 	cg_soundMuted = qfalse;
 

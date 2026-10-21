@@ -46,6 +46,38 @@ qboolean Overlay_ClientConnected( int clientNum ) {
 	return qtrue;
 }
 
+/*
+ * True when a player is out for the current elimination/LMS round (spectator
+ * follow should not target them). Scoreboard field isDead is lives-left for LMS
+ * and the isEliminated flag for team elimination modes.
+ */
+qboolean CG_SpecMenuClientEliminated( int clientNum ) {
+	clientInfo_t	*ci;
+
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	if ( !BG_IsElimGT( cgs.gametype ) || CG_IsHudWarmup() ) {
+		return qfalse;
+	}
+	if ( !Overlay_ClientConnected( clientNum ) ) {
+		return qfalse;
+	}
+	if ( cgs.clientinfo[clientNum].team == TEAM_SPECTATOR ) {
+		return qfalse;
+	}
+
+	ci = &cgs.clientinfo[clientNum];
+	if ( cgs.gametype == GT_LMS ) {
+		return ( ci->isDead <= 0 ) ? qtrue : qfalse;
+	}
+
+	if ( ci->isDead ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
 void Overlay_CopyName( char *dst, int dstSize, int clientNum, int maxVis ) {
 	const char	*name;
 	int			i;

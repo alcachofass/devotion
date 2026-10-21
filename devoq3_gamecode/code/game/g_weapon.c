@@ -1323,6 +1323,9 @@ void FireWeapon( gentity_t *ent, qboolean altFire ) {	//mrd - capture routines f
 		StopFollowing( ent );
 		return;
 	}
+	if ( ent->client->ps.pm_flags & PMF_ELIMWARMUP ) {
+		return;
+	}
 
 	if (ent->client->ps.powerups[PW_QUAD] ) {
 		if (g_quadWhore.integer == 2 && ent->client->pers.quadWhore) {

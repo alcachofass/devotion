@@ -815,6 +815,7 @@ typedef struct {
 	int		lastFailedVoteTime; 		 
 	int		lastFailedVoteCount; 		 
 	int		voteClient; // client calling the vote
+	qboolean	voteSmackDrama;	// bot smack kick vote: count bot ballots in tallies
 
 	// team voting state
 	char		teamVoteString[2][MAX_STRING_CHARS];
@@ -1385,6 +1386,7 @@ void G_EQPingClientReset(gclient_t *client);
 qboolean G_IsTeamGametype(void);
 qboolean G_IsElimTeamGT(void);
 qboolean G_IsElimGT(void);
+qboolean G_InEliminationActiveWarmup( void );
 
 #ifdef WITH_MULTITOURNAMENT
 int G_FindFreeMultiTrnSlot(void);

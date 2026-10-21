@@ -892,12 +892,12 @@ qboolean SpawnEdit_SessionParseLine( const char *line ) {
 	return qfalse;
 }
 
-void SpawnEdit_SessionWriteLines( fileHandle_t f ) {
+void SpawnEdit_SessionWriteLines( sessionLayoutOut_t *out ) {
 	char	line[256];
 	int		i;
 	int		len;
 
-	if ( !f ) {
+	if ( !out || ( !out->file && !out->buffer ) ) {
 		return;
 	}
 	for ( i = 0; i < spawnEditMoveCount; i++ ) {
@@ -905,14 +905,14 @@ void SpawnEdit_SessionWriteLines( fileHandle_t f ) {
 				spawnEditMoves[i].fromOrigin[0], spawnEditMoves[i].fromOrigin[1], spawnEditMoves[i].fromOrigin[2],
 				spawnEditMoves[i].toOrigin[0], spawnEditMoves[i].toOrigin[1], spawnEditMoves[i].toOrigin[2] );
 		len = (int)strlen( line );
-		trap_FS_Write( line, len, f );
+		SessionLayout_OutWrite( out, line, len );
 	}
 	for ( i = 0; i < spawnEditTeamCount; i++ ) {
 		Com_sprintf( line, sizeof( line ), "steam %.3f %.3f %.3f %i\n",
 				spawnEditTeams[i].origin[0], spawnEditTeams[i].origin[1], spawnEditTeams[i].origin[2],
 				spawnEditTeams[i].team );
 		len = (int)strlen( line );
-		trap_FS_Write( line, len, f );
+		SessionLayout_OutWrite( out, line, len );
 	}
 	for ( i = 0; i < spawnEditAddCount; i++ ) {
 		Com_sprintf( line, sizeof( line ), "sadd %.3f %.3f %.3f %.3f %.3f %.3f %i\n",
@@ -920,13 +920,13 @@ void SpawnEdit_SessionWriteLines( fileHandle_t f ) {
 				spawnEditAdds[i].angles[0], spawnEditAdds[i].angles[1], spawnEditAdds[i].angles[2],
 				spawnEditAdds[i].team );
 		len = (int)strlen( line );
-		trap_FS_Write( line, len, f );
+		SessionLayout_OutWrite( out, line, len );
 	}
 	for ( i = 0; i < spawnEditDeleteCount; i++ ) {
 		Com_sprintf( line, sizeof( line ), "sdelete %.3f %.3f %.3f\n",
 				spawnEditDeletes[i].origin[0], spawnEditDeletes[i].origin[1], spawnEditDeletes[i].origin[2] );
 		len = (int)strlen( line );
-		trap_FS_Write( line, len, f );
+		SessionLayout_OutWrite( out, line, len );
 	}
 }
 
@@ -1000,7 +1000,7 @@ void Cmd_SpawnEdit_f( gentity_t *ent ) {
 		spawnEdit_deferredApplyDone = qfalse;
 		SpawnEdit_BroadcastRoster();
 		trap_SendServerCommand( ent - g_entities,
-				va( "print \"Spawn layout cleared; %i BSP spawn(s) restored, %i added removed.\n\"",
+				va( "print \"Spawn layout cleared; %i BSP spawns restored, %i added removed.\n\"",
 					restored, added ) );
 		return;
 	}
@@ -1026,7 +1026,7 @@ void Cmd_SpawnEdit_f( gentity_t *ent ) {
 		SpawnEdit_CommitLayout();
 		SpawnEdit_BroadcastRoster();
 		trap_SendServerCommand( ent - g_entities,
-				va( "print \"Spawn entity %i deleted (layout saved)\n\"", entNum ) );
+				va( "print \"Spawn entity %i deleted, layout saved\n\"", entNum ) );
 		return;
 	}
 
@@ -1061,7 +1061,7 @@ void Cmd_SpawnEdit_f( gentity_t *ent ) {
 		spawned = SpawnEdit_SpawnSessionPoint( origin, angles, team );
 		if ( spawned ) {
 			trap_SendServerCommand( ent - g_entities,
-					va( "print \"Spawn added at %s (entity %i, layout saved)\n\"",
+					va( "print \"Spawn added at %s, entity %i, layout saved\n\"",
 						vtos( origin ), spawned->s.number ) );
 		}
 		SpawnEdit_CommitLayout();
@@ -1105,7 +1105,7 @@ void Cmd_SpawnEdit_f( gentity_t *ent ) {
 		SpawnEdit_CommitLayout();
 		SpawnEdit_BroadcastRoster();
 		trap_SendServerCommand( ent - g_entities,
-				va( "print \"Spawn entity %i moved (layout saved)\n\"", entNum ) );
+				va( "print \"Spawn entity %i moved, layout saved\n\"", entNum ) );
 		return;
 	}
 
@@ -1160,7 +1160,7 @@ void Cmd_SpawnEdit_f( gentity_t *ent ) {
 		SpawnEdit_CommitLayout();
 		SpawnEdit_BroadcastRoster();
 		trap_SendServerCommand( ent - g_entities,
-				va( "print \"Spawn entity %i team updated (layout saved)\n\"", entNum ) );
+				va( "print \"Spawn entity %i team updated, layout saved\n\"", entNum ) );
 		return;
 	}
 

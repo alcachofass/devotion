@@ -1998,12 +1998,9 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	}
 #endif
 
-	if (G_IsElimTeamGT()) {
-		// avoid doing damage w/ gaunt during elimination warmup
-		if( (( level.time < level.roundStartTime ) && ( level.time>level.roundStartTime-1000*g_elimination_activewarmup.integer ))
-				&& mod != MOD_FALLING && mod != MOD_SUICIDE && mod != MOD_TELEFRAG && mod != MOD_SUICIDE) {
-			return;
-		}
+	if ( G_InEliminationActiveWarmup()
+			&& mod != MOD_FALLING && mod != MOD_SUICIDE && mod != MOD_TELEFRAG ) {
+		return;
 	}
 #ifdef WITH_TREASURE_HUNTER_GAMETYPE
 	else if (g_gametype.integer == GT_TREASURE_HUNTER) {

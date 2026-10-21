@@ -810,6 +810,25 @@ qboolean G_IsElimGT(void) {
 	return BG_IsElimGT(g_gametype.integer);
 }
 
+qboolean G_InEliminationActiveWarmup( void ) {
+	if ( !G_IsElimGT() ) {
+		return qfalse;
+	}
+	if ( level.intermissiontime ) {
+		return qfalse;
+	}
+	if ( level.roundStartTime <= 0 ) {
+		return qfalse;
+	}
+	if ( level.time >= level.roundStartTime ) {
+		return qfalse;
+	}
+	if ( level.time <= level.roundStartTime - 1000 * g_elimination_activewarmup.integer ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
 void G_UpdateRatFlags( void ) {
 	int rflags = 0;
 

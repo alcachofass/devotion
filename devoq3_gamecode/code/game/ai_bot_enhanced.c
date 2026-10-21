@@ -16,6 +16,7 @@ BOT ENHANCED — master cvar, feature gates, centralized register/reset.
 #include "ai_dmq3.h"
 #include "chars.h"
 #include "ai_bot_enhanced.h"
+#include "ai_bot_smack.h"
 #include "ai_aim_harness.h"
 #include "ai_weapon_select.h"
 #include "ai_bot_tactics.h"
@@ -28,6 +29,7 @@ BOT ENHANCED — master cvar, feature gates, centralized register/reset.
 #include "ai_bot_position.h"
 #include "ai_bot_opponent.h"
 #include "ai_bot_nav_guard.h"
+#include "ai_bot_elim_seek.h"
 #include "ai_dmq3.h"
 
 extern bot_state_t *botstates[MAX_CLIENTS];
@@ -126,6 +128,8 @@ void BotEnhanced_RegisterCvars(void) {
 		return;
 	}
 	registered = qtrue;
+
+	BotSmack_RegisterCvars();
 
 	trap_Cvar_Register(&bot_enhanced, "bot_enhanced", "0", CVAR_ARCHIVE);
 	trap_Cvar_Register(&bot_enhanced_debug, "bot_enhanced_debug", "0", 0);
@@ -260,6 +264,64 @@ int BotEnhanced_CanEngageClient(bot_state_t *bs, int clientnum) {
 
 int BotEnhanced_AllowsCamping(void) {
 	return !BotEnhanced_IsActive();
+}
+
+static qboolean BotEnhanced_ElimRoundLive(void) {
+	if (!G_IsElimGT()) {
+		return qfalse;
+	}
+	if (level.intermissiontime) {
+		return qfalse;
+	}
+	if (level.roundStartTime > 0 && level.time < level.roundStartTime) {
+		return qfalse;
+	}
+	if (g_gametype.integer == GT_LMS &&
+			level.roundNumber != level.roundNumberStarted) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+int BotEnhanced_CountElimRoundSurvivors(void) {
+	gentity_t *ent;
+	int i;
+	int count;
+
+	if (!G_IsElimGT()) {
+		return 0;
+	}
+	count = 0;
+	for (i = 0; i < level.maxclients; i++) {
+		ent = &g_entities[i];
+		if (!ent->inuse || !ent->client) {
+			continue;
+		}
+		if (ent->client->sess.sessionTeam == TEAM_SPECTATOR) {
+			continue;
+		}
+		if (ent->client->isEliminated) {
+			continue;
+		}
+		if (ent->health < 1) {
+			continue;
+		}
+		count++;
+	}
+	return count;
+}
+
+int BotEnhanced_MustEngageFinale(bot_state_t *bs) {
+	if (!bs || !BotEnhanced_IsActive()) {
+		return 0;
+	}
+	if (!BotEnhanced_ElimRoundLive()) {
+		return 0;
+	}
+	if (BotIsObserver(bs) || BotIsDead(bs)) {
+		return 0;
+	}
+	return BotEnhanced_CountElimRoundSurvivors() == 2;
 }
 
 static void BotEnhanced_DropChattingEnemy(bot_state_t *bs) {
@@ -555,6 +617,12 @@ void BotEnhanced_OnThinkStart(bot_state_t *bs) {
 	if (BotEnhanced_WantsNavGuardThink(bs)) {
 		BotNavGuard_OnThinkStart(bs);
 	}
+	BotElimSeek_OnThinkStart(bs);
+	if (BotEnhanced_MustEngageFinale(bs) && BotOpponent_IsTracking(bs)) {
+		bs->opponent_belief.flee_until = 0.0f;
+		bs->opponent_belief.flee_engaged = qfalse;
+	}
+	BotSmack_OnThinkStart(bs);
 	if (BotOpponent_IsTracking(bs) && BotOpponent_WantsAvoidEngagement(bs) &&
 			bs->enemy >= 0 && BotItems_HasActiveCommit(bs) &&
 			!BotCombat_HasEnemyCombatContact(bs) &&
@@ -663,6 +731,9 @@ int BotEnhanced_ShouldSuppressFightRetreat(bot_state_t *bs) {
 	if (BotOpponent_IsTracking(bs) && BotOpponent_WantsDuelCommit(bs)) {
 		return 1;
 	}
+	if (BotEnhanced_MustEngageFinale(bs)) {
+		return 1;
+	}
 	return 0;
 }
 
@@ -754,6 +825,8 @@ void BotEnhanced_ResetBot(bot_state_t *bs) {
 	BotPosition_Reset(bs);
 	BotOpponent_Reset(bs);
 	BotNavGuard_Reset(bs);
+	BotElimSeek_Reset(bs);
+	BotSmack_Reset(bs);
 }
 
 void BotEnhanced_OnArenaEntry(int clientNum) {

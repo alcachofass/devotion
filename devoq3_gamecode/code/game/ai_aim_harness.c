@@ -36,6 +36,7 @@ extern bot_state_t *botstates[MAX_CLIENTS];
 static int BotAimHarness_UsingRocketLauncher(bot_state_t *bs);
 static qboolean BotAimHarness_WeaponReady(bot_state_t *bs);
 static void BotAimHarness_ClampTrackVelocity(vec3_t vel);
+static float BotAimHarness_Clamp01(float v);
 static void BotAimHarness_GetLiveTrackingAimPoint(bot_state_t *bs, vec3_t aimPoint);
 static void BotAimHarness_ComputeRailLeadPoint(bot_state_t *bs, vec3_t leadPoint);
 
@@ -83,6 +84,9 @@ static void BotAimHarness_ComputeRailLeadPoint(bot_state_t *bs, vec3_t leadPoint
 #define AIMH_LEAD_THINK_AHEAD_SKILL	0.55f
 #define AIMH_LEAD_STRAFE_BASE		0.6f
 #define AIMH_LEAD_STRAFE_SKILL		0.45f
+/* Partial bot-strafe trim on lead — only when the enemy is actually moving (see GetRelativeLeadDir). */
+#define AIMH_BOT_STRAFE_COMP_BASE	0.10f
+#define AIMH_BOT_STRAFE_COMP_SKILL	0.16f
 #define AIMH_RL_SPLASH_NEAR_XY		96.0f
 #define AIMH_RL_SPLASH_NEAR_3D		128.0f
 #define AIMH_RL_CLOSE_SPLASH_DIST	800.0f
@@ -390,13 +394,8 @@ static float BotAimHarness_GetHorizBotSpeed(bot_state_t *bs) {
 	return 0.0f;
 }
 
-/*
- * Hitscan lead direction/speed in shooter frame (enemy horiz vel minus bot horiz vel).
- */
-static qboolean BotAimHarness_GetRelativeLeadDir(bot_state_t *bs, aas_entityinfo_t *entinfo,
-		vec3_t relDir, float *relSpeed) {
-	vec3_t enemyVel, botVel;
-
+static void BotAimHarness_ReadEnemyHorizVel(aas_entityinfo_t *entinfo, bot_state_t *bs,
+		vec3_t enemyVel) {
 	VectorSubtract(entinfo->origin, entinfo->lastvisorigin, enemyVel);
 	enemyVel[2] = 0.0f;
 	if (entinfo->update_time > 0.001f) {
@@ -409,7 +408,9 @@ static qboolean BotAimHarness_GetRelativeLeadDir(bot_state_t *bs, aas_entityinfo
 		VectorCopy(bs->enemyvelocity, enemyVel);
 		enemyVel[2] = 0.0f;
 	}
+}
 
+static void BotAimHarness_ReadBotHorizVel(bot_state_t *bs, vec3_t botVel) {
 	VectorCopy(bs->velocity, botVel);
 	botVel[2] = 0.0f;
 	if (VectorLengthSquared(botVel) < Square(24.0f) &&
@@ -417,15 +418,63 @@ static qboolean BotAimHarness_GetRelativeLeadDir(bot_state_t *bs, aas_entityinfo
 		VectorCopy(bs->cur_ps.velocity, botVel);
 		botVel[2] = 0.0f;
 	}
+}
 
-	VectorSubtract(enemyVel, botVel, relDir);
-	relDir[2] = 0.0f;
-	*relSpeed = VectorLength(relDir);
-	if (*relSpeed < 0.001f) {
+/*
+ * Lead direction/speed for aim extrapolation: enemy world travel, plus a small
+ * skill-scaled strafe trim when the target is moving. Full enemy-minus-bot relative
+ * lead aims opposite to strafe on stationary targets (hitscan does not need that).
+ */
+static qboolean BotAimHarness_BuildLeadDir(bot_state_t *bs, const vec3_t enemyVel,
+		const vec3_t botVel, float speedMin, vec3_t leadDir, float *leadSpeed) {
+	vec3_t leadVel;
+	float enemySpeed, botSpeed, aimSkill, enemyFrac, botComp;
+
+	enemySpeed = VectorLength(enemyVel);
+	if (enemySpeed < speedMin) {
 		return qfalse;
 	}
-	VectorScale(relDir, 1.0f / *relSpeed, relDir);
-	return *relSpeed >= AIMH_LEAD_SPEED_MIN;
+
+	VectorCopy(enemyVel, leadVel);
+	botSpeed = VectorLength(botVel);
+	if (botSpeed > 1.0f && bs) {
+		aimSkill = bs->aimh_aim_skill;
+		if (aimSkill < 0.0f) {
+			aimSkill = 0.0f;
+		}
+		if (aimSkill > 1.0f) {
+			aimSkill = 1.0f;
+		}
+		enemyFrac = BotAimHarness_Clamp01(enemySpeed / AIMH_LEAD_SPEED_FULL);
+		botComp = (AIMH_BOT_STRAFE_COMP_BASE + AIMH_BOT_STRAFE_COMP_SKILL * aimSkill) *
+			enemyFrac;
+		VectorMA(leadVel, -botComp, botVel, leadVel);
+	}
+
+	leadVel[2] = 0.0f;
+	*leadSpeed = VectorLength(leadVel);
+	if (*leadSpeed < speedMin) {
+		*leadSpeed = enemySpeed;
+		VectorCopy(enemyVel, leadDir);
+		leadDir[2] = 0.0f;
+		if (*leadSpeed < 0.001f) {
+			return qfalse;
+		}
+		VectorScale(leadDir, 1.0f / *leadSpeed, leadDir);
+		return *leadSpeed >= speedMin;
+	}
+	VectorScale(leadVel, 1.0f / *leadSpeed, leadDir);
+	return *leadSpeed >= speedMin;
+}
+
+static qboolean BotAimHarness_GetRelativeLeadDir(bot_state_t *bs, aas_entityinfo_t *entinfo,
+		vec3_t relDir, float *relSpeed) {
+	vec3_t enemyVel, botVel;
+
+	BotAimHarness_ReadEnemyHorizVel(entinfo, bs, enemyVel);
+	BotAimHarness_ReadBotHorizVel(bs, botVel);
+	return BotAimHarness_BuildLeadDir(bs, enemyVel, botVel, AIMH_LEAD_SPEED_MIN, relDir,
+		relSpeed);
 }
 
 int BotAimHarness_AimTargetValid(bot_state_t *bs) {
@@ -1551,25 +1600,30 @@ static void BotAimHarness_UpdateRailSmoothVel(bot_state_t *bs, aas_entityinfo_t 
 	bs->aimh_rail_vel_sample_time = FloatTime();
 }
 
+/*
+ * Rail intercept: use shooter-relative travel (enemy minus bot) for lead distance and
+ * direction when the enemy is actually moving. If only the bot is strafing, skip lead —
+ * the old relative vector was -botVel and made rails miss still targets.
+ */
 static qboolean BotAimHarness_GetRailRelativeLeadDir(bot_state_t *bs, vec3_t velDir,
 		float *speed) {
-	vec3_t relVel, botVel;
+	vec3_t enemyVel, botVel, relVel;
+	float enemySpeed;
 
 	if (!bs || !velDir || !speed) {
 		return qfalse;
 	}
 
-	VectorCopy(bs->aimh_rail_smooth_vel, relVel);
-	relVel[2] = 0.0f;
-
-	VectorCopy(bs->velocity, botVel);
-	botVel[2] = 0.0f;
-	if (VectorLengthSquared(botVel) < Square(24.0f) &&
-			BotAI_GetClientState(bs->client, &bs->cur_ps)) {
-		VectorCopy(bs->cur_ps.velocity, botVel);
-		botVel[2] = 0.0f;
+	VectorCopy(bs->aimh_rail_smooth_vel, enemyVel);
+	enemyVel[2] = 0.0f;
+	enemySpeed = VectorLength(enemyVel);
+	if (enemySpeed < AIMH_RAIL_LEAD_SPEED_MIN) {
+		return qfalse;
 	}
-	VectorSubtract(relVel, botVel, relVel);
+
+	BotAimHarness_ReadBotHorizVel(bs, botVel);
+	VectorSubtract(enemyVel, botVel, relVel);
+	relVel[2] = 0.0f;
 
 	*speed = VectorLength(relVel);
 	if (*speed < 0.001f) {
@@ -1580,7 +1634,7 @@ static qboolean BotAimHarness_GetRailRelativeLeadDir(bot_state_t *bs, vec3_t vel
 }
 
 /*
- * Lead-and-wait intercept point from live enemy origin + smoothed relative velocity.
+ * Lead-and-wait intercept point from live enemy origin + smoothed relative travel.
  * Recomputed every call (think + each input motor frame).
  */
 static void BotAimHarness_ComputeRailLeadPoint(bot_state_t *bs, vec3_t leadPoint) {
@@ -2373,9 +2427,17 @@ recal_exit:
 void BotAimHarness_ApplyCombatFire(bot_state_t *bs) {
 	weaponinfo_t wi;
 	vec3_t firePoint;
+	gentity_t *ent;
 
 	if (!BotAimHarness_IsActive()) {
 		return;
+	}
+	if ( bs->client >= 0 && bs->client < level.maxclients ) {
+		ent = &g_entities[bs->client];
+		if ( ent->client && ( ent->client->ps.pm_flags & PMF_ELIMWARMUP ) ) {
+			bs->aimh_hold_fire = qfalse;
+			return;
+		}
 	}
 	if (BotAimHarness_TryRailFire(bs)) {
 		return;
