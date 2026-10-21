@@ -45,6 +45,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 #include "ai_main.h"
 #include "ai_bot_enhanced.h"
+#include "ai_bot_smack.h"
 #include "ai_bot_opponent.h"
 #include "ai_bot_elim_seek.h"
 #include "ai_bot_combat.h"
@@ -5127,6 +5128,11 @@ void BotCheckConsoleMessages(bot_state_t *bs) {
 				}
 				//if at a valid chat position and not chatting already and not in teamplay
 				else if (bs->ainode != AINode_Stand && BotValidChatPosition(bs) && !TeamPlayIsOn()) {
+					if ( BotEnhanced_IsActive() &&
+							BotSmack_TryReplyChat( bs, message, netname ) ) {
+						trap_BotRemoveConsoleMessage( bs->cs, handle );
+						break;
+					}
 					chat_reply = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_CHAT_REPLY, 0, 1);
 					if (random() < 1.5 / (NumBots()+1) && random() < chat_reply) {
 						//if bot replies with a chat message

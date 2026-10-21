@@ -818,12 +818,14 @@ void CheckVote( void ) {
 		}
 	}
 	level.voteTime = 0;
+	level.voteSmackDrama = qfalse;
 	trap_SetConfigstring( CS_VOTE_TIME, "" );
 
 }
 
 void ForceFail( void ) {
     level.voteTime = 0;
+    level.voteSmackDrama = qfalse;
     level.voteExecuteTime = 0;
     level.voteString[0] = 0;
     level.voteDisplayString[0] = 0;
@@ -857,8 +859,18 @@ void CountVotes( void ) {
             if (level.clients[i].sess.sessionTeam == TEAM_SPECTATOR)
 		continue; //Don't count spectators
 
-            if ( g_entities[i].r.svFlags & SVF_BOT )
-                continue; //Is a bot
+            if ( g_entities[i].r.svFlags & SVF_BOT ) {
+                if ( level.voteSmackDrama
+                        && level.clients[ i ].pers.connected == CON_CONNECTED ) {
+                    if ( level.clients[i].vote > 0 ) {
+                        yes++;
+                    }
+                    if ( level.clients[i].vote < 0 ) {
+                        no++;
+                    }
+                }
+                continue;
+            }
 
             if ( level.clients[ i ].sess.muted & (CLMUTE_MUTED | CLMUTE_VOTEMUTED) )
                 continue; // Client is muted and cannot vote

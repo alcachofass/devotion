@@ -1836,6 +1836,7 @@ Q3GOBJ_ = \
   $(B)/baseq3/game/ai_dmnet.o \
   $(B)/baseq3/game/ai_dmq3.o \
   $(B)/baseq3/game/ai_bot_enhanced.o \
+  $(B)/baseq3/game/ai_bot_smack.o \
   $(B)/baseq3/game/ai_bot_combat.o \
   $(B)/baseq3/game/ai_bot_move_harness.o \
   $(B)/baseq3/game/ai_aim_harness.o \
@@ -1917,6 +1918,7 @@ MPGOBJ_ = \
   $(B)/missionpack/game/ai_dmnet.o \
   $(B)/missionpack/game/ai_dmq3.o \
   $(B)/missionpack/game/ai_bot_enhanced.o \
+  $(B)/missionpack/game/ai_bot_smack.o \
   $(B)/missionpack/game/ai_bot_combat.o \
   $(B)/missionpack/game/ai_bot_move_harness.o \
   $(B)/missionpack/game/ai_aim_harness.o \

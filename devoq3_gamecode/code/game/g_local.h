@@ -815,6 +815,7 @@ typedef struct {
 	int		lastFailedVoteTime; 		 
 	int		lastFailedVoteCount; 		 
 	int		voteClient; // client calling the vote
+	qboolean	voteSmackDrama;	// bot smack kick vote: count bot ballots in tallies
 
 	// team voting state
 	char		teamVoteString[2][MAX_STRING_CHARS];

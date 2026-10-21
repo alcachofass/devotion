@@ -43,6 +43,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 #include "ai_main.h"
 #include "ai_bot_enhanced.h"
+#include "ai_bot_smack.h"
 #include "ai_bot_dmnet.h"
 #include "ai_bot_items.h"
 #include "ai_bot_item_timing.h"
@@ -1160,9 +1161,10 @@ void AIEnter_Intermission(bot_state_t *bs, char *s) {
 	BotRecordNodeSwitch(bs, "intermission", "", s);
 	//reset the bot state
 	BotResetState(bs);
-	//check for end level chat
-	if (BotChat_EndLevel(bs)) {
-		trap_BotEnterChat(bs->cs, 0, bs->chatto);
+	if ( BotEnhanced_IsActive() ) {
+		BotSmack_OnIntermission( bs );
+	} else if ( BotChat_EndLevel( bs ) ) {
+		trap_BotEnterChat( bs->cs, 0, bs->chatto );
 	}
 	bs->ainode = AINode_Intermission;
 }
@@ -1175,13 +1177,17 @@ AINode_Intermission
 int AINode_Intermission(bot_state_t *bs) {
 	//if the intermission ended
 	if (!BotIntermission(bs)) {
-		if (BotChat_StartLevel(bs)) {
-			bs->stand_time = FloatTime() + BotChatTime(bs);
-		}
-		else {
+		if ( BotEnhanced_IsActive() ) {
+			BotSmack_OnLevelStart( bs );
+			bs->stand_time = FloatTime() + 0.5f;
+			AIEnter_Stand( bs, "intermission: smack pregame" );
+		} else if ( BotChat_StartLevel( bs ) ) {
+			bs->stand_time = FloatTime() + BotChatTime( bs );
+			AIEnter_Stand( bs, "intermission: chat" );
+		} else {
 			bs->stand_time = FloatTime() + 2;
+			AIEnter_Stand( bs, "intermission: chat" );
 		}
-		AIEnter_Stand(bs, "intermission: chat");
 	}
 	return qtrue;
 }
@@ -2137,11 +2143,19 @@ int AINode_Battle_Fight(bot_state_t *bs) {
 			if (bs->enemysuicide) {
 				BotChat_EnemySuicide(bs);
 			}
-			if (bs->lastkilledplayer == bs->enemy && BotChat_Kill(bs)) {
-				bs->stand_time = FloatTime() + BotChatTime(bs);
-				AIEnter_Stand(bs, "battle fight: enemy dead");
-			}
-			else {
+			if ( bs->lastkilledplayer == bs->enemy ) {
+				if ( BotEnhanced_IsActive() ) {
+					BotSmack_OnFrag( bs );
+					bs->ltg_time = 0;
+					AIEnter_Seek_LTG( bs, "battle fight: enemy dead" );
+				} else if ( BotChat_Kill( bs ) ) {
+					bs->stand_time = FloatTime() + BotChatTime( bs );
+					AIEnter_Stand( bs, "battle fight: enemy dead" );
+				} else {
+					bs->ltg_time = 0;
+					AIEnter_Seek_LTG( bs, "battle fight: enemy dead" );
+				}
+			} else {
 				bs->ltg_time = 0;
 				AIEnter_Seek_LTG(bs, "battle fight: enemy dead");
 			}

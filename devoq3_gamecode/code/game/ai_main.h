@@ -494,6 +494,15 @@ typedef struct bot_state_s
 	float		nav_stuck_debug_next;	/* throttle for bot_navstuck_debug */
 	/* ---- end BOT NAV GUARD ---- */
 
+	/* ---- BOT SMACK: ai_bot_smack.c ---- */
+	int			smack_flags;
+	float		smack_next_time;
+	float		smack_ragequit_time;
+	int			smack_vote_kind;
+	float		smack_vote_time;
+	int			smack_vote_target;
+	/* ---- end BOT SMACK ---- */
+
 	/* ---- BOT ELIM SEEK: ai_bot_elim_seek.c ---- */
 	vec3_t		elim_clue_origin;
 	float		elim_clue_time;

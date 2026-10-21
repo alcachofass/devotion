@@ -16,6 +16,7 @@ BOT ENHANCED — master cvar, feature gates, centralized register/reset.
 #include "ai_dmq3.h"
 #include "chars.h"
 #include "ai_bot_enhanced.h"
+#include "ai_bot_smack.h"
 #include "ai_aim_harness.h"
 #include "ai_weapon_select.h"
 #include "ai_bot_tactics.h"
@@ -127,6 +128,8 @@ void BotEnhanced_RegisterCvars(void) {
 		return;
 	}
 	registered = qtrue;
+
+	BotSmack_RegisterCvars();
 
 	trap_Cvar_Register(&bot_enhanced, "bot_enhanced", "0", CVAR_ARCHIVE);
 	trap_Cvar_Register(&bot_enhanced_debug, "bot_enhanced_debug", "0", 0);
@@ -619,6 +622,7 @@ void BotEnhanced_OnThinkStart(bot_state_t *bs) {
 		bs->opponent_belief.flee_until = 0.0f;
 		bs->opponent_belief.flee_engaged = qfalse;
 	}
+	BotSmack_OnThinkStart(bs);
 	if (BotOpponent_IsTracking(bs) && BotOpponent_WantsAvoidEngagement(bs) &&
 			bs->enemy >= 0 && BotItems_HasActiveCommit(bs) &&
 			!BotCombat_HasEnemyCombatContact(bs) &&
@@ -822,6 +826,7 @@ void BotEnhanced_ResetBot(bot_state_t *bs) {
 	BotOpponent_Reset(bs);
 	BotNavGuard_Reset(bs);
 	BotElimSeek_Reset(bs);
+	BotSmack_Reset(bs);
 }
 
 void BotEnhanced_OnArenaEntry(int clientNum) {
