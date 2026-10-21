@@ -454,6 +454,7 @@ static const cvarDesc_t cgameCvarDescriptions[] = {
 	{ "cg_debuganim", "When `1`, prints player animation debug info to the console." },
 	{ "cg_debugevents", "When `1`, prints predicted-event debug info to the console." },
 	{ "cg_debugposition", "When `1`, prints player position debug info to the console." },
+	{ "cg_deathOrbit", "When `1`, after you die the view pulls back into a slow orbit around your body. Set `0` to keep the classic death view." },
 	{ "cg_deferPlayers", "When `1`, delays loading other players' models until you open the scoreboard, reducing hitching." },
 	{ "cg_delag", "Enables client-side lag-compensated hit prediction. Higher bit values can target specific weapons." },
 	{ "cg_delagProjectileTrail", "When `1`, draws predicted projectile trails immediately instead of waiting for the server." },

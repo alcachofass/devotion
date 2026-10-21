@@ -10,7 +10,7 @@ Shared cursor, catcher, and drawer animation are in cg_overlay.c.
 #include "../client/keycodes.h"
 
 #define SPEC_BTN_MAX			10
-#define SPEC_DISP_COUNT			6
+#define SPEC_DISP_COUNT			7
 #define SPEC_SHOT_HIDE_FRAMES	8
 #define SPEC_BTN_W				88
 #define SPEC_LEFT_BTN_W			114
@@ -1545,7 +1545,8 @@ typedef enum {
 	SPEC_DISP_HUD,
 	SPEC_DISP_VSOUNDS,
 	SPEC_DISP_SILHOUETTE,
-	SPEC_DISP_STATUS
+	SPEC_DISP_STATUS,
+	SPEC_DISP_DEATHCAM
 } specDispAction_t;
 
 static const char *DemoCtrl_SpecDispLabel( int action ) {
@@ -1562,6 +1563,8 @@ static const char *DemoCtrl_SpecDispLabel( int action ) {
 		return "Silhouette";
 	case SPEC_DISP_STATUS:
 		return "Status";
+	case SPEC_DISP_DEATHCAM:
+		return "Death Cam";
 	default:
 		return "";
 	}
@@ -1581,6 +1584,8 @@ static qboolean DemoCtrl_SpecDispOn( int action ) {
 		return cg_demoOccludedOutline.integer ? qtrue : qfalse;
 	case SPEC_DISP_STATUS:
 		return cg_specPlayerStatus.integer ? qtrue : qfalse;
+	case SPEC_DISP_DEATHCAM:
+		return cg_deathOrbit.integer ? qtrue : qfalse;
 	default:
 		return qfalse;
 	}
@@ -1625,6 +1630,9 @@ static void DemoCtrl_SpecDispActivate( int action ) {
 		break;
 	case SPEC_DISP_STATUS:
 		trap_Cvar_Set( "cg_specPlayerStatus", cg_specPlayerStatus.integer ? "0" : "1" );
+		break;
+	case SPEC_DISP_DEATHCAM:
+		trap_Cvar_Set( "cg_deathOrbit", cg_deathOrbit.integer ? "0" : "1" );
 		break;
 	default:
 		break;
@@ -1767,6 +1775,8 @@ static const char *DemoCtrl_SpecDispTip( int action ) {
 		return "^2Show^7/^1hide ^7silhouettes of hidden players";
 	case SPEC_DISP_STATUS:
 		return "^2Show^7/^1hide ^7overhead player status boxes";
+	case SPEC_DISP_DEATHCAM:
+		return "After death, pull back into a slow orbit cam ^2ON^7/^1OFF";
 	default:
 		return "";
 	}
