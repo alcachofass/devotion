@@ -8,6 +8,7 @@ In-game item pickup editing (spectator MVP).
 #define G_ITEMEDIT_H
 
 #include "../cgame/cg_mapedit.h"
+#include "g_session_layout.h"
 
 #define ITEMEDIT_WALL_GENERIC1		1
 #define ITEMEDIT_WALL_FRAME			57345
@@ -47,7 +48,7 @@ void ItemEdit_SessionBeginMap( const char *mapname, int gametype );
 void ItemEdit_SessionClearRecords( void );
 qboolean ItemEdit_SessionParseLine( const char *line );
 void ItemEdit_SessionFinishLoad( const char *mapname );
-void ItemEdit_SessionWriteLines( fileHandle_t f );
+void ItemEdit_SessionWriteLines( sessionLayoutOut_t *out );
 qboolean ItemEdit_SessionHasRecords( void );
 qboolean ItemEdit_SessionIsDirty( void );
 void ItemEdit_SessionClearDirty( void );

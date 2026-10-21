@@ -1880,13 +1880,13 @@ void ItemEdit_SessionFinishLoad( const char *mapname ) {
 	itemEdit_dirty = qfalse;
 }
 
-void ItemEdit_SessionWriteLines( fileHandle_t f ) {
+void ItemEdit_SessionWriteLines( sessionLayoutOut_t *out ) {
 	char		line[256];
 	int			i;
 	int			len;
 	gitem_t		*item;
 
-	if ( !f ) {
+	if ( !out || ( !out->file && !out->buffer ) ) {
 		return;
 	}
 
@@ -1899,7 +1899,7 @@ void ItemEdit_SessionWriteLines( fileHandle_t f ) {
 				( item->classname && item->classname[0] ) ? item->classname : "?",
 				itemEditOverrides[i].itemIndex );
 		len = (int)strlen( line );
-		trap_FS_Write( line, len, f );
+		SessionLayout_OutWrite( out, line, len );
 	}
 	for ( i = 0; i < itemEditMoveCount; i++ ) {
 		Com_sprintf( line, sizeof( line ), "imove %.3f %.3f %.3f %.3f %.3f %.3f\n",
@@ -1910,7 +1910,7 @@ void ItemEdit_SessionWriteLines( fileHandle_t f ) {
 				itemEditMoves[i].toOrigin[1],
 				itemEditMoves[i].toOrigin[2] );
 		len = (int)strlen( line );
-		trap_FS_Write( line, len, f );
+		SessionLayout_OutWrite( out, line, len );
 	}
 	for ( i = 0; i < itemEditAddCount; i++ ) {
 		item = &bg_itemlist[itemEditAdds[i].itemIndex];
@@ -1921,7 +1921,7 @@ void ItemEdit_SessionWriteLines( fileHandle_t f ) {
 				( item->classname && item->classname[0] ) ? item->classname : "?",
 				itemEditAdds[i].itemIndex );
 		len = (int)strlen( line );
-		trap_FS_Write( line, len, f );
+		SessionLayout_OutWrite( out, line, len );
 	}
 	for ( i = 0; i < itemEditDeleteCount; i++ ) {
 		Com_sprintf( line, sizeof( line ), "idelete %.3f %.3f %.3f\n",
@@ -1929,7 +1929,7 @@ void ItemEdit_SessionWriteLines( fileHandle_t f ) {
 				itemEditDeletes[i].origin[1],
 				itemEditDeletes[i].origin[2] );
 		len = (int)strlen( line );
-		trap_FS_Write( line, len, f );
+		SessionLayout_OutWrite( out, line, len );
 	}
 	for ( i = 0; i < itemEditWallCount; i++ ) {
 		Com_sprintf( line, sizeof( line ), "iwall %.3f %.3f %.3f %.3f %.3f %.3f\n",
@@ -1940,7 +1940,7 @@ void ItemEdit_SessionWriteLines( fileHandle_t f ) {
 				itemEditWalls[i].halfWidth,
 				itemEditWalls[i].height );
 		len = (int)strlen( line );
-		trap_FS_Write( line, len, f );
+		SessionLayout_OutWrite( out, line, len );
 	}
 	for ( i = 0; i < itemEditFloorCount; i++ ) {
 		Com_sprintf( line, sizeof( line ), "ifloor %.3f %.3f %.3f %.3f %.3f %.3f\n",
@@ -1951,7 +1951,7 @@ void ItemEdit_SessionWriteLines( fileHandle_t f ) {
 				itemEditFloors[i].halfWidth,
 				itemEditFloors[i].halfDepth );
 		len = (int)strlen( line );
-		trap_FS_Write( line, len, f );
+		SessionLayout_OutWrite( out, line, len );
 	}
 }
 
@@ -2256,7 +2256,7 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 		ItemEdit_ClearOverrides();
 		itemEdit_deferredApplyDone = qfalse;
 		trap_SendServerCommand( ent - g_entities,
-				va( "print \"Item layout cleared; %i BSP pickup(s) restored, %i added removed, %i delete(s) restored, %i wall(s) removed, %i floor(s) removed.\n\"",
+				va( "print \"Item layout cleared; %i BSP pickups restored, %i added removed, %i deletes restored, %i walls removed, %i floors removed.\n\"",
 					restored, added, deleted, walls, floors ) );
 		return;
 	}
@@ -2290,7 +2290,7 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 		if ( spawned ) {
 			ItemEdit_UpsertWallRecord( bottomCenter, yaw, halfWidth, height );
 			trap_SendServerCommand( ent - g_entities,
-					va( "print \"Edit wall placed (entity %i).\n\"", spawned->s.number ) );
+					va( "print \"Edit wall placed, entity %i.\n\"", spawned->s.number ) );
 		}
 		return;
 	}
@@ -2324,7 +2324,7 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 		if ( spawned ) {
 			ItemEdit_UpsertFloorRecord( backBottomCenter, yaw, halfWidth, halfDepth );
 			trap_SendServerCommand( ent - g_entities,
-					va( "print \"Edit floor placed (entity %i).\n\"", spawned->s.number ) );
+					va( "print \"Edit floor placed, entity %i.\n\"", spawned->s.number ) );
 		}
 		return;
 	}
@@ -2380,7 +2380,7 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 
 		if ( ItemEdit_DeletePickup( target ) ) {
 			trap_SendServerCommand( ent - g_entities,
-					va( "print \"Item entity %i deleted (layout saved)\n\"", entNum ) );
+					va( "print \"Item entity %i deleted, layout saved\n\"", entNum ) );
 		}
 		if ( itemEdit_dirty ) {
 			ItemEdit_CommitLayout();
@@ -2421,7 +2421,7 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 		if ( spawned ) {
 			SaveRegisteredItems();
 			trap_SendServerCommand( ent - g_entities,
-					va( "print \"Item %s added at %s (entity %i, layout saved)\n\"",
+					va( "print \"Item %s added at %s, entity %i, layout saved\n\"",
 						item->classname, vtos( spawnOrigin ), spawned->s.number ) );
 		}
 		if ( itemEdit_dirty ) {
@@ -2466,7 +2466,7 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 		ItemEdit_UpsertMove( fromOrigin, toOrigin );
 
 		trap_SendServerCommand( ent - g_entities,
-				va( "print \"Item entity %i moved (layout saved)\n\"", entNum ) );
+				va( "print \"Item entity %i moved, layout saved\n\"", entNum ) );
 		if ( itemEdit_dirty ) {
 			ItemEdit_CommitLayout();
 		}
@@ -2568,7 +2568,7 @@ void Cmd_ItemEdit_f( gentity_t *ent ) {
 	SaveRegisteredItems();
 
 	trap_SendServerCommand( ent - g_entities,
-		va( "print \"Item entity %i set to %s (layout saved)\n\"", entNum, item->classname ) );
+		va( "print \"Item entity %i set to %s, layout saved\n\"", entNum, item->classname ) );
 	if ( itemEdit_dirty ) {
 		ItemEdit_CommitLayout();
 	}
