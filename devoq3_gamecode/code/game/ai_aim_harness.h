@@ -22,7 +22,7 @@ intercept; fire on bbox trace hit only.
 
 Think-time pursuit bias (bot_enhanced_aim): each BotAimAtEnemy samples a pitch/yaw offset
 from aim_accuracy; input frames re-aim from live eye to aimtarget plus that offset (settle
-window uses true aim only). Hitscan lead uses enemy-minus-bot horizontal velocity.
+window uses true aim only). Hitscan lead uses enemy horizontal velocity with a small strafe trim while the target moves.
 All enhanced bots use elite aim constants; skill nerfs via BotEnhanced_SkillScale later.
 
 Motor frames use legacy delta-angle rebasing in BotUpdateInput, 10 ms integration
