@@ -2427,9 +2427,17 @@ recal_exit:
 void BotAimHarness_ApplyCombatFire(bot_state_t *bs) {
 	weaponinfo_t wi;
 	vec3_t firePoint;
+	gentity_t *ent;
 
 	if (!BotAimHarness_IsActive()) {
 		return;
+	}
+	if ( bs->client >= 0 && bs->client < level.maxclients ) {
+		ent = &g_entities[bs->client];
+		if ( ent->client && ( ent->client->ps.pm_flags & PMF_ELIMWARMUP ) ) {
+			bs->aimh_hold_fire = qfalse;
+			return;
+		}
 	}
 	if (BotAimHarness_TryRailFire(bs)) {
 		return;

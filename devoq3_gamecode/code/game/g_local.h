@@ -1385,6 +1385,7 @@ void G_EQPingClientReset(gclient_t *client);
 qboolean G_IsTeamGametype(void);
 qboolean G_IsElimTeamGT(void);
 qboolean G_IsElimGT(void);
+qboolean G_InEliminationActiveWarmup( void );
 
 #ifdef WITH_MULTITOURNAMENT
 int G_FindFreeMultiTrnSlot(void);
