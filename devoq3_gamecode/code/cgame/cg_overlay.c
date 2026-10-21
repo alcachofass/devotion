@@ -53,7 +53,6 @@ qboolean Overlay_ClientConnected( int clientNum ) {
  */
 qboolean CG_SpecMenuClientEliminated( int clientNum ) {
 	clientInfo_t	*ci;
-	centity_t		*cent;
 
 	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
 		return qfalse;
@@ -70,15 +69,7 @@ qboolean CG_SpecMenuClientEliminated( int clientNum ) {
 
 	ci = &cgs.clientinfo[clientNum];
 	if ( cgs.gametype == GT_LMS ) {
-		if ( ci->isDead > 0 ) {
-			return qfalse;
-		}
-		cent = &cg_entities[clientNum];
-		if ( cent->currentValid && cent->currentState.eType == ET_PLAYER
-				&& !( cent->currentState.eFlags & EF_DEAD ) ) {
-			return qfalse;
-		}
-		return qtrue;
+		return ( ci->isDead <= 0 ) ? qtrue : qfalse;
 	}
 
 	if ( ci->isDead ) {

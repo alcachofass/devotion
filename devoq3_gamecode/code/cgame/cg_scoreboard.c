@@ -806,13 +806,14 @@ static void CG_RatDrawClientScore(int y, score_t *score, float *color, float fad
 	// add the "ready" marker for intermission exiting
 	if (cg.snap->ps.stats[ STAT_CLIENTS_READY ] & (1 << score->client)) {
 		CG_DrawScoreStringColor(iconx, y, "READY", color);
-	} else
-		if (cgs.gametype == GT_LMS) {
-		//CG_DrawScoreStringColor(iconx - 50, y, va("*%i*", ci->isDead), color);
-		CG_DrawScoreStringColor(iconx, y, va("*%i*", ci->isDead), color);
-	} else if (ci->isDead) {
-		//CG_DrawScoreStringColor(iconx - 60, y, "DEAD", color);
-		CG_DrawScoreStringColor(iconx, y, "DEAD", color);
+	} else if ( cgs.gametype == GT_LMS && ci->team != TEAM_SPECTATOR && score->ping != -1 ) {
+		if ( ci->isDead > 0 ) {
+			CG_DrawScoreStringColor( iconx, y, va( "*%i*", ci->isDead ), color );
+		} else {
+			CG_DrawScoreStringColor( iconx, y, "DEAD", color );
+		}
+	} else if ( ci->isDead ) {
+		CG_DrawScoreStringColor( iconx, y, "DEAD", color );
 	}
 
 	if( cg.warmup < 0 && ci->team != TEAM_SPECTATOR && cgs.startWhenReady ){
@@ -1665,13 +1666,15 @@ static void CG_DrawClientScore( int y, score_t *score, float *color, float fade,
 	// add the "ready" marker for intermission exiting
 	if ( cg.snap->ps.stats[ STAT_CLIENTS_READY ] & ( 1 << score->client ) ) {
 		CG_DrawBigStringColor( iconx, y, "READY", color );
-	} else
-        if(cgs.gametype == GT_LMS) {
-            CG_DrawBigStringColor( iconx-50, y, va("*%i*",ci->isDead), color );
-        } else
-        if(ci->isDead) {
-            CG_DrawBigStringColor( iconx-60, y, "DEAD", color );
-        }
+	} else if ( cgs.gametype == GT_LMS && ci->team != TEAM_SPECTATOR && score->ping != -1 ) {
+		if ( ci->isDead > 0 ) {
+			CG_DrawBigStringColor( iconx - 50, y, va( "*%i*", ci->isDead ), color );
+		} else {
+			CG_DrawBigStringColor( iconx - 60, y, "DEAD", color );
+		}
+	} else if ( ci->isDead ) {
+		CG_DrawBigStringColor( iconx - 60, y, "DEAD", color );
+	}
 }
 
 /*
