@@ -1391,6 +1391,7 @@ G_ShutdownGame
 void G_ShutdownGame( int restart ) {
         G_Printf ("==== ShutdownGame ====\n");
 
+	SessionLayout_Shutdown( restart );
 	ItemEdit_Shutdown( restart );
 	SpawnEdit_Shutdown( restart );
 

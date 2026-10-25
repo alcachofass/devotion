@@ -11,6 +11,13 @@ Falls back to an in-process snapshot when the game directory is not writable.
 #include "g_spawnedit.h"
 #include "g_spawnedit_tele.h"
 
+void SessionLayout_CvarStorage_Clear( void );
+void SessionLayout_CvarStorage_Save( const char *mapname, int gametype,
+		const char *snapshot, int snapshotLen );
+qboolean SessionLayout_CvarStorage_Restore( const char *mapname, int gametype,
+		char *snapshot, int snapCap, int *outLen,
+		char *storedMap, int storedMapSize, int *storedGametype );
+
 #define SESSION_LAYOUT_PROBE_PATH	"layouts/.session_probe"
 #define SESSION_LAYOUT_PROBE_TOKEN	"sessionedit_probe_v1"
 
@@ -89,6 +96,42 @@ static void SessionLayout_ResolveMapName( char *out, int outSize ) {
 	trap_Cvar_VariableStringBuffer( "mapname", out, outSize );
 }
 
+static void SessionLayout_NormalizeMapName( char *mapname ) {
+	char	*ext;
+	int		len;
+
+	if ( !mapname || !mapname[0] ) {
+		return;
+	}
+
+	if ( !Q_stricmpn( mapname, "maps/", 5 ) ) {
+		memmove( mapname, mapname + 5, strlen( mapname + 5 ) + 1 );
+	}
+
+	len = (int)strlen( mapname );
+	if ( len > 4 ) {
+		ext = mapname + len - 4;
+		if ( !Q_stricmp( ext, ".bsp" ) ) {
+			*ext = '\0';
+		}
+	}
+}
+
+qboolean SessionLayout_MapNamesMatch( const char *a, const char *b ) {
+	char	na[MAX_QPATH];
+	char	nb[MAX_QPATH];
+
+	if ( !a || !a[0] || !b || !b[0] ) {
+		return qfalse;
+	}
+
+	Q_strncpyz( na, a, sizeof( na ) );
+	Q_strncpyz( nb, b, sizeof( nb ) );
+	SessionLayout_NormalizeMapName( na );
+	SessionLayout_NormalizeMapName( nb );
+	return ( Q_stricmp( na, nb ) == 0 ) ? qtrue : qfalse;
+}
+
 static void SessionLayout_TruncateFile( const char *path ) {
 	fileHandle_t	f;
 
@@ -105,6 +148,7 @@ static void SessionLayout_ClearSnapshot( void ) {
 	sessionLayout_snapshotLen = 0;
 	sessionLayout_snapshotMap[0] = '\0';
 	sessionLayout_snapshotGametype = -1;
+	SessionLayout_CvarStorage_Clear();
 }
 
 static void SessionLayout_UseMemoryStorage( const char *reason ) {
@@ -222,16 +266,16 @@ static qboolean SessionLayout_SnapshotMatches( const char *mapname, int gametype
 	if ( sessionLayout_snapshotGametype != gametype ) {
 		return qfalse;
 	}
-	if ( Q_stricmp( sessionLayout_snapshotMap, mapname ) ) {
+	if ( !SessionLayout_MapNamesMatch( sessionLayout_snapshotMap, mapname ) ) {
 		return qfalse;
 	}
 	return qtrue;
 }
 
-static void SessionLayout_SetSnapshotMeta( const char *mapname, int gametype, int len ) {
-	sessionLayout_snapshotLen = len;
-	Q_strncpyz( sessionLayout_snapshotMap, mapname, sizeof( sessionLayout_snapshotMap ) );
-	sessionLayout_snapshotGametype = gametype;
+static void SessionLayout_ClearEditDirtyFlags( void ) {
+	ItemEdit_SessionClearDirty();
+	SpawnEdit_SessionClearDirty();
+	TeleEdit_SessionClearDirty();
 }
 
 static qboolean SessionLayout_Serialize( sessionLayoutOut_t *out, const char *mapname, int gametype ) {
@@ -258,16 +302,19 @@ static qboolean SessionLayout_Serialize( sessionLayoutOut_t *out, const char *ma
 	return out->overflow ? qfalse : qtrue;
 }
 
-void SessionLayout_Purge( void ) {
+static void SessionLayout_PurgeDiskOnly( void ) {
 	SessionLayout_TruncateFile( SESSION_LAYOUT_PATH );
+}
+
+void SessionLayout_Purge( void ) {
+	SessionLayout_PurgeDiskOnly();
 	SessionLayout_ClearSnapshot();
-	ItemEdit_SessionClearDirty();
-	SpawnEdit_SessionClearDirty();
-	TeleEdit_SessionClearDirty();
+	SessionLayout_ClearEditDirtyFlags();
 	G_Printf( "Session layout purged: %s\n", SESSION_LAYOUT_PATH );
 }
 
-static qboolean SessionLayout_ParseBuffer( const char *mapname, int gametype, char *buf ) {
+static qboolean SessionLayout_ParseBuffer( const char *mapname, int gametype, char *buf,
+		qboolean metaMismatchPurgeDisk ) {
 	char	*line;
 	char	*p;
 	char	*nl;
@@ -338,16 +385,20 @@ static qboolean SessionLayout_ParseBuffer( const char *mapname, int gametype, ch
 		G_Printf( S_COLOR_YELLOW "WARNING: session layout has bad meta line\n" );
 		return qfalse;
 	}
-	if ( Q_stricmp( metaMap, mapname ) ) {
+	if ( !SessionLayout_MapNamesMatch( metaMap, mapname ) ) {
 		G_Printf( S_COLOR_YELLOW "WARNING: session layout is for map '%s', not '%s' - purging\n",
 				metaMap, mapname );
-		SessionLayout_Purge();
+		if ( metaMismatchPurgeDisk ) {
+			SessionLayout_PurgeDiskOnly();
+		}
 		return qfalse;
 	}
 	if ( metaGametype != gametype ) {
 		G_Printf( S_COLOR_YELLOW "WARNING: session layout is for gametype %i, not %i - purging\n",
 				metaGametype, gametype );
-		SessionLayout_Purge();
+		if ( metaMismatchPurgeDisk ) {
+			SessionLayout_PurgeDiskOnly();
+		}
 		return qfalse;
 	}
 
@@ -407,21 +458,6 @@ static qboolean SessionLayout_ParseBuffer( const char *mapname, int gametype, ch
 	return qfalse;
 }
 
-static qboolean SessionLayout_ParseFromMemory( const char *mapname, int gametype, const char *data, int len ) {
-	char	*buf;
-	qboolean	ok;
-
-	if ( !data || len <= 0 ) {
-		return qfalse;
-	}
-
-	buf = BG_Alloc( len + 1 );
-	Com_Memcpy( buf, data, len );
-	buf[len] = '\0';
-	ok = SessionLayout_ParseBuffer( mapname, gametype, buf );
-	BG_Free( buf );
-	return ok;
-}
 
 static qboolean SessionLayout_ReadFile( const char *mapname, int gametype ) {
 	fileHandle_t	f;
@@ -446,7 +482,7 @@ static qboolean SessionLayout_ReadFile( const char *mapname, int gametype ) {
 	trap_FS_FCloseFile( f );
 	buf[len] = '\0';
 
-	ok = SessionLayout_ParseBuffer( mapname, gametype, buf );
+	ok = SessionLayout_ParseBuffer( mapname, gametype, buf, qtrue );
 	BG_Free( buf );
 	return ok;
 }
@@ -455,23 +491,27 @@ static qboolean SessionLayout_ReadSnapshot( const char *mapname, int gametype ) 
 	if ( !SessionLayout_SnapshotMatches( mapname, gametype ) ) {
 		return qfalse;
 	}
-	return SessionLayout_ParseFromMemory( mapname, gametype, sessionLayout_snapshot, sessionLayout_snapshotLen );
+	return SessionLayout_ParseBuffer( mapname, gametype, sessionLayout_snapshot, qfalse );
 }
 
-void SessionLayout_Commit( void ) {
+static void SessionLayout_CommitInternal( qboolean force ) {
 	sessionLayoutOut_t	out;
 	char				mapname[MAX_QPATH];
 	int					gametype;
 	qboolean			hasData;
 
-	if ( !ItemEdit_SessionIsDirty() && !SpawnEdit_SessionIsDirty() && !TeleEdit_SessionIsDirty() ) {
-		return;
+	if ( !force ) {
+		if ( !ItemEdit_SessionIsDirty() && !SpawnEdit_SessionIsDirty() && !TeleEdit_SessionIsDirty() ) {
+			return;
+		}
 	}
 
-	hasData = ItemEdit_SessionHasRecords() || SpawnEdit_SessionHasRecords()
-			|| TeleEdit_SessionHasRecords();
+	hasData = ( ItemEdit_SessionHasRecords() || SpawnEdit_SessionHasRecords()
+			|| TeleEdit_SessionHasRecords() ) ? qtrue : qfalse;
 	if ( !hasData ) {
-		SessionLayout_Purge();
+		if ( !force ) {
+			SessionLayout_Purge();
+		}
 		return;
 	}
 
@@ -489,25 +529,37 @@ void SessionLayout_Commit( void ) {
 		return;
 	}
 
-	SessionLayout_SetSnapshotMeta( mapname, gametype, out.length );
+	sessionLayout_snapshotLen = out.length;
+	Q_strncpyz( sessionLayout_snapshotMap, mapname, sizeof( sessionLayout_snapshotMap ) );
+	sessionLayout_snapshotGametype = gametype;
+	SessionLayout_CvarStorage_Save( mapname, gametype, sessionLayout_snapshot, out.length );
 
 	SessionLayout_EnsureStorageKnown();
 
+	if ( sessionLayout_storage == SESSION_STORAGE_DISK
+			&& SessionLayout_WriteDiskVerified( sessionLayout_snapshot, out.length ) ) {
+		SessionLayout_ClearEditDirtyFlags();
+		G_Printf( "Session layout saved: %s\n", SESSION_LAYOUT_PATH );
+		return;
+	}
 	if ( sessionLayout_storage == SESSION_STORAGE_DISK ) {
-		if ( SessionLayout_WriteDiskVerified( sessionLayout_snapshot, out.length ) ) {
-			ItemEdit_SessionClearDirty();
-			SpawnEdit_SessionClearDirty();
-			TeleEdit_SessionClearDirty();
-			G_Printf( "Session layout saved: %s\n", SESSION_LAYOUT_PATH );
-			return;
-		}
 		SessionLayout_UseMemoryStorage( "read-back verify failed" );
 	}
 
-	ItemEdit_SessionClearDirty();
-	SpawnEdit_SessionClearDirty();
-	TeleEdit_SessionClearDirty();
+	SessionLayout_ClearEditDirtyFlags();
 	G_Printf( "Session layout saved in memory for map '%s'\n", mapname );
+}
+
+void SessionLayout_Commit( void ) {
+	SessionLayout_CommitInternal( qfalse );
+}
+
+void SessionLayout_Shutdown( int restart ) {
+	(void)restart;
+	if ( ItemEdit_SessionHasRecords() || SpawnEdit_SessionHasRecords()
+			|| TeleEdit_SessionHasRecords() ) {
+		SessionLayout_CommitInternal( qtrue );
+	}
 }
 
 void SessionLayout_LoadForMap( void ) {
@@ -522,6 +574,11 @@ void SessionLayout_LoadForMap( void ) {
 	SessionLayout_ResolveMapName( mapname, sizeof( mapname ) );
 	gametype = g_gametype.integer;
 
+	if ( mapname[0] && ( ItemEdit_SessionHasRecords() || SpawnEdit_SessionHasRecords()
+			|| TeleEdit_SessionHasRecords() ) ) {
+		SessionLayout_CommitInternal( qtrue );
+	}
+
 	ItemEdit_SessionBeginMap( mapname, gametype );
 	SpawnEdit_SessionBeginMap( mapname, gametype );
 
@@ -529,16 +586,24 @@ void SessionLayout_LoadForMap( void ) {
 		return;
 	}
 
-	SessionLayout_EnsureStorageKnown();
-	loaded = qfalse;
+	if ( !SessionLayout_SnapshotMatches( mapname, gametype ) ) {
+		int		len;
 
-	if ( sessionLayout_storage == SESSION_STORAGE_MEMORY ) {
-		loaded = SessionLayout_ReadSnapshot( mapname, gametype );
-	} else {
-		loaded = SessionLayout_ReadFile( mapname, gametype );
-		if ( !loaded ) {
-			loaded = SessionLayout_ReadSnapshot( mapname, gametype );
+		if ( SessionLayout_CvarStorage_Restore( mapname, gametype,
+				sessionLayout_snapshot, sizeof( sessionLayout_snapshot ), &len,
+				sessionLayout_snapshotMap, sizeof( sessionLayout_snapshotMap ),
+				&sessionLayout_snapshotGametype ) ) {
+			sessionLayout_snapshotLen = len;
 		}
+	}
+
+	SessionLayout_EnsureStorageKnown();
+
+	if ( SessionLayout_SnapshotMatches( mapname, gametype ) ) {
+		loaded = SessionLayout_ReadSnapshot( mapname, gametype );
+	}
+	if ( !loaded && sessionLayout_storage != SESSION_STORAGE_MEMORY ) {
+		loaded = SessionLayout_ReadFile( mapname, gametype );
 	}
 
 	(void)loaded;

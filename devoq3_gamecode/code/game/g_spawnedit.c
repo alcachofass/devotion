@@ -576,8 +576,12 @@ static void SpawnEdit_BroadcastRoster( void ) {
 
 static void SpawnEdit_PurgeSessionLayout( void ) {
 	SpawnEdit_ClearRecords();
-	spawnEdit_dirty = qtrue;
-	SessionLayout_Commit();
+	if ( ItemEdit_SessionHasRecords() || TeleEdit_SessionHasRecords() ) {
+		spawnEdit_dirty = qtrue;
+		SessionLayout_Commit();
+	} else {
+		SessionLayout_Purge();
+	}
 }
 
 static void SpawnEdit_CommitLayout( void ) {
