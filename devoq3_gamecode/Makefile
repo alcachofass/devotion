@@ -1867,6 +1867,7 @@ Q3GOBJ_ = \
   $(B)/baseq3/game/g_camsession.o \
   $(B)/baseq3/game/g_itemedit.o \
   $(B)/baseq3/game/g_session_layout.o \
+  $(B)/baseq3/game/g_session_layout_cvar.o \
   $(B)/baseq3/game/g_spawnedit.o \
   $(B)/baseq3/game/g_spawnedit_tele.o \
   $(B)/baseq3/game/g_cmds_ext.o \
@@ -1949,6 +1950,7 @@ MPGOBJ_ = \
   $(B)/missionpack/game/g_camsession.o \
   $(B)/missionpack/game/g_itemedit.o \
   $(B)/missionpack/game/g_session_layout.o \
+  $(B)/missionpack/game/g_session_layout_cvar.o \
   $(B)/missionpack/game/g_spawnedit.o \
   $(B)/missionpack/game/g_spawnedit_tele.o \
   $(B)/missionpack/game/g_cmds_ext.o \
