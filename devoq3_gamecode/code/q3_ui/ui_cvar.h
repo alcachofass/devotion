@@ -140,5 +140,7 @@ UI_CVAR( ui_mappage_page8, "ui_mappage_page8", "", CVAR_ROM )
 UI_CVAR( ui_nextmapvote_remaining, "ui_nextmapvote_remaining", "0", CVAR_ROM )
 UI_CVAR( ui_nextmapvote_maps, "ui_nextmapvote_maps", "", CVAR_ROM )
 UI_CVAR( ui_nextmapvote_votes, "ui_nextmapvote_votes", "", CVAR_ROM )
+UI_CVAR( ui_nextmapvote_cast, "ui_nextmapvote_cast", "0", CVAR_ROM )
+UI_CVAR( ui_nextmapvote_eligible, "ui_nextmapvote_eligible", "0", CVAR_ROM )
 
 #undef UI_CVAR

@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "cg_local.h"
 #include "../../ui/menudef.h" // bk001205 - for Q3_ui as well
+#include "cg_editpresets.h"
 
 #define MAX_NETNAME 32
 #define MAX_CHAT_TEXT (MAX_NETNAME + MAX_RAT_SAY_TEXT + 6)
@@ -82,9 +83,95 @@ static void CG_ParseOvertime( void ) {
 	cgs.timeoutOvertime = atoi(CG_Argv(1));
 }
 
+static char		s_levelTransitionFromMap[MAX_QPATH];
+static qboolean	s_newmapLevelTransitionPending;
+static int		s_levelTransitionLevelStartTime;
+static qboolean	s_deferNewmapLevelTransition;
+
+static void CG_SetLevelTransitionOverlayCvar( qboolean active ) {
+	trap_Cvar_Set( "cg_levelTransitionOverlay", active ? "1" : "0" );
+}
+
+static void CG_RequestCloseNextmapVoteUi( void ) {
+	trap_Cvar_Set( "cg_closeNextmapVoteUi", "1" );
+}
+
+static void CG_ClearNewmapLevelTransitionState( void ) {
+	s_levelTransitionFromMap[0] = '\0';
+	s_newmapLevelTransitionPending = qfalse;
+	s_levelTransitionLevelStartTime = 0;
+	s_deferNewmapLevelTransition = qfalse;
+	CG_SetLevelTransitionOverlayCvar( qfalse );
+}
+
+void CG_BeginNewmapLevelTransition( void );
+
+static void CG_QueueOrBeginNewmapLevelTransition( void ) {
+	if ( cgs.nextmapVoteEndTime && cg.time < cgs.nextmapVoteEndTime ) {
+		s_deferNewmapLevelTransition = qtrue;
+		return;
+	}
+	s_deferNewmapLevelTransition = qfalse;
+	CG_BeginNewmapLevelTransition();
+}
+
+void CG_TryApplyDeferredNewmapLevelTransition( void ) {
+	if ( !s_deferNewmapLevelTransition ) {
+		return;
+	}
+	if ( cgs.nextmapVoteEndTime && cg.time < cgs.nextmapVoteEndTime ) {
+		return;
+	}
+	CG_QueueOrBeginNewmapLevelTransition();
+}
+
+void CG_BeginNewmapLevelTransition( void ) {
+	if ( !s_newmapLevelTransitionPending ) {
+		s_levelTransitionLevelStartTime = cgs.levelStartTime;
+		if ( cg.snap && cg.snap->ps.pm_type == PM_INTERMISSION ) {
+			Q_strncpyz( s_levelTransitionFromMap, cgs.mapname, sizeof( s_levelTransitionFromMap ) );
+		} else if ( !s_levelTransitionFromMap[0] ) {
+			Q_strncpyz( s_levelTransitionFromMap, cgs.mapname, sizeof( s_levelTransitionFromMap ) );
+		}
+		s_newmapLevelTransitionPending = qtrue;
+	}
+
+	cgs.levelTransitionType = CG_LEVEL_TRANSITION_NEWMAP;
+	if ( cg.time > 0 ) {
+		cgs.levelTransitionEnd = cg.time + CG_LEVEL_TRANSITION_TIMEOUT;
+	} else {
+		cgs.levelTransitionEnd = 0;
+	}
+
+	CG_SetLevelTransitionOverlayCvar( qtrue );
+	CG_RequestCloseNextmapVoteUi();
+
+	cgs.nextmapVoteEndTime = 0;
+	cgs.nextmapVoteUiOpened = qfalse;
+	trap_Cvar_Set( "ui_nextmapvote_remaining", "0" );
+	trap_Cvar_Set( "ui_nextmapvote_cast", "0" );
+	trap_Cvar_Set( "ui_nextmapvote_eligible", "0" );
+	trap_SendConsoleCommand( "ui_nextmapvote_close\n" );
+	CG_BeginLevelTransition();
+}
+
+void CG_PreserveNewmapLevelTransitionForLoad( void ) {
+	if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_NEWMAP || s_newmapLevelTransitionPending ) {
+		s_newmapLevelTransitionPending = qtrue;
+	}
+}
+
+void CG_RestoreNewmapLevelTransitionAfterInit( void ) {
+	if ( s_newmapLevelTransitionPending ) {
+		cgs.levelTransitionType = CG_LEVEL_TRANSITION_NEWMAP;
+		cgs.levelTransitionEnd = 0;
+	}
+}
+
 static void CG_ResetLevelTransition( void ) {
 	cgs.levelTransitionEnd = 0;
 	cgs.levelTransitionType = CG_LEVEL_TRANSITION_NONE;
+	CG_ClearNewmapLevelTransitionState();
 }
 
 static void CG_ParseLevelTransition( void ) {
@@ -95,28 +182,53 @@ static void CG_ParseLevelTransition( void ) {
 
 	/* A reload notification must not replace an in-flight map change. */
 	if ( newType == CG_LEVEL_TRANSITION_RELOAD
-		&& cgs.levelTransitionType == CG_LEVEL_TRANSITION_NEWMAP
-		&& cg.time < cgs.levelTransitionEnd ) {
+		&& ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_NEWMAP || s_newmapLevelTransitionPending ) ) {
 		return;
 	}
 
-	cgs.levelTransitionType = newType;
+	if ( newType == CG_LEVEL_TRANSITION_NEWMAP ) {
+		CG_QueueOrBeginNewmapLevelTransition();
+		return;
+	}
+
+	cgs.levelTransitionType = CG_LEVEL_TRANSITION_RELOAD;
 	cgs.levelTransitionEnd = cg.time + CG_LEVEL_TRANSITION_TIMEOUT;
 	CG_BeginLevelTransition();
 }
 
 qboolean CG_LevelTransitionActive( void ) {
-	if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_NONE ) {
-		return qfalse;
+	if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_RELOAD ) {
+		if ( cg.warmup > 0 ) {
+			CG_ResetLevelTransition();
+			return qfalse;
+		}
+		return cg.time < cgs.levelTransitionEnd;
 	}
 
-	/* Once the warmup countdown is running, the reload is done. */
-	if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_RELOAD && cg.warmup > 0 ) {
-		CG_ResetLevelTransition();
-		return qfalse;
+	if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_NEWMAP || s_newmapLevelTransitionPending ) {
+		if ( cgs.nextmapVoteEndTime && cg.time < cgs.nextmapVoteEndTime ) {
+			return qfalse;
+		}
+
+		if ( cg.snap && s_levelTransitionLevelStartTime != 0
+			&& cgs.levelStartTime != s_levelTransitionLevelStartTime ) {
+			CG_ResetLevelTransition();
+			return qfalse;
+		}
+
+		if ( cgs.levelTransitionEnd == 0 && cg.time > 0 ) {
+			cgs.levelTransitionEnd = cg.time + CG_LEVEL_TRANSITION_TIMEOUT;
+		}
+
+		if ( cgs.levelTransitionEnd > 0 && cg.time >= cgs.levelTransitionEnd ) {
+			CG_ResetLevelTransition();
+			return qfalse;
+		}
+
+		return qtrue;
 	}
 
-	return cg.time < cgs.levelTransitionEnd;
+	return qfalse;
 }
 
 
@@ -814,6 +926,10 @@ static void CG_ParseNextMapVotes( void ) {
         Q_strcat(votes,sizeof(votes),va("%i ",atoi(CG_Argv(i))));
     }
     trap_Cvar_Set("ui_nextmapvote_votes", votes);
+    if ( trap_Argc() >= 9 ) {
+	trap_Cvar_Set( "ui_nextmapvote_cast", CG_Argv( 7 ) );
+	trap_Cvar_Set( "ui_nextmapvote_eligible", CG_Argv( 8 ) );
+    }
 }
 
 /*
@@ -834,11 +950,13 @@ static void CG_ParseNextMapVote( void ) {
     }
 
     cgs.nextmapVoteEndTime = atoi(CG_Argv(1));
-    if (cgs.nextmapVoteEndTime < cg.time) {
-	    cgs.nextmapVoteEndTime = cg.time;
-    }
+    cgs.nextmapVoteUiDelayTime = cg.time + 1000;
+    cgs.nextmapVoteUiOpened = qfalse;
 
-    for(i=2;i<NEXTMAPVOTE_NUM_MAPS+2;i++) {
+    trap_Cvar_Set( "ui_nextmapvote_eligible", CG_Argv( 2 ) );
+    trap_Cvar_Set( "ui_nextmapvote_cast", "0" );
+
+    for(i=3;i<NEXTMAPVOTE_NUM_MAPS+3;i++) {
         temp = CG_Argv( i );
         for( c = temp; *c; ++c) {
 		if (!(isalnum(*c) 
@@ -857,7 +975,6 @@ static void CG_ParseNextMapVote( void ) {
     }
     trap_Cvar_Set("ui_nextmapvote_votes", "");
     trap_Cvar_Set("ui_nextmapvote_maps", maps);
-    trap_SendConsoleCommand("ui_nextmapvote\n");
 }
 
 #ifdef WITH_TREASURE_HUNTER_GAMETYPE
@@ -2746,6 +2863,10 @@ static void CG_ServerCommand( void ) {
             CG_SpawnEdit_Tele_ParseLinks();
             return;
         }
+        if ( !strcmp( cmd, "editpreset" ) ) {
+            CG_EditPresets_ParseServerCommand();
+            return;
+        }
         if ( !strcmp( cmd, "spawnPoints" ) ) {
 		CG_ParseSpawnpoints();
 		return;
@@ -2832,4 +2953,15 @@ void CG_ExecuteNewServerCommands( int latestSequence ) {
 			CG_ServerCommand();
 		}
 	}
+}
+
+void CG_DrainPendingServerCommands( void ) {
+	if ( cg.snap && cgs.serverCommandSequence < cg.snap->serverCommandSequence ) {
+		CG_ExecuteNewServerCommands( cg.snap->serverCommandSequence );
+	}
+}
+
+qboolean CG_ShouldProcessSnapshotsDuringLoading( void ) {
+	return (qboolean)( s_newmapLevelTransitionPending
+		|| cgs.levelTransitionType == CG_LEVEL_TRANSITION_NEWMAP );
 }

@@ -27,6 +27,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 static void CG_DrawLoadingScreen( stereoFrame_t stereoView ) {
 	CG_DrawInformation();
 	CG_DrawViewFades( stereoView );
+	CG_DrawLevelTransition();
 }
 
 /*
@@ -1573,6 +1574,9 @@ static void CG_DrawActiveFrameCtx( int serverTime, stereoFrame_t stereoView, qbo
 	// if we are only updating the screen as a loading
 	// pacifier, don't even try to read snapshots
 	if ( cg.infoScreenText[0] != 0 ) {
+		if ( CG_ShouldProcessSnapshotsDuringLoading() ) {
+			CG_ProcessSnapshots();
+		}
 		if ( !cg_passHidden ) {
 			CG_DrawLoadingScreen( stereoView );
 		}
@@ -1683,6 +1687,7 @@ static void CG_DrawActiveFrameCtx( int serverTime, stereoFrame_t stereoView, qbo
 
 	if ( !cg_passHidden ) {
 		CG_ItemEdit_Frame();
+		CG_EditPresets_Frame();
 		CG_SpawnEdit_Frame();
 
 		if ( !cg.renderingThirdPerson && !povActive ) {

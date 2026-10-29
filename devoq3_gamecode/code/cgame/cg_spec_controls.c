@@ -7,6 +7,7 @@ Shared cursor, catcher, and drawer animation are in cg_overlay.c.
 
 #include "cg_local.h"
 #include "cg_overlay.h"
+#include "cg_editpresets.h"
 #include "../client/keycodes.h"
 
 #define SPEC_BTN_MAX			10
@@ -2120,10 +2121,24 @@ static void DemoCtrl_DrawSpec( void ) {
 	DemoCtrl_DrawSpecMenu( btnIdle, btnHover, btnActive, border, textColor );
 	DemoCtrl_SpecDrawHoverTip();
 
+	if ( CG_EditPresets_ModalOpen() ) {
+		CG_EditPresets_DrawModal();
+	}
+
 	if ( cgs.media.cursor ) {
 		CG_DrawPic( dc_cursorX - OVERLAY_CURSOR_SIZE / 2, dc_cursorY - OVERLAY_CURSOR_SIZE / 2,
 				OVERLAY_CURSOR_SIZE, OVERLAY_CURSOR_SIZE, cgs.media.cursor );
 	}
+}
+
+static qboolean Spec_OverlayModalOpen( void ) {
+	if ( CG_ItemEdit_ModalOpen() ) {
+		return qtrue;
+	}
+	if ( CG_SpawnEdit_ModalOpen() ) {
+		return qtrue;
+	}
+	return qfalse;
 }
 
 static void DemoCtrl_SpecFrame( void ) {
@@ -2227,6 +2242,11 @@ static void DemoCtrl_SpecFrame( void ) {
 	}
 	if ( dc_locked ) {
 		dc_visible = qtrue;
+		return;
+	}
+	if ( Spec_OverlayModalOpen() ) {
+		dc_visible = qtrue;
+		dc_lastMoveMs = now;
 		return;
 	}
 	if ( dc_visible && now - dc_lastMoveMs >= OVERLAY_HIDE_MSEC ) {

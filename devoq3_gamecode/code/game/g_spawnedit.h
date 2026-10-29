@@ -29,4 +29,6 @@ void SpawnEdit_CommitBspSpawn( gentity_t *ent );
 void SpawnEdit_SendRoster( gentity_t *ent );
 void Cmd_SpawnEdit_f( gentity_t *ent );
 
+void SpawnEdit_ResetWorldForPresetLoad( void );
+
 #endif

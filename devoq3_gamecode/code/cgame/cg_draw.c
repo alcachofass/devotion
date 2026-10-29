@@ -4873,7 +4873,7 @@ void CG_DrawLevelTransition( void ) {
 	float	alpha;
 	float	scale;
 
-	if ( cg.demoPlayback || !cg.snap || !CG_LevelTransitionActive() ) {
+	if ( cg.demoPlayback || !CG_LevelTransitionActive() ) {
 		return;
 	}
 
@@ -6352,11 +6352,18 @@ static void CG_DrawIntermission( void ) {
 	CG_DrawMessagePromptBackground();
 
 	if (cgs.nextmapVoteEndTime) {
-		int remaining = ceil((float)(cgs.nextmapVoteEndTime - cg.time)/1000.0);
-		if (remaining < 0) {
-			remaining = 0;
-		}
+		int msLeft = cgs.nextmapVoteEndTime - cg.time;
+		int remaining = msLeft > 0 ? ( msLeft + 999 ) / 1000 : 0;
+
 		trap_Cvar_Set("ui_nextmapvote_remaining", va("%i", remaining));
+
+		CG_TryApplyDeferredNewmapLevelTransition();
+
+		if ( !cgs.nextmapVoteUiOpened && cg.time >= cgs.nextmapVoteUiDelayTime
+				&& !CG_LevelTransitionActive() ) {
+			cgs.nextmapVoteUiOpened = qtrue;
+			trap_SendConsoleCommand( "ui_nextmapvote\n" );
+		}
 	}
 
 	CG_DemoControls_Draw();
@@ -7624,6 +7631,9 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 
 	if ( cg.snap->ps.pm_type == PM_INTERMISSION ) {
 		CG_DrawIntermission();
+		CG_DrawLevelTransition();
+		CG_DemoControls_Draw();
+		CG_SpecControls_Draw();
 		return;
 	}
 

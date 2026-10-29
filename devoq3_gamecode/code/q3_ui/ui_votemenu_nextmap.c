@@ -129,8 +129,42 @@ void UI_VoteNextMapMenu_Close( void ) {
 
 static void UI_VoteNextMapMenu_Draw( void ) {
 	vec4_t	bg = {0.0, 0.0, 0.0, 0.85};
+	vec4_t	countdownColor = {1.0f, 0.85f, 0.2f, 1.0f};
+	int	remaining;
+	int	cast;
+	int	eligible;
+	int	notVoted;
+	char	statusLine[MAX_STRING_CHARS];
+
 	UI_FillRect( 0, 90, 640, 480, bg );
-	UI_DrawString( 640/2, 150, va("Time remaining: %is", ui_nextmapvote_remaining.integer), UI_CENTER|UI_SMALLFONT, color_white );
+
+	remaining = ui_nextmapvote_remaining.integer;
+	if ( remaining < 0 ) {
+		remaining = 0;
+	}
+	cast = ui_nextmapvote_cast.integer;
+	eligible = ui_nextmapvote_eligible.integer;
+	if ( cast < 0 ) {
+		cast = 0;
+	}
+	if ( eligible < cast ) {
+		eligible = cast;
+	}
+	notVoted = eligible - cast;
+	if ( notVoted < 0 ) {
+		notVoted = 0;
+	}
+
+	UI_DrawProportionalString( 320, 118, va( "Time left: %i seconds", remaining ),
+		UI_CENTER | UI_DROPSHADOW, countdownColor );
+
+	if ( eligible > 0 ) {
+		Com_sprintf( statusLine, sizeof( statusLine ),
+			"Players voted: %i of %i  (%i still need to vote)", cast, eligible, notVoted );
+	} else {
+		Com_sprintf( statusLine, sizeof( statusLine ), "Votes cast: %i", cast );
+	}
+	UI_DrawString( 320, 142, statusLine, UI_CENTER | UI_SMALLFONT, color_white );
 
 	UI_VoteNextMapParseVotes();
 
@@ -188,10 +222,11 @@ static void VoteNextMapMenu_LevelshotDraw( void *self ) {
         
 	UI_DrawString( x, y, nextmapvote_maplist.mapname[n], UI_CENTER|UI_SMALLFONT, color_orange );
 
-	if (nextmapvote_maplist.votes[n]) {
+	if (nextmapvote_maplist.votes[n] > 0) {
 		UI_DrawProportionalString( x, b->generic.y + b->height/2 - PROP_HEIGHT/2, va( "%i", nextmapvote_maplist.votes[n] ),
 				UI_CENTER | UI_DROPSHADOW, color_yellow );
-
+	} else {
+		UI_DrawString( x, b->generic.y + b->height - 18, "0 votes", UI_CENTER | UI_SMALLFONT, colorMdGrey );
 	}
 
 	x = b->generic.x;
@@ -240,7 +275,7 @@ void UI_VoteNextMapMenu( void ) {
 
     s_votemenu_nextmap.banner.generic.type  = MTYPE_BTEXT;
     s_votemenu_nextmap.banner.generic.x	  = 320;
-    s_votemenu_nextmap.banner.generic.y	  = 100;
+    s_votemenu_nextmap.banner.generic.y	  = 88;
     s_votemenu_nextmap.banner.string		  = "VOTE FOR NEXT MAP";
     s_votemenu_nextmap.banner.color	      = color_white;
     s_votemenu_nextmap.banner.style	      = UI_CENTER;
@@ -249,7 +284,7 @@ void UI_VoteNextMapMenu( void ) {
     for (i=0; i<NMV_MAX_MAPSPERPAGE; i++)
     {
     	x = (640-NMV_MAX_MAPCOLS*200)/2 + ( (i % NMV_MAX_MAPCOLS) * 200 ) + (200-128)/2;
-    	y = 190 + ( (i / NMV_MAX_MAPCOLS) * 140 );
+    	y = 200 + ( (i / NMV_MAX_MAPCOLS) * 140 );
     
     	s_votemenu_nextmap.mappics[i].generic.type   = MTYPE_BITMAP;
     	s_votemenu_nextmap.mappics[i].generic.flags  = QMF_LEFT_JUSTIFY|QMF_INACTIVE;

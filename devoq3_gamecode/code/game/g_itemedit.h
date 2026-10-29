@@ -42,7 +42,6 @@ In-game item pickup editing (spectator MVP).
 #define ItemEdit_FloorHalfDepthFromTime2( time2 ) \
 	( ( ( time2 ) & 0xFFFF ) > 0 ? (float)(( time2 ) & 0xFFFF) : ITEMEDIT_FLOOR_HALF_DEPTH )
 
-void ItemEdit_LoadLayoutForMap( void );
 void ItemEdit_SessionPrepareLoad( void );
 void ItemEdit_SessionBeginMap( const char *mapname, int gametype );
 void ItemEdit_SessionClearRecords( void );
@@ -57,11 +56,14 @@ void ItemEdit_RunDeferredApply( void );
 void ItemEdit_Shutdown( int restart );
 void ItemEdit_Init( void );
 void ItemEdit_UpdateConfigstring( void );
+void ItemEdit_SyncDirtyConfigstring( void );
 qboolean ItemEdit_OverrideItemClassname( const gentity_t *ent, char *itemname, int itemnameSize );
 qboolean ItemEdit_ApplyOverrideOnSpawn( gentity_t *ent );
 void ItemEdit_NoteBspItemFromEntity( gentity_t *ent );
 void ItemEdit_CommitBspPickup( gentity_t *ent );
 void Cmd_ItemEdit_f( gentity_t *ent );
+
+void ItemEdit_ResetWorldForPresetLoad( void );
 
 qboolean ItemEdit_SuppressRespawn( gentity_t *ent );
 

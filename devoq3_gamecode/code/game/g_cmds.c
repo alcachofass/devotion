@@ -3644,6 +3644,43 @@ int G_GametypeBitsCurrent( void ) {
 	return bits;
 }
 
+int G_NextmapVoteTotalCast( void ) {
+	int i;
+	int total = 0;
+
+	for ( i = 0; i < NEXTMAPVOTE_NUM_MAPS; ++i ) {
+		total += level.nextmapVotes[i];
+	}
+	return total;
+}
+
+void G_BroadcastNextmapVoteCounts( void ) {
+	trap_SendServerCommand( -1, va( "nextmapvotes %i %i %i %i %i %i %i %i",
+		level.nextmapVotes[0],
+		level.nextmapVotes[1],
+		level.nextmapVotes[2],
+		level.nextmapVotes[3],
+		level.nextmapVotes[4],
+		level.nextmapVotes[5],
+		G_NextmapVoteTotalCast(),
+		level.nextMapVoteClients ) );
+}
+
+void G_TryStartNextmapVoteAtIntermission( void ) {
+	if ( g_gametype.integer == GT_SINGLE_PLAYER ) {
+		return;
+	}
+	if ( !g_nextmapVote.integer && !level.nextMapVoteManual ) {
+		return;
+	}
+	if ( level.nextMapVoteTime != 0 ) {
+		return;
+	}
+	if ( !SendNextmapVoteCommand() ) {
+		Com_Printf( "Nextmapvote could not start\n" );
+	}
+}
+
 qboolean SelectNextmapVoteMaps( void ) {
 	struct maplist_s *maplist;
 	int numMaps = 0;
@@ -3692,7 +3729,8 @@ qboolean SelectNextmapVoteMaps( void ) {
 	level.nextMapVoteTime = level.time + g_nextmapVoteTime.integer*1000;
 
 
-	trap_SendServerCommand( -1, va("nextmapvote %i %s %s %s %s %s %s", level.nextMapVoteTime, 
+	trap_SendServerCommand( -1, va("nextmapvote %i %i %s %s %s %s %s %s", level.nextMapVoteTime,
+				level.nextMapVoteClients,
 				level.nextmapVoteMaps[0],
 				level.nextmapVoteMaps[1],
 				level.nextmapVoteMaps[2],
@@ -3700,6 +3738,7 @@ qboolean SelectNextmapVoteMaps( void ) {
 				level.nextmapVoteMaps[4],
 				level.nextmapVoteMaps[5]
 				));
+	G_BroadcastNextmapVoteCounts();
 	ret = qtrue;
 out:
 	BG_Free(maplist);
@@ -3713,6 +3752,7 @@ qboolean SendNextmapVoteCommand( void ) {
 	memset(level.nextmapVotes, 0, sizeof(level.nextmapVotes));
 	memset(level.nextmapVoteMaps, 0, sizeof(level.nextmapVoteMaps));
 	level.nextMapVoteExecuted = 0;
+	level.nextMapVoteTransitionSent = 0;
 	level.nextMapVoteClients = 0;
 	for ( i = 0 ; i < level.maxclients ; i++ ) {
 		if (level.clients[i].pers.connected != CON_CONNECTED
@@ -3770,14 +3810,7 @@ void Cmd_NextmapVote_f( gentity_t *ent ) {
 	ent->client->pers.nextmapVoteFlags |= NEXTMAPVOTE_VOTED;
 	level.nextmapVotes[mapNo] += 1;
 	ent->client->pers.nextmapVote = mapNo;
-	trap_SendServerCommand( -1, va("nextmapvotes %i %i %i %i %i %i", 
-				level.nextmapVotes[0],
-				level.nextmapVotes[1],
-				level.nextmapVotes[2],
-				level.nextmapVotes[3],
-				level.nextmapVotes[4],
-				level.nextmapVotes[5]
-				));
+	G_BroadcastNextmapVoteCounts();
 }
 
 
@@ -4791,6 +4824,7 @@ commands_t cmds[ ] =
   { "camup", 0, Cmd_CamUp_f },
   { "itemedit", 0, Cmd_ItemEdit_f },
   { "spawnedit", 0, Cmd_SpawnEdit_f },
+  { "editpreset", 0, Cmd_EditPreset_f },
 
   { "follow", CMD_NOTEAM, Cmd_Follow_f },
   { "follownext", CMD_NOTEAM, Cmd_FollowCycle_f },

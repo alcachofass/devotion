@@ -1666,6 +1666,8 @@ typedef struct {
 	char			voteString[MAX_STRING_TOKENS];
 
 	int			nextmapVoteEndTime;
+	int			nextmapVoteUiDelayTime;
+	qboolean		nextmapVoteUiOpened;
 
 	int				teamVoteTime[2];
 	int				teamVoteYes[2];
@@ -2102,6 +2104,7 @@ void CG_ItemEdit_AddItemHighlight( int entNum, refEntity_t *ent );
 void CG_ItemEdit_AddSceneEntities( void );
 void CG_ItemEdit_DrawWallForCent( const centity_t *cent );
 void CG_ItemEdit_DrawFloorForCent( const centity_t *cent );
+int CG_ItemEdit_ItemIndexAtLayoutOrigin( float ox, float oy, float oz );
 
 void CG_DrawSpawnpointMarkers( const spawnpoint_t *pts, const int *entNums, int count, int highlightEnt );
 void CG_SpawnEdit_Init( void );
@@ -2225,6 +2228,9 @@ extern  char teamChat2[256];
 
 void CG_AddLagometerFrameInfo( void );
 void CG_AddLagometerSnapshotInfo( snapshot_t *snap );
+void CG_TryApplyDeferredNewmapLevelTransition( void );
+void CG_PreserveNewmapLevelTransitionForLoad( void );
+void CG_RestoreNewmapLevelTransitionAfterInit( void );
 qboolean CG_LevelTransitionActive( void );
 void CG_BeginLevelTransition( void );
 void CG_DrawLevelTransition( void );
@@ -2530,6 +2536,8 @@ qboolean CG_Maplist_HandleMappage( void );
 // cg_servercmds.c
 //
 void CG_ExecuteNewServerCommands( int latestSequence );
+void CG_DrainPendingServerCommands( void );
+qboolean CG_ShouldProcessSnapshotsDuringLoading( void );
 void CG_ParseServerinfo( void );
 void CG_SetConfigValues( void );
 void CG_LoadVoiceChats( void );

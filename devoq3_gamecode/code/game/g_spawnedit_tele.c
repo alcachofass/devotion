@@ -944,6 +944,12 @@ void SpawnEdit_Tele_BroadcastRoster( void ) {
 	}
 }
 
+void SpawnEdit_Tele_ResetWorldForPresetLoad( void ) {
+	TeleEdit_RestoreMapDefaults();
+	TeleEdit_SessionClearRecords();
+	teleEdit_deferredApplyDone = qfalse;
+}
+
 qboolean SpawnEdit_Tele_HandleCommand( gentity_t *ent, const char *sub ) {
 	char		numBuf[MAX_TOKEN_CHARS];
 	int			entNum;

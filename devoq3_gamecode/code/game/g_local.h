@@ -950,6 +950,7 @@ typedef struct {
     int		nextMapVoteManual;
     int		nextMapVoteTime;
     int		nextMapVoteExecuted;
+    int		nextMapVoteTransitionSent;
     int		nextMapVoteClients;
     int		nextmapVotes[NEXTMAPVOTE_NUM_MAPS];
     char	nextmapVoteMaps[NEXTMAPVOTE_NUM_MAPS][MAX_MAPNAME];
@@ -1014,6 +1015,8 @@ void AccMessage( gentity_t *ent );
 void DuelStatsMessageForPlayers(gentity_t *p1, gentity_t *p2);
 //void AwardMessage(gentity_t *ent, extAward_t award, int count);
 qboolean SendNextmapVoteCommand( void );
+void G_TryStartNextmapVoteAtIntermission( void );
+void G_BroadcastNextmapVoteCounts( void );
 int G_GametypeBitsCurrent( void );
 void G_UnmuteClientNum(int clientNum);
 void SendMotdAndHelpOnce(gentity_t *ent);
