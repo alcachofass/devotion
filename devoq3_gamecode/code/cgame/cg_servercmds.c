@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "cg_local.h"
 #include "../../ui/menudef.h" // bk001205 - for Q3_ui as well
+#include "cg_editpresets.h"
 
 #define MAX_NETNAME 32
 #define MAX_CHAT_TEXT (MAX_NETNAME + MAX_RAT_SAY_TEXT + 6)
@@ -2744,6 +2745,10 @@ static void CG_ServerCommand( void ) {
         }
         if ( !strcmp( cmd, "spawnEditTeleLinks" ) ) {
             CG_SpawnEdit_Tele_ParseLinks();
+            return;
+        }
+        if ( !strcmp( cmd, "editpreset" ) ) {
+            CG_EditPresets_ParseServerCommand();
             return;
         }
         if ( !strcmp( cmd, "spawnPoints" ) ) {

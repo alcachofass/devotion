@@ -2102,6 +2102,7 @@ void CG_ItemEdit_AddItemHighlight( int entNum, refEntity_t *ent );
 void CG_ItemEdit_AddSceneEntities( void );
 void CG_ItemEdit_DrawWallForCent( const centity_t *cent );
 void CG_ItemEdit_DrawFloorForCent( const centity_t *cent );
+int CG_ItemEdit_ItemIndexAtLayoutOrigin( float ox, float oy, float oz );
 
 void CG_DrawSpawnpointMarkers( const spawnpoint_t *pts, const int *entNums, int count, int highlightEnt );
 void CG_SpawnEdit_Init( void );

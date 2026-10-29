@@ -760,7 +760,7 @@ static qboolean SessionLayout_DecodeBinaryToSnapshot( const byte *bin, int binLe
 	return qtrue;
 }
 
-static int SessionLayout_Base64Encode( const byte *in, int inLen, char *out, int outCap ) {
+static int SessionLayout_Base64EncodeInternal( const byte *in, int inLen, char *out, int outCap ) {
 	int		i;
 	int		outLen;
 	int		val;
@@ -790,7 +790,7 @@ static int SessionLayout_Base64Encode( const byte *in, int inLen, char *out, int
 	return outLen;
 }
 
-static int SessionLayout_Base64Decode( const char *in, byte *out, int outCap ) {
+static int SessionLayout_Base64DecodeInternal( const char *in, byte *out, int outCap ) {
 	int		i;
 	int		inLen;
 	int		outLen;
@@ -894,7 +894,7 @@ void SessionLayout_CvarStorage_Save( const char *mapname, int gametype,
 		if ( n > SESSION_LAYOUT_CVAR_RAW_CHUNK ) {
 			n = SESSION_LAYOUT_CVAR_RAW_CHUNK;
 		}
-		encLen = SessionLayout_Base64Encode( sessionLayout_cvarBin + offset, n,
+		encLen = SessionLayout_Base64EncodeInternal( sessionLayout_cvarBin + offset, n,
 				chunkB64, sizeof( chunkB64 ) );
 		if ( encLen <= 0 || encLen > SESSION_LAYOUT_CVAR_B64_CHARS ) {
 			G_Printf( S_COLOR_YELLOW "WARNING: session layout cvar base64 chunk failed\n" );
@@ -977,7 +977,7 @@ qboolean SessionLayout_CvarStorage_Restore( const char *mapname, int gametype,
 	for ( i = 0; i < chunkCount; i++ ) {
 		trap_Cvar_VariableStringBuffer( va( SESSION_LAYOUT_CVAR_CHUNK_PREFIX "%i", i ),
 				chunkB64, sizeof( chunkB64 ) );
-		decoded = SessionLayout_Base64Decode( chunkB64,
+		decoded = SessionLayout_Base64DecodeInternal( chunkB64,
 				sessionLayout_cvarBin + offset,
 				sizeof( sessionLayout_cvarBin ) - offset );
 		if ( decoded <= 0 ) {
@@ -998,5 +998,27 @@ qboolean SessionLayout_CvarStorage_Restore( const char *mapname, int gametype,
 	if ( storedGametype ) {
 		*storedGametype = metaGametype;
 	}
+	return qtrue;
+}
+
+qboolean SessionLayout_Base64Encode( const byte *in, int inLen, char *out, int outCap, int *outLen ) {
+	int		encLen;
+
+	encLen = SessionLayout_Base64EncodeInternal( in, inLen, out, outCap );
+	if ( encLen < 0 || !outLen ) {
+		return qfalse;
+	}
+	*outLen = encLen;
+	return qtrue;
+}
+
+qboolean SessionLayout_Base64Decode( const char *in, byte *out, int outCap, int *outLen ) {
+	int		decLen;
+
+	decLen = SessionLayout_Base64DecodeInternal( in, out, outCap );
+	if ( decLen < 0 || !outLen ) {
+		return qfalse;
+	}
+	*outLen = decLen;
 	return qtrue;
 }

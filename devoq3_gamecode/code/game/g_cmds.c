@@ -4791,6 +4791,7 @@ commands_t cmds[ ] =
   { "camup", 0, Cmd_CamUp_f },
   { "itemedit", 0, Cmd_ItemEdit_f },
   { "spawnedit", 0, Cmd_SpawnEdit_f },
+  { "editpreset", 0, Cmd_EditPreset_f },
 
   { "follow", CMD_NOTEAM, Cmd_Follow_f },
   { "follownext", CMD_NOTEAM, Cmd_FollowCycle_f },

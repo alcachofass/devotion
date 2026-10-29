@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 // cg_main.c -- initialization and primary entry point for cgame
 #include "cg_local.h"
+#include "cg_editpresets.h"
 #include "../game/bg_cvar_desc.h"
 
 #if defined(MISSIONPACK) || defined(CGAME_MENU_HUD)
@@ -2790,6 +2791,8 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 
 	CG_ForceModelChange(); // duffman91 - for bugs w/ quake 3 pm models on fresh join, but spectating.
 
+	CG_EditPresets_OnMapChange();
+
 }
 
 /*
@@ -2828,6 +2831,9 @@ void CG_EventHandling(int type) {
 }
 
 void CG_KeyEvent(int key, qboolean down) {
+	if ( CG_EditPresets_KeyEvent( key, down ) ) {
+		return;
+	}
 	if ( CG_ItemEdit_KeyEvent( key, down ) ) {
 		return;
 	}

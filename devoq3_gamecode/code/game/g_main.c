@@ -1378,6 +1378,7 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	G_PrintDelagMaxTimeshift();
 	CamSession_Init();
 	ItemEdit_Init();
+	EditPreset_Init();
 	SpawnEdit_Init();
 }
 
@@ -5476,6 +5477,7 @@ void G_RunFrame( int levelTime ) {
 
 	ItemEdit_RunDeferredApply();
 	SpawnEdit_RunDeferredApply();
+	EditPreset_RunFrame();
 
 	msec = level.time - level.previousTime;
 

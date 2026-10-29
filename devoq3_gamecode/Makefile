@@ -1731,6 +1731,7 @@ Q3CGOBJ_ = \
   $(B)/baseq3/cgame/cg_superhud.o \
   $(B)/baseq3/cgame/cg_itemtimers.o \
   $(B)/baseq3/cgame/cg_itemedit.o \
+  $(B)/baseq3/cgame/cg_editpresets.o \
   $(B)/baseq3/cgame/cg_spawnedit.o \
   $(B)/baseq3/cgame/cg_spawnedit_tele.o \
   $(B)/baseq3/cgame/cg_menuhud.o \
@@ -1800,6 +1801,7 @@ MPCGOBJ_ = \
   $(B)/missionpack/cgame/cg_superhud.o \
   $(B)/missionpack/cgame/cg_itemtimers.o \
   $(B)/missionpack/cgame/cg_itemedit.o \
+  $(B)/missionpack/cgame/cg_editpresets.o \
   $(B)/missionpack/cgame/cg_spawnedit.o \
   $(B)/missionpack/cgame/cg_spawnedit_tele.o \
   $(B)/missionpack/cgame/cg_unlagged.o \
@@ -1868,6 +1870,7 @@ Q3GOBJ_ = \
   $(B)/baseq3/game/g_itemedit.o \
   $(B)/baseq3/game/g_session_layout.o \
   $(B)/baseq3/game/g_session_layout_cvar.o \
+  $(B)/baseq3/game/g_session_layout_preset.o \
   $(B)/baseq3/game/g_spawnedit.o \
   $(B)/baseq3/game/g_spawnedit_tele.o \
   $(B)/baseq3/game/g_cmds_ext.o \
@@ -1951,6 +1954,7 @@ MPGOBJ_ = \
   $(B)/missionpack/game/g_itemedit.o \
   $(B)/missionpack/game/g_session_layout.o \
   $(B)/missionpack/game/g_session_layout_cvar.o \
+  $(B)/missionpack/game/g_session_layout_preset.o \
   $(B)/missionpack/game/g_spawnedit.o \
   $(B)/missionpack/game/g_spawnedit_tele.o \
   $(B)/missionpack/game/g_cmds_ext.o \

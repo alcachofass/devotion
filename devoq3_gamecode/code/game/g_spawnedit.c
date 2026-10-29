@@ -966,6 +966,13 @@ void SpawnEdit_Shutdown( int restart ) {
 	SpawnEdit_PurgeSessionLayout();
 }
 
+void SpawnEdit_ResetWorldForPresetLoad( void ) {
+	SpawnEdit_RemoveAllSessionAdds();
+	SpawnEdit_RestoreMapDefaults();
+	SpawnEdit_SessionClearRecords();
+	spawnEdit_deferredApplyDone = qfalse;
+}
+
 void Cmd_SpawnEdit_f( gentity_t *ent ) {
 	char		sub[MAX_TOKEN_CHARS];
 	char		numBuf[MAX_TOKEN_CHARS];

@@ -452,10 +452,8 @@ static qboolean SessionLayout_ParseBuffer( const char *mapname, int gametype, ch
 
 	if ( parsed > 0 ) {
 		G_Printf( "Session layout loaded, %i lines\n", parsed );
-		return qtrue;
 	}
-
-	return qfalse;
+	return qtrue;
 }
 
 
@@ -560,6 +558,72 @@ void SessionLayout_Shutdown( int restart ) {
 			|| TeleEdit_SessionHasRecords() ) {
 		SessionLayout_CommitInternal( qtrue );
 	}
+}
+
+qboolean SessionLayout_ExportText( char *buf, int bufCap, int *outLen ) {
+	sessionLayoutOut_t	out;
+	char				mapname[MAX_QPATH];
+	int					gametype;
+
+	if ( !buf || bufCap <= 0 || !outLen ) {
+		return qfalse;
+	}
+
+	if ( !ItemEdit_SessionHasRecords() && !SpawnEdit_SessionHasRecords()
+			&& !TeleEdit_SessionHasRecords() ) {
+		return qfalse;
+	}
+
+	SessionLayout_CommitInternal( qfalse );
+
+	SessionLayout_ResolveMapName( mapname, sizeof( mapname ) );
+	if ( !mapname[0] ) {
+		return qfalse;
+	}
+	gametype = g_gametype.integer;
+
+	Com_Memset( &out, 0, sizeof( out ) );
+	out.buffer = buf;
+	out.capacity = bufCap;
+	if ( !SessionLayout_Serialize( &out, mapname, gametype ) || out.length <= 0 || out.overflow ) {
+		return qfalse;
+	}
+
+	*outLen = out.length;
+	buf[out.length] = '\0';
+	return qtrue;
+}
+
+qboolean SessionLayout_ApplyTextPreset( char *buf ) {
+	char	mapname[MAX_QPATH];
+	int		gametype;
+
+	if ( !buf ) {
+		return qfalse;
+	}
+
+	SessionLayout_ResolveMapName( mapname, sizeof( mapname ) );
+	if ( !mapname[0] ) {
+		return qfalse;
+	}
+	gametype = g_gametype.integer;
+
+	ItemEdit_ResetWorldForPresetLoad();
+	SpawnEdit_ResetWorldForPresetLoad();
+	SpawnEdit_Tele_ResetWorldForPresetLoad();
+
+	if ( !SessionLayout_ParseBuffer( mapname, gametype, buf, qfalse ) ) {
+		return qfalse;
+	}
+
+	ItemEdit_OnEntitiesSpawned();
+	SpawnEdit_OnEntitiesSpawned();
+	SpawnEdit_Tele_OnEntitiesSpawned();
+	SpawnEdit_BroadcastRoster();
+	SpawnEdit_Tele_BroadcastRoster();
+
+	SessionLayout_CommitInternal( qtrue );
+	return qtrue;
 }
 
 void SessionLayout_LoadForMap( void ) {

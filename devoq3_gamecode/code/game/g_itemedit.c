@@ -8,6 +8,7 @@ Session layout persists in layouts/session.cfg across map_restart only.
 #include "g_local.h"
 #include "g_itemedit.h"
 #include "g_spawnedit.h"
+#include "g_spawnedit_tele.h"
 #include "g_session_layout.h"
 
 #define ITEMEDIT_SPEC_BIT			1
@@ -16,6 +17,7 @@ Session layout persists in layouts/session.cfg across map_restart only.
 typedef struct {
 	vec3_t		origin;
 	int			itemIndex;
+	int			fromItemIndex;
 } itemEditOverride_t;
 
 typedef struct {
@@ -33,6 +35,7 @@ typedef struct {
 typedef struct {
 	vec3_t		fromOrigin;
 	vec3_t		toOrigin;
+	int			itemIndex;
 } itemEditMove_t;
 
 typedef struct {
@@ -42,6 +45,7 @@ typedef struct {
 
 typedef struct {
 	vec3_t		origin;
+	int			itemIndex;
 } itemEditDelete_t;
 
 typedef struct {
@@ -80,6 +84,7 @@ static int					itemEditBspPendingByEnt[MAX_GENTITIES];
 static char					itemEdit_mapName[MAX_QPATH];
 static int					itemEdit_levelGametype;
 static qboolean				itemEdit_dirty;
+static int					itemEdit_dirtyCsSent = -1;
 static qboolean				itemEdit_deferredApplyDone;
 static qboolean				itemEdit_commitInProgress;
 
@@ -103,7 +108,7 @@ static qboolean ItemEdit_IsSessionAddedEnt( const gentity_t *ent );
 static qboolean ItemEdit_IsDeletedOrigin( const vec3_t origin );
 static void ItemEdit_UpsertAdd( const vec3_t origin, int itemIndex );
 static void ItemEdit_RemoveAddAtOrigin( const vec3_t origin );
-static void ItemEdit_UpsertDelete( const vec3_t origin );
+static void ItemEdit_UpsertDelete( const vec3_t origin, int itemIndex );
 static void ItemEdit_RemoveDeleteAtOrigin( const vec3_t origin );
 static void ItemEdit_HidePickup( gentity_t *ent );
 static void ItemEdit_HideLayoutDeletedPickup( gentity_t *ent );
@@ -135,7 +140,7 @@ static void ItemEdit_PurgeLayoutRecordsForKey( const vec3_t layoutKey );
 static void ItemEdit_RemoveOverridesForPickup( const gentity_t *pickup, const vec3_t layoutKey );
 static void ItemEdit_ConsolidateOverridesForPickups( void );
 static qboolean ItemEdit_ParseAddLine( const char *line, float *ox, float *oy, float *oz, int *idx );
-static qboolean ItemEdit_ParseDeleteLine( const char *line, float *ox, float *oy, float *oz );
+static qboolean ItemEdit_ParseDeleteLine( const char *line, float *ox, float *oy, float *oz, int *itemIdx );
 static qboolean ItemEdit_DeletePickup( gentity_t *target );
 static void ItemEdit_ClearOverlappingPickupsAtKey( const vec3_t layoutKey, int keepEntNum );
 
@@ -758,6 +763,33 @@ static int ItemEdit_BspIndexAtOrigin( const vec3_t origin ) {
 	return 0;
 }
 
+static int ItemEdit_ItemIndexAtLayoutOrigin( const vec3_t origin ) {
+	int			idx;
+	gentity_t	*ent;
+
+	if ( !origin ) {
+		return 0;
+	}
+	idx = ItemEdit_BspIndexAtOrigin( origin );
+	if ( idx > 0 && idx < bg_numItems ) {
+		return idx;
+	}
+	ent = ItemEdit_FindPickupForLayoutKey( origin, qtrue );
+	if ( !ent ) {
+		ent = ItemEdit_FindLivePickupAtOrigin( origin );
+	}
+	if ( !ent ) {
+		return 0;
+	}
+	if ( ent->s.frame > 0 && ent->s.frame < bg_numItems ) {
+		return ent->s.frame;
+	}
+	if ( ent->s.modelindex > 0 && ent->s.modelindex < bg_numItems ) {
+		return ent->s.modelindex;
+	}
+	return 0;
+}
+
 static void ItemEdit_LayoutKeyForEnt( const gentity_t *ent, vec3_t keyOut ) {
 	int		i;
 	vec3_t	pos;
@@ -848,6 +880,9 @@ static void ItemEdit_UpsertMove( const vec3_t fromOrigin, const vec3_t toOrigin 
 	}
 
 	VectorCopy( toOrigin, itemEditMoves[slot].toOrigin );
+	if ( itemEditMoves[slot].itemIndex <= 0 ) {
+		itemEditMoves[slot].itemIndex = ItemEdit_ItemIndexAtLayoutOrigin( fromOrigin );
+	}
 	itemEdit_dirty = qtrue;
 }
 
@@ -1118,7 +1153,27 @@ static void ItemEdit_RemoveAddAtOrigin( const vec3_t origin ) {
 	itemEdit_dirty = qtrue;
 }
 
-static void ItemEdit_UpsertDelete( const vec3_t origin ) {
+static int ItemEdit_ItemIndexFromPickup( const gentity_t *ent, const vec3_t layoutKey ) {
+	int	idx;
+
+	if ( ent ) {
+		if ( ent->s.frame > 0 && ent->s.frame < bg_numItems ) {
+			return ent->s.frame;
+		}
+		if ( ent->s.modelindex > 0 && ent->s.modelindex < bg_numItems ) {
+			return ent->s.modelindex;
+		}
+	}
+	if ( layoutKey ) {
+		idx = ItemEdit_BspIndexAtOrigin( layoutKey );
+		if ( idx > 0 && idx < bg_numItems ) {
+			return idx;
+		}
+	}
+	return 0;
+}
+
+static void ItemEdit_UpsertDelete( const vec3_t origin, int itemIndex ) {
 	int	slot;
 
 	if ( !origin ) {
@@ -1133,6 +1188,11 @@ static void ItemEdit_UpsertDelete( const vec3_t origin ) {
 		}
 		slot = itemEditDeleteCount++;
 		VectorCopy( origin, itemEditDeletes[slot].origin );
+		itemEditDeletes[slot].itemIndex = itemIndex > 0 ? itemIndex
+				: ItemEdit_ItemIndexAtLayoutOrigin( origin );
+		itemEdit_dirty = qtrue;
+	} else if ( itemIndex > 0 && itemEditDeletes[slot].itemIndex != itemIndex ) {
+		itemEditDeletes[slot].itemIndex = itemIndex;
 		itemEdit_dirty = qtrue;
 	}
 }
@@ -1438,11 +1498,14 @@ static qboolean ItemEdit_ParseAddLine( const char *line, float *ox, float *oy, f
 	return ( *idx > 0 && *idx < bg_numItems ) ? qtrue : qfalse;
 }
 
-static qboolean ItemEdit_ParseDeleteLine( const char *line, float *ox, float *oy, float *oz ) {
+static qboolean ItemEdit_ParseDeleteLine( const char *line, float *ox, float *oy, float *oz, int *itemIdx ) {
 	const char	*p;
 
 	if ( !line || !ox || !oy || !oz ) {
 		return qfalse;
+	}
+	if ( itemIdx ) {
+		*itemIdx = 0;
 	}
 	if ( Q_stricmpn( line, "idelete ", 8 ) ) {
 		return qfalse;
@@ -1451,6 +1514,12 @@ static qboolean ItemEdit_ParseDeleteLine( const char *line, float *ox, float *oy
 	*ox = (float)_atof( &p );
 	*oy = (float)_atof( &p );
 	*oz = (float)_atof( &p );
+	while ( *p == ' ' || *p == '\t' ) {
+		p++;
+	}
+	if ( itemIdx && *p ) {
+		*itemIdx = _atoi( &p );
+	}
 	return qtrue;
 }
 
@@ -1511,8 +1580,13 @@ static qboolean ItemEdit_DeletePickup( gentity_t *target ) {
 	if ( !ItemEdit_OriginMatch( target->s.pos.trBase, layoutKey ) ) {
 		ItemEdit_ApplyMoveOnEnt( target, layoutKey );
 	}
-	ItemEdit_PurgeLayoutRecordsForKey( layoutKey );
-	ItemEdit_UpsertDelete( layoutKey );
+	{
+		int	deleteItemIdx;
+
+		deleteItemIdx = ItemEdit_ItemIndexFromPickup( target, layoutKey );
+		ItemEdit_PurgeLayoutRecordsForKey( layoutKey );
+		ItemEdit_UpsertDelete( layoutKey, deleteItemIdx );
+	}
 	ItemEdit_HideLayoutDeletedPickup( target );
 	ItemEdit_ClearOverlappingPickupsAtKey( layoutKey, -1 );
 	return qtrue;
@@ -1587,12 +1661,19 @@ static gitem_t *ItemEdit_OverrideItemForEnt( const gentity_t *ent ) {
 /*
  * bg_lib sscanf() does not update its return count (always 0); use _atof/_atoi.
  */
-static qboolean ItemEdit_ParseSwapLine( const char *line, float *ox, float *oy, float *oz, int *idx ) {
+static qboolean ItemEdit_ParseSwapLine( const char *line, float *ox, float *oy, float *oz,
+		int *toIdx, int *fromIdx ) {
 	const char	*p;
 	const char	*lastTok;
+	const char	*prevTok;
+	int			to;
+	int			from;
 
-	if ( !line || !ox || !oy || !oz || !idx ) {
+	if ( !line || !ox || !oy || !oz || !toIdx ) {
 		return qfalse;
+	}
+	if ( fromIdx ) {
+		*fromIdx = 0;
 	}
 	if ( Q_stricmpn( line, "iswap ", 6 ) ) {
 		return qfalse;
@@ -1610,6 +1691,7 @@ static qboolean ItemEdit_ParseSwapLine( const char *line, float *ox, float *oy, 
 	}
 
 	lastTok = p;
+	prevTok = NULL;
 	while ( *p ) {
 		if ( *p == ' ' || *p == '\t' ) {
 			const char	*q = p + 1;
@@ -1618,6 +1700,7 @@ static qboolean ItemEdit_ParseSwapLine( const char *line, float *ox, float *oy, 
 				q++;
 			}
 			if ( *q ) {
+				prevTok = lastTok;
 				lastTok = q;
 			}
 		}
@@ -1625,16 +1708,37 @@ static qboolean ItemEdit_ParseSwapLine( const char *line, float *ox, float *oy, 
 	}
 
 	p = lastTok;
-	*idx = _atoi( &p );
-	return qtrue;
+	from = _atoi( &p );
+	if ( prevTok ) {
+		p = prevTok;
+		to = _atoi( &p );
+		if ( to > 0 && to < bg_numItems ) {
+			*toIdx = to;
+			if ( fromIdx && from > 0 && from < bg_numItems ) {
+				*fromIdx = from;
+			}
+			return qtrue;
+		}
+	}
+
+	p = lastTok;
+	to = _atoi( &p );
+	if ( to > 0 && to < bg_numItems ) {
+		*toIdx = to;
+		return qtrue;
+	}
+	return qfalse;
 }
 
 static qboolean ItemEdit_ParseMoveLine( const char *line,
-		float *fox, float *foy, float *foz, float *nox, float *noy, float *noz ) {
+		float *fox, float *foy, float *foz, float *nox, float *noy, float *noz, int *itemIdx ) {
 	const char	*p;
 
 	if ( !line || !fox || !foy || !foz || !nox || !noy || !noz ) {
 		return qfalse;
+	}
+	if ( itemIdx ) {
+		*itemIdx = 0;
 	}
 	if ( Q_stricmpn( line, "imove ", 6 ) ) {
 		return qfalse;
@@ -1646,6 +1750,12 @@ static qboolean ItemEdit_ParseMoveLine( const char *line,
 	*nox = (float)_atof( &p );
 	*noy = (float)_atof( &p );
 	*noz = (float)_atof( &p );
+	while ( *p == ' ' || *p == '\t' ) {
+		p++;
+	}
+	if ( itemIdx && *p ) {
+		*itemIdx = _atoi( &p );
+	}
 	return qtrue;
 }
 
@@ -1819,6 +1929,7 @@ static void ItemEdit_UpsertOverride( const gentity_t *pickupHint, const vec3_t o
 		slot = itemEditOverrideCount++;
 		VectorCopy( origin, itemEditOverrides[slot].origin );
 		itemEditOverrides[slot].itemIndex = itemIndex;
+		itemEditOverrides[slot].fromItemIndex = 0;
 	} else if ( itemIndex <= 0 ) {
 		itemEditOverrideCount--;
 		for ( ; slot < itemEditOverrideCount; slot++ ) {
@@ -1829,11 +1940,24 @@ static void ItemEdit_UpsertOverride( const gentity_t *pickupHint, const vec3_t o
 		itemEditOverrides[slot].itemIndex = itemIndex;
 	}
 
-	itemEdit_dirty = qtrue;
-}
+	if ( itemIndex > 0 ) {
+		int	fromIdx;
 
-void ItemEdit_LoadLayoutForMap( void ) {
-	SessionLayout_LoadForMap();
+		fromIdx = 0;
+		if ( pickupHint ) {
+			if ( pickupHint->s.frame > 0 && pickupHint->s.frame < bg_numItems ) {
+				fromIdx = pickupHint->s.frame;
+			} else if ( pickupHint->s.modelindex > 0 && pickupHint->s.modelindex < bg_numItems ) {
+				fromIdx = pickupHint->s.modelindex;
+			}
+		}
+		if ( fromIdx <= 0 && origin ) {
+			fromIdx = ItemEdit_ItemIndexAtLayoutOrigin( origin );
+		}
+		itemEditOverrides[slot].fromItemIndex = fromIdx;
+	}
+
+	itemEdit_dirty = qtrue;
 }
 
 void ItemEdit_SessionPrepareLoad( void ) {
@@ -1892,23 +2016,44 @@ void ItemEdit_SessionWriteLines( sessionLayoutOut_t *out ) {
 
 	for ( i = 0; i < itemEditOverrideCount; i++ ) {
 		item = &bg_itemlist[itemEditOverrides[i].itemIndex];
-		Com_sprintf( line, sizeof( line ), "iswap %.3f %.3f %.3f %s %i\n",
-				itemEditOverrides[i].origin[0],
-				itemEditOverrides[i].origin[1],
-				itemEditOverrides[i].origin[2],
-				( item->classname && item->classname[0] ) ? item->classname : "?",
-				itemEditOverrides[i].itemIndex );
+		if ( itemEditOverrides[i].fromItemIndex > 0 ) {
+			Com_sprintf( line, sizeof( line ), "iswap %.3f %.3f %.3f %s %i %i\n",
+					itemEditOverrides[i].origin[0],
+					itemEditOverrides[i].origin[1],
+					itemEditOverrides[i].origin[2],
+					( item->classname && item->classname[0] ) ? item->classname : "?",
+					itemEditOverrides[i].itemIndex,
+					itemEditOverrides[i].fromItemIndex );
+		} else {
+			Com_sprintf( line, sizeof( line ), "iswap %.3f %.3f %.3f %s %i\n",
+					itemEditOverrides[i].origin[0],
+					itemEditOverrides[i].origin[1],
+					itemEditOverrides[i].origin[2],
+					( item->classname && item->classname[0] ) ? item->classname : "?",
+					itemEditOverrides[i].itemIndex );
+		}
 		len = (int)strlen( line );
 		SessionLayout_OutWrite( out, line, len );
 	}
 	for ( i = 0; i < itemEditMoveCount; i++ ) {
-		Com_sprintf( line, sizeof( line ), "imove %.3f %.3f %.3f %.3f %.3f %.3f\n",
-				itemEditMoves[i].fromOrigin[0],
-				itemEditMoves[i].fromOrigin[1],
-				itemEditMoves[i].fromOrigin[2],
-				itemEditMoves[i].toOrigin[0],
-				itemEditMoves[i].toOrigin[1],
-				itemEditMoves[i].toOrigin[2] );
+		if ( itemEditMoves[i].itemIndex > 0 ) {
+			Com_sprintf( line, sizeof( line ), "imove %.3f %.3f %.3f %.3f %.3f %.3f %i\n",
+					itemEditMoves[i].fromOrigin[0],
+					itemEditMoves[i].fromOrigin[1],
+					itemEditMoves[i].fromOrigin[2],
+					itemEditMoves[i].toOrigin[0],
+					itemEditMoves[i].toOrigin[1],
+					itemEditMoves[i].toOrigin[2],
+					itemEditMoves[i].itemIndex );
+		} else {
+			Com_sprintf( line, sizeof( line ), "imove %.3f %.3f %.3f %.3f %.3f %.3f\n",
+					itemEditMoves[i].fromOrigin[0],
+					itemEditMoves[i].fromOrigin[1],
+					itemEditMoves[i].fromOrigin[2],
+					itemEditMoves[i].toOrigin[0],
+					itemEditMoves[i].toOrigin[1],
+					itemEditMoves[i].toOrigin[2] );
+		}
 		len = (int)strlen( line );
 		SessionLayout_OutWrite( out, line, len );
 	}
@@ -1924,10 +2069,24 @@ void ItemEdit_SessionWriteLines( sessionLayoutOut_t *out ) {
 		SessionLayout_OutWrite( out, line, len );
 	}
 	for ( i = 0; i < itemEditDeleteCount; i++ ) {
-		Com_sprintf( line, sizeof( line ), "idelete %.3f %.3f %.3f\n",
-				itemEditDeletes[i].origin[0],
-				itemEditDeletes[i].origin[1],
-				itemEditDeletes[i].origin[2] );
+		int	delIdx;
+
+		delIdx = itemEditDeletes[i].itemIndex;
+		if ( delIdx <= 0 ) {
+			delIdx = ItemEdit_ItemIndexAtLayoutOrigin( itemEditDeletes[i].origin );
+		}
+		if ( delIdx > 0 ) {
+			Com_sprintf( line, sizeof( line ), "idelete %.3f %.3f %.3f %i\n",
+					itemEditDeletes[i].origin[0],
+					itemEditDeletes[i].origin[1],
+					itemEditDeletes[i].origin[2],
+					delIdx );
+		} else {
+			Com_sprintf( line, sizeof( line ), "idelete %.3f %.3f %.3f\n",
+					itemEditDeletes[i].origin[0],
+					itemEditDeletes[i].origin[1],
+					itemEditDeletes[i].origin[2] );
+		}
 		len = (int)strlen( line );
 		SessionLayout_OutWrite( out, line, len );
 	}
@@ -1959,6 +2118,9 @@ qboolean ItemEdit_SessionParseLine( const char *lineBuf ) {
 	float	ox, oy, oz;
 	float	nx, ny, nz;
 	int		idx;
+	int		fromIdx;
+	int		moveItemIdx;
+	int		deleteItemIdx;
 	int		slot;
 	vec3_t	parsedOrigin;
 
@@ -1999,7 +2161,7 @@ qboolean ItemEdit_SessionParseLine( const char *lineBuf ) {
 		return qtrue;
 	}
 
-	if ( ItemEdit_ParseMoveLine( lineBuf, &ox, &oy, &oz, &nx, &ny, &nz ) ) {
+	if ( ItemEdit_ParseMoveLine( lineBuf, &ox, &oy, &oz, &nx, &ny, &nz, &moveItemIdx ) ) {
 		if ( itemEditMoveCount >= ITEMEDIT_MAX_OVERRIDES ) {
 			return qfalse;
 		}
@@ -2009,6 +2171,15 @@ qboolean ItemEdit_SessionParseLine( const char *lineBuf ) {
 		itemEditMoves[itemEditMoveCount].toOrigin[0] = nx;
 		itemEditMoves[itemEditMoveCount].toOrigin[1] = ny;
 		itemEditMoves[itemEditMoveCount].toOrigin[2] = nz;
+		itemEditMoves[itemEditMoveCount].itemIndex = moveItemIdx;
+		if ( moveItemIdx <= 0 ) {
+			vec3_t	from;
+
+			from[0] = ox;
+			from[1] = oy;
+			from[2] = oz;
+			itemEditMoves[itemEditMoveCount].itemIndex = ItemEdit_ItemIndexAtLayoutOrigin( from );
+		}
 		itemEditMoveCount++;
 		return qtrue;
 	}
@@ -2023,17 +2194,27 @@ qboolean ItemEdit_SessionParseLine( const char *lineBuf ) {
 		itemEditAddCount++;
 		return qtrue;
 	}
-	if ( ItemEdit_ParseDeleteLine( lineBuf, &ox, &oy, &oz ) ) {
+	if ( ItemEdit_ParseDeleteLine( lineBuf, &ox, &oy, &oz, &deleteItemIdx ) ) {
 		if ( itemEditDeleteCount >= ITEMEDIT_MAX_OVERRIDES ) {
 			return qfalse;
 		}
 		itemEditDeletes[itemEditDeleteCount].origin[0] = ox;
 		itemEditDeletes[itemEditDeleteCount].origin[1] = oy;
 		itemEditDeletes[itemEditDeleteCount].origin[2] = oz;
+		itemEditDeletes[itemEditDeleteCount].itemIndex = deleteItemIdx;
+		if ( deleteItemIdx <= 0 ) {
+			vec3_t	origin;
+
+			origin[0] = ox;
+			origin[1] = oy;
+			origin[2] = oz;
+			itemEditDeletes[itemEditDeleteCount].itemIndex = ItemEdit_ItemIndexAtLayoutOrigin( origin );
+		}
 		itemEditDeleteCount++;
 		return qtrue;
 	}
-	if ( !ItemEdit_ParseSwapLine( lineBuf, &ox, &oy, &oz, &idx ) ) {
+	fromIdx = 0;
+	if ( !ItemEdit_ParseSwapLine( lineBuf, &ox, &oy, &oz, &idx, &fromIdx ) ) {
 		return qfalse;
 	}
 	if ( idx <= 0 || idx >= bg_numItems ) {
@@ -2054,6 +2235,10 @@ qboolean ItemEdit_SessionParseLine( const char *lineBuf ) {
 	itemEditOverrides[slot].origin[1] = oy;
 	itemEditOverrides[slot].origin[2] = oz;
 	itemEditOverrides[slot].itemIndex = idx;
+	if ( fromIdx <= 0 ) {
+		fromIdx = ItemEdit_ItemIndexAtLayoutOrigin( parsedOrigin );
+	}
+	itemEditOverrides[slot].fromItemIndex = fromIdx;
 	return qtrue;
 }
 
@@ -2099,8 +2284,31 @@ void ItemEdit_Shutdown( int restart ) {
 	}
 }
 
+static qboolean ItemEdit_CombinedSessionDirty( void ) {
+	if ( itemEdit_dirty || SpawnEdit_SessionIsDirty() || TeleEdit_SessionIsDirty() ) {
+		return qtrue;
+	}
+	if ( ItemEdit_SessionHasRecords() || SpawnEdit_SessionHasRecords()
+			|| TeleEdit_SessionHasRecords() ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+void ItemEdit_SyncDirtyConfigstring( void ) {
+	int		dirty;
+
+	dirty = ItemEdit_CombinedSessionDirty() ? 1 : 0;
+	if ( dirty == itemEdit_dirtyCsSent ) {
+		return;
+	}
+	itemEdit_dirtyCsSent = dirty;
+	trap_SetConfigstring( CS_ITEMEDIT, va( "%i %i", g_editMode.integer, dirty ) );
+}
+
 void ItemEdit_UpdateConfigstring( void ) {
-	trap_SetConfigstring( CS_ITEMEDIT, va( "%i", g_editMode.integer ) );
+	itemEdit_dirtyCsSent = -1;
+	ItemEdit_SyncDirtyConfigstring();
 	SpawnEdit_UpdateConfigstring();
 }
 
@@ -2197,6 +2405,16 @@ static int ItemEdit_RestoreMapDefaults( void ) {
 		SaveRegisteredItems();
 	}
 	return restored;
+}
+
+void ItemEdit_ResetWorldForPresetLoad( void ) {
+	ItemEdit_RestoreMapDefaults();
+	ItemEdit_RemoveAllWalls();
+	ItemEdit_RemoveAllFloors();
+	ItemEdit_RemoveAllSessionAdds();
+	ItemEdit_RestoreAllDeletes();
+	ItemEdit_SessionClearRecords();
+	itemEdit_deferredApplyDone = qfalse;
 }
 
 void Cmd_ItemEdit_f( gentity_t *ent ) {

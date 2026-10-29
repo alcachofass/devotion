@@ -28,4 +28,6 @@ void SpawnEdit_Tele_BroadcastRoster( void );
 void SpawnEdit_Tele_Shutdown( int restart );
 qboolean SpawnEdit_Tele_HandleCommand( gentity_t *ent, const char *sub );
 
+void SpawnEdit_Tele_ResetWorldForPresetLoad( void );
+
 #endif

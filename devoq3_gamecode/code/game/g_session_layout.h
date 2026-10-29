@@ -30,4 +30,14 @@ void SessionLayout_Commit( void );
 void SessionLayout_Purge( void );
 void SessionLayout_Shutdown( int restart );
 
+qboolean SessionLayout_ExportText( char *buf, int bufCap, int *outLen );
+qboolean SessionLayout_ApplyTextPreset( char *buf );
+qboolean SessionLayout_Base64Encode( const byte *in, int inLen, char *out, int outCap, int *outLen );
+qboolean SessionLayout_Base64Decode( const char *in, byte *out, int outCap, int *outLen );
+
+void EditPreset_ClientDisconnect( int clientNum );
+void EditPreset_Init( void );
+void EditPreset_RunFrame( void );
+void Cmd_EditPreset_f( gentity_t *ent );
+
 #endif

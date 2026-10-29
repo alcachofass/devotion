@@ -1683,6 +1683,7 @@ static void CG_DrawActiveFrameCtx( int serverTime, stereoFrame_t stereoView, qbo
 
 	if ( !cg_passHidden ) {
 		CG_ItemEdit_Frame();
+		CG_EditPresets_Frame();
 		CG_SpawnEdit_Frame();
 
 		if ( !cg.renderingThirdPerson && !povActive ) {

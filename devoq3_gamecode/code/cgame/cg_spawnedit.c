@@ -8,6 +8,7 @@ Spectator spawn point editor.
 #include "cg_overlay.h"
 #include "cg_mapedit.h"
 #include "cg_spawnedit_tele.h"
+#include "cg_editpresets.h"
 #include "../client/keycodes.h"
 
 #define SPAWNEDIT_ROW_H				14
@@ -1087,7 +1088,7 @@ void CG_SpawnEdit_DrawResetModal( void ) {
 }
 
 qboolean CG_SpawnEdit_ModalOpen( void ) {
-	return cg_spawnEditResetPrompt || CG_SpawnEdit_Tele_ResetPrompt();
+	return cg_spawnEditResetPrompt || CG_SpawnEdit_Tele_ResetPrompt() || CG_EditPresets_ModalOpen();
 }
 
 qboolean CG_SpawnEdit_KeyEvent( int key, qboolean down ) {
@@ -1188,6 +1189,10 @@ void CG_SpawnEdit_PointerMoveSidebar( int mx, int my, int bodyX, int bodyY, int 
 		cg_spawnEditResetModalHover = CG_SpawnEdit_ResetModalHitTest( mx, my );
 		return;
 	}
+	if ( CG_EditPresets_ModalOpen() ) {
+		CG_EditPresets_ModalPointer( mx, my );
+		return;
+	}
 
 	cg_spawnEditPointerInTeleSection = CG_SpawnEdit_PointInTeleSection( my, bodyY, bodyH );
 	CG_SpawnEdit_Tele_PointerMove( mx, my, bodyX, teleSectionY, bodyW, teleSectionH );
@@ -1242,6 +1247,10 @@ qboolean CG_SpawnEdit_HandleClickSidebar( int mx, int my, int bodyX, int bodyY, 
 
 	CG_SpawnEdit_UnifiedSections( bodyY, bodyH, &spawnContentY, &spawnSectionBottom,
 			&teleSectionY, &teleSectionH );
+
+	if ( CG_EditPresets_ModalOpen() ) {
+		return CG_EditPresets_ModalClick( mx, my );
+	}
 
 	if ( CG_SpawnEdit_Tele_ResetPrompt() ) {
 		modalBtn = CG_SpawnEdit_Tele_ResetModalHitTest( mx, my );
