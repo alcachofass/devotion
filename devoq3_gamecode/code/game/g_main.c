@@ -2820,6 +2820,8 @@ void BeginIntermission( void ) {
 
 	SendDuelStatsMessages();
 
+	G_TryStartNextmapVoteAtIntermission();
+
 	if (level.recordGame) {
 #ifdef WITH_MULTITOURNAMENT
 		if (g_gametype.integer != GT_MULTITOURNAMENT) {
@@ -3109,7 +3111,6 @@ void LogExit( const char *string, qboolean recordGame) {
 
 qboolean CheckNextmapVote( void ) {
 	int maxVotes;
-	int runnerup;
 	int numMaxVotes;
 	int numVotes;
 	int i,j;
@@ -3121,44 +3122,43 @@ qboolean CheckNextmapVote( void ) {
 		return qtrue;
 	}
 
-	if (level.nextMapVoteExecuted && level.time > level.nextMapVoteTime + 1000) {
-		// vote somehow failed to execute, exit level normally
-		Com_Printf("Nextmapvote failed to execute\n");
+	if (level.nextMapVoteTime == 0) {
 		return qtrue;
-	} else if (level.nextMapVoteTime == 0) {
-		// start vote
-		Com_Printf("Starting nextmapvote\n");
-		return !SendNextmapVoteCommand();
-	} 
-	
-	// check if vote is already decided
+	}
+
+	if (level.nextMapVoteExecuted) {
+		if (level.time > level.nextMapVoteTime + 1000) {
+			Com_Printf("Nextmapvote failed to execute\n");
+			return qtrue;
+		}
+		return qfalse;
+	}
+
+	if (level.time < level.nextMapVoteTime) {
+		return qfalse;
+	}
+
+	if ( !level.nextMapVoteTransitionSent ) {
+		level.nextMapVoteTransitionSent = 1;
+		G_BroadcastLevelTransition( LT_NEWMAP );
+		return qfalse;
+	}
 
 	maxVotes = 0;
 	numMaxVotes = 0;
-	runnerup = 0;
 	numVotes = 0;
 	for (i = 0; i < NEXTMAPVOTE_NUM_MAPS; ++i) {
 		numVotes += level.nextmapVotes[i];
 		if (level.nextmapVotes[i] <= 0) {
 			continue;
 		} else if (level.nextmapVotes[i] > maxVotes) {
-			runnerup = maxVotes;
 			maxVotes = level.nextmapVotes[i];
 			numMaxVotes = 1;
 		} else if (level.nextmapVotes[i] == maxVotes) {
-			runnerup = maxVotes;
 			numMaxVotes++;
 		}
 	}
 
-	if (level.nextMapVoteTime > level.time
-			&& !(maxVotes > runnerup + (level.nextMapVoteClients - numVotes))
-			&& level.nextMapVoteClients - numVotes > 0) {
-		// vote still in progress
-		return qfalse;
-	}
-
-	// vote ended, execute result:
 	level.nextMapVoteExecuted = 1;
 
 	if (numMaxVotes <= 0) {
@@ -3188,7 +3188,6 @@ qboolean CheckNextmapVote( void ) {
 
 	Com_Printf("NextMapVote: switching to map %s\n", map);
 	trap_Cvar_VariableStringBuffer( "nextmap", nextmap, sizeof(nextmap) );
-	G_BroadcastLevelTransition( LT_NEWMAP );
 	if (*nextmap) {
 		trap_SendConsoleCommand( EXEC_APPEND, va("map \"%s\"; set nextmap \"%s\"\n", map, nextmap ));
 	} else {
@@ -3225,6 +3224,17 @@ void CheckIntermissionExit( void ) {
 			return;
 		}
 		ExitLevel();
+		return;
+	}
+
+	// When the vote timer ends, pick the next map even if nobody clicked
+	// ready on the scoreboard (common when using the map vote UI only).
+	if ( g_nextmapVote.integer && level.nextMapVoteTime && level.time >= level.nextMapVoteTime ) {
+		if ( !CheckNextmapVote() ) {
+			return;
+		}
+		ExitLevel();
+		return;
 	}
 
 	// see which players are ready

@@ -1418,6 +1418,10 @@ qboolean UI_ConsoleCommand( int realTime ) {
 		UI_VoteNextMapMenu();
 		return qtrue;
 	}
+        if ( Q_stricmp (cmd, "ui_nextmapvote_close") == 0 ) {
+		UI_VoteNextMapMenu_Close();
+		return qtrue;
+	}
 
         if ( Q_stricmp (cmd, "ui_trackconsentmenu") == 0 ) {
 		UI_TrackConsentMenu(UI_TrackConsentAction);
@@ -1587,10 +1591,34 @@ UI_Refresh
 */
 void UI_Refresh( int realtime )
 {
+	char	closeVote[8];
+	char	overlay[8];
+	int		dotIndex;
+	vec4_t	yellow;
+
 	uis.frametime = realtime - uis.realtime;
 	uis.realtime  = realtime;
 
+	trap_Cvar_VariableStringBuffer( "cg_closeNextmapVoteUi", closeVote, sizeof( closeVote ) );
+	if ( closeVote[0] == '1' ) {
+		trap_Cvar_Set( "cg_closeNextmapVoteUi", "0" );
+		UI_VoteNextMapMenu_Close();
+	}
+
 	if ( !( trap_Key_GetCatcher() & KEYCATCH_UI ) ) {
+		trap_Cvar_VariableStringBuffer( "cg_levelTransitionOverlay", overlay, sizeof( overlay ) );
+		if ( overlay[0] == '1' ) {
+			dotIndex = ( uis.realtime / 400 ) % 3;
+			yellow[0] = 1.0f;
+			yellow[1] = 0.85f;
+			yellow[2] = 0.2f;
+			yellow[3] = 1.0f;
+			UI_DrawProportionalString( 320, 72, "Server transitioning to",
+				UI_CENTER | UI_DROPSHADOW, yellow );
+			UI_DrawProportionalString( 320, 92, va( "new level, please wait%s",
+					dotIndex == 0 ? ".  " : ( dotIndex == 1 ? ".. " : "..." ) ),
+				UI_CENTER | UI_DROPSHADOW, color_white );
+		}
 		return;
 	}
 
@@ -1661,6 +1689,20 @@ void UI_Refresh( int realtime )
 	{
 		trap_S_StartLocalSound( menu_in_sound, CHAN_LOCAL_SOUND );
 		m_entersound = qfalse;
+	}
+
+	trap_Cvar_VariableStringBuffer( "cg_levelTransitionOverlay", overlay, sizeof( overlay ) );
+	if ( overlay[0] == '1' ) {
+		dotIndex = ( uis.realtime / 400 ) % 3;
+		yellow[0] = 1.0f;
+		yellow[1] = 0.85f;
+		yellow[2] = 0.2f;
+		yellow[3] = 1.0f;
+		UI_DrawProportionalString( 320, 72, "Server transitioning to",
+			UI_CENTER | UI_DROPSHADOW, yellow );
+		UI_DrawProportionalString( 320, 92, va( "new level, please wait%s",
+				dotIndex == 0 ? ".  " : ( dotIndex == 1 ? ".. " : "..." ) ),
+			UI_CENTER | UI_DROPSHADOW, color_white );
 	}
 }
 

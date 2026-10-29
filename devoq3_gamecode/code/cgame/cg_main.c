@@ -2793,6 +2793,8 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 
 	CG_EditPresets_OnMapChange();
 
+	CG_RestoreNewmapLevelTransitionAfterInit();
+
 }
 
 /*
@@ -2805,6 +2807,7 @@ Called before every level change or subsystem restart
 void CG_Shutdown( void ) {
 	// some mods may need to do cleanup work here,
 	// like closing files or archiving session data
+	CG_PreserveNewmapLevelTransitionForLoad();
 	if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_NEWMAP ) {
 		CG_BeginLevelLoadFade();
 	}
