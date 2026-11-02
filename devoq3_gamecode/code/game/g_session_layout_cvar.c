@@ -118,6 +118,9 @@ static qboolean SessionLayout_BinAppendCoord3( byte *buf, int cap, int *len, flo
 static qboolean SessionLayout_ParseSwapLine( const char *line, float *ox, float *oy, float *oz, int *idx ) {
 	const char	*p;
 	const char	*lastTok;
+	const char	*prevTok;
+	int			to;
+	int			from;
 
 	if ( !line || !ox || !oy || !oz || !idx ) {
 		return qfalse;
@@ -135,22 +138,42 @@ static qboolean SessionLayout_ParseSwapLine( const char *line, float *ox, float 
 	if ( !*p ) {
 		return qfalse;
 	}
+
 	lastTok = p;
+	prevTok = NULL;
 	while ( *p ) {
 		if ( *p == ' ' || *p == '\t' ) {
 			const char	*q = p + 1;
+
 			while ( *q == ' ' || *q == '\t' ) {
 				q++;
 			}
 			if ( *q ) {
+				prevTok = lastTok;
 				lastTok = q;
 			}
 		}
 		p++;
 	}
+
 	p = lastTok;
-	*idx = _atoi( &p );
-	return ( *idx > 0 ) ? qtrue : qfalse;
+	from = _atoi( &p );
+	if ( prevTok ) {
+		p = prevTok;
+		to = _atoi( &p );
+		if ( to > 0 && to < bg_numItems ) {
+			*idx = to;
+			return qtrue;
+		}
+	}
+
+	p = lastTok;
+	to = _atoi( &p );
+	if ( to > 0 && to < bg_numItems ) {
+		*idx = to;
+		return qtrue;
+	}
+	return qfalse;
 }
 
 static qboolean SessionLayout_ParseMove6( const char *line, const char *prefix,
