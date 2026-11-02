@@ -1,7 +1,7 @@
 /*
 ===========================================================================
 Spectator item pickup editing: swap, move, add, and delete map pickups.
-Session layout persists in layouts/session.cfg across map_restart only.
+Session layout persists in server cvars across map_restart.
 ===========================================================================
 */
 
@@ -2031,7 +2031,7 @@ void ItemEdit_SessionWriteLines( sessionLayoutOut_t *out ) {
 	int			len;
 	gitem_t		*item;
 
-	if ( !out || ( !out->file && !out->buffer ) ) {
+	if ( !out || !out->buffer ) {
 		return;
 	}
 
@@ -2299,7 +2299,7 @@ void ItemEdit_RunDeferredApply( void ) {
 void ItemEdit_Shutdown( int restart ) {
 	(void)restart;
 
-	/* Persist edits across map_restart; stale session.cfg is purged on load when meta mismatches. */
+	/* Persist edits across map_restart via session layout commit on shutdown. */
 	if ( itemEdit_dirty ) {
 		ItemEdit_CommitLayout();
 	}

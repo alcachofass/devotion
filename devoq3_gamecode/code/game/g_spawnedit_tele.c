@@ -1,7 +1,7 @@
 /*
 ===========================================================================
 Spectator teleporter editing: relocate brush entrances and target exits.
-Session layout: layouts/session.cfg (map_restart within match).
+Session layout: server cvars (map_restart within match).
 ===========================================================================
 */
 
@@ -746,7 +746,7 @@ void TeleEdit_SessionWriteLines( sessionLayoutOut_t *out ) {
 	int		i;
 	int		len;
 
-	if ( !out || ( !out->file && !out->buffer ) ) {
+	if ( !out || !out->buffer ) {
 		return;
 	}
 	for ( i = 0; i < teleEdit_triggerMoveCount; i++ ) {

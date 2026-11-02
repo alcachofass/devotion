@@ -9,14 +9,12 @@ Unified spectator edit session (items, spawns, teleporters) for map_restart.
 
 #include "q_shared.h"
 
-#define SESSION_LAYOUT_PATH			"layouts/session.cfg"
 #define SESSION_LAYOUT_VERSION		"sessionedit_v1"
 #define SESSION_LAYOUT_MAX_READ		( 128 * 1024 )
 /* Max edit records persisted in server cvars across map_restart (all types combined). */
 #define SESSION_LAYOUT_MAX_EDIT_RECORDS	100
 
 typedef struct sessionLayoutOut_s {
-	fileHandle_t	file;
 	char			*buffer;
 	int				length;
 	int				capacity;
