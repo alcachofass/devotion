@@ -1,7 +1,7 @@
 /*
 ===========================================================================
 Spectator spawn point editing: move, add, delete, and change team affiliation.
-Session layout persists in layouts/session.cfg across map_restart only.
+Session layout persists in server cvars across map_restart.
 ===========================================================================
 */
 
@@ -901,7 +901,7 @@ void SpawnEdit_SessionWriteLines( sessionLayoutOut_t *out ) {
 	int		i;
 	int		len;
 
-	if ( !out || ( !out->file && !out->buffer ) ) {
+	if ( !out || !out->buffer ) {
 		return;
 	}
 	for ( i = 0; i < spawnEditMoveCount; i++ ) {

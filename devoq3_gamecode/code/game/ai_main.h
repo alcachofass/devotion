@@ -508,6 +508,8 @@ typedef struct bot_state_s
 	float		elim_clue_time;
 	int			elim_clue_client;
 	float		elim_next_roam_time;
+	vec3_t		elim_clue_sticky_origin;	/* finale: reduce loop flip-flop */
+	float		elim_clue_lock_until;
 	qboolean	elim_seek_active;
 	float		elim_seek_until;
 	bot_goal_t	elim_seek_goal;

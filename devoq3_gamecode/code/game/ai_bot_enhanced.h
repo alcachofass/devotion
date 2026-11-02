@@ -88,6 +88,17 @@ int BotEnhanced_ClientIsChatting(int clientnum);
 /* False for chatting players; use before acquiring or engaging an enemy. */
 int BotEnhanced_CanEngageClient(struct bot_state_s *bs, int clientnum);
 
+/*
+ * Enhanced bots only idle-chat when not fighting and not under threat.
+ * When 0, do not AIEnter_Stand for chat or emit smack lines mid-combat.
+ */
+int BotEnhanced_CanIdleChat(struct bot_state_s *bs);
+/*
+ * Abort stand/chat when damaged, shot at, or an incoming projectile threatens.
+ * Returns 1 if the bot left stand for fight or seek.
+ */
+int BotEnhanced_TickChatDefense(struct bot_state_s *bs);
+
 /* Enhanced bots do not use info_camp / BotWantsToCamp roaming. */
 int BotEnhanced_AllowsCamping(void);
 

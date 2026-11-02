@@ -394,6 +394,9 @@ static int BotSmack_CanSpeak( bot_state_t *bs ) {
 	if ( bs->smack_next_time > FloatTime() ) {
 		return 0;
 	}
+	if ( !BotEnhanced_CanIdleChat( bs ) ) {
+		return 0;
+	}
 	return 1;
 }
 

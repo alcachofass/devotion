@@ -1,7 +1,7 @@
 /*
 ===========================================================================
 Spectator item pickup editing: swap, move, add, and delete map pickups.
-Session layout persists in layouts/session.cfg across map_restart only.
+Session layout persists in server cvars across map_restart.
 ===========================================================================
 */
 
@@ -13,6 +13,8 @@ Session layout persists in layouts/session.cfg across map_restart only.
 
 #define ITEMEDIT_SPEC_BIT			1
 #define ITEMEDIT_MAX_OVERRIDES		512
+/* Session layout keys vs live pickups after cvar quantize / floor trace (see SESSION_LAYOUT_COORD_SCALE). */
+#define ITEMEDIT_SESSION_LAYOUT_EPS	8.0f
 
 typedef struct {
 	vec3_t		origin;
@@ -96,7 +98,10 @@ static void ItemEdit_ApplyMoveOnEnt( gentity_t *ent, const vec3_t newOrigin );
 static void ItemEdit_ApplyBspRespawnFields( gentity_t *ent );
 static void ItemEdit_CommitLayout( void );
 static qboolean ItemEdit_OriginMatch( const vec3_t a, const vec3_t b );
+static qboolean ItemEdit_LayoutOriginMatch( const vec3_t a, const vec3_t b );
 static int ItemEdit_FindOriginRecord( const vec3_t origin,
+		const itemEditOriginRec_t *recs, int count );
+static int ItemEdit_FindLayoutOriginRecord( const vec3_t origin,
 		const itemEditOriginRec_t *recs, int count );
 static gentity_t *ItemEdit_FindLivePickupAtOrigin( const vec3_t origin );
 static gentity_t *ItemEdit_FindPickupForLayoutKey( const vec3_t layoutKey, qboolean includeHidden );
@@ -593,6 +598,10 @@ static qboolean ItemEdit_OriginMatch( const vec3_t a, const vec3_t b ) {
 	return ItemEdit_PositionsEqual( a, b );
 }
 
+static qboolean ItemEdit_LayoutOriginMatch( const vec3_t a, const vec3_t b ) {
+	return ( Distance( a, b ) <= ITEMEDIT_SESSION_LAYOUT_EPS ) ? qtrue : qfalse;
+}
+
 static void ItemEdit_ClearMoves( void ) {
 	itemEditMoveCount = 0;
 }
@@ -628,6 +637,18 @@ static int ItemEdit_FindOriginRecord( const vec3_t origin,
 
 	for ( i = 0; i < count; i++ ) {
 		if ( ItemEdit_OriginMatch( recs[i].origin, origin ) ) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static int ItemEdit_FindLayoutOriginRecord( const vec3_t origin,
+		const itemEditOriginRec_t *recs, int count ) {
+	int	i;
+
+	for ( i = 0; i < count; i++ ) {
+		if ( ItemEdit_LayoutOriginMatch( recs[i].origin, origin ) ) {
 			return i;
 		}
 	}
@@ -970,7 +991,7 @@ static gentity_t *ItemEdit_FindMapPickupAtOrigin( const vec3_t origin, qboolean 
 			continue;
 		}
 		ItemEdit_LayoutKeyForEnt( ent, key );
-		if ( ItemEdit_OriginMatch( key, origin ) ) {
+		if ( ItemEdit_LayoutOriginMatch( key, origin ) ) {
 			return ent;
 		}
 	}
@@ -1020,7 +1041,7 @@ static gentity_t *ItemEdit_FindPickupForLayoutKey( const vec3_t layoutKey, qbool
 			continue;
 		}
 		ItemEdit_LayoutKeyForEnt( ent, key );
-		if ( ItemEdit_OriginMatch( key, layoutKey ) ) {
+		if ( ItemEdit_LayoutOriginMatch( key, layoutKey ) ) {
 			return ent;
 		}
 	}
@@ -1621,7 +1642,7 @@ static int ItemEdit_FindOverrideSlotForEnt( const gentity_t *ent ) {
 	}
 
 	ItemEdit_LayoutKeyForEnt( ent, key );
-	i = ItemEdit_FindOriginRecord( key,
+	i = ItemEdit_FindLayoutOriginRecord( key,
 			(const itemEditOriginRec_t *)itemEditOverrides, itemEditOverrideCount );
 	if ( i >= 0 ) {
 		return i;
@@ -2010,7 +2031,7 @@ void ItemEdit_SessionWriteLines( sessionLayoutOut_t *out ) {
 	int			len;
 	gitem_t		*item;
 
-	if ( !out || ( !out->file && !out->buffer ) ) {
+	if ( !out || !out->buffer ) {
 		return;
 	}
 
@@ -2278,7 +2299,7 @@ void ItemEdit_RunDeferredApply( void ) {
 void ItemEdit_Shutdown( int restart ) {
 	(void)restart;
 
-	/* Persist edits across map_restart; stale session.cfg is purged on load when meta mismatches. */
+	/* Persist edits across map_restart via session layout commit on shutdown. */
 	if ( itemEdit_dirty ) {
 		ItemEdit_CommitLayout();
 	}

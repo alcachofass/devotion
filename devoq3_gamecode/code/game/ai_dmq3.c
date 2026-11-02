@@ -2661,7 +2661,8 @@ int BotWantsToChase(bot_state_t *bs) {
 		return qfalse;
 	}
 	/* Rail ready / post-shot: hold distance instead of chasing into mid-range. */
-	if (BotEnhanced_IsActive() && BotWpnSelect_PrefersHoldRange(bs)) {
+	if (BotEnhanced_IsActive() && BotWpnSelect_PrefersHoldRange(bs) &&
+			!BotEnhanced_MustEngageFinale(bs)) {
 		return qfalse;
 	}
 	if (BotAggression(bs) > 50)
@@ -5128,6 +5129,10 @@ void BotCheckConsoleMessages(bot_state_t *bs) {
 				}
 				//if at a valid chat position and not chatting already and not in teamplay
 				else if (bs->ainode != AINode_Stand && BotValidChatPosition(bs) && !TeamPlayIsOn()) {
+					if (BotEnhanced_IsActive() && !BotEnhanced_CanIdleChat(bs)) {
+						trap_BotRemoveConsoleMessage(bs->cs, handle);
+						break;
+					}
 					if ( BotEnhanced_IsActive() &&
 							BotSmack_TryReplyChat( bs, message, netname ) ) {
 						trap_BotRemoveConsoleMessage( bs->cs, handle );
@@ -5143,8 +5148,11 @@ void BotCheckConsoleMessages(bot_state_t *bs) {
 																botname, netname)) {
 							//remove the console message
 							trap_BotRemoveConsoleMessage(bs->cs, handle);
-							bs->stand_time = FloatTime() + BotChatTime(bs);
-							AIEnter_Stand(bs, "BotCheckConsoleMessages: reply chat");
+							if (!BotEnhanced_IsActive() ||
+									BotEnhanced_CanIdleChat(bs)) {
+								bs->stand_time = FloatTime() + BotChatTime(bs);
+								AIEnter_Stand(bs, "BotCheckConsoleMessages: reply chat");
+							}
 							//EA_Say(bs->client, bs->cs.chatmessage);
 							break;
 						}
@@ -5309,6 +5317,19 @@ void BotCheckEvents(bot_state_t *bs, entityState_t *state) {
 				}
 			}
 			*/
+			break;
+		}
+		case EV_PAIN:
+		{
+			int victim;
+
+			victim = state->clientNum;
+			if (victim < 0 || victim >= MAX_CLIENTS) {
+				victim = state->number;
+			}
+			if (BotOpponent_IsActive()) {
+				BotOpponent_OnHeardPain(bs, victim, state->eventParm);
+			}
 			break;
 		}
 		case EV_GLOBAL_SOUND:
@@ -5771,8 +5792,10 @@ void BotDeathmatchAI(bot_state_t *bs, float thinktime) {
 	//if the bot entered the game less than 8 seconds ago
 	if (!bs->entergamechat && bs->entergame_time > FloatTime() - 8) {
 		if (BotChat_EnterGame(bs)) {
-			bs->stand_time = FloatTime() + BotChatTime(bs);
-			AIEnter_Stand(bs, "BotDeathmatchAI: chat enter game");
+			if (!BotEnhanced_IsActive() || BotEnhanced_CanIdleChat(bs)) {
+				bs->stand_time = FloatTime() + BotChatTime(bs);
+				AIEnter_Stand(bs, "BotDeathmatchAI: chat enter game");
+			}
 		}
 		bs->entergamechat = qtrue;
 	}

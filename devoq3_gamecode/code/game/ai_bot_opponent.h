@@ -133,4 +133,15 @@ void BotOpponent_BiasRoamView(struct bot_state_s *bs);
 int BotOpponent_ApplyEnhancedRoamView(struct bot_state_s *bs,
 	struct bot_moveresult_s *mr, struct bot_goal_s *goal);
 
+/*
+ * Observable opponent HP for the current fight target (999 = unknown).
+ * Derived from opponent_belief only — pain, hits, pickups, decay — not gentity health.
+ */
+#define BOT_OPPONENT_HEALTH_UNKNOWN	999
+int BotOpponent_GetBelievedEnemyHealth(const struct bot_state_s *bs);
+
+/* Heard pain grunt: caps believed_health for tracked opponent (pain25/pain50 tiers). */
+void BotOpponent_OnHeardPain(struct bot_state_s *bs, int client,
+	int healthEventParm);
+
 #endif /* AI_BOT_OPPONENT_H */

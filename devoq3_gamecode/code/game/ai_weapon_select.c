@@ -19,6 +19,7 @@ BOT SMART WEAPON SELECT (v1) — see ai_weapon_select.h
 #include "ai_bot_enhanced.h"
 #include "ai_bot_combat.h"
 #include "ai_bot_tactics.h"
+#include "ai_bot_opponent.h"
 
 /* Forward — defined in ai_dmq3.c */
 float BotEntityVisible(int viewer, vec3_t eye, vec3_t viewangles, float fov, int ent);
@@ -57,6 +58,9 @@ static float BotWpnSel_ReactionTime(bot_state_t *bs) {
 #define WPNSEL_MG_PLINK_BONUS			28.0f
 #define WPNSEL_MG_CHIP_HEALTH			40
 #define WPNSEL_MG_CHIP_MAX				25.0f
+#define WPNSEL_FINISH_LG_MAX_DIST		660.0f
+#define WPNSEL_FINISH_MG_PRIMARY_DIST	500.0f
+#define WPNSEL_FINISH_OVERKILL_PEN		78.0f
 #define WPNSEL_MG_DOWNGRADE_HYSTERESIS	18.0f
 #define WPNSEL_MG_OBVIOUS_GAP_BASE		8.0f
 #define WPNSEL_MG_OBVIOUS_GAP_SKILL		10.0f
@@ -497,14 +501,70 @@ static int BotWpnSel_RocketCombatSuitable(const bot_state_t *bs) {
 	return 1;
 }
 
+static int BotWpnSel_WantsChipFinish(const bot_state_t *bs) {
+	int hp;
+
+	hp = BotOpponent_GetBelievedEnemyHealth(bs);
+	return hp > 0 && hp <= WPNSEL_MG_CHIP_HEALTH;
+}
+
+static int BotWpnSel_IsFinishChipWeapon(int wp) {
+	return wp == WP_LIGHTNING || wp == WP_MACHINEGUN ||
+		wp == WP_PLASMAGUN || wp == WP_SHOTGUN;
+}
+
+static float BotWpnSel_FinishWeaponBonus(bot_state_t *bs, int wp, float dist,
+		float skillCombat) {
+	float bonus;
+
+	if (!bs || !BotWpnSel_WantsChipFinish(bs)) {
+		return 0.0f;
+	}
+	bonus = 0.0f;
+	switch (wp) {
+	case WP_LIGHTNING:
+		if (dist > WPNSEL_FINISH_LG_MAX_DIST) {
+			break;
+		}
+		if (dist < 280.0f) {
+			bonus = 36.0f + 14.0f * skillCombat;
+		} else if (dist < 520.0f) {
+			bonus = 46.0f + 16.0f * skillCombat;
+		} else {
+			bonus = 28.0f + 10.0f * skillCombat;
+		}
+		break;
+	case WP_MACHINEGUN:
+		if (dist < 160.0f) {
+			bonus = 16.0f + 6.0f * skillCombat;
+		} else if (dist >= WPNSEL_FINISH_MG_PRIMARY_DIST) {
+			bonus = 44.0f + 14.0f * skillCombat;
+		} else if (dist >= 340.0f) {
+			bonus = 30.0f + 10.0f * skillCombat;
+		} else {
+			bonus = 20.0f + 8.0f * skillCombat;
+		}
+		break;
+	case WP_PLASMAGUN:
+		if (dist < 140.0f || dist > 780.0f) {
+			break;
+		}
+		bonus = 12.0f + 7.0f * skillCombat + random() * 10.0f;
+		break;
+	case WP_SHOTGUN:
+		if (dist > 300.0f) {
+			break;
+		}
+		bonus = 8.0f + 5.0f * skillCombat + random() * 12.0f;
+		break;
+	default:
+		break;
+	}
+	return bonus;
+}
+
 static int BotWpnSel_EnemyHealth(bot_state_t *bs) {
-	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
-		return 999;
-	}
-	if (!g_entities[bs->enemy].client) {
-		return 999;
-	}
-	return g_entities[bs->enemy].health;
+	return BotOpponent_GetBelievedEnemyHealth(bs);
 }
 
 static int BotWpnSel_HasLongRangeHitscan(bot_state_t *bs, float dist) {
@@ -624,7 +684,8 @@ static float BotWpnSel_MachinegunModifier(bot_state_t *bs, float dist,
 	plinkBonus = 0.0f;
 
 	enemyHealth = BotWpnSel_EnemyHealth(bs);
-	if (enemyHealth > 0 && enemyHealth <= WPNSEL_MG_CHIP_HEALTH) {
+	if (enemyHealth < 999 && enemyHealth > 0 &&
+			enemyHealth <= WPNSEL_MG_CHIP_HEALTH) {
 		chipBonus = (float)(WPNSEL_MG_CHIP_HEALTH - enemyHealth) * 0.6f;
 		chipBonus *= (0.45f + 0.55f * skillCombat);
 		if (chipBonus > WPNSEL_MG_CHIP_MAX) {
@@ -943,7 +1004,7 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 	float dist, score, best_score, cur_score, skillCombat, react, eval_dt;
 	float hysteresis, noiseAmp, vis, mgMod, legacyBias;
 	float miss_score, best_miss_score, best_non_mg_score, obviousGap;
-	int best_miss_wp;
+	int best_miss_wp, chipFinish;
 	weaponinfo_t wi;
 
 	if (!BotWpnSelect_IsActive()) {
@@ -965,7 +1026,9 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 			eval_dt = WPNSEL_ENHANCED_MIN_EVAL_INTERVAL;
 		}
 		if (FloatTime() < bs->wps_enhanced_latch_until) {
-			return bs->weaponnum;
+			if (!BotWpnSel_WantsChipFinish(bs)) {
+				return bs->weaponnum;
+			}
 		}
 	}
 
@@ -996,6 +1059,7 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 
 	alternatives = BotWpnSelect_CountCombatAlternatives(bs, dist);
 	mgMod = BotWpnSel_MachinegunModifier(bs, dist, skillCombat);
+	chipFinish = BotWpnSel_WantsChipFinish(bs);
 
 	voluntaryCloseCombat = 0;
 	preferredCloseWp = WP_NONE;
@@ -1072,6 +1136,12 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 		if (wp == WP_MACHINEGUN) {
 			score += mgMod;
 		}
+		if (chipFinish) {
+			if (wp == WP_RAILGUN || wp == WP_ROCKET_LAUNCHER || wp == WP_BFG) {
+				score -= WPNSEL_FINISH_OVERKILL_PEN;
+			}
+			score += BotWpnSel_FinishWeaponBonus(bs, wp, dist, skillCombat);
+		}
 		if (wp == WP_GRENADE_LAUNCHER && BotWpnSel_HasBetterThanGrenade(bs)) {
 			score -= WPNSEL_GL_LASTRESORT_PEN;
 		}
@@ -1122,6 +1192,10 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 				(0.65f + 0.55f * (1.0f - skillCombat));
 			switchCost = (BotWpnSel_SwitchOutCost(bs, bs->weaponnum) +
 				BotWpnSel_SwitchInCost(&wi)) * WPNSEL_SWITCH_COST_SCALE;
+			if (chipFinish && bs->weaponnum == WP_RAILGUN &&
+					BotWpnSel_IsFinishChipWeapon(wp)) {
+				switchCost *= 0.18f;
+			}
 			/* Cheap to leave rail into mid/close weapons when range collapses. */
 			if (bs->weaponnum == WP_RAILGUN && BotWpnSel_IsRailDumpCandidate(wp) &&
 					dist < WPNSEL_RAIL_SOFT_MAX_DIST) {
@@ -1153,6 +1227,9 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 		float hyst;
 
 		hyst = hysteresis;
+		if (chipFinish && BotWpnSel_IsFinishChipWeapon(best_wp)) {
+			hyst *= 0.12f;
+		}
 		/* Dumping rail while close or closing: do not cling to the current gun. */
 		if (bs->weaponnum == WP_RAILGUN && best_wp != WP_RAILGUN &&
 				(dist < WPNSEL_RAIL_SOFT_MAX_DIST ||
@@ -1171,7 +1248,8 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 	}
 
 	if (best_wp == WP_MACHINEGUN && bs->weaponnum != WP_MACHINEGUN &&
-			(bs->weaponnum == WP_LIGHTNING || bs->weaponnum == WP_RAILGUN)) {
+			(bs->weaponnum == WP_LIGHTNING || bs->weaponnum == WP_RAILGUN) &&
+			!chipFinish) {
 		float downgradeHyst;
 
 		downgradeHyst = WPNSEL_MG_DOWNGRADE_HYSTERESIS * (0.45f + 0.55f * skillCombat);
@@ -1183,11 +1261,17 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 		}
 	}
 
-	if (best_wp == WP_MACHINEGUN && best_non_mg_wp >= 0 && skillCombat > 0.45f) {
+	if (best_wp == WP_MACHINEGUN && best_non_mg_wp >= 0 && skillCombat > 0.45f &&
+			!chipFinish) {
 		obviousGap = WPNSEL_MG_OBVIOUS_GAP_BASE + WPNSEL_MG_OBVIOUS_GAP_SKILL * skillCombat;
 		if (best_non_mg_score > best_score - obviousGap) {
 			best_wp = best_non_mg_wp;
 		}
+	}
+
+	if (chipFinish && BotWpnSel_IsFinishChipWeapon(best_wp) &&
+			bs->weaponnum != best_wp) {
+		bs->wps_next_eval_time = FloatTime() + eval_dt * 0.35f;
 	}
 
 	bs->wps_desired_weapon = BOTWPN_DESIRE_NONE;
@@ -1222,7 +1306,8 @@ int BotWpnSelect_Choose(bot_state_t *bs) {
 
 	if (BotEnhanced_IsActive() && best_wp != bs->weaponnum) {
 		if (FloatTime() - bs->wps_last_switch_time < WPNSEL_ENHANCED_MIN_SWITCH_INTERVAL) {
-			if (!(bs->weaponnum == WP_RAILGUN && best_wp != WP_RAILGUN &&
+			if (!(chipFinish && BotWpnSel_IsFinishChipWeapon(best_wp)) &&
+					!(bs->weaponnum == WP_RAILGUN && best_wp != WP_RAILGUN &&
 					(dist < WPNSEL_RAIL_SOFT_MAX_DIST ||
 					 BotWpnSel_RailJustFired(bs)))) {
 				best_wp = bs->weaponnum;

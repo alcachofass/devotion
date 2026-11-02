@@ -1,7 +1,7 @@
 /*
 ===========================================================================
-Unified layouts/session.cfg for item, spawn, and teleporter edits.
-Falls back to an in-process snapshot when the game directory is not writable.
+Unified session layout for item, spawn, and teleporter edits (map_restart).
+Persisted in server cvars (g_sessLayout*) with an in-process text snapshot.
 ===========================================================================
 */
 
@@ -18,41 +18,25 @@ qboolean SessionLayout_CvarStorage_Restore( const char *mapname, int gametype,
 		char *snapshot, int snapCap, int *outLen,
 		char *storedMap, int storedMapSize, int *storedGametype );
 
-#define SESSION_LAYOUT_PROBE_PATH	"layouts/.session_probe"
-#define SESSION_LAYOUT_PROBE_TOKEN	"sessionedit_probe_v1"
-
-typedef enum {
-	SESSION_STORAGE_UNKNOWN = 0,
-	SESSION_STORAGE_DISK,
-	SESSION_STORAGE_MEMORY
-} sessionStorage_t;
-
-static sessionStorage_t		sessionLayout_storage = SESSION_STORAGE_UNKNOWN;
 static char					sessionLayout_snapshot[SESSION_LAYOUT_MAX_READ];
 static int					sessionLayout_snapshotLen;
 static char					sessionLayout_snapshotMap[MAX_QPATH];
 static int					sessionLayout_snapshotGametype = -1;
 
 void SessionLayout_OutWrite( sessionLayoutOut_t *out, const void *data, int len ) {
-	if ( !out || !data || len <= 0 ) {
+	if ( !out || !data || len <= 0 || !out->buffer ) {
 		return;
 	}
 	if ( out->overflow ) {
 		return;
 	}
 
-	if ( out->file ) {
-		trap_FS_Write( data, len, out->file );
+	if ( out->length + len > out->capacity ) {
+		out->overflow = qtrue;
+		return;
 	}
-
-	if ( out->buffer ) {
-		if ( out->length + len > out->capacity ) {
-			out->overflow = qtrue;
-			return;
-		}
-		Com_Memcpy( out->buffer + out->length, data, len );
-		out->length += len;
-	}
+	Com_Memcpy( out->buffer + out->length, data, len );
+	out->length += len;
 }
 
 static void SessionLayout_Chomp( char *s ) {
@@ -132,131 +116,11 @@ qboolean SessionLayout_MapNamesMatch( const char *a, const char *b ) {
 	return ( Q_stricmp( na, nb ) == 0 ) ? qtrue : qfalse;
 }
 
-static void SessionLayout_TruncateFile( const char *path ) {
-	fileHandle_t	f;
-
-	if ( !path || !path[0] ) {
-		return;
-	}
-	trap_FS_FOpenFile( path, &f, FS_WRITE );
-	if ( f ) {
-		trap_FS_FCloseFile( f );
-	}
-}
-
 static void SessionLayout_ClearSnapshot( void ) {
 	sessionLayout_snapshotLen = 0;
 	sessionLayout_snapshotMap[0] = '\0';
 	sessionLayout_snapshotGametype = -1;
 	SessionLayout_CvarStorage_Clear();
-}
-
-static void SessionLayout_UseMemoryStorage( const char *reason ) {
-	if ( sessionLayout_storage != SESSION_STORAGE_MEMORY ) {
-		G_Printf( S_COLOR_YELLOW "WARNING: session layout using in-memory storage: %s\n",
-				reason ? reason : "disk unavailable" );
-	}
-	sessionLayout_storage = SESSION_STORAGE_MEMORY;
-}
-
-static qboolean SessionLayout_ProbeDiskWritable( void ) {
-	fileHandle_t	f;
-	const char		*token;
-	int				tokenLen;
-	int				readLen;
-	char			readBuf[64];
-
-	token = SESSION_LAYOUT_PROBE_TOKEN;
-	tokenLen = (int)strlen( token );
-
-	trap_FS_FOpenFile( SESSION_LAYOUT_PROBE_PATH, &f, FS_WRITE );
-	if ( !f ) {
-		return qfalse;
-	}
-	trap_FS_Write( token, tokenLen, f );
-	trap_FS_FCloseFile( f );
-
-	readLen = trap_FS_FOpenFile( SESSION_LAYOUT_PROBE_PATH, &f, FS_READ );
-	if ( !f || readLen < tokenLen ) {
-		if ( f ) {
-			trap_FS_FCloseFile( f );
-		}
-		SessionLayout_TruncateFile( SESSION_LAYOUT_PROBE_PATH );
-		return qfalse;
-	}
-	if ( readLen >= (int)sizeof( readBuf ) ) {
-		readLen = (int)sizeof( readBuf ) - 1;
-	}
-	trap_FS_Read( readBuf, readLen, f );
-	trap_FS_FCloseFile( f );
-	readBuf[readLen] = '\0';
-	SessionLayout_TruncateFile( SESSION_LAYOUT_PROBE_PATH );
-
-	if ( readLen != tokenLen || Q_strncmp( readBuf, token, tokenLen ) ) {
-		return qfalse;
-	}
-
-	return qtrue;
-}
-
-static void SessionLayout_EnsureStorageKnown( void ) {
-	if ( sessionLayout_storage != SESSION_STORAGE_UNKNOWN ) {
-		return;
-	}
-	if ( SessionLayout_ProbeDiskWritable() ) {
-		sessionLayout_storage = SESSION_STORAGE_DISK;
-	} else {
-		SessionLayout_UseMemoryStorage( "write probe failed" );
-	}
-}
-
-static qboolean SessionLayout_BufferEqual( const char *a, const char *b, int len ) {
-	int		i;
-
-	if ( !a || !b || len <= 0 ) {
-		return qfalse;
-	}
-	for ( i = 0; i < len; i++ ) {
-		if ( a[i] != b[i] ) {
-			return qfalse;
-		}
-	}
-	return qtrue;
-}
-
-static qboolean SessionLayout_WriteDiskVerified( const char *data, int len ) {
-	fileHandle_t	f;
-	int				readLen;
-	char			*readBuf;
-	qboolean		ok;
-
-	if ( !data || len <= 0 ) {
-		return qfalse;
-	}
-
-	trap_FS_FOpenFile( SESSION_LAYOUT_PATH, &f, FS_WRITE );
-	if ( !f ) {
-		return qfalse;
-	}
-	trap_FS_Write( data, len, f );
-	trap_FS_FCloseFile( f );
-
-	readLen = trap_FS_FOpenFile( SESSION_LAYOUT_PATH, &f, FS_READ );
-	if ( !f || readLen != len ) {
-		if ( f ) {
-			trap_FS_FCloseFile( f );
-		}
-		return qfalse;
-	}
-
-	readBuf = BG_Alloc( readLen + 1 );
-	trap_FS_Read( readBuf, readLen, f );
-	trap_FS_FCloseFile( f );
-	readBuf[readLen] = '\0';
-
-	ok = SessionLayout_BufferEqual( data, readBuf, len );
-	BG_Free( readBuf );
-	return ok;
 }
 
 static qboolean SessionLayout_SnapshotMatches( const char *mapname, int gametype ) {
@@ -302,19 +166,13 @@ static qboolean SessionLayout_Serialize( sessionLayoutOut_t *out, const char *ma
 	return out->overflow ? qfalse : qtrue;
 }
 
-static void SessionLayout_PurgeDiskOnly( void ) {
-	SessionLayout_TruncateFile( SESSION_LAYOUT_PATH );
-}
-
 void SessionLayout_Purge( void ) {
-	SessionLayout_PurgeDiskOnly();
 	SessionLayout_ClearSnapshot();
 	SessionLayout_ClearEditDirtyFlags();
-	G_Printf( "Session layout purged: %s\n", SESSION_LAYOUT_PATH );
+	G_Printf( "Session layout purged\n" );
 }
 
-static qboolean SessionLayout_ParseBuffer( const char *mapname, int gametype, char *buf,
-		qboolean metaMismatchPurgeDisk ) {
+static qboolean SessionLayout_ParseBuffer( const char *mapname, int gametype, char *buf ) {
 	char	*line;
 	char	*p;
 	char	*nl;
@@ -386,19 +244,13 @@ static qboolean SessionLayout_ParseBuffer( const char *mapname, int gametype, ch
 		return qfalse;
 	}
 	if ( !SessionLayout_MapNamesMatch( metaMap, mapname ) ) {
-		G_Printf( S_COLOR_YELLOW "WARNING: session layout is for map '%s', not '%s' - purging\n",
+		G_Printf( S_COLOR_YELLOW "WARNING: session layout is for map '%s', not '%s'\n",
 				metaMap, mapname );
-		if ( metaMismatchPurgeDisk ) {
-			SessionLayout_PurgeDiskOnly();
-		}
 		return qfalse;
 	}
 	if ( metaGametype != gametype ) {
-		G_Printf( S_COLOR_YELLOW "WARNING: session layout is for gametype %i, not %i - purging\n",
+		G_Printf( S_COLOR_YELLOW "WARNING: session layout is for gametype %i, not %i\n",
 				metaGametype, gametype );
-		if ( metaMismatchPurgeDisk ) {
-			SessionLayout_PurgeDiskOnly();
-		}
 		return qfalse;
 	}
 
@@ -456,40 +308,11 @@ static qboolean SessionLayout_ParseBuffer( const char *mapname, int gametype, ch
 	return qtrue;
 }
 
-
-static qboolean SessionLayout_ReadFile( const char *mapname, int gametype ) {
-	fileHandle_t	f;
-	int				len;
-	char			*buf;
-	qboolean		ok;
-
-	len = trap_FS_FOpenFile( SESSION_LAYOUT_PATH, &f, FS_READ );
-	if ( !f ) {
-		return qfalse;
-	}
-	if ( len <= 0 ) {
-		trap_FS_FCloseFile( f );
-		return qfalse;
-	}
-	if ( len > SESSION_LAYOUT_MAX_READ ) {
-		len = SESSION_LAYOUT_MAX_READ;
-	}
-
-	buf = BG_Alloc( len + 1 );
-	trap_FS_Read( buf, len, f );
-	trap_FS_FCloseFile( f );
-	buf[len] = '\0';
-
-	ok = SessionLayout_ParseBuffer( mapname, gametype, buf, qtrue );
-	BG_Free( buf );
-	return ok;
-}
-
 static qboolean SessionLayout_ReadSnapshot( const char *mapname, int gametype ) {
 	if ( !SessionLayout_SnapshotMatches( mapname, gametype ) ) {
 		return qfalse;
 	}
-	return SessionLayout_ParseBuffer( mapname, gametype, sessionLayout_snapshot, qfalse );
+	return SessionLayout_ParseBuffer( mapname, gametype, sessionLayout_snapshot );
 }
 
 static void SessionLayout_CommitInternal( qboolean force ) {
@@ -532,20 +355,8 @@ static void SessionLayout_CommitInternal( qboolean force ) {
 	sessionLayout_snapshotGametype = gametype;
 	SessionLayout_CvarStorage_Save( mapname, gametype, sessionLayout_snapshot, out.length );
 
-	SessionLayout_EnsureStorageKnown();
-
-	if ( sessionLayout_storage == SESSION_STORAGE_DISK
-			&& SessionLayout_WriteDiskVerified( sessionLayout_snapshot, out.length ) ) {
-		SessionLayout_ClearEditDirtyFlags();
-		G_Printf( "Session layout saved: %s\n", SESSION_LAYOUT_PATH );
-		return;
-	}
-	if ( sessionLayout_storage == SESSION_STORAGE_DISK ) {
-		SessionLayout_UseMemoryStorage( "read-back verify failed" );
-	}
-
 	SessionLayout_ClearEditDirtyFlags();
-	G_Printf( "Session layout saved in memory for map '%s'\n", mapname );
+	G_Printf( "Session layout saved for map '%s'\n", mapname );
 }
 
 void SessionLayout_Commit( void ) {
@@ -612,7 +423,7 @@ qboolean SessionLayout_ApplyTextPreset( char *buf ) {
 	SpawnEdit_ResetWorldForPresetLoad();
 	SpawnEdit_Tele_ResetWorldForPresetLoad();
 
-	if ( !SessionLayout_ParseBuffer( mapname, gametype, buf, qfalse ) ) {
+	if ( !SessionLayout_ParseBuffer( mapname, gametype, buf ) ) {
 		return qfalse;
 	}
 
@@ -627,8 +438,8 @@ qboolean SessionLayout_ApplyTextPreset( char *buf ) {
 }
 
 void SessionLayout_LoadForMap( void ) {
-	char	mapname[MAX_QPATH];
-	int		gametype;
+	char		mapname[MAX_QPATH];
+	int			gametype;
 	qboolean	loaded;
 
 	ItemEdit_SessionPrepareLoad();
@@ -661,13 +472,9 @@ void SessionLayout_LoadForMap( void ) {
 		}
 	}
 
-	SessionLayout_EnsureStorageKnown();
-
+	loaded = qfalse;
 	if ( SessionLayout_SnapshotMatches( mapname, gametype ) ) {
 		loaded = SessionLayout_ReadSnapshot( mapname, gametype );
-	}
-	if ( !loaded && sessionLayout_storage != SESSION_STORAGE_MEMORY ) {
-		loaded = SessionLayout_ReadFile( mapname, gametype );
 	}
 
 	(void)loaded;

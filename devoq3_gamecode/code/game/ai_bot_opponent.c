@@ -1752,11 +1752,13 @@ static void Opponent_OnOpponentPositionalClue(bot_state_t *bs,
 		}
 	} else {
 		/* Heard them but not ready to take the fight — brief caution. */
-		ob->flee_until = Opponent_FloatMax(ob->flee_until,
-			now + OPPONENT_NOISE_UNREADY_CAUTION_SEC);
-		BotOpponent_ApplyAvoidSpot(bs);
-		if (Opponent_DebugEnabled()) {
-			Opponent_Debug(bs, "noise → unready caution");
+		if (!BotEnhanced_MustEngageFinale(bs)) {
+			ob->flee_until = Opponent_FloatMax(ob->flee_until,
+				now + OPPONENT_NOISE_UNREADY_CAUTION_SEC);
+			BotOpponent_ApplyAvoidSpot(bs);
+			if (Opponent_DebugEnabled()) {
+				Opponent_Debug(bs, "noise → unready caution");
+			}
 		}
 	}
 }
@@ -1932,6 +1934,80 @@ static void Opponent_ApplyDamageDealt(bot_state_t *bs, opponent_belief_t *ob,
 		}
 	}
 	ob->last_hitcount = hits;
+}
+
+static int Opponent_PainSoundHealthCap(int healthEventParm) {
+	if (healthEventParm < 25) {
+		return 24;
+	}
+	if (healthEventParm < 50) {
+		return 49;
+	}
+	return -1;
+}
+
+static int Opponent_CanHearClientPain(const bot_state_t *bs, int client) {
+	vec3_t diff;
+
+	if (!bs || client < 0 || client >= MAX_CLIENTS) {
+		return 0;
+	}
+	if (!g_entities[client].client || EntityClientIsDead(client)) {
+		return 0;
+	}
+	VectorSubtract(g_entities[client].r.currentOrigin, bs->origin, diff);
+	return VectorLengthSquared(diff) <= Square(OPPONENT_WITNESS_DIST);
+}
+
+void BotOpponent_OnHeardPain(bot_state_t *bs, int client, int healthEventParm) {
+	opponent_belief_t *ob;
+	int cap;
+
+	if (!bs || !BotOpponent_IsActive()) {
+		return;
+	}
+	if (!Opponent_CanHearClientPain(bs, client)) {
+		return;
+	}
+	cap = Opponent_PainSoundHealthCap(healthEventParm);
+	if (cap < 0) {
+		return;
+	}
+	ob = &bs->opponent_belief;
+	Opponent_RefreshTracking(bs, ob);
+	if (!ob->tracking || ob->client != client) {
+		return;
+	}
+	if (cap < ob->believed_health) {
+		ob->believed_health = cap;
+		Opponent_ClampBelievedStack(ob);
+		ob->stack_confidence = Opponent_FloatMin(1.0f,
+			ob->stack_confidence + 0.12f);
+		Opponent_UpdateCompare(bs, ob);
+		Opponent_UpdateEngageBias(bs, ob);
+		if (Opponent_DebugEnabled()) {
+			char buf[96];
+			Com_sprintf(buf, sizeof(buf),
+				"heard pain → believed hp <= %d", cap);
+			Opponent_Debug(bs, buf);
+		}
+	}
+}
+
+int BotOpponent_GetBelievedEnemyHealth(const bot_state_t *bs) {
+	const opponent_belief_t *ob;
+
+	if (!bs || !BotOpponent_IsActive()) {
+		return BOT_OPPONENT_HEALTH_UNKNOWN;
+	}
+	if (bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		return BOT_OPPONENT_HEALTH_UNKNOWN;
+	}
+	ob = &bs->opponent_belief;
+	if (!ob->tracking || ob->client != bs->enemy) {
+		return BOT_OPPONENT_HEALTH_UNKNOWN;
+	}
+	return ob->believed_health;
 }
 
 static void Opponent_TickDamageDealt(bot_state_t *bs, opponent_belief_t *ob) {

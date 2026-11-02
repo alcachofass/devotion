@@ -71,13 +71,14 @@ typedef enum {
 #define BOT_COMBAT_PEEK_LIP_FAN_MAX		200.0f
 /*
  * Dodge bias (movement modifier, not a replacement intent):
- *  - Fire pressure: opponent aiming + shooting at the bot → continuous weave.
- *  - Incoming missiles: earlier long-horizon path clearance; small splash back.
+ *  - Hitscan pressure: LG / SG / rail while mutually engaged → weave.
+ *  - Incoming missiles: intercept dodge when shooter + round are attended.
  */
 #define BOT_COMBAT_DODGE_PRESSURE_HOLD_SEC	0.45f
 #define BOT_COMBAT_DODGE_MISSILE_HOLD_SEC	0.55f
 #define BOT_COMBAT_DODGE_WEAVE_SEC		0.50f
 #define BOT_COMBAT_DODGE_AIM_DOT		0.72f	/* ~44° cone: enemy looking at bot */
+#define BOT_COMBAT_DODGE_ENGAGE_AIM_DOT	0.38f	/* bot must face threat (~68°) */
 #define BOT_COMBAT_DODGE_HURT_RECENT_SEC	0.85f
 #define BOT_COMBAT_DODGE_INTERCEPT_RADIUS	300.0f
 #define BOT_COMBAT_DODGE_MAX_INTERCEPT_SEC	2.5f
@@ -88,6 +89,12 @@ typedef enum {
 #define BOT_COMBAT_DODGE_STRENGTH_LEDGE	0.35f
 #define BOT_COMBAT_DODGE_STRENGTH_ROUTE	0.55f	/* MoveToGoal blend (items/flee) */
 #define BOT_COMBAT_DODGE_BACK_MAX		0.35f	/* splash only; never replaces intent */
+#define BOT_COMBAT_DODGE_MISSILE_FLIP_MIN_SEC	0.40f
+#define BOT_COMBAT_DODGE_MISSILE_FLIP_MAX_SEC	0.95f
+#define BOT_COMBAT_DODGE_MISSILE_CLEAR_MIN	0.08f	/* min lateral dot to strafe that way */
+#define BOT_COMBAT_DODGE_MISSILE_TTI_FLIP_MIN	0.22f	/* no feint flips near impact */
+#define BOT_COMBAT_DODGE_WALL_TRACE_DIST		56.0f
+#define BOT_COMBAT_DODGE_WALL_MIN_FRAC		0.34f	/* min clear fraction for dodge step */
 
 typedef struct {
 	bot_stance_t		stance;
@@ -109,6 +116,8 @@ typedef struct {
 	qboolean		dodge_strafe_right;
 	float			dodge_next_flip;	/* weave timer under fire pressure */
 	int				dodge_threat;		/* client to face for side frame; -1 none */
+	qboolean		dodge_missile;		/* latched projectile dodge (not pressure weave) */
+	qboolean		dodge_hitscan;		/* committed weave vs LG/SG/rail */
 } bot_combat_intent_t;
 
 struct bot_state_s;
@@ -163,6 +172,9 @@ struct bot_moveresult_s BotCombat_AttackMove(struct bot_state_s *bs, int tfl);
 /* Refresh fire-pressure + missile dodge bias (think / move actuation). */
 void BotCombat_UpdateDodge(struct bot_state_s *bs);
 int BotCombat_HasDodgeBias(const struct bot_state_s *bs);
+/* Committed incoming-missile dodge — attack move skips range correction. */
+int BotCombat_IsMissileDodgeMove(const struct bot_state_s *bs);
+int BotCombat_IsHitscanDodgeMove(const struct bot_state_s *bs);
 /* Blend lateral (+ soft back) into an existing wish dir; returns 1 if bias applied. */
 int BotCombat_BlendDodgeIntoDir(struct bot_state_s *bs, vec3_t dir);
 /* After MoveToGoal: re-issue movement with dodge bias when safe. */
@@ -176,5 +188,11 @@ float BotCombat_LoadoutEngageBiasNudge(const struct bot_state_s *bs);
 int BotCombat_CanEngageAtDistance(const struct bot_state_s *bs, float horizDist);
 int BotCombat_CanEngageTrackedOpponent(const struct bot_state_s *bs);
 float BotCombat_HorizontalDistToClient(const struct bot_state_s *bs, int clientnum);
+
+/*
+ * Incoming hostile missile on intercept course (no mutual-engage gate).
+ * Used for chat abort / self-preservation while idle.
+ */
+int BotCombat_IncomingMissileThreat(struct bot_state_s *bs, int *ownerClientOut);
 
 #endif /* AI_BOT_COMBAT_H */

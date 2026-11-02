@@ -13,6 +13,7 @@ BOT ENHANCED — master cvar, feature gates, centralized register/reset.
 #include "../botlib/be_ai_move.h"
 #include "../botlib/be_ai_weap.h"
 #include "ai_main.h"
+#include "inv.h"
 #include "ai_dmq3.h"
 #include "chars.h"
 #include "ai_bot_enhanced.h"
@@ -23,6 +24,11 @@ BOT ENHANCED — master cvar, feature gates, centralized register/reset.
 #include "ai_bot_combat.h"
 #include "ai_bot_opponent.h"
 #include "ai_bot_events.h"
+#include "ai_dmnet.h"
+
+extern bot_state_t *botstates[MAX_CLIENTS];
+
+#define BOTENH_CHAT_HURT_SEC	1.25f
 #include "ai_bot_move_harness.h"
 #include "ai_bot_items.h"
 #include "ai_bot_item_timing.h"
@@ -258,6 +264,129 @@ int BotEnhanced_CanEngageClient(bot_state_t *bs, int clientnum) {
 	}
 	if (BotEnhanced_ClientIsChatting(clientnum)) {
 		return 0;
+	}
+	return 1;
+}
+
+static int BotEnhanced_InActiveFight(bot_state_t *bs) {
+	float now;
+
+	if (!bs || bs->enemy < 0 || bs->enemy >= MAX_CLIENTS) {
+		return 0;
+	}
+	if (!BotEnhanced_CanEngageClient(bs, bs->enemy)) {
+		return 0;
+	}
+	if (BotCombat_HasFightLOS(bs, bs->enemy)) {
+		return 1;
+	}
+	now = FloatTime();
+	if (bs->enemyvisible_time >= now - BOT_COMBAT_LOS_DROP_SEC) {
+		return 1;
+	}
+	if (bs->lastenemyareanum > 0 &&
+			bs->enemyvisible_time >= now - BOT_COMBAT_LOS_DROP_AREA_SEC) {
+		return 1;
+	}
+	return 0;
+}
+
+static int BotEnhanced_OtherBotEngagingMe(bot_state_t *bs) {
+	int i;
+	bot_state_t *other;
+
+	if (!bs) {
+		return 0;
+	}
+	for (i = 0; i < level.maxclients; i++) {
+		if (i == bs->client) {
+			continue;
+		}
+		other = botstates[i];
+		if (!other || !other->inuse) {
+			continue;
+		}
+		if (other->enemy != bs->client) {
+			continue;
+		}
+		if (!BotEnhanced_CanEngageClient(other, bs->client)) {
+			continue;
+		}
+		if (BotCombat_HasFightLOS(other, bs->client)) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int BotEnhanced_WantsSelfDefense(bot_state_t *bs) {
+	gclient_t *cl;
+	int owner;
+
+	if (!bs || !BotEnhanced_IsActive()) {
+		return 0;
+	}
+	if (bs->lastframe_health > bs->inventory[INVENTORY_HEALTH]) {
+		return 1;
+	}
+	if (FloatTime() - bs->tact_last_hurt_time < BOTENH_CHAT_HURT_SEC) {
+		return 1;
+	}
+	cl = g_entities[bs->client].client;
+	if (cl && cl->lasthurt_client > 0 && cl->lasthurt_client != bs->client &&
+			cl->lasthurt_client < MAX_CLIENTS &&
+			FloatTime() - bs->tact_last_hurt_time < BOTENH_CHAT_HURT_SEC) {
+		return 1;
+	}
+	if (BotCombat_IncomingMissileThreat(bs, &owner)) {
+		return 1;
+	}
+	if (BotEnhanced_InActiveFight(bs)) {
+		return 1;
+	}
+	if (BotEnhanced_OtherBotEngagingMe(bs)) {
+		return 1;
+	}
+	return 0;
+}
+
+int BotEnhanced_CanIdleChat(bot_state_t *bs) {
+	if (!BotEnhanced_IsActive()) {
+		return 1;
+	}
+	if (!bs || BotIsObserver(bs) || BotIsDead(bs)) {
+		return 0;
+	}
+	return !BotEnhanced_WantsSelfDefense(bs);
+}
+
+int BotEnhanced_TickChatDefense(bot_state_t *bs) {
+	gclient_t *cl;
+	int owner;
+
+	if (!bs || !BotEnhanced_IsActive()) {
+		return 0;
+	}
+	if (bs->ainode != AINode_Stand) {
+		return 0;
+	}
+	if (!BotEnhanced_WantsSelfDefense(bs)) {
+		return 0;
+	}
+	bs->stand_time = 0.0f;
+	bs->standfindenemy_time = FloatTime();
+	cl = g_entities[bs->client].client;
+	if (cl && cl->lasthurt_client > 0 &&
+			BotEnhanced_CanEngageClient(bs, cl->lasthurt_client)) {
+		bs->enemy = cl->lasthurt_client;
+	} else if (BotCombat_IncomingMissileThreat(bs, &owner) && owner >= 0 &&
+			BotEnhanced_CanEngageClient(bs, owner)) {
+		bs->enemy = owner;
+	}
+	if (BotFindEnemy(bs, -1)) {
+		AIEnter_Battle_Fight(bs, "enhanced: chat defense");
+	} else {
+		AIEnter_Seek_LTG(bs, "enhanced: chat defense");
 	}
 	return 1;
 }
@@ -621,6 +750,9 @@ void BotEnhanced_OnThinkStart(bot_state_t *bs) {
 	if (BotEnhanced_MustEngageFinale(bs) && BotOpponent_IsTracking(bs)) {
 		bs->opponent_belief.flee_until = 0.0f;
 		bs->opponent_belief.flee_engaged = qfalse;
+	}
+	if (BotEnhanced_TickChatDefense(bs)) {
+		return;
 	}
 	BotSmack_OnThinkStart(bs);
 	if (BotOpponent_IsTracking(bs) && BotOpponent_WantsAvoidEngagement(bs) &&

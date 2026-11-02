@@ -26,6 +26,10 @@ BOT ELIM SEEK — see ai_bot_elim_seek.h
 #define ELIM_SEEK_MIN_DURATION		5.0f
 #define ELIM_SEEK_MAX_DURATION		16.0f
 #define ELIM_SEEK_DIST_TIME_SCALE	0.0055f
+#define ELIM_FINALE_CLUE_LOCK_SEC	7.0f
+#define ELIM_FINALE_HUNT_MIN		12.0f
+#define ELIM_FINALE_HUNT_MAX		30.0f
+#define ELIM_FINALE_ROAM_INTERVAL	3.5f
 
 extern int BotPointAreaNum(vec3_t origin);
 
@@ -130,8 +134,45 @@ void BotElimSeek_Reset(bot_state_t *bs) {
 	VectorClear(bs->elim_clue_origin);
 	bs->elim_clue_time = 0.0f;
 	bs->elim_clue_client = -1;
+	VectorClear(bs->elim_clue_sticky_origin);
+	bs->elim_clue_lock_until = 0.0f;
 	bs->elim_next_roam_time = 0.0f;
 	BotElimSeek_ClearHunt(bs);
+}
+
+static void BotElimSeek_StoreClue(bot_state_t *bs, const vec3_t origin, int client) {
+	vec3_t toNew, toSticky;
+	float now, dot;
+
+	if (!bs || !origin) {
+		return;
+	}
+	now = FloatTime();
+	if (BotEnhanced_MustEngageFinale(bs)) {
+		if (bs->elim_clue_lock_until > now &&
+				VectorLengthSquared(bs->elim_clue_sticky_origin) > 1.0f) {
+			VectorSubtract(origin, bs->origin, toNew);
+			toNew[2] = 0.0f;
+			if (VectorNormalize(toNew) > 0.1f) {
+				VectorSubtract(bs->elim_clue_sticky_origin, bs->origin, toSticky);
+				toSticky[2] = 0.0f;
+				if (VectorNormalize(toSticky) > 0.1f) {
+					dot = DotProduct(toNew, toSticky);
+					if (dot < -0.2f) {
+						VectorCopy(bs->elim_clue_sticky_origin, bs->elim_clue_origin);
+						bs->elim_clue_client = client;
+						bs->elim_clue_time = now;
+						return;
+					}
+				}
+			}
+		}
+		VectorCopy(origin, bs->elim_clue_sticky_origin);
+		bs->elim_clue_lock_until = now + ELIM_FINALE_CLUE_LOCK_SEC;
+	}
+	VectorCopy(origin, bs->elim_clue_origin);
+	bs->elim_clue_client = client;
+	bs->elim_clue_time = now;
 }
 
 static void BotElimSeek_GoalFromPoint(bot_goal_t *goal, int entitynum,
@@ -195,6 +236,18 @@ static int BotElimSeek_PickTarget(bot_state_t *bs, vec3_t target, int *entityOut
 			VectorLengthSquared(bs->elim_clue_origin) > 1.0f) {
 		VectorCopy(bs->elim_clue_origin, target);
 		*entityOut = bs->elim_clue_client;
+		if (BotEnhanced_MustEngageFinale(bs) && bs->lastenemyareanum > 0 &&
+				VectorLengthSquared(bs->lastenemyorigin) > 1.0f) {
+			vec3_t toClue, toLast;
+			VectorSubtract(bs->elim_clue_origin, bs->origin, toClue);
+			VectorSubtract(bs->lastenemyorigin, bs->origin, toLast);
+			toClue[2] = 0.0f;
+			toLast[2] = 0.0f;
+			if (VectorNormalize(toClue) > 0.1f && VectorNormalize(toLast) > 0.1f &&
+					DotProduct(toClue, toLast) < -0.15f) {
+				VectorCopy(bs->lastenemyorigin, target);
+			}
+		}
 		return 1;
 	}
 
@@ -237,7 +290,9 @@ static int BotElimSeek_PickTarget(bot_state_t *bs, vec3_t target, int *entityOut
 	}
 
 	if (now >= bs->elim_next_roam_time) {
-		bs->elim_next_roam_time = now + ELIM_SEEK_ROAM_INTERVAL;
+		bs->elim_next_roam_time = now +
+			(BotEnhanced_MustEngageFinale(bs) ? ELIM_FINALE_ROAM_INTERVAL :
+			 ELIM_SEEK_ROAM_INTERVAL);
 		BotRoamGoal(bs, target);
 		return 1;
 	}
@@ -253,7 +308,12 @@ static float BotElimSeek_HuntDuration(bot_state_t *bs, const vec3_t target) {
 	VectorSubtract(target, bs->origin, delta);
 	dist = VectorLength(delta);
 	duration = ELIM_SEEK_MIN_DURATION + dist * ELIM_SEEK_DIST_TIME_SCALE;
-	if (duration > ELIM_SEEK_MAX_DURATION) {
+	if (BotEnhanced_MustEngageFinale(bs)) {
+		duration = ELIM_FINALE_HUNT_MIN + dist * ELIM_SEEK_DIST_TIME_SCALE * 1.35f;
+		if (duration > ELIM_FINALE_HUNT_MAX) {
+			duration = ELIM_FINALE_HUNT_MAX;
+		}
+	} else if (duration > ELIM_SEEK_MAX_DURATION) {
 		duration = ELIM_SEEK_MAX_DURATION;
 	}
 	return duration;
@@ -280,9 +340,12 @@ int BotElimSeek_TryEnterHunt(bot_state_t *bs) {
 		return 0;
 	}
 	if (bs->enemy >= 0 && bs->enemy < MAX_CLIENTS) {
-		return 0;
+		if (!BotEnhanced_MustEngageFinale(bs) ||
+				BotCombat_HasFightLOS(bs, bs->enemy)) {
+			return 0;
+		}
 	}
-	if (BotItems_HasActiveCommit(bs)) {
+	if (BotItems_HasActiveCommit(bs) && !BotEnhanced_MustEngageFinale(bs)) {
 		return 0;
 	}
 	if (BotElimSeek_CountHostiles(bs) <= 0) {
@@ -333,12 +396,22 @@ void BotElimSeek_OnThinkStart(bot_state_t *bs) {
 	}
 
 	if (bs->enemy >= 0 && bs->enemy < MAX_CLIENTS) {
-		BotElimSeek_ClearHunt(bs);
-		return;
+		if (!BotEnhanced_MustEngageFinale(bs) ||
+				BotCombat_HasFightLOS(bs, bs->enemy)) {
+			BotElimSeek_ClearHunt(bs);
+			return;
+		}
 	}
 
 	if (bs->elim_seek_active && FloatTime() >= bs->elim_seek_until) {
 		BotElimSeek_ClearHunt(bs);
+	}
+
+	if (BotEnhanced_MustEngageFinale(bs) &&
+			bs->elim_clue_time > 0.0f &&
+			FloatTime() - bs->elim_clue_time < 1.0f &&
+			(bs->enemy < 0 || !BotCombat_HasFightLOS(bs, bs->enemy))) {
+		BotElimSeek_TryEnterHunt(bs);
 	}
 }
 
@@ -352,16 +425,17 @@ void BotElimSeek_OnClientEvent(bot_state_t *bs, entityState_t *state, int event)
 		return;
 	}
 	if (bs->enemy >= 0) {
-		return;
+		if (!BotEnhanced_MustEngageFinale(bs) ||
+				BotCombat_HasFightLOS(bs, bs->enemy)) {
+			return;
+		}
 	}
 
 	if (event == EV_ITEM_PICKUP) {
 		picker = BotAI_EventPickerClient(state);
 		if (picker >= 0 && picker < level.maxclients &&
 				BotElimSeek_ClientAliveHostile(bs, picker)) {
-			VectorCopy(state->origin, bs->elim_clue_origin);
-			bs->elim_clue_time = FloatTime();
-			bs->elim_clue_client = picker;
+			BotElimSeek_StoreClue(bs, state->origin, picker);
 		}
 		return;
 	}
@@ -377,7 +451,5 @@ void BotElimSeek_OnClientEvent(bot_state_t *bs, entityState_t *state, int event)
 	if (!BotElimSeek_ClientAliveHostile(bs, picker)) {
 		return;
 	}
-	VectorCopy(state->origin, bs->elim_clue_origin);
-	bs->elim_clue_time = FloatTime();
-	bs->elim_clue_client = picker;
+	BotElimSeek_StoreClue(bs, state->origin, picker);
 }

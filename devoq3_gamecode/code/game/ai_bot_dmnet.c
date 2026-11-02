@@ -325,6 +325,12 @@ bot_dmnet_fight_vis_t BotDmnet_BattleFightEnemyVisibility(bot_state_t *bs,
 		return BOT_DMNET_FIGHT_VIS_OK;
 	}
 	if (!BotCombat_HasFightLOS(bs, bs->enemy)) {
+		if (BotEnhanced_MustEngageFinale(bs)) {
+			if (BotPosition_IsLedgeSeekActive(bs)) {
+				return BOT_DMNET_FIGHT_VIS_OK;
+			}
+			return BOT_DMNET_FIGHT_VIS_CHASE;
+		}
 		/* Recently lost the sightline but we still have a watched reappear
 		 * point: hold in the fight node and lay down suppressive fire at the
 		 * opening rather than instantly breaking off. Keep the last-known

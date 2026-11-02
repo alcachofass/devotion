@@ -18,6 +18,7 @@ BOT TACTICAL AI — see ai_bot_tactics.h
 #include "ai_bot_tactics.h"
 #include "ai_bot_enhanced.h"
 #include "ai_bot_events.h"
+#include "ai_bot_opponent.h"
 #include "ai_dmq3.h"
 
 void AIEnter_Battle_Retreat(bot_state_t *bs, char *s);
@@ -236,9 +237,14 @@ static tact_action_t BotTactics_DecideHurtByOther(bot_state_t *bs, int attacker,
 		return TACT_ACT_SWITCH;
 	}
 
-	if (g_entities[curenemy].health > 0 &&
-			g_entities[curenemy].health <= BOT_TACTICS_FINISH_HEALTH) {
-		return TACT_ACT_CONTINUE;
+	{
+		int inferredHp;
+
+		inferredHp = BotOpponent_GetBelievedEnemyHealth(bs);
+		if (inferredHp <= BOT_TACTICS_FINISH_HEALTH &&
+				inferredHp < BOT_OPPONENT_HEALTH_UNKNOWN) {
+			return TACT_ACT_CONTINUE;
+		}
 	}
 	BotEntityInfo(curenemy, &cureinfo);
 	if (EntityCarriesFlag(&cureinfo)) {
