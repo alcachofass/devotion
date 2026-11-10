@@ -2781,12 +2781,9 @@ static qboolean G_SplashPassesCorner( const vec3_t origin, gentity_t *targ, cons
 	return G_SplashTargetOnStep( targ, dest, nOut, nFloor );
 }
 
-//static qboolean G_CanSplashDamage( gentity_t *targ, vec3_t origin ) {
-qboolean G_CanSplashDamage( gentity_t *targ, vec3_t origin ) {	//mrd
-	vec3_t	midpoint;
+static qboolean G_CanSplashDamageToMidpoint( gentity_t *targ, vec3_t origin, vec3_t midpoint ) {
 	trace_t	tr;
 
-	G_DamageMidpoint( targ, midpoint );
 	if ( G_DamageTraceClear( origin, midpoint, targ->s.number, &tr ) ) {
 		return qtrue;
 	}
@@ -2794,6 +2791,14 @@ qboolean G_CanSplashDamage( gentity_t *targ, vec3_t origin ) {	//mrd
 		return qtrue;
 	}
 	return G_CanDamageXYCorners( origin, midpoint );
+}
+
+//static qboolean G_CanSplashDamage( gentity_t *targ, vec3_t origin ) {
+qboolean G_CanSplashDamage( gentity_t *targ, vec3_t origin ) {	//mrd
+	vec3_t	midpoint;
+
+	G_DamageMidpoint( targ, midpoint );
+	return G_CanSplashDamageToMidpoint( targ, origin, midpoint );
 }
 
 qboolean CanDamage (gentity_t *targ, vec3_t origin) {
@@ -2849,25 +2854,98 @@ qboolean G_RailJump( vec3_t origin, gentity_t *attacker) {
 }
 
 
+static float G_SplashBBoxEdgeDistance( const vec3_t splashOrigin, const vec3_t absmin,
+		const vec3_t absmax, vec3_t axisDist ) {
+	int i;
+
+	for ( i = 0 ; i < 3 ; i++ ) {
+		if ( splashOrigin[i] < absmin[i] ) {
+			axisDist[i] = absmin[i] - splashOrigin[i];
+		} else if ( splashOrigin[i] > absmax[i] ) {
+			axisDist[i] = splashOrigin[i] - absmax[i];
+		} else {
+			axisDist[i] = 0;
+		}
+	}
+
+	return VectorLength( axisDist );
+}
+
+static void G_RadiusDamageApply( gentity_t *ent, gentity_t *inflictor, gentity_t *attacker,
+		float damage, float radius, int mod, qboolean altFire, vec3_t splashOrigin,
+		vec3_t absmin, vec3_t absmax, vec3_t knockbackOrigin, qboolean *hitClient ) {
+	vec3_t	dir, midpoint, v;
+	float	dist, points;
+
+	dist = G_SplashBBoxEdgeDistance( splashOrigin, absmin, absmax, v );
+	if ( dist >= radius ) {
+		return;
+	}
+
+	points = damage * ( 1.0 - dist / radius );
+
+	VectorAdd( absmin, absmax, midpoint );
+	VectorScale( midpoint, 0.5, midpoint );
+
+	if( G_CanSplashDamageToMidpoint( ent, splashOrigin, midpoint ) || g_damageThroughWalls.integer ) {
+		if( LogAccuracyHit( ent, attacker ) ) {
+			*hitClient = qtrue;
+		}
+		VectorSubtract( knockbackOrigin, splashOrigin, dir );
+		dir[2] += 24;
+		G_Damage( ent, inflictor, attacker, dir, splashOrigin, (int)points, DAMAGE_RADIUS, mod, altFire );
+	}
+}
+
 /*
 ============
 G_RadiusDamage
+
+When splashEvalTime is greater than zero, player splash falloff and knockback
+direction use client history at that time (missile catch-up). Damage and
+velocity are still applied to live playerstate without moving origin.
 ============
 */
 qboolean G_RadiusDamage ( vec3_t origin, gentity_t *inflictor, gentity_t *attacker, float damage, float radius,
-					 gentity_t *ignore, int mod, qboolean altFire) {
-	float		points, dist;
+					 gentity_t *ignore, int mod, qboolean altFire, int splashEvalTime ) {
 	gentity_t	*ent;
 	int			entityList[MAX_GENTITIES];
 	int			numListedEntities;
 	vec3_t		mins, maxs;
-	vec3_t		v;
-	vec3_t		dir;
+	vec3_t		clientOrigin, clientMins, clientMaxs, absmin, absmax;
 	int			i, e;
 	qboolean	hitClient = qfalse;
 
 	if ( radius < 1 ) {
 		radius = 1;
+	}
+
+	if ( splashEvalTime > 0 ) {
+		for ( i = 0 ; i < MAX_CLIENTS ; i++ ) {
+			ent = &g_entities[i];
+
+			if ( !ent->client || !G_InUse( ent ) || !ent->takedamage ) {
+				continue;
+			}
+			if ( ent == ignore ) {
+				continue;
+			}
+			if ( ent->client->sess.sessionTeam >= TEAM_SPECTATOR ) {
+				continue;
+			}
+
+			if ( !G_ClientHistoryHullAtTime( ent, splashEvalTime, clientOrigin, clientMins, clientMaxs ) ) {
+				VectorCopy( ent->r.currentOrigin, clientOrigin );
+				VectorCopy( ent->r.mins, clientMins );
+				VectorCopy( ent->r.maxs, clientMaxs );
+			}
+
+			VectorAdd( clientOrigin, clientMins, absmin );
+			VectorAdd( clientOrigin, clientMaxs, absmax );
+
+			G_RadiusDamageApply( ent, inflictor, attacker, damage, radius, mod, altFire,
+					origin, absmin, absmax, clientOrigin, &hitClient );
+		}
 	}
 
 	for ( i = 0 ; i < 3 ; i++ ) {
@@ -2884,35 +2962,12 @@ qboolean G_RadiusDamage ( vec3_t origin, gentity_t *inflictor, gentity_t *attack
 			continue;
 		if (!ent->takedamage)
 			continue;
-
-		// find the distance from the edge of the bounding box
-		for ( i = 0 ; i < 3 ; i++ ) {
-			if ( origin[i] < ent->r.absmin[i] ) {
-				v[i] = ent->r.absmin[i] - origin[i];
-			} else if ( origin[i] > ent->r.absmax[i] ) {
-				v[i] = origin[i] - ent->r.absmax[i];
-			} else {
-				v[i] = 0;
-			}
-		}
-
-		dist = VectorLength( v );
-		if ( dist >= radius ) {
+		if ( splashEvalTime > 0 && ent->client ) {
 			continue;
 		}
 
-		points = damage * ( 1.0 - dist / radius );
-
-		if( G_CanSplashDamage (ent, origin) || g_damageThroughWalls.integer ) {
-			if( LogAccuracyHit( ent, attacker ) ) {
-				hitClient = qtrue;
-			}
-			VectorSubtract (ent->r.currentOrigin, origin, dir);
-			// push the center of mass higher than the origin so players
-			// get knocked into the air more
-			dir[2] += 24;
-			G_Damage (ent, inflictor, attacker, dir, origin, (int)points, DAMAGE_RADIUS, mod, altFire);	//mrd
-		}
+		G_RadiusDamageApply( ent, inflictor, attacker, damage, radius, mod, altFire,
+				origin, ent->r.absmin, ent->r.absmax, ent->r.currentOrigin, &hitClient );
 	}
 
 	return hitClient;
