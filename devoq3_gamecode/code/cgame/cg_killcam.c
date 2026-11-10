@@ -22,7 +22,7 @@ CG_ProcessSnapshots reads from the ring instead of trap_GetSnapshot.
 // How many of the most recent snapshots are kept for killcam playback.
 // The engine itself only buffers PACKET_BACKUP (32); a useful killcam
 // delay needs more history. Raw snapshot_t storage is large (~55 KB
-// each): 512 slots is ~27.6 MB of bss and covers
+// each): 256 slots is ~13.8 MB of bss and covers
 // this times `cg_killcamRecordInterval` milliseconds of history.
 // TODO: consider compressing (delta encoding like the engine's) to
 // afford a longer history in less memory.
