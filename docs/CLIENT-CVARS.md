@@ -216,7 +216,7 @@ Client-side variables registered by the **cgame** module (`cg_*`, plus related n
 | `cg_killcamSide` | Devotion | `-15` | float | Killcam third-person: lateral offset from the killer (negative = left). |
 | `cg_killcamSkipOnJumpDelay` | Devotion | `750` | integer (ms) | After the replay starts, ignore jump for this long (grace period); then jump skips the rest of the killcam. |
 | `cg_killcamSkipPreRespawn` | Devotion | `1` | 0 or 1 | When 1, if the fixed preroll would start before your last respawn, begin the replay at the respawn instead. |
-| `cg_killcamStartDelay` | Devotion | `1800` | integer (ms) | Milliseconds after death before the killcam view switches. Replay always covers 2500 ms before the kill and 2000 ms after (fixed). History is limited by the snapshot ring (512 slots times cg_killcamRecordInterval). |
+| `cg_killcamStartDelay` | Devotion | `1800` | integer (ms) | Milliseconds after death before the killcam view switches. Replay always covers 2500 ms before the kill and 2000 ms after (fixed). History is limited by the snapshot ring (256 slots times cg_killcamRecordInterval). |
 | `cg_killcamStartOnClickDelay` | Devotion | `9999999` | integer (ms) | Fresh attack press after death can start the replay early instead of waiting for cg_killcamStartDelay. Clicks within this many ms of death are ignored. -1 disables start-on-click. |
 | `cg_lagometer` | Vanilla | `1` | 0 or 1 | When `1`, shows the lagometer graph (ping, packet loss, and snapshot rate). |
 | `cg_latentCmds` | RatMod | `0` | 0 or 1 | Simulated delay on outgoing commands for network testing. Currently unused. |

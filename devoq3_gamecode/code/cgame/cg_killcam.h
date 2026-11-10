@@ -11,7 +11,7 @@ Killcam (ported from quake3-killcam-mod, dual-licensed GPL-2.0+)
 #define CG_CONTEXT_LIVE		0
 #define CG_CONTEXT_KILLCAM	1
 
-#define KILLCAM_SNAPSHOT_BACKUP	512
+#define KILLCAM_SNAPSHOT_BACKUP	256
 
 #define CG_KILLCAM_PREROLL_MS		2500
 #define CG_KILLCAM_POSTROLL_MS		2000
