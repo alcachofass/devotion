@@ -15,7 +15,7 @@ void BotSmack_Reset(struct bot_state_s *bs);
 void BotSmack_OnThinkStart(struct bot_state_s *bs);
 void BotSmack_OnIntermission(struct bot_state_s *bs);
 void BotSmack_OnRoundPregame(struct bot_state_s *bs);
-/* GL/HF after scoreboard intermission ends (non-round-based modes). */
+/* Match is live again after intermission. GL/HF is scheduled from think. */
 void BotSmack_OnLevelStart(struct bot_state_s *bs);
 
 /* Instant say on frag; returns qtrue if handled (skip legacy stand-chat). */

@@ -498,6 +498,8 @@ typedef struct bot_state_s
 	int			smack_flags;
 	float		smack_next_time;
 	float		smack_ragequit_time;
+	float		smack_glhf_time;		/* level.time (ms) to say gl/hf; 0 = unscheduled */
+	float		smack_next_action;		/* level.time (ms) before forfeit / lobby vote rolls */
 	int			smack_vote_kind;
 	float		smack_vote_time;
 	int			smack_vote_target;
