@@ -505,11 +505,16 @@ void CG_InvulnerabilityImpact( vec3_t org, vec3_t angles ) {
 			return;
 		}
 
+		if ( CG_AccumDamagePlum( org, damage ) ) {
+			VectorCopy( org, lastPos );
+			return;
+		}
+
 		le = CG_AllocLocalEntity();
 		le->leFlags = 0;
 		le->leType = LE_DAMAGEPLUM;
 		le->startTime = cg.time;
-		le->endTime = cg.time + 1000;
+		le->endTime = cg.time + DAMAGE_PLUM_TIME;
 		le->lifeRate = 1.0 / ( le->endTime - le->startTime );
 
 		
@@ -520,6 +525,9 @@ void CG_InvulnerabilityImpact( vec3_t org, vec3_t angles ) {
 		if (org[2] >= lastPos[2] - 20 && org[2] <= lastPos[2] + 20) {
 			le->pos.trBase[2] -= 20;
 		}
+		VectorCopy( le->pos.trBase, le->pos2.trBase );
+		le->pos2.trTime = cg.time;
+		le->pos2.trDuration = 0;
 
 		//CG_Printf( "Plum origin %i %i %i -- %i\n", (int)org[0], (int)org[1], (int)org[2], (int)Distance(org, lastPos));
 		VectorCopy(org, lastPos);

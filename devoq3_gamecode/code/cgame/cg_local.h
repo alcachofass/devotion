@@ -2424,6 +2424,15 @@ void	CG_InitLocalEntities( void );
 localEntity_t	*CG_AllocLocalEntity( void );
 void	CG_AddLocalEntities( void );
 void CG_FreeLocalEntityById(int id);
+/* Stack hits this long after the previous one. Covers a machinegun burst
+   with several missed shots (100ms cadence) without joining a new attack. */
+#define DAMAGE_PLUM_TIME		2000
+#define DAMAGE_PLUM_MERGE_MS		800
+#define DAMAGE_PLUM_MERGE_DIST		160.0f
+/* Rise waits out the stacking window, so a merged hit has not moved up yet. */
+#define DAMAGE_PLUM_ASCENT_DELAY_MS	DAMAGE_PLUM_MERGE_MS
+#define DAMAGE_PLUM_LERP_MS		150
+qboolean CG_AccumDamagePlum( vec3_t org, int damage );
 
 //
 // cg_effects.c
