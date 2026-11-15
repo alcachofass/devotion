@@ -170,6 +170,7 @@ static void CG_TransitionSnapshot( void ) {
 	centity_t			*cent;
 	snapshot_t			*oldFrame;
 	int					i;
+	qboolean			mapRestart;
 
 	if ( !cg.snap ) {
 		CG_Error( "CG_TransitionSnapshot: NULL cg.snap" );
@@ -217,6 +218,8 @@ static void CG_TransitionSnapshot( void ) {
 
 	cg.nextSnap = NULL;
 
+	mapRestart = cg.mapRestart;
+
 	// check for playerstate transition events
 	if ( oldFrame ) {
 		playerState_t	*ops, *ps;
@@ -228,6 +231,12 @@ static void CG_TransitionSnapshot( void ) {
 			cg.thisFrameTeleport = qtrue;	// will be cleared by prediction code
 		}
 
+		if ( mapRestart ) {
+			/* Same-map restart zeros award counters and event bits.
+			 * Drop the pre-restart playerstate before the sound check. */
+			oldFrame->ps = cg.snap->ps;
+		}
+
 		// if we are not doing client side movement prediction for any
 		// reason, then the client events and view changes will be issued now
 		if ( cg.demoPlayback || (cg.snap->ps.pm_flags & PMF_FOLLOW)
@@ -236,15 +245,11 @@ static void CG_TransitionSnapshot( void ) {
 		}
 	}
 
-	if ( cg.mapRestart ) {
+	if ( mapRestart ) {
 		CG_Respawn();
 		CG_ClearLightningKnockback();
-		cg.mapRestart = qfalse;
-		if ( oldFrame ) {
-			/* Warmup→match is a new server epoch. Drop persistant diffs so
-			 * reset-to-zero award counts cannot fire a ghost medal. */
-			oldFrame->ps = cg.snap->ps;
-		}
+		/* Predicted movement still compares against the pre-restart
+		 * playerstate. CG_TransitionPlayerState consumes cg.mapRestart. */
 	}
 
 	CG_DemoHistory_OnSnapshot( cg.snap );

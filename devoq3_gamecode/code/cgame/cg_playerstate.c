@@ -637,6 +637,15 @@ void CG_TransitionPlayerState( playerState_t *ps, playerState_t *ops ) {
 		CG_Respawn();
 	}
 
+	if ( cg.mapRestart ) {
+		cg.altFireMGBurstShots = 0;	//mrd
+		cg.mapRestart = qfalse;
+		/* Counters and PLAYEREVENT bits reset to zero on map_restart.
+		 * That is not a new medal, including bits that fire on any change
+		 * (humiliation, denied, holyshit) rather than only on an increase. */
+		*ops = *ps;
+	}
+
 	if ( cg.snap->ps.pm_type != PM_INTERMISSION 
 		&& ps->persistant[PERS_TEAM] != TEAM_SPECTATOR ) {
 		CG_CheckLocalSounds( ps, ops );

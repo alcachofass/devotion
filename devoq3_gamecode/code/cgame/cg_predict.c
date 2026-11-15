@@ -1525,6 +1525,10 @@ void CG_PredictPlayerState( void ) {
 		if ( cg_showmiss.integer ) {
 			CG_Printf ("exceeded PACKET_BACKUP on commands\n");
 		}
+		if ( cg.mapRestart ) {
+			cg.predictedPlayerState = cg.snap->ps;
+			cg.mapRestart = qfalse;
+		}
 		return;
 	}
 
@@ -1818,6 +1822,9 @@ void CG_PredictPlayerState( void ) {
 		CG_EncodePlayerBBox(&cg_pmove, &cg.predictedPlayerEntity.currentState);
 		if ( cg_showmiss.integer ) {
 			CG_Printf( "not moved\n" );
+		}
+		if ( cg.mapRestart ) {
+			cg.mapRestart = qfalse;
 		}
 		return;
 	}
