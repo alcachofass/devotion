@@ -1171,6 +1171,92 @@ void CG_AddScorePlum( localEntity_t *le ) {
 	}
 }
 
+/*
+===================
+CG_DamagePlumAnchor
+
+World position of a damage plum, mid-lerp when a hit has just moved it.
+pos.trBase is the latest hit. pos2.trBase is where this move started.
+===================
+*/
+static void CG_DamagePlumAnchor( localEntity_t *le, vec3_t origin ) {
+	float	t;
+	int		elapsed;
+
+	if ( le->pos2.trDuration <= 0 ) {
+		VectorCopy( le->pos.trBase, origin );
+		return;
+	}
+
+	elapsed = cg.time - le->pos2.trTime;
+	if ( elapsed <= 0 ) {
+		VectorCopy( le->pos2.trBase, origin );
+		return;
+	}
+	if ( elapsed >= le->pos2.trDuration ) {
+		VectorCopy( le->pos.trBase, origin );
+		return;
+	}
+
+	t = (float)elapsed / (float)le->pos2.trDuration;
+	origin[0] = le->pos2.trBase[0] + ( le->pos.trBase[0] - le->pos2.trBase[0] ) * t;
+	origin[1] = le->pos2.trBase[1] + ( le->pos.trBase[1] - le->pos2.trBase[1] ) * t;
+	origin[2] = le->pos2.trBase[2] + ( le->pos.trBase[2] - le->pos2.trBase[2] ) * t;
+}
+
+/*
+===================
+CG_AccumDamagePlum
+
+Fold a new hit into a damage plum that is still part of the same attack.
+A plum qualifies when its last hit was recent and its anchor is the closest
+one within the merge distance of this hit. The anchor glides to the new
+origin instead of jumping there.
+===================
+*/
+qboolean CG_AccumDamagePlum( vec3_t org, int damage ) {
+	localEntity_t	*le, *best;
+	vec3_t			anchor;
+	float			bestDist, dist, maxDist;
+
+	best = NULL;
+	bestDist = 0;
+	maxDist = DAMAGE_PLUM_MERGE_DIST * DAMAGE_PLUM_MERGE_DIST;
+
+	for ( le = cg_activeLocalEntities.next ; le != &cg_activeLocalEntities ; le = le->next ) {
+		if ( le->leType != LE_DAMAGEPLUM ) {
+			continue;
+		}
+		if ( cg.time - le->startTime > DAMAGE_PLUM_MERGE_MS ) {
+			continue;
+		}
+		dist = DistanceSquared( le->pos.trBase, org );
+		if ( dist > maxDist ) {
+			continue;
+		}
+		if ( !best || dist < bestDist ) {
+			best = le;
+			bestDist = dist;
+		}
+	}
+
+	if ( !best ) {
+		return qfalse;
+	}
+
+	CG_DamagePlumAnchor( best, anchor );
+	VectorCopy( anchor, best->pos2.trBase );
+	best->pos2.trTime = cg.time;
+	best->pos2.trDuration = DAMAGE_PLUM_LERP_MS;
+
+	best->radius += damage;
+	best->startTime = cg.time;
+	best->endTime = cg.time + DAMAGE_PLUM_TIME;
+	best->lifeRate = 1.0 / ( best->endTime - best->startTime );
+	VectorCopy( org, best->pos.trBase );
+	return qtrue;
+}
+
 void CG_AddDamagePlum( localEntity_t *le ) {
 	refEntity_t	*re;
 	vec3_t		origin, dir, vec, up = {0, 0, 1};
@@ -1209,8 +1295,17 @@ void CG_AddDamagePlum( localEntity_t *le ) {
 		re->shaderRGBA[3] = 0xff;
 
 
-	deltaTime = (cg.time - le->startTime) * 0.001;
-	VectorCopy(le->pos.trBase, origin);
+	/* Hold still through the stacking window, then play the original
+	   one-second arc across the rest of the lifetime. A merged hit
+	   restarts startTime before this delay elapses, so the number
+	   does not rewind downward. */
+	deltaTime = ( cg.time - le->startTime - DAMAGE_PLUM_ASCENT_DELAY_MS ) / (float)( DAMAGE_PLUM_TIME - DAMAGE_PLUM_ASCENT_DELAY_MS );
+	if ( deltaTime < 0.0f ) {
+		deltaTime = 0.0f;
+	} else if ( deltaTime > 1.0f ) {
+		deltaTime = 1.0f;
+	}
+	CG_DamagePlumAnchor( le, origin );
 
 	VectorSubtract(cg.refdef.vieworg, origin, dir);
 	CrossProduct(dir, up, vec);
