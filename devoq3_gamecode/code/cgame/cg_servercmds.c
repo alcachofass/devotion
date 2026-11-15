@@ -126,6 +126,9 @@ void CG_TryApplyDeferredNewmapLevelTransition( void ) {
 }
 
 void CG_BeginNewmapLevelTransition( void ) {
+	/* A real map change must not inherit a same-level restart skip. */
+	CG_ClearSameLevelRestart();
+
 	if ( !s_newmapLevelTransitionPending ) {
 		s_levelTransitionLevelStartTime = cgs.levelStartTime;
 		if ( cg.snap && cg.snap->ps.pm_type == PM_INTERMISSION ) {
@@ -191,6 +194,7 @@ static void CG_ParseLevelTransition( void ) {
 		return;
 	}
 
+	CG_MarkSameLevelRestart();
 	cgs.levelTransitionType = CG_LEVEL_TRANSITION_RELOAD;
 	cgs.levelTransitionEnd = cg.time + CG_LEVEL_TRANSITION_TIMEOUT;
 	CG_BeginLevelTransition();
@@ -1890,10 +1894,15 @@ static void CG_MapRestart( void ) {
 		CG_Printf( "CG_MapRestart\n" );
 	}
 
-	if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_NEWMAP ) {
-		CG_BeginLevelLoadFade();
-		CG_ResetLevelTransition();
-	} else if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_RELOAD && cg.warmup <= 0 ) {
+	/*
+	 * map_restart keeps the bsp. The VM is about to be wiped, so remember
+	 * the map in a cvar and do not play the level-load fade.
+	 */
+	CG_MarkSameLevelRestart();
+	CG_CancelLevelLoadFade();
+
+	if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_NEWMAP
+		|| ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_RELOAD && cg.warmup <= 0 ) ) {
 		CG_ResetLevelTransition();
 	}
 

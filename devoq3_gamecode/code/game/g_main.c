@@ -2939,11 +2939,12 @@ void ExitLevel (void) {
             }
         }
 
-	G_BroadcastLevelTransition( LT_NEWMAP );
 	if( !Q_stricmp( nextmap, "map_restart 0" ) && Q_stricmp( d1, "" ) ) {
+		G_BroadcastLevelTransition( G_TransitionStaysOnMap( d1 ) ? LT_RELOAD : LT_NEWMAP );
 		trap_Cvar_Set( "nextmap", "vstr d2" );
 		trap_SendConsoleCommand( EXEC_APPEND, "vstr d1\n" );
 	} else {
+		G_BroadcastLevelTransition( G_TransitionStaysOnMap( nextmap ) ? LT_RELOAD : LT_NEWMAP );
 		trap_SendConsoleCommand( EXEC_APPEND, "vstr nextmap\n" );
 	}
 

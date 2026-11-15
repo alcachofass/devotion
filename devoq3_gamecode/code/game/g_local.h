@@ -1117,6 +1117,7 @@ typedef enum {
 
 void G_BroadcastLevelTransition( levelTransition_t type );
 void G_BroadcastLevelTransitionForVote( const char *voteString );
+qboolean G_TransitionStaysOnMap( const char *command );
 
 float	*tv (float x, float y, float z);
 char	*vtos( const vec3_t v );

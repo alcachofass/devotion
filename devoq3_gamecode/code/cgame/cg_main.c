@@ -2720,6 +2720,8 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
     
 	CG_ParseServerinfo();
 
+	CG_SuppressLoadFadeAfterSameLevelRestart();
+
 	// load the new map
 	CG_LoadingString( "collision map" );
 
@@ -2808,7 +2810,8 @@ void CG_Shutdown( void ) {
 	// some mods may need to do cleanup work here,
 	// like closing files or archiving session data
 	CG_PreserveNewmapLevelTransitionForLoad();
-	if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_NEWMAP ) {
+	if ( cgs.levelTransitionType == CG_LEVEL_TRANSITION_NEWMAP
+		&& !CG_SameLevelRestartPending() ) {
 		CG_BeginLevelLoadFade();
 	}
 	CG_AutoRecordStop();

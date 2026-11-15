@@ -827,6 +827,66 @@ void G_BroadcastLevelTransition( levelTransition_t type ) {
 		( type == LT_NEWMAP ) ? "newmap" : "reload" ) );
 }
 
+/*
+=================
+G_TransitionStaysOnMap
+
+True when the console command restarts this bsp (map_restart) and does not
+load a different map. A `map` to another bsp is a level change even if
+map_restart is chained after it.
+=================
+*/
+qboolean G_TransitionStaysOnMap( const char *command ) {
+	char		work[MAX_STRING_CHARS];
+	char		current[MAX_QPATH];
+	char		*segment;
+	char		*next;
+	qboolean	sawRestart;
+
+	if ( !command || !command[0] ) {
+		return qfalse;
+	}
+
+	trap_Cvar_VariableStringBuffer( "mapname", current, sizeof( current ) );
+	Q_strncpyz( work, command, sizeof( work ) );
+	sawRestart = qfalse;
+	segment = work;
+
+	while ( segment && *segment ) {
+		char	*parse;
+		char	cmd[MAX_TOKEN_CHARS];
+		char	arg[MAX_TOKEN_CHARS];
+
+		while ( *segment == ' ' || *segment == '\t' ) {
+			segment++;
+		}
+		if ( !*segment ) {
+			break;
+		}
+
+		next = strchr( segment, ';' );
+		if ( next ) {
+			*next = '\0';
+			next++;
+		}
+
+		parse = segment;
+		Q_strncpyz( cmd, COM_Parse( &parse ), sizeof( cmd ) );
+		if ( !Q_stricmp( cmd, "map" ) ) {
+			Q_strncpyz( arg, COM_Parse( &parse ), sizeof( arg ) );
+			if ( !arg[0] || Q_stricmp( arg, current ) ) {
+				return qfalse;
+			}
+		} else if ( !Q_stricmp( cmd, "map_restart" ) ) {
+			sawRestart = qtrue;
+		}
+
+		segment = next;
+	}
+
+	return sawRestart;
+}
+
 void G_BroadcastLevelTransitionForVote( const char *voteString ) {
 	char cmd[MAX_TOKEN_CHARS];
 	char arg[MAX_TOKEN_CHARS];
@@ -837,16 +897,14 @@ void G_BroadcastLevelTransitionForVote( const char *voteString ) {
 		return;
 	}
 
-	Q_strncpyz( work, voteString, sizeof( work ) );
-	s = work;
-	Q_strncpyz( cmd, COM_Parse( &s ), sizeof( cmd ) );
-
-	if ( !Q_stricmp( cmd, "map_restart" )
-		|| Q_stristr( voteString, "; map_restart" )
-		|| Q_stristr( voteString, "map_restart;" ) ) {
+	if ( G_TransitionStaysOnMap( voteString ) ) {
 		G_BroadcastLevelTransition( LT_RELOAD );
 		return;
 	}
+
+	Q_strncpyz( work, voteString, sizeof( work ) );
+	s = work;
+	Q_strncpyz( cmd, COM_Parse( &s ), sizeof( cmd ) );
 
 	if ( !Q_stricmp( cmd, "map" )
 		|| !Q_stricmp( cmd, "endgamenow" )
