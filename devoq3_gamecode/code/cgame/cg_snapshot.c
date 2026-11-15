@@ -238,6 +238,7 @@ static void CG_TransitionSnapshot( void ) {
 
 	if ( cg.mapRestart ) {
 		CG_Respawn();
+		CG_ClearLightningKnockback();
 		cg.mapRestart = qfalse;
 		if ( oldFrame ) {
 			/* Warmup→match is a new server epoch. Drop persistant diffs so

@@ -2151,3 +2151,106 @@ qboolean replace1( const char match, const char replace, char *str )
 
 	return res;
 }
+
+/*
+========================
+BG_InsertLightningKnockback
+
+Store one deferred lightning impulse. If every slot is in use, the soonest
+impulse is replaced. The queue is sized for a long lightning stream at
+high ping; eviction is a fallback, not the normal path.
+========================
+*/
+void BG_InsertLightningKnockback( lgKnockbackCmd_t *kb, int slots, int applyTime,
+		int vx, int vy, int vz, int pmTime, int epoch ) {
+	int i;
+	int oldest;
+	int oldestTime;
+
+	oldest = -1;
+	oldestTime = 0;
+	for ( i = 0; i < slots; i++ ) {
+		if ( !kb[i].valid ) {
+			kb[i].valid = qtrue;
+			kb[i].applyTime = applyTime;
+			kb[i].vel[0] = vx;
+			kb[i].vel[1] = vy;
+			kb[i].vel[2] = vz;
+			kb[i].pmTime = pmTime;
+			kb[i].epoch = epoch;
+			return;
+		}
+		if ( oldest < 0 || kb[i].applyTime < oldestTime ) {
+			oldest = i;
+			oldestTime = kb[i].applyTime;
+		}
+	}
+
+	if ( oldest < 0 ) {
+		return;
+	}
+	kb[oldest].valid = qtrue;
+	kb[oldest].applyTime = applyTime;
+	kb[oldest].vel[0] = vx;
+	kb[oldest].vel[1] = vy;
+	kb[oldest].vel[2] = vz;
+	kb[oldest].pmTime = pmTime;
+	kb[oldest].epoch = epoch;
+}
+
+/*
+========================
+BG_ApplyLightningKnockback
+
+Add impulses whose applyTime falls in (ps->commandTime, cmdTime].
+Does not consume them; the caller drops entries once a snapshot has
+passed them. Call immediately before Pmove so both sides integrate the
+same velocity through that command.
+========================
+*/
+void BG_ApplyLightningKnockback( playerState_t *ps, int cmdTime, lgKnockbackCmd_t *kb, int count ) {
+	int i;
+	int prev;
+	vec3_t kvel;
+
+	if ( !ps ) {
+		return;
+	}
+	prev = ps->commandTime;
+	for ( i = 0; i < count; i++ ) {
+		int t;
+
+		if ( !kb[i].valid ) {
+			continue;
+		}
+		if ( kb[i].applyTime <= prev || kb[i].applyTime > cmdTime ) {
+			continue;
+		}
+		kvel[0] = kb[i].vel[0] * ( 1.0f / LG_KNOCKBACK_VEL_SCALE );
+		kvel[1] = kb[i].vel[1] * ( 1.0f / LG_KNOCKBACK_VEL_SCALE );
+		kvel[2] = kb[i].vel[2] * ( 1.0f / LG_KNOCKBACK_VEL_SCALE );
+		VectorAdd( ps->velocity, kvel, ps->velocity );
+		if ( !ps->pm_time ) {
+			t = kb[i].pmTime;
+			if ( t < 50 ) {
+				t = 50;
+			}
+			if ( t > 200 ) {
+				t = 200;
+			}
+			ps->pm_time = t;
+			ps->pm_flags |= PMF_TIME_KNOCKBACK;
+		}
+	}
+}
+
+qboolean BG_LightningKnockbackPending( const lgKnockbackCmd_t *kb, int count, int commandTime ) {
+	int i;
+
+	for ( i = 0; i < count; i++ ) {
+		if ( kb[i].valid && kb[i].applyTime > commandTime ) {
+			return qtrue;
+		}
+	}
+	return qfalse;
+}

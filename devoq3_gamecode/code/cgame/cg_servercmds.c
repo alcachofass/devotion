@@ -2585,6 +2585,16 @@ static void CG_ServerCommand( void ) {
 		return;
 	}
 
+	if ( !strcmp( cmd, "lgkb" ) ) {
+		CG_LightningKnockbackCommand();
+		return;
+	}
+
+	if ( !strcmp( cmd, "lgkbclear" ) ) {
+		CG_LightningKnockbackClearCommand();
+		return;
+	}
+
 	if ( !strcmp( cmd, "camsync" ) ) {
 		CG_DemoCams_NetCommand();
 		return;

@@ -731,6 +731,11 @@ typedef struct {
 	int			predictedErrorTime;
 	vec3_t		predictedError;
 
+	// Deferred lightning knockback, applied during prediction on applyTime.
+	lgKnockbackCmd_t	lgKnockback[LG_KNOCKBACK_SLOTS];
+	int			lgKnockbackEpoch;
+	int			lgKnockbackEpochConfirmed;
+
 #define CG_ITEMEDIT_WALL_PREDICT_MAX	512
 	int			itemEditWallPredictCount;
 	int			itemEditWallPredictEnts[CG_ITEMEDIT_WALL_PREDICT_MAX];
@@ -2315,6 +2320,9 @@ int	CG_PointContents( const vec3_t point, int passEntityNum );
 void CG_Trace( trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, 
 					 int skipNumber, int mask );
 void CG_PredictPlayerState( void );
+void CG_ClearLightningKnockback( void );
+void CG_LightningKnockbackCommand( void );
+void CG_LightningKnockbackClearCommand( void );
 void CG_LoadDeferredPlayers( void );
 qboolean CG_MissileTouchedPortal(const vec3_t start, const vec3_t end);
 void CG_FreeCamParseMap( void );

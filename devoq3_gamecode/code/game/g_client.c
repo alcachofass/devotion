@@ -3854,6 +3854,8 @@ else
 	} else {
 		RespawnTimeMessage(ent,0);
 	}
+
+	G_ClearLightningKnockback( ent );
 }
 
 
