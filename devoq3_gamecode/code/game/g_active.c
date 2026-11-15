@@ -1611,7 +1611,10 @@ void ClientThink_real( gentity_t *ent ) {
 		}
         #endif
 
-	
+	// Lightning knockback is deferred to this command when it comes due,
+	// so the victim's prediction can apply the same impulse first.
+	G_ApplyDueLightningKnockback( ent, pm.cmd.serverTime );
+
 	Pmove (&pm);
 
 	//mrd - update client state of vortex GL and ongoing MG burst shots	

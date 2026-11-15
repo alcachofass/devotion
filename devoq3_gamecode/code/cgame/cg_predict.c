@@ -1362,6 +1362,97 @@ We detect prediction errors and allow them to be decayed off over several frames
 to ease the jerk.
 =================
 */
+static void CG_LightningKnockbackDropEpoch( int epoch ) {
+	int i;
+
+	for ( i = 0; i < LG_KNOCKBACK_SLOTS; i++ ) {
+		if ( cg.lgKnockback[i].valid && cg.lgKnockback[i].epoch < epoch ) {
+			cg.lgKnockback[i].valid = qfalse;
+		}
+	}
+}
+
+void CG_ClearLightningKnockback( void ) {
+	int i;
+
+	for ( i = 0; i < LG_KNOCKBACK_SLOTS; i++ ) {
+		cg.lgKnockback[i].valid = qfalse;
+	}
+	cg.lgKnockbackEpoch = 0;
+	cg.lgKnockbackEpochConfirmed = 0;
+}
+
+void CG_LightningKnockbackClearCommand( void ) {
+	int epoch;
+
+	if ( trap_Argc() < 2 ) {
+		return;
+	}
+	epoch = atoi( CG_Argv( 1 ) );
+	if ( epoch < cg.lgKnockbackEpoch ) {
+		return;
+	}
+	cg.lgKnockbackEpoch = epoch;
+	CG_LightningKnockbackDropEpoch( epoch );
+}
+
+void CG_LightningKnockbackCommand( void ) {
+	int applyTime;
+	int vx, vy, vz;
+	int pmTime;
+	int epoch;
+
+	if ( trap_Argc() < 7 ) {
+		return;
+	}
+	applyTime = atoi( CG_Argv( 1 ) );
+	vx = atoi( CG_Argv( 2 ) );
+	vy = atoi( CG_Argv( 3 ) );
+	vz = atoi( CG_Argv( 4 ) );
+	pmTime = atoi( CG_Argv( 5 ) );
+	epoch = atoi( CG_Argv( 6 ) );
+	if ( epoch < cg.lgKnockbackEpoch ) {
+		return;
+	}
+	if ( epoch > cg.lgKnockbackEpoch ) {
+		cg.lgKnockbackEpoch = epoch;
+		CG_LightningKnockbackDropEpoch( epoch );
+	}
+	BG_InsertLightningKnockback( cg.lgKnockback, LG_KNOCKBACK_SLOTS,
+		applyTime, vx, vy, vz, pmTime, epoch );
+}
+
+/*
+========================
+CG_LightningKnockbackOnTeleport
+
+Drop impulses from generations that were current on the previous snapshot.
+A clear that already arrived has bumped the epoch, so same-frame hits
+after the teleport (new epoch) stay queued.
+========================
+*/
+static void CG_LightningKnockbackOnTeleport( void ) {
+	int i;
+
+	for ( i = 0; i < LG_KNOCKBACK_SLOTS; i++ ) {
+		if ( cg.lgKnockback[i].valid
+				&& cg.lgKnockback[i].epoch <= cg.lgKnockbackEpochConfirmed ) {
+			cg.lgKnockback[i].valid = qfalse;
+		}
+	}
+	cg.lgKnockbackEpochConfirmed = cg.lgKnockbackEpoch;
+}
+
+static void CG_LightningKnockbackDropExpired( int commandTime ) {
+	int i;
+
+	for ( i = 0; i < LG_KNOCKBACK_SLOTS; i++ ) {
+		if ( cg.lgKnockback[i].valid && cg.lgKnockback[i].applyTime <= commandTime ) {
+			cg.lgKnockback[i].valid = qfalse;
+		}
+	}
+}
+
 void CG_PredictPlayerState( void ) {
 	int			cmdNum, current;
 	playerState_t	oldPlayerState;
@@ -1434,6 +1525,10 @@ void CG_PredictPlayerState( void ) {
 		if ( cg_showmiss.integer ) {
 			CG_Printf ("exceeded PACKET_BACKUP on commands\n");
 		}
+		if ( cg.mapRestart ) {
+			cg.predictedPlayerState = cg.snap->ps;
+			cg.mapRestart = qfalse;
+		}
 		return;
 	}
 
@@ -1451,6 +1546,11 @@ void CG_PredictPlayerState( void ) {
 		cg.predictedPlayerState = cg.snap->ps;
 		cg.physicsTime = cg.snap->serverTime;
 	}
+
+	if ( cg.thisFrameTeleport ) {
+		CG_LightningKnockbackOnTeleport();
+	}
+	CG_LightningKnockbackDropExpired( cg.predictedPlayerState.commandTime );
 
 	if ( pmove_msec.integer < 8 ) {
 		trap_Cvar_Set("pmove_msec", "8");
@@ -1490,8 +1590,12 @@ void CG_PredictPlayerState( void ) {
 	// depending on how much of a bottleneck the CPU is.
 
 	if ( cg_optimizePrediction.integer ) {
-		if ( cg.nextFrameTeleport || cg.thisFrameTeleport ) {
-			// do a full predict
+		if ( cg.nextFrameTeleport || cg.thisFrameTeleport
+				|| BG_LightningKnockbackPending( cg.lgKnockback, LG_KNOCKBACK_SLOTS,
+					cg.predictedPlayerState.commandTime ) ) {
+			// Full replay so a lightning impulse is inserted before Pmove
+			// of the command it belongs to, instead of a saved state that
+			// was built without it.
 			cg.lastPredictedCommand = 0;
 			cg.stateTail = cg.stateHead;
 			predictCmd = current - CMD_BACKUP + 1;
@@ -1640,6 +1744,8 @@ void CG_PredictPlayerState( void ) {
 		if ( cg_optimizePrediction.integer ) {
 			// if we need to predict this command, or we've run out of space in the saved states queue
 			if ( cmdNum >= predictCmd || (stateIndex + 1) % NUM_SAVED_STATES == cg.stateHead ) {
+				BG_ApplyLightningKnockback( &cg.predictedPlayerState, cg_pmove.cmd.serverTime,
+					cg.lgKnockback, LG_KNOCKBACK_SLOTS );
 				// run the Pmove
 				Pmove (&cg_pmove);
 				cg.altFireMGBurstShots = cg_pmove.altFireBurstShots;	//mrd
@@ -1675,6 +1781,8 @@ void CG_PredictPlayerState( void ) {
 			}
 		}
 		else {
+			BG_ApplyLightningKnockback( &cg.predictedPlayerState, cg_pmove.cmd.serverTime,
+				cg.lgKnockback, LG_KNOCKBACK_SLOTS );
 			// run the Pmove
 			Pmove (&cg_pmove);
 
@@ -1714,6 +1822,9 @@ void CG_PredictPlayerState( void ) {
 		CG_EncodePlayerBBox(&cg_pmove, &cg.predictedPlayerEntity.currentState);
 		if ( cg_showmiss.integer ) {
 			CG_Printf( "not moved\n" );
+		}
+		if ( cg.mapRestart ) {
+			cg.mapRestart = qfalse;
 		}
 		return;
 	}

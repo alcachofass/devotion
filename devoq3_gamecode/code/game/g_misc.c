@@ -149,6 +149,7 @@ void TeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles ) {
 	}
 
 	player->client->lastTeleportTime = level.time;
+	G_ClearLightningKnockback( player );
 }
 
 /*
@@ -212,6 +213,7 @@ void G_DeathpitMercyRespawn( gentity_t *player ) {
 	}
 
 	client->lastTeleportTime = level.time;
+	G_ClearLightningKnockback( player );
 }
 
 

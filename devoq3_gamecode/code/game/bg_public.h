@@ -1082,6 +1082,24 @@ void	BG_TouchJumpPad( playerState_t *ps, entityState_t *jumppad );
 void	BG_PlayerStateToEntityState( playerState_t *ps, entityState_t *s, qboolean snap );
 void	BG_PlayerStateToEntityStateExtraPolate( playerState_t *ps, entityState_t *s, int time, qboolean snap );
 
+// Lightning knockback is applied later, on a victim command both sides still
+// agree on. vel[] is in units of 1/LG_KNOCKBACK_VEL_SCALE.
+#define LG_KNOCKBACK_SLOTS		96
+#define LG_KNOCKBACK_VEL_SCALE	100
+
+typedef struct lgKnockbackCmd_s {
+	int			applyTime;
+	int			vel[3];
+	int			pmTime;
+	int			epoch;
+	qboolean	valid;
+} lgKnockbackCmd_t;
+
+void BG_InsertLightningKnockback( lgKnockbackCmd_t *kb, int slots, int applyTime,
+		int vx, int vy, int vz, int pmTime, int epoch );
+void BG_ApplyLightningKnockback( playerState_t *ps, int cmdTime, lgKnockbackCmd_t *kb, int count );
+qboolean BG_LightningKnockbackPending( const lgKnockbackCmd_t *kb, int count, int commandTime );
+
 qboolean	BG_PlayerTouchesItem( playerState_t *ps, entityState_t *item, int atTime, int pickupHeightMode );
 
 

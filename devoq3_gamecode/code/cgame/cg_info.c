@@ -345,6 +345,9 @@ void CG_DrawInformation( void ) {
   rendered frame; CG_LoadFadeViewSizeOverride() shrinks the 3D viewport during
   the iris variant.
 
+  A same-map map_restart wipes the VM, so the "skip this fade" bit cannot live
+  in cg or in statics. It is stored in cg_sameLevelRestart until the next init.
+
 ===============================================================================
 */
 
@@ -353,10 +356,119 @@ typedef enum {
 	LOAD_XITION_IRIS
 } loadXition_t;
 
+/* map_restart -> gamestate is usually a couple of seconds; shuffle delays ~2s. */
+#define SAMELEVEL_RESTART_CVAR		"cg_sameLevelRestart"
+#define SAMELEVEL_RESTART_MS		15000
+
 static int			s_levelLoadFadeStart;
 static loadXition_t	s_loadXition;
 static qboolean		s_loadXitionPicked;
 static int			s_killcamXitionStart;
+static int			s_sameLevelConsumedStamp;
+
+static void CG_CurrentMapBasename( char *buf, int buflen ) {
+	if ( cgs.mapbasename[0] ) {
+		Q_strncpyz( buf, cgs.mapbasename, buflen );
+		return;
+	}
+	Q_strncpyz( buf, Info_ValueForKey( CG_ConfigString( CS_SERVERINFO ), "mapname" ), buflen );
+}
+
+static qboolean CG_ParseSameLevelRestart( char *map, int maplen, int *stamp ) {
+	char	buf[MAX_QPATH + 32];
+	char	*space;
+
+	trap_Cvar_VariableStringBuffer( SAMELEVEL_RESTART_CVAR, buf, sizeof( buf ) );
+	if ( !buf[0] ) {
+		return qfalse;
+	}
+
+	*stamp = atoi( buf );
+	space = strchr( buf, ' ' );
+	if ( !space || !space[1] ) {
+		return qfalse;
+	}
+
+	Q_strncpyz( map, space + 1, maplen );
+	return map[0] ? qtrue : qfalse;
+}
+
+void CG_MarkSameLevelRestart( void ) {
+	char	current[MAX_QPATH];
+	int		now;
+	int		sinceConsume;
+
+	/*
+	 * map_restart is often delivered again in the first gamestate after the
+	 * VM wipe. The consume on init already handled that restart; don't arm
+	 * a second skip that would swallow the next real level change.
+	 */
+	now = trap_Milliseconds();
+	sinceConsume = now - s_sameLevelConsumedStamp;
+	if ( s_sameLevelConsumedStamp && sinceConsume >= 0 && sinceConsume < 2000 ) {
+		return;
+	}
+
+	CG_CurrentMapBasename( current, sizeof( current ) );
+	if ( !current[0] ) {
+		return;
+	}
+
+	trap_Cvar_Set( SAMELEVEL_RESTART_CVAR, va( "%i %s", now, current ) );
+}
+
+void CG_ClearSameLevelRestart( void ) {
+	trap_Cvar_Set( SAMELEVEL_RESTART_CVAR, "" );
+}
+
+qboolean CG_SameLevelRestartPending( void ) {
+	char	marked[MAX_QPATH];
+	char	current[MAX_QPATH];
+	int		stamp;
+	int		dt;
+
+	if ( !CG_ParseSameLevelRestart( marked, sizeof( marked ), &stamp ) ) {
+		return qfalse;
+	}
+
+	CG_CurrentMapBasename( current, sizeof( current ) );
+	if ( !current[0] || Q_stricmp( marked, current ) ) {
+		return qfalse;
+	}
+
+	dt = trap_Milliseconds() - stamp;
+	if ( dt < 0 || dt > SAMELEVEL_RESTART_MS ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+void CG_CancelLevelLoadFade( void ) {
+	s_levelLoadFadeStart = 0;
+	s_loadXitionPicked = qfalse;
+}
+
+void CG_SuppressLoadFadeAfterSameLevelRestart( void ) {
+	char	marked[MAX_QPATH];
+	int		stamp;
+
+	if ( !CG_SameLevelRestartPending() ) {
+		return;
+	}
+
+	if ( !CG_ParseSameLevelRestart( marked, sizeof( marked ), &stamp ) ) {
+		return;
+	}
+	s_sameLevelConsumedStamp = stamp;
+
+	CG_ClearSameLevelRestart();
+	CG_CancelLevelLoadFade();
+	if ( !cg.loadFadeStart ) {
+		/* Already elapsed, so the enter fade does not play. */
+		cg.loadFadeStart = 1;
+	}
+}
 
 static int CG_LoadFadeElapsed( void ) {
 	int elapsed;
@@ -383,7 +495,19 @@ void CG_BeginLoadFadeIfNeeded( void ) {
 	int elapsed;
 	int seed;
 
-	if ( cg.loadFadeStart || cg.levelShot ) {
+	if ( cg.levelShot ) {
+		return;
+	}
+
+	/*
+	 * Fresh VM after a same-map restart: loadFadeStart was wiped, but the
+	 * cvar still names this map. Consume it before starting an enter fade.
+	 */
+	if ( !cg.loadFadeStart ) {
+		CG_SuppressLoadFadeAfterSameLevelRestart();
+	}
+
+	if ( cg.loadFadeStart ) {
 		return;
 	}
 

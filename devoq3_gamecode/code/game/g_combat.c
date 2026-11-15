@@ -1969,6 +1969,101 @@ dflags		these flags are used to control how T_Damage works
 ============
 */
 
+/*
+==================
+G_LightningKnockbackApplyTime
+
+Schedule onto a victim command that is still in their future when the
+notice arrives. one-way age is level.time - commandTime. The client is
+about one round trip ahead of the last executed command, so apply at
+commandTime + 2*oneWay, plus slack for jitter and one reliable-command
+retransmission. High ping (180+) gets slack that grows with that age.
+==================
+*/
+static int G_LightningKnockbackApplyTime( gentity_t *targ ) {
+	int cmdTime;
+	int oneWay;
+	int margin;
+
+	cmdTime = targ->client->ps.commandTime;
+	oneWay = level.time - cmdTime;
+	if ( oneWay < 0 ) {
+		oneWay = 0;
+	}
+	// Past this, a stuck command clock would queue seconds of shaft.
+	// 750ms one-way is a 1.5s round trip, well beyond a 180 ping target.
+	if ( oneWay > 750 ) {
+		oneWay = 750;
+	}
+	if ( oneWay >= 80 ) {
+		margin = oneWay * 2 + 50;
+	} else {
+		margin = 48;
+	}
+	return cmdTime + oneWay * 2 + margin;
+}
+
+static int G_LightningVelMilli( float v ) {
+	if ( v >= 0.0f ) {
+		return (int)( v * LG_KNOCKBACK_VEL_SCALE + 0.5f );
+	}
+	return (int)( v * LG_KNOCKBACK_VEL_SCALE - 0.5f );
+}
+
+void G_ClearLightningKnockback( gentity_t *ent ) {
+	int i;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+	for ( i = 0; i < LG_KNOCKBACK_SLOTS; i++ ) {
+		ent->client->lgKnockback[i].valid = qfalse;
+	}
+	ent->client->pers.lgKnockbackEpoch++;
+	if ( ent->r.svFlags & SVF_BOT ) {
+		return;
+	}
+	trap_SendServerCommand( ent->s.number,
+		va( "lgkbclear %d", ent->client->pers.lgKnockbackEpoch ) );
+}
+
+static void G_QueueLightningKnockback( gentity_t *targ, vec3_t kvel, int pmTime ) {
+	int applyTime;
+	int vx, vy, vz;
+	int epoch;
+
+	applyTime = G_LightningKnockbackApplyTime( targ );
+	vx = G_LightningVelMilli( kvel[0] );
+	vy = G_LightningVelMilli( kvel[1] );
+	vz = G_LightningVelMilli( kvel[2] );
+	epoch = targ->client->pers.lgKnockbackEpoch;
+	BG_InsertLightningKnockback( targ->client->lgKnockback, LG_KNOCKBACK_SLOTS,
+		applyTime, vx, vy, vz, pmTime, epoch );
+	trap_SendServerCommand( targ->s.number,
+		va( "lgkb %d %d %d %d %d %d", applyTime, vx, vy, vz, pmTime, epoch ) );
+}
+
+void G_ApplyDueLightningKnockback( gentity_t *ent, int cmdTime ) {
+	int prev;
+	int i;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+	prev = ent->client->ps.commandTime;
+	BG_ApplyLightningKnockback( &ent->client->ps, cmdTime,
+		ent->client->lgKnockback, LG_KNOCKBACK_SLOTS );
+	for ( i = 0; i < LG_KNOCKBACK_SLOTS; i++ ) {
+		if ( !ent->client->lgKnockback[i].valid ) {
+			continue;
+		}
+		if ( ent->client->lgKnockback[i].applyTime > prev
+				&& ent->client->lgKnockback[i].applyTime <= cmdTime ) {
+			ent->client->lgKnockback[i].valid = qfalse;
+		}
+	}
+}
+
 /*void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 			   vec3_t dir, vec3_t point, int damage, int dflags, int mod ) {*/	//mrd
 void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
@@ -2117,13 +2212,12 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		}
 
 		VectorScale (dir, g_knockback.value * (float)knockback / mass, kvel);
-		VectorAdd (targ->client->ps.velocity, kvel, targ->client->ps.velocity);
 
-		//Com_Printf("knockback = %d\n", knockback);
-
-		// set the timer so that the other client can't cancel
-		// out the movement immediately
-		if ( !targ->client->ps.pm_time ) {
+		// Lightning is a stream. Applying it at hit time corrects the
+		// victim's already-predicted commands every tick. Hand the impulse
+		// to a future command the victim can apply while predicting.
+		// Bots have no client prediction, so they take it now.
+		if ( mod == MOD_LIGHTNING && !( targ->r.svFlags & SVF_BOT ) ) {
 			int		t;
 
 			t = knockback * 2;
@@ -2133,12 +2227,29 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 			if ( t > 200 ) {
 				t = 200;
 			}
-			if (altFire && ( mod == MOD_RAILGUN || mod == MOD_RAILGUN_SHOCKWAVE ) ) {
-				targ->client->ps.pm_time = t * 2.5;	//mrd - altFire RG has annoyingly long knockback recovery time
-			} else {
-				targ->client->ps.pm_time = t;
+			G_QueueLightningKnockback( targ, kvel, t );
+		} else {
+			VectorAdd (targ->client->ps.velocity, kvel, targ->client->ps.velocity);
+
+			// set the timer so that the other client can't cancel
+			// out the movement immediately
+			if ( !targ->client->ps.pm_time ) {
+				int		t;
+
+				t = knockback * 2;
+				if ( t < 50 ) {
+					t = 50;
+				}
+				if ( t > 200 ) {
+					t = 200;
+				}
+				if (altFire && ( mod == MOD_RAILGUN || mod == MOD_RAILGUN_SHOCKWAVE ) ) {
+					targ->client->ps.pm_time = t * 2.5;	//mrd - altFire RG has annoyingly long knockback recovery time
+				} else {
+					targ->client->ps.pm_time = t;
+				}
+				targ->client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
 			}
-			targ->client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
 		}
                 //Remeber the last person to hurt the player
                 if( !g_awardpushing.integer || targ==attacker || OnSameTeam (targ, attacker)) {

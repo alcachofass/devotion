@@ -543,6 +543,9 @@ typedef struct {
     int fps_last;
 
     qboolean trackConsent;
+
+    // bumped when deferred lightning knockback must be discarded
+    int lgKnockbackEpoch;
 } clientPersistant_t;
 
 // for twitchrail award
@@ -702,6 +705,9 @@ struct gclient_s {
 
 	// the level.time to which this client was shifted, or 0 if it isn't timeshifted
 	int timeshiftTime;
+
+	// lightning knockback waiting for a future usercmd (not applied at hit time)
+	lgKnockbackCmd_t	lgKnockback[LG_KNOCKBACK_SLOTS];
 //unlagged - backward reconciliation #1
 
 //unlagged - smooth clients #1
@@ -1111,6 +1117,7 @@ typedef enum {
 
 void G_BroadcastLevelTransition( levelTransition_t type );
 void G_BroadcastLevelTransitionForVote( const char *voteString );
+qboolean G_TransitionStaysOnMap( const char *command );
 
 float	*tv (float x, float y, float z);
 char	*vtos( const vec3_t v );
@@ -1138,6 +1145,8 @@ void G_SetGameIDMask(gentity_t *ent, int gameId);
 qboolean CanDamage (gentity_t *targ, vec3_t origin);
 //void G_Damage (gentity_t *targ, gentity_t *inflictor, gentity_t *attacker, vec3_t dir, vec3_t point, int damage, int dflags, int mod);
 void G_Damage (gentity_t *targ, gentity_t *inflictor, gentity_t *attacker, vec3_t dir, vec3_t point, int damage, int dflags, int mod, qboolean altFire);	//mrd
+void G_ClearLightningKnockback( gentity_t *ent );
+void G_ApplyDueLightningKnockback( gentity_t *ent, int cmdTime );
 #define ShouldPostponeGib( mod )	( mod == MOD_SHOTGUN )
 qboolean G_OriginFitsPlayerBox( const vec3_t origin, int ignoreEnt );
 qboolean G_RadiusDamage (vec3_t origin, gentity_t *inflictor, gentity_t *attacker, float damage, float radius, gentity_t *ignore, int mod, qboolean altFire);	//mrd

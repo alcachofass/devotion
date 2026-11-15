@@ -36,8 +36,12 @@ extern bot_state_t *botstates[MAX_CLIENTS];
 extern vmCvar_t g_allowVote;
 extern vmCvar_t g_gametype;
 
-#define BOTSMACK_COOLDOWN_MIN	3.0f
-#define BOTSMACK_COOLDOWN_MAX	9.0f
+#define BOTSMACK_COOLDOWN_MIN	10.0f
+#define BOTSMACK_COOLDOWN_MAX	22.0f
+
+/* Say gl/hf only in this slice before the countdown hits zero. */
+#define BOTSMACK_GLHF_EARLY_MS	5000
+#define BOTSMACK_GLHF_LATE_MS	700
 
 #define BOTSMACK_LARGE_AUDIENCE	6
 
@@ -469,15 +473,100 @@ static const char *BotSmack_PickLine( const char * const *lines, int n,
 	return BotSmack_Pick( neutral, n_neutral );
 }
 
-static qboolean BotSmack_WantPregameChat( void ) {
-	if ( level.warmupTime != 0 ) {
+/*
+==================
+BotSmack_InGlhfWindow
+
+GL/HF belongs in the last few seconds of a countdown, not the moment warmup
+opens. When the server skips a countdown entirely, the line goes out shortly
+after the match actually starts.
+==================
+*/
+static qboolean BotSmack_InGlhfWindow( int *delayMs ) {
+	int	remain;
+
+	*delayMs = 400;
+	if ( level.intermissiontime ) {
+		return qfalse;
+	}
+
+	if ( level.warmupTime > level.time ) {
+		remain = level.warmupTime - level.time;
+		if ( remain > BOTSMACK_GLHF_EARLY_MS || remain < BOTSMACK_GLHF_LATE_MS ) {
+			return qfalse;
+		}
+		*delayMs = (int)( random() * (float)( remain - 500 ) );
 		return qtrue;
 	}
+
 	if ( G_IsElimGT() && G_InEliminationActiveWarmup() ) {
-		if ( level.roundNumber == 1 && level.roundNumberStarted < 1 ) {
-			return qtrue;
+		if ( level.roundNumber != 1 || level.roundNumberStarted >= 1 ) {
+			return qfalse;
 		}
+		remain = level.roundStartTime - level.time;
+		if ( remain > BOTSMACK_GLHF_EARLY_MS || remain < BOTSMACK_GLHF_LATE_MS ) {
+			return qfalse;
+		}
+		*delayMs = (int)( random() * (float)( remain - 500 ) );
+		return qtrue;
+	}
+
+	/*
+	 * Countdown servers already got the line (or a map_restart cleared the
+	 * bot that said it). Only greet here when play begins with no countdown.
+	 */
+	trap_Cvar_Update( &g_doWarmup );
+	trap_Cvar_Update( &g_warmup );
+	if ( level.warmupTime == 0 && !G_IsElimGT()
+			&& ( !g_doWarmup.integer || g_warmup.integer <= 1 ) ) {
+		int elapsed = level.time - level.startTime;
+
+		if ( elapsed < 600 || elapsed > 2800 ) {
+			return qfalse;
+		}
+		*delayMs = (int)( random() * (float)( 2800 - elapsed ) );
+		return qtrue;
+	}
+	return qfalse;
+}
+
+/*
+==================
+BotSmack_SocialVoteWindow
+
+Gametype and map votes last VOTE_TIME. Calling one in the last seconds of
+warmup, or after a live match has begun, puts the vote in the middle of play.
+Lobby wait (warmupTime < 0) and intermission are the windows that fit.
+A countdown only qualifies when the whole vote can finish before the match.
+==================
+*/
+static qboolean BotSmack_SocialVoteWindow( void ) {
+	int	remain;
+
+	if ( level.intermissiontime ) {
+		return qtrue;
+	}
+	if ( level.warmupTime == 0 ) {
 		return qfalse;
+	}
+	if ( level.warmupTime < 0 ) {
+		/*
+		 * Waiting for players. A dropped duel can also park here after
+		 * a match has already been played; don't campaign from that.
+		 */
+		if ( level.tournamentStarted && level.startTime > 0
+				&& level.time - level.startTime > 20000 ) {
+			return qfalse;
+		}
+		if ( level.time - level.startTime < 8000 ) {
+			return qfalse;
+		}
+		return qtrue;
+	}
+
+	remain = level.warmupTime - level.time;
+	if ( remain >= VOTE_TIME + 3000 ) {
+		return qtrue;
 	}
 	return qfalse;
 }
@@ -500,21 +589,48 @@ static void BotSmack_Say( bot_state_t *bs, const char *msg ) {
 static void BotSmack_TryPregameLine( bot_state_t *bs ) {
 	const bot_smack_profile_t	*prof;
 	const char					*line;
-	float						chance;
+	int							delayMs;
+	float						speakChance;
 
-	if ( !BotSmack_CanSpeak( bs ) ) {
+	if ( !bs || ( bs->smack_flags & BOTSMACK_SAID_GLHF ) ) {
 		return;
 	}
-	if ( bs->smack_flags & BOTSMACK_SAID_GLHF ) {
+
+	if ( bs->smack_glhf_time > 0.0f ) {
+		if ( (float)level.time < bs->smack_glhf_time ) {
+			return;
+		}
+		/* Countdown was pushed back out, or the match is already underway. */
+		if ( level.warmupTime > level.time
+				&& level.warmupTime - level.time > BOTSMACK_GLHF_EARLY_MS + 1500 ) {
+			bs->smack_glhf_time = 0.0f;
+			return;
+		}
+		if ( level.warmupTime == 0 && level.time - level.startTime > 6000 ) {
+			bs->smack_flags |= BOTSMACK_SAID_GLHF;
+			bs->smack_glhf_time = 0.0f;
+			return;
+		}
+	} else {
+		if ( !BotSmack_InGlhfWindow( &delayMs ) ) {
+			return;
+		}
+		speakChance = G_IsTeamGametype() ? 0.55f : 0.85f;
+		if ( random() > speakChance ) {
+			bs->smack_flags |= BOTSMACK_SAID_GLHF;
+			return;
+		}
+		bs->smack_glhf_time = (float)level.time + (float)delayMs;
+		if ( bs->smack_glhf_time < (float)level.time + 200.0f ) {
+			bs->smack_glhf_time = (float)level.time + 200.0f;
+		}
 		return;
 	}
-	chance = 0.10f + bot_enhanced_chat.integer * 0.03f;
-	if ( G_IsTeamGametype() ) {
-		chance *= 0.55f;
-	}
-	if ( random() > chance ) {
+
+	if ( !BotSmack_Active() || BotIsObserver( bs ) || BotIsDead( bs ) ) {
 		return;
 	}
+
 	prof = BotSmack_Profile( bs->client );
 	line = BotSmack_PickLine( prof->pregame, prof->n_pregame,
 		smack_def_pre, SMACK_N( smack_def_pre ) );
@@ -523,6 +639,7 @@ static void BotSmack_TryPregameLine( bot_state_t *bs ) {
 	}
 	BotSmack_Say( bs, line );
 	bs->smack_flags |= BOTSMACK_SAID_GLHF;
+	bs->smack_glhf_time = 0.0f;
 }
 
 static int BotSmack_StompLeader( bot_state_t *bs ) {
@@ -687,19 +804,29 @@ static void BotSmack_TryWarmupVote( bot_state_t *bs ) {
 	int		gt, pick, tries, idx;
 	float	chance;
 
-	if ( !bs || !( bs->smack_flags & BOTSMACK_SAID_GLHF ) ) {
+	if ( !bs || ( bs->smack_flags & BOTSMACK_WARMUP_VOTED ) ) {
 		return;
 	}
-	if ( bs->smack_flags & BOTSMACK_WARMUP_VOTED ) {
+	if ( bs->smack_vote_kind != BOTSMACK_VOTE_NONE ) {
 		return;
 	}
-	if ( level.warmupTime == 0 && !G_InEliminationActiveWarmup() ) {
+	if ( !BotSmack_SocialVoteWindow() ) {
 		return;
 	}
+	if ( bs->smack_next_action <= 0.0f ) {
+		bs->smack_next_action = (float)level.time + 3000.0f + random() * 5000.0f;
+		return;
+	}
+	if ( (float)level.time < bs->smack_next_action ) {
+		return;
+	}
+	bs->smack_next_action = (float)level.time + 7000.0f + random() * 4000.0f;
+
 	if ( !BotSmack_VotesAllowed() ) {
 		return;
 	}
-	chance = 0.015f + 0.008f * bot_enhanced_chat.integer;
+	/* One lobby vote is plenty; most bots stay quiet. */
+	chance = 0.04f + 0.015f * bot_enhanced_chat.integer;
 	if ( random() > chance ) {
 		return;
 	}
@@ -756,30 +883,133 @@ static void BotSmack_TryWarmupVote( bot_state_t *bs ) {
 	}
 }
 
+/*
+==================
+BotSmack_DuelHopeless
+
+True only when a duel is deep enough that the deficit cannot be closed
+before the clock or the frag cap ends it. A tied or freshly started match
+is not hopeless — BotIsLastInRankings is true for every 0-0 tie.
+==================
+*/
+static qboolean BotSmack_DuelHopeless( bot_state_t *bs ) {
+	int			i, myScore, oppScore, deficit, elapsed, maxclients;
+	int			fraglimit, timelimitMs, remain, oppNeeds;
+	qboolean	found;
+	qboolean	timeImpossible, fragImpossible;
+
+	myScore = bs->cur_ps.persistant[PERS_SCORE];
+	oppScore = 0;
+	found = qfalse;
+	maxclients = level.maxclients;
+	if ( maxclients <= 0 || maxclients > MAX_CLIENTS ) {
+		maxclients = MAX_CLIENTS;
+	}
+	for ( i = 0; i < maxclients; i++ ) {
+		playerState_t ps;
+
+		if ( i == bs->client ) {
+			continue;
+		}
+		if ( BotClientIsSpectator( i ) ) {
+			continue;
+		}
+		if ( !BotAI_GetClientState( i, &ps ) ) {
+			continue;
+		}
+		oppScore = ps.persistant[PERS_SCORE];
+		found = qtrue;
+		break;
+	}
+	if ( !found ) {
+		return qfalse;
+	}
+
+	deficit = oppScore - myScore;
+	if ( deficit < 5 ) {
+		return qfalse;
+	}
+
+	elapsed = level.time - level.startTime;
+	if ( elapsed < 60000 ) {
+		return qfalse;
+	}
+
+	trap_Cvar_Update( &g_fraglimit );
+	trap_Cvar_Update( &g_timelimit );
+	trap_Cvar_Update( &g_overtime );
+	fraglimit = g_fraglimit.integer;
+	timelimitMs = 0;
+	if ( g_timelimit.integer > 0 ) {
+		timelimitMs = g_timelimit.integer * 60000;
+		if ( level.overtimeCount > 0 && g_overtime.integer > 0 ) {
+			timelimitMs += level.overtimeCount * g_overtime.integer * 60000;
+		}
+		timelimitMs += level.timeoutOvertime;
+	}
+
+	timeImpossible = qfalse;
+	fragImpossible = qfalse;
+
+	if ( timelimitMs > 0 ) {
+		remain = timelimitMs - elapsed;
+		if ( remain < 0 ) {
+			remain = 0;
+		}
+		/*
+		 * Half the match is gone (or the clock is nearly out) and there is
+		 * not enough time to take one frag per 5s of the gap, even if the
+		 * opponent never scores again.
+		 */
+		if ( ( elapsed * 2 >= timelimitMs || remain <= 40000 || level.overtimeCount > 0 )
+				&& remain < deficit * 5000 ) {
+			timeImpossible = qtrue;
+		}
+	}
+
+	if ( fraglimit > 0 ) {
+		oppNeeds = fraglimit - oppScore;
+		if ( oppNeeds < 0 ) {
+			oppNeeds = 0;
+		}
+		/* Leader is at 75%+ of the cap and only a couple of frags from ending it. */
+		if ( oppScore * 4 >= fraglimit * 3 && oppNeeds <= 3 && elapsed >= 60000 ) {
+			fragImpossible = qtrue;
+		}
+	}
+
+	if ( timelimitMs <= 0 && fraglimit <= 0 ) {
+		return elapsed >= 180000 && deficit >= 10;
+	}
+	return timeImpossible || fragImpossible;
+}
+
 static void BotSmack_TryDuelForfeit( bot_state_t *bs ) {
 	const bot_smack_profile_t	*prof;
 
 	if ( !bs || ( bs->smack_flags & BOTSMACK_TRIED_GG ) ) {
 		return;
 	}
-	if ( level.warmupTime ) {
-		return;
-	}
-	if ( level.intermissiontime ) {
+	if ( level.warmupTime || level.intermissiontime ) {
 		return;
 	}
 	trap_Cvar_Update( &g_gametype );
 	if ( g_gametype.integer != GT_TOURNAMENT || level.numPlayingClients != 2 ) {
 		return;
 	}
-	if ( !BotSmack_WasStomped( bs ) ) {
+	if ( (float)level.time < bs->smack_next_action ) {
+		return;
+	}
+	bs->smack_next_action = (float)level.time + 4000.0f + random() * 2000.0f;
+
+	if ( !BotSmack_DuelHopeless( bs ) ) {
 		return;
 	}
 	prof = BotSmack_Profile( bs->client );
-	if ( prof->emotional < 0.45f ) {
+	if ( prof->emotional < 0.50f ) {
 		return;
 	}
-	if ( random() > 0.15f + prof->emotional * 0.12f ) {
+	if ( random() > 0.30f + prof->emotional * 0.35f ) {
 		return;
 	}
 	bs->smack_flags |= BOTSMACK_TRIED_GG;
@@ -796,6 +1026,11 @@ static void BotSmack_ProcessVoteQueue( bot_state_t *bs ) {
 	bs->smack_vote_time = 0.0f;
 
 	if ( bs->smack_vote_kind == BOTSMACK_VOTE_KICK ) {
+		if ( !BotSmack_SocialVoteWindow() ) {
+			bs->smack_vote_kind = BOTSMACK_VOTE_NONE;
+			bs->smack_vote_target = -1;
+			return;
+		}
 		BotSmack_TryKickVote( bs );
 		return;
 	}
@@ -818,23 +1053,20 @@ void BotSmack_Reset( bot_state_t *bs ) {
 	bs->smack_flags = 0;
 	bs->smack_next_time = 0;
 	bs->smack_ragequit_time = 0;
+	bs->smack_glhf_time = 0;
+	bs->smack_next_action = 0;
 	bs->smack_vote_kind = BOTSMACK_VOTE_NONE;
 	bs->smack_vote_time = 0;
 	bs->smack_vote_target = -1;
 }
 
 void BotSmack_OnRoundPregame( bot_state_t *bs ) {
-	if ( !BotSmack_WantPregameChat() ) {
-		return;
-	}
 	BotSmack_TryPregameLine( bs );
 }
 
 void BotSmack_OnLevelStart( bot_state_t *bs ) {
-	if ( G_IsElimGT() ) {
-		return;
-	}
-	BotSmack_TryPregameLine( bs );
+	/* GL/HF waits for the pre-start window inside BotSmack_OnThinkStart. */
+	(void)bs;
 }
 
 void BotSmack_OnIntermission( bot_state_t *bs ) {
@@ -910,16 +1142,14 @@ void BotSmack_OnThinkStart( bot_state_t *bs ) {
 		return;
 	}
 
-	if ( BotSmack_WantPregameChat() ) {
-		BotSmack_OnRoundPregame( bs );
-	}
-	if ( level.warmupTime != 0 ) {
-		BotSmack_TryWarmupVote( bs );
-	}
+	BotSmack_OnRoundPregame( bs );
+	BotSmack_TryWarmupVote( bs );
 	BotSmack_ProcessVoteQueue( bs );
 	BotSmack_TryDuelForfeit( bs );
 
-	if ( !BotIntermission( bs ) && random() < 0.0006f * bot_enhanced_chat.integer ) {
+	if ( level.warmupTime == 0 && !level.intermissiontime
+			&& level.time - level.startTime > 90000
+			&& random() < 0.00015f * bot_enhanced_chat.integer ) {
 		const bot_smack_profile_t *prof = BotSmack_Profile( bs->client );
 		const char *line = BotSmack_PickLine( prof->kill, prof->n_kill,
 			smack_def_kill, SMACK_N( smack_def_kill ) );
@@ -937,8 +1167,11 @@ int BotSmack_OnFrag( bot_state_t *bs ) {
 	if ( !BotSmack_CanSpeak( bs ) ) {
 		return 0;
 	}
+	if ( level.warmupTime != 0 || level.intermissiontime || G_InEliminationActiveWarmup() ) {
+		return 0;
+	}
 	prof = BotSmack_Profile( bs->client );
-	chance = 0.08f + prof->emotional * 0.06f + bot_enhanced_chat.integer * 0.02f;
+	chance = 0.035f + prof->emotional * 0.025f + bot_enhanced_chat.integer * 0.008f;
 	if ( random() > chance ) {
 		return 0;
 	}
@@ -964,7 +1197,7 @@ int BotSmack_TryReplyChat( bot_state_t *bs, const char *message, const char *fro
 	if ( BotIsObserver( bs ) ) {
 		return 0;
 	}
-	chance = 0.05f + bot_enhanced_chat.integer * 0.025f;
+	chance = 0.025f + bot_enhanced_chat.integer * 0.01f;
 	if ( random() > chance ) {
 		return 0;
 	}
