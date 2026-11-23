@@ -1973,34 +1973,21 @@ dflags		these flags are used to control how T_Damage works
 ==================
 G_LightningKnockbackApplyTime
 
-Schedule onto a victim command that is still in their future when the
-notice arrives. one-way age is level.time - commandTime. The client is
-about one round trip ahead of the last executed command, so apply at
-commandTime + 2*oneWay, plus slack for jitter and one reliable-command
-retransmission. High ping (180+) gets slack that grows with that age.
+Command age is a full ping, so the victim reaches level.time as the
+notice arrives and the firing snapshot is drawn. 48ms of slack keeps
+the impulse on a command still ahead of that packet.
 ==================
 */
 static int G_LightningKnockbackApplyTime( gentity_t *targ ) {
-	int cmdTime;
-	int oneWay;
-	int margin;
+	int age;
 
-	cmdTime = targ->client->ps.commandTime;
-	oneWay = level.time - cmdTime;
-	if ( oneWay < 0 ) {
-		oneWay = 0;
+	age = level.time - targ->client->ps.commandTime;
+	if ( age < 0 ) {
+		age = 0;
+	} else if ( age > 750 ) {
+		age = 750;
 	}
-	// Past this, a stuck command clock would queue seconds of shaft.
-	// 750ms one-way is a 1.5s round trip, well beyond a 180 ping target.
-	if ( oneWay > 750 ) {
-		oneWay = 750;
-	}
-	if ( oneWay >= 80 ) {
-		margin = oneWay * 2 + 50;
-	} else {
-		margin = 48;
-	}
-	return cmdTime + oneWay * 2 + margin;
+	return targ->client->ps.commandTime + age + 48;
 }
 
 static int G_LightningVelMilli( float v ) {

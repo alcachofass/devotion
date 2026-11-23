@@ -498,14 +498,14 @@ void CG_SpawnEdit_AddSceneEntities( void ) {
 	}
 
 	highlight = CG_SpawnEdit_HighlightEntNum();
-	CG_DrawSpawnpointMarkers( drawSpots, drawEnts, drawCount, highlight );
+	CG_DrawSpawnpointMarkers( drawSpots, drawEnts, drawCount, highlight, qfalse );
 
 	if ( cg_spawnEditMoveActive && cg_spawnEditMoveValid ) {
 		memset( &ghostSpot, 0, sizeof( ghostSpot ) );
 		VectorCopy( cg_spawnEditMoveGhostOrigin, ghostSpot.origin );
 		VectorCopy( cg_spawnEditMoveGhostAngles, ghostSpot.angle );
 		ghostSpot.team = cg_spawnEditMoveTeam;
-		CG_DrawSpawnpointMarkers( &ghostSpot, NULL, 1, -1 );
+		CG_DrawSpawnpointMarkers( &ghostSpot, NULL, 1, -1, qfalse );
 	}
 }
 

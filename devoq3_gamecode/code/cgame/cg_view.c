@@ -1382,6 +1382,9 @@ static void CG_PlayBufferedRewardSounds( void ) {
 
 #define SPAWN_MARKER_HIGHLIGHT_ALPHA	0.42f
 #define SPAWN_MARKER_HIGHLIGHT_SCALE	1.1f
+// Player-origin distance at which a warmup ghost is not submitted.
+// Clears the body the player is standing in without hiding the next pad.
+#define SPAWN_MARKER_NEAR_CULL			48.0f
 
 static void CG_ScaleSpawnMarkerEnt( refEntity_t *ent, float scale ) {
 	if ( !ent || scale <= 0.0f ) {
@@ -1434,16 +1437,23 @@ static void CG_DrawSpawnpointMarkerHighlight( refEntity_t *legs, refEntity_t *to
 	trap_R_AddRefEntityToScene( &overlay );
 }
 
-void CG_DrawSpawnpointMarkers( const spawnpoint_t *pts, const int *entNums, int count, int highlightEnt ) {
+void CG_DrawSpawnpointMarkers( const spawnpoint_t *pts, const int *entNums, int count, int highlightEnt, qboolean cullNear ) {
 	int				i;
 	refEntity_t		legs;
 	refEntity_t		torso;
 	refEntity_t		head;
 	clientInfo_t	*ci;
 	qboolean		highlight;
+	vec3_t			playerOrigin;
+	float			cullDistSq = 0.0f;
 
 	if ( !pts || count <= 0 || !cg.snap ) {
 		return;
+	}
+
+	if ( cullNear ) {
+		VectorCopy( cg.predictedPlayerState.origin, playerOrigin );
+		cullDistSq = SPAWN_MARKER_NEAR_CULL * SPAWN_MARKER_NEAR_CULL;
 	}
 
 	ci = &cgs.clientinfo[ cg.snap->ps.clientNum ];
@@ -1465,6 +1475,10 @@ void CG_DrawSpawnpointMarkers( const spawnpoint_t *pts, const int *entNums, int 
 	torso.oldframe = torso.frame;
 
 	for ( i = 0; i < count; i++ ) {
+		if ( cullNear && DistanceSquared( pts[i].origin, playerOrigin ) < cullDistSq ) {
+			continue;
+		}
+
 		highlight = ( highlightEnt >= 0 && entNums && entNums[i] == highlightEnt ) ? qtrue : qfalse;
 
 		VectorCopy( pts[i].origin, legs.origin );
@@ -1505,7 +1519,7 @@ void CG_AddSpawnpoints( void ) {
 	if ( !cg_drawSpawnpoints.integer ) {
 		return;
 	}
-	CG_DrawSpawnpointMarkers( cg.spawnpoints, NULL, cg.numSpawnpoints, -1 );
+	CG_DrawSpawnpointMarkers( cg.spawnpoints, NULL, cg.numSpawnpoints, -1, qtrue );
 }
 
 void CG_SpecZooming(void) {
